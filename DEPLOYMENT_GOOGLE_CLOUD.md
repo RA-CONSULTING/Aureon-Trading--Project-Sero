@@ -1,70 +1,98 @@
-# Google Cloud deployment preparation
+# Aureon on Google Cloud
 
-Target project: `aureon-trading`. The inspected Cloud Run create-service form
-uses the GitHub / Cloud Build route, with region `europe-west1`. No service,
-build trigger, secret, IAM grant, or trading process was created by this import.
+The complete enhanced workspace is deployed to Compute Engine in project
+`aureon-trading`. The VM is `aureon-sero-20260906`, zone `europe-west1-b`, with
+2 vCPUs, 8 GiB RAM and a 50 GB persistent disk. Its boot disk is retained if
+the VM is deleted. The original Windows workspace has not been modified.
 
-## Credentials are preserved
+[Open the VM](https://console.cloud.google.com/compute/instancesDetail/zones/europe-west1-b/instances/aureon-sero-20260906?project=aureon-trading).
 
-The encrypted full-workspace backup contains the original credential files.
-They also remain in the original local workspace. Restore the backup locally
-using `full-workspace-backup/restore_aureon_backup.py` and the separately stored
-recovery key when needed. The backup is not a deployable container image.
+## Complete restoration and credentials
 
-For deployment, store the selected current credential values in Google Secret
-Manager in project `aureon-trading`. In Cloud Run's **Variables & Secrets** tab,
-choose **Reference a secret**, preserve the environment-variable names used by
-the application, and pin a reviewed secret version. Grant the chosen Cloud Run
-service identity Secret Accessor on the required secrets. Do not put credential
-values into source files, Docker build arguments, or container images.
+All **42,114 files / 5,137,430,459 bytes** from the encrypted workspace release
+were restored to `/srv/aureon/runtime/workspace`. AES-GCM authentication and
+every file checksum passed; no files were unavailable. This includes the
+original credential files, saved state, private records, logs, binary assets
+and embedded Git history.
 
-Google's instructions: [Configure Cloud Run secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets).
+The recovery key is stored in Google Secret Manager as
+`aureon-sero-workspace-recovery`. Its transfer used RSA-OAEP encryption; the
+plaintext key was not printed or written into shell commands. The restoration
+process received it through stdin. The VM has no Google service account.
 
-The local radar environment contains these credential variable names:
+Original credential files remain in the restored workspace. They have not been
+individually migrated into Secret Manager, and exchange credential validity has
+not been tested. The browsable GitHub source continues to redact credentials.
 
-```text
-CAPITAL_API_KEY
-CAPITAL_API_PASSWORD
-CAPITAL_API_SECRET
-CAPITAL_IDENTIFIER
-CAPITAL_PASSWORD
-CAPITAL_USER
-OLLAMA_API_KEY
-BINANCE_API_KEY
-BINANCE_API_SECRET
-KRAKEN_API_KEY
-KRAKEN_API_SECRET
-APCA_API_KEY_ID
-APCA_API_SECRET_KEY
+The five original files replaced by Linux compatibility and commissioning
+changes are retained under `/srv/aureon/import/pre-cloud-overlay`; the complete
+encrypted snapshot also remains under `/srv/aureon/import` and on GitHub.
+
+## Runtime profile
+
+Twelve registry-owned services run under systemd and are enabled at boot:
+real-time data feeder, Schumann daemon, planetary monitor, solar collector,
+space weather, autonomous health checks, radar signal bridge, HNC core, soul
+protection daemon, neural canvas, native Queen mind and heartbeat scheduler.
+`cloud_organ.py` defines the exact service names and supervision contract.
+
+The deployment sets `AUREON_DEPLOYMENT_HOLD=1`. This is an additional host gate:
+restored capital-release flags do not enable trading; the radar bridge does not
+launch an exchange script or replay imported signals as fresh observations.
+Code execution, process-control grants and outbound communication stay held
+during commissioning. Native reasoning and public data collection operate.
+
+Three registered components are included but inactive:
+
+| Component | Current reason |
+|---|---|
+| Live radar suite | Trading remains on HOLD |
+| Mind thought/action hub | Separate action endpoint activation is pending |
+| Self-questioning AI | Requires Ollama; the active native Queen does not |
+
+No exchange orders were placed as part of deployment. Running processes and
+source-preserved scientific descriptions are not validation of trading returns
+or scientific claims.
+
+## Verified checks
+
+- Complete archive authentication and 42,114 restored file checksums passed.
+- Linux dependency installation and `pip check` passed.
+- Five regression tests passed locally and on the VM, including restored live
+  approvals, prohibited process launches, public-data gates and signal replay.
+- All twelve configured processes were live; HNC, Queen and public data files
+  had fresh updates.
+- The active SQLite memory database returned `ok` from `PRAGMA quick_check`;
+  newly written HNC records were read back.
+- The dashboard returned HTTP 200 and its live event stream rendered in Chrome.
+
+## Private access
+
+The VM uses its own network. Incoming SSH is limited to Google's IAP range;
+there is no public dashboard listener or HTTP firewall rule. The neural canvas
+binds to `127.0.0.1:13012` on the VM.
+
+Run this in authenticated Cloud Shell, then choose **Web Preview → port 8080**:
+
+```sh
+gcloud compute ssh aureon-sero-20260906 \
+  --project=aureon-trading --zone=europe-west1-b --tunnel-through-iap \
+  -- -N -L 8080:127.0.0.1:13012 -o ExitOnForwardFailure=yes
 ```
 
-Select the actual current environment file for each component before importing
-values: the backup preserves historical copies as well. This import did not
-test credential validity or make exchange requests.
+The preview depends on the Cloud Shell session. The VM services continue to run
+when the browser or Cloud Shell closes. For an administrative shell, omit the
+arguments after `--tunnel-through-iap`.
 
-`CAPITAL_DEMO`, `CAPITAL_DEMO_MODE`, `BINANCE_TESTNET`,
-`KRAKEN_LIVE_ENABLED`, and `APCA_LIVE` are runtime controls, not credentials.
-Review them explicitly; uploading source does not authorize live orders.
+Useful commands on the VM:
 
-## Deployment work still required
+```sh
+sudo systemctl --no-pager list-units 'aureon-organ@*'
+sudo journalctl -u aureon-organ@hnc_core.service --no-pager -n 30
+```
 
-- The repository contains several projects, not a single root-level Cloud Run
-  application. Select the HTTP/API component and its build context first.
-- `aureon-trading/Dockerfile` refers to `requirements.txt` in that directory,
-  which was absent from the supplied source. It also uses older autonomous
-  trading startup paths. It has not been validated for the enhanced Fusion stack.
-- `aureon-os-upstream/Dockerfile` is a protected bootstrap preflight; its
-  entrypoint is not a long-running Cloud Run HTTP service.
-- Fusion uses Windows workspace defaults, a local Ollama model, background
-  processes, and mutable local state. Configure Linux paths with
-  `SERO_WORKSPACE`, supply the model runtime, and choose durable storage and
-  a single owner for each background process before running it in the cloud.
-- A Cloud Run service must listen on `0.0.0.0:$PORT`; its ordinary writable
-  filesystem is not durable. Review the [Cloud Run container contract](https://docs.cloud.google.com/run/docs/container-contract).
-- The inspected create form defaults to request-based billing and zero minimum
-  instances. Those settings do not establish continuous operation for this
-  daemon-oriented workspace. Choose a suitable runtime architecture and resource
-  budget before creating a service or worker.
+Organ output is also retained in the workspace `logs` directory. Reproducible
+provisioning, restoration, hold tests and service setup live in
+[`deployment/google-cloud`](deployment/google-cloud/).
 
-The encrypted backup is excluded from Docker and gcloud build contexts so that
-building an application does not bake its full private archive into an image.
+Google's reference: [SSH through IAP](https://docs.cloud.google.com/compute/docs/connect/ssh-using-iap).

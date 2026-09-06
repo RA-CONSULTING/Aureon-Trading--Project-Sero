@@ -368,6 +368,8 @@ ORGAN_ORDER = list(ORGANS)
 
 def _release_granted() -> bool:
     """True only when the orchestrator has pulled the capital pin."""
+    if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
+        return False
     return CAPITAL_RELEASE_FLAG.exists()
 
 

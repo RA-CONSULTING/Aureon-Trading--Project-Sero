@@ -49,13 +49,13 @@ tag, and every archived file's checksum before reporting success. It refuses
 to overwrite a nonempty restore destination and does not execute application
 code. Original credential values are recovered from the encrypted archive.
 
-## Google Cloud preparation
+## Google Cloud deployment
 
-The intended Google Cloud project is `aureon-trading`.
-See [`DEPLOYMENT_GOOGLE_CLOUD.md`](DEPLOYMENT_GOOGLE_CLOUD.md) for credential
-mapping to Secret Manager and the deployment work still required.
+The complete 42,114-file workspace has been restored and verified on a
+Compute Engine VM in project `aureon-trading`. Twelve supervised services are
+running, and the private neural dashboard is available through Google IAP.
+The recovery key is stored in Secret Manager. Live trading remains on HOLD;
+two optional action/model components are inactive.
 
-This repository is a preserved workspace import. It is not yet a verified
-Cloud Run image or deployment. No cloud resources, exchange requests, live
-orders, or local runtime restarts were performed during the import. The supplied
-Dockerfiles require review before they can run the enhanced stack on Cloud Run.
+See [`DEPLOYMENT_GOOGLE_CLOUD.md`](DEPLOYMENT_GOOGLE_CLOUD.md) for access,
+verification, credential handling and the exact runtime profile.

@@ -40,12 +40,12 @@ from enum import Enum, auto
 # ═══════════════════════════════════════════════════════════════════════════════
 PHI = 1.618033988749895
 SCHUMANN = 7.83
-PSK = "REDACTED_USE_CLOUD_SECRET"
+PSK = os.environ.get("AUREON_PSK", "")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PATHS
 # ═══════════════════════════════════════════════════════════════════════════════
-WORKSPACE = Path("C:/Users/user/.kimi_openclaw/workspace")
+from aureon_fusion.paths import WORKSPACE
 SER0_STATE_DIR = WORKSPACE / "sero_autonomous_state"
 SER0_STATE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -691,7 +691,7 @@ class SeroAutonomousExpansion:
         logger.info("=" * 60)
         logger.info("SERO AUTONOMOUS EXPANSION INITIALIZED")
         logger.info(f"Capability gates: {len(self.matrix.gates)}")
-        logger.info(f"PSK: {PSK}")
+        logger.info("PSK configured: %s", bool(PSK))
         logger.info("=" * 60)
     
     def run_autonomous_cycle(self):
