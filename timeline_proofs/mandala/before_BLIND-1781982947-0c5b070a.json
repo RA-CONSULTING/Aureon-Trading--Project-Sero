@@ -1,0 +1,26 @@
+[
+  {
+    "source": "hackernews",
+    "url": "https://news.ycombinator.com/rss",
+    "timestamp": "2026-06-20T19:15:20.678760+00:00",
+    "headlines": [
+      "Agency stole bestselling author&#x27;s book, used AI to relaunch as their own",
+      "SMPTE Makes Its Standards Freely Accessible",
+      "UHF X11: X11 Built for VisionOS and Apple Vision Pro",
+      "DOS Game &quot;F-15 Strike Eagle II&quot; reversing project needs DOS test pilots",
+      "CSSQuake"
+    ],
+    "full_text": "Agency stole bestselling author&#x27;s book, used AI to relaunch as their own\nSMPTE Makes Its Standards Freely Accessible\nUHF X11: X11 Built for VisionOS and Apple Vision Pro\nDOS Game &quot;F-15 Strike Eagle II&quot; reversing project needs DOS test pilots\nCSSQuake",
+    "word_count": 41,
+    "hash": "f42379f04b5dd685"
+  },
+  {
+    "source": "textise_bbc",
+    "url": "https://r.jina.ai/http://feeds.bbci.co.uk/news/rss.xml",
+    "timestamp": "2026-06-20T19:15:20.678760+00:00",
+    "headlines": [],
+    "full_text": "",
+    "word_count": 0,
+    "hash": "0868df64aecd1f79"
+  }
+]

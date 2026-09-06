@@ -1,0 +1,50 @@
+{
+  "positions": {
+    "alpaca:ETHUSD": {
+      "exchange": "alpaca",
+      "symbol": "ETHUSD",
+      "asset": "ETHUSD",
+      "quote": "USD",
+      "avg_entry_price": 1825.57,
+      "total_quantity": 5.57e-07,
+      "total_cost": 0.00101684249,
+      "total_fees": 0,
+      "trade_count": 1,
+      "synced_at": 1788697091.4223578
+    },
+    "alpaca:SOLUSD": {
+      "exchange": "alpaca",
+      "symbol": "SOLUSD",
+      "asset": "SOLUSD",
+      "quote": "USD",
+      "avg_entry_price": 105.01,
+      "total_quantity": 0.047520365,
+      "total_cost": 4.99011352865,
+      "total_fees": 0,
+      "trade_count": 1,
+      "synced_at": 1788697091.4223578
+    }
+  },
+  "trade_lots": {
+    "alpaca:ETHUSD": [
+      {
+        "price": 1825.57,
+        "quantity": 5.57e-07,
+        "timestamp": 1788697091.4223578,
+        "fee": 0.0,
+        "order_id": null
+      }
+    ],
+    "alpaca:SOLUSD": [
+      {
+        "price": 105.01,
+        "quantity": 0.047520365,
+        "timestamp": 1788697091.4223578,
+        "fee": 0.0,
+        "order_id": null
+      }
+    ]
+  },
+  "last_sync": 1788697090.7043111,
+  "updated_at": "2026-09-06T13:18:13.441073"
+}

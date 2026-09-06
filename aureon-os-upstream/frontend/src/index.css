@@ -1,0 +1,335 @@
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Aureon professional theme — neutral slate surfaces with a refined gold accent.
+       Light mode: clean, high-contrast, enterprise-grade. */
+    --background: 210 20% 98%;
+    --foreground: 222 24% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 24% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 24% 12%;
+
+    /* Brand gold — used sparingly as the single accent (gold on slate reads premium) */
+    --primary: 38 92% 46%;
+    --primary-foreground: 40 45% 10%;
+    --primary-glow: 38 90% 60%;
+
+    /* Neutral slate secondary surface */
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 222 22% 22%;
+    --secondary-glow: 217 20% 70%;
+
+    --accent: 210 16% 92%;
+    --accent-foreground: 222 22% 20%;
+    --accent-glow: 199 89% 55%;
+
+    --muted: 210 16% 94%;
+    --muted-foreground: 215 16% 42%;
+
+    --destructive: 0 72% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 62% 38%;
+    --success-foreground: 0 0% 100%;
+
+    /* Caution amber — distinct from the brand gold, completes the status triad */
+    --warning: 32 94% 44%;
+    --warning-foreground: 40 45% 10%;
+
+    /* Gold for highlights */
+    --love: 38 92% 46%;
+    --love-foreground: 40 45% 10%;
+
+    --border: 214 15% 88%;
+    --input: 214 15% 88%;
+    --ring: 38 92% 46%;
+
+    --radius: 0.5rem;
+
+    /* Rainbow Prism Gradients */
+    --gradient-rainbow: linear-gradient(135deg, hsl(0 85% 55%) 0%, hsl(45 100% 55%) 20%, hsl(142 70% 45%) 40%, hsl(185 100% 50%) 60%, hsl(280 80% 60%) 80%, hsl(320 80% 55%) 100%);
+    --gradient-prism: linear-gradient(135deg, hsl(142 70% 45%) 0%, hsl(185 100% 50%) 50%, hsl(280 80% 60%) 100%);
+    --gradient-love: linear-gradient(135deg, hsl(142 70% 40%) 0%, hsl(142 70% 50%) 100%);
+    --gradient-void: radial-gradient(ellipse at center, hsl(280 40% 8%) 0%, hsl(240 15% 3%) 70%);
+    --gradient-card: linear-gradient(135deg, hsl(240 12% 8%) 0%, hsl(240 12% 5%) 100%);
+
+    /* Quantum Glow Shadows */
+    --shadow-glow-love: 0 0 40px hsla(142, 70%, 45%, 0.5), 0 0 80px hsla(142, 70%, 45%, 0.25);
+    --shadow-glow-prism: 0 0 40px hsla(185, 100%, 50%, 0.4), 0 0 80px hsla(280, 80%, 60%, 0.2);
+    --shadow-glow-rainbow: 0 0 30px hsla(0, 85%, 55%, 0.3), 0 0 60px hsla(142, 70%, 45%, 0.3), 0 0 90px hsla(280, 80%, 60%, 0.3);
+    --shadow-card: 0 8px 32px -8px hsla(0, 0%, 0%, 0.5);
+
+    /* Premium dark sidebar against the light content area (enterprise console look) */
+    --sidebar-background: 222 26% 9%;
+    --sidebar-foreground: 210 16% 80%;
+    --sidebar-primary: 38 92% 52%;
+    --sidebar-primary-foreground: 40 45% 10%;
+    --sidebar-accent: 222 20% 16%;
+    --sidebar-accent-foreground: 210 16% 92%;
+    --sidebar-border: 222 16% 18%;
+    --sidebar-ring: 38 92% 52%;
+    /* Restrained, cohesive categorical charts (gold · sky · indigo · rose · slate) */
+    --chart-1: 38 92% 50%;
+    --chart-2: 199 89% 48%;
+    --chart-3: 243 50% 60%;
+    --chart-4: 340 62% 55%;
+    --chart-5: 215 16% 55%;
+    --sidebar: 222 26% 9%;
+    --font-sans: 'Source Sans Pro', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    --font-serif: 'Source Serif Pro', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+    --font-mono: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    --tracking-normal: 0em;
+    --spacing: 0.25rem;
+  }
+
+  .dark {
+    /* Dark mode: deep, neutral slate (no purple void) with the same gold accent. */
+    --background: 222 24% 8%;
+    --foreground: 210 16% 90%;
+    --card: 222 22% 11%;
+    --card-foreground: 210 16% 90%;
+    --popover: 222 22% 12%;
+    --popover-foreground: 210 16% 90%;
+    --primary: 40 92% 55%;
+    --primary-foreground: 40 45% 10%;
+    --primary-glow: 38 90% 62%;
+    --secondary: 217 18% 20%;
+    --secondary-foreground: 210 16% 88%;
+    --secondary-glow: 217 24% 40%;
+    --accent: 217 18% 18%;
+    --accent-foreground: 210 16% 90%;
+    --accent-glow: 199 89% 55%;
+    --muted: 217 16% 17%;
+    --muted-foreground: 215 14% 60%;
+    --destructive: 0 70% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 58% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 36 94% 52%;
+    --warning-foreground: 40 45% 10%;
+    --border: 217 16% 20%;
+    --input: 217 16% 20%;
+    --ring: 40 92% 55%;
+    --sidebar-background: 222 26% 7%;
+    --sidebar-foreground: 210 16% 80%;
+    --sidebar-primary: 40 92% 55%;
+    --sidebar-primary-foreground: 40 45% 10%;
+    --sidebar-accent: 222 20% 14%;
+    --sidebar-accent-foreground: 210 16% 92%;
+    --sidebar-border: 222 16% 15%;
+    --sidebar-ring: 40 92% 55%;
+    --chart-1: 40 92% 55%;
+    --chart-2: 199 85% 55%;
+    --chart-3: 243 55% 68%;
+    --chart-4: 340 65% 62%;
+    --chart-5: 215 16% 62%;
+    --sidebar: 222 26% 7%;
+    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    /* Solid, professional surface — no always-on "void" gradient (it forced a dark
+       toy background even in light mode). The cinematic gradient/glow utilities below
+       remain available to the opt-in immersive surfaces that explicitly use them. */
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* AUREON Glow Effects */
+  .glow-love {
+    box-shadow: var(--shadow-glow-love);
+  }
+
+  .glow-prism {
+    box-shadow: var(--shadow-glow-prism);
+  }
+
+  .glow-rainbow {
+    box-shadow: var(--shadow-glow-rainbow);
+  }
+
+  /* Rainbow text gradient */
+  .text-rainbow {
+    background: var(--gradient-rainbow);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-prism {
+    background: var(--gradient-prism);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* 528 Hz Love Pulse */
+  @keyframes love-pulse {
+    0%, 100% { 
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 0 0 20px hsla(142, 70%, 45%, 0.5);
+    }
+    50% { 
+      opacity: 0.9;
+      transform: scale(1.02);
+      box-shadow: 0 0 40px hsla(142, 70%, 45%, 0.7);
+    }
+  }
+
+  @keyframes prism-shift {
+    0% { filter: hue-rotate(0deg); }
+    100% { filter: hue-rotate(360deg); }
+  }
+
+  @keyframes rainbow-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .love-pulse {
+    animation: love-pulse 2s ease-in-out infinite;
+  }
+
+  .prism-shift {
+    animation: prism-shift 8s linear infinite;
+  }
+
+  .rainbow-flow {
+    background-size: 200% 200%;
+    animation: rainbow-flow 4s ease infinite;
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg, transparent, hsla(142, 70%, 45%, 0.2), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  /* Prism border effect */
+  .border-prism {
+    border-image: var(--gradient-prism) 1;
+  }
+
+  /* Glowing card hover */
+  .card-hover-glow {
+    transition: all 0.3s ease;
+  }
+  .card-hover-glow:hover {
+    box-shadow: var(--shadow-glow-love);
+    border-color: hsl(var(--primary) / 0.5);
+  }
+
+  /* HNC Imperial Detection - CRT Terminal Styles */
+  @keyframes hnc-scan {
+    0% { top: 0%; }
+    100% { top: 100%; }
+  }
+
+  @keyframes hnc-glitch {
+    0% { clip: rect(10px, 9999px, 30px, 0); transform: skew(0.2deg); }
+    20% { clip: rect(50px, 9999px, 90px, 0); transform: skew(-0.5deg); }
+    40% { clip: rect(20px, 9999px, 60px, 0); transform: skew(0.3deg); }
+    60% { clip: rect(80px, 9999px, 100px, 0); transform: skew(-0.2deg); }
+    80% { clip: rect(10px, 9999px, 40px, 0); transform: skew(0.4deg); }
+    100% { clip: rect(60px, 9999px, 80px, 0); transform: skew(-0.1deg); }
+  }
+
+  .hnc-terminal {
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    background-color: hsl(120 100% 5% / 0.9);
+    color: hsl(120 100% 60%);
+  }
+
+  .hnc-text-glow {
+    text-shadow: 0 0 5px hsl(120 100% 60%), 0 0 10px hsl(120 100% 60%);
+  }
+
+  .hnc-crt::before {
+    content: " ";
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 2px, 3px 100%;
+    pointer-events: none;
+    z-index: 20;
+  }
+
+  .hnc-scan-line {
+    width: 100%;
+    height: 5px;
+    background: hsla(120, 100%, 60%, 0.3);
+    position: absolute;
+    z-index: 10;
+    animation: hnc-scan 3s linear infinite;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  .hnc-glitch {
+    position: relative;
+  }
+
+  .hnc-glitch::before,
+  .hnc-glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hnc-glitch::before {
+    left: 2px;
+    text-shadow: -1px 0 hsl(330 100% 60%);
+    animation: hnc-glitch 5s infinite linear alternate-reverse;
+  }
+
+  .hnc-glitch::after {
+    left: -2px;
+    text-shadow: -1px 0 hsl(180 100% 60%);
+    animation: hnc-glitch 5s infinite linear alternate-reverse reverse;
+  }
+}

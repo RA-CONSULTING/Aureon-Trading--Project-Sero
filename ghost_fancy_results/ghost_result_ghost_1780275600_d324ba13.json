@@ -1,0 +1,4057 @@
+{
+  "transmission": {
+    "transmission_id": "ghost_1780275600_d324ba13",
+    "target": {
+      "target_time": "2026-06-01T01:00:00+00:00",
+      "precision_minutes": 5,
+      "timezone": "UTC",
+      "description": "Automated ghost mission \u2014 probing 23 days back",
+      "significance": "Temporal field validation and Gaia goal advancement",
+      "data_sources_available": [
+        "usgs_seismic"
+      ],
+      "data_sources_missing": []
+    },
+    "love_frequency": 528.0,
+    "truth_frequency": 741.0,
+    "sentinel_frequency": 2.111991,
+    "schumann_grounding": 7.83,
+    "base_boost": 1.0,
+    "phi_lock_bonus": 1.3,
+    "coherence_multiplier": 1.1613823821006262,
+    "distortion_counter_boost": 1.2031705707396243,
+    "total_boost": 1.8165434345746414,
+    "safety_limit": 5.0,
+    "is_safe": true,
+    "safety_warnings": [],
+    "echo_id": "echo_ghost_1780275600_d324ba13",
+    "echo_strength": 0.5863162133218173,
+    "proof_hash": "3b3b4b1fa7fd244c12d0e6f91d8d2b2889c71fcee86fe52b33ffc58f0fcdad39",
+    "transmission_timestamp": "2026-06-24T01:07:09.485090+00:00"
+  },
+  "penetration_result": {
+    "transmission_id": "ghost_1780275600_d324ba13",
+    "target": {
+      "target_time": "2026-06-01T01:00:00+00:00",
+      "precision_minutes": 5,
+      "timezone": "UTC",
+      "description": "Automated ghost mission \u2014 probing 23 days back",
+      "significance": "Temporal field validation and Gaia goal advancement",
+      "data_sources_available": [
+        "usgs_seismic"
+      ],
+      "data_sources_missing": []
+    },
+    "snapshots_before": [
+      {
+        "timestamp": "2026-05-31T01:19:39.330000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.71,
+        "raw_data": {
+          "magnitude": 2.71,
+          "place": "90 km ESE of Maneadero, B.C., MX",
+          "coordinates": [
+            -115.657333333333,
+            31.4786666666667,
+            6.54
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.33875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T01:30:50.983000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "220 km SE of Chiniak, Alaska",
+          "coordinates": [
+            -149.598,
+            56.276,
+            5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T01:41:20.735000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.1,
+        "raw_data": {
+          "magnitude": 3.1,
+          "place": "65 km SSW of Adak, Alaska",
+          "coordinates": [
+            -177.0517,
+            51.3437,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T01:58:25.716000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "17 km NNW of China, Japan",
+          "coordinates": [
+            128.4719,
+            27.4627,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T02:21:23.861000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4,
+        "raw_data": {
+          "magnitude": 4,
+          "place": "82 km SW of Brisas Barra de Suchiate, Mexico",
+          "coordinates": [
+            -92.7377,
+            13.9847,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T02:48:01.177000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "71 km NW of Port-Vila, Vanuatu",
+          "coordinates": [
+            167.7742,
+            -17.3448,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T03:13:25.170000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "213 km SE of Sarangani, Philippines",
+          "coordinates": [
+            126.8207,
+            4.0392,
+            54.065
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T03:57:05.570000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "south of the Fiji Islands",
+          "coordinates": [
+            -179.7513,
+            -24.1655,
+            481.627
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T03:58:44.733000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "3 km S of Aritao, Philippines",
+          "coordinates": [
+            121.0291,
+            16.2625,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T04:41:41.367000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.2,
+        "raw_data": {
+          "magnitude": 3.2,
+          "place": "19 km ENE of Pedro Bay, Alaska",
+          "coordinates": [
+            -153.772,
+            59.84,
+            163.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.4,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T05:02:34.943000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "27 km SW of Kokopo, Papua New Guinea",
+          "coordinates": [
+            152.0986,
+            -4.5294,
+            169.054
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T05:08:52.471000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "93 km ESE of Nikolski, Alaska",
+          "coordinates": [
+            -167.507,
+            52.752,
+            29.5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T05:23:02.623000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "140 km SE of Akutan, Alaska",
+          "coordinates": [
+            -164.033,
+            53.411,
+            19.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T05:50:06.102000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "44 km S of Castro Barros, Argentina",
+          "coordinates": [
+            -65.674,
+            -30.9802,
+            180.733
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T05:57:11.048000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "21 km E of Aras-asan, Philippines",
+          "coordinates": [
+            126.5066,
+            8.9178,
+            56.726
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T06:03:21.536000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "107 km SSE of Sand Point, Alaska",
+          "coordinates": [
+            -159.9761,
+            54.4177,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T06:19:18.239000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "79 km SE of Unalaska, Alaska",
+          "coordinates": [
+            -165.693,
+            53.368,
+            16.1
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T06:21:09.710000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.55,
+        "raw_data": {
+          "magnitude": 2.55,
+          "place": "8 km N of Pinnacles, CA",
+          "coordinates": [
+            -121.132666666667,
+            36.6038333333333,
+            8.38
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.15000000000000005,
+        "is_anomaly": false,
+        "anomaly_score": 0.31875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T07:00:11.974000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "South Sandwich Islands region",
+          "coordinates": [
+            -25.4446,
+            -57.8991,
+            46.006
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T07:16:59.835000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.8,
+        "raw_data": {
+          "magnitude": 2.8,
+          "place": "101 km SSE of Sand Point, Alaska",
+          "coordinates": [
+            -159.9689,
+            54.4768,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.35,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T07:26:01.741000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3,
+        "raw_data": {
+          "magnitude": 3,
+          "place": "201 km WSW of Adak, Alaska",
+          "coordinates": [
+            -179.4026,
+            51.3314,
+            28.1
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.0,
+        "is_anomaly": false,
+        "anomaly_score": 0.375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T07:40:59.500000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "38 km S of Calingasta, Argentina",
+          "coordinates": [
+            -69.3877,
+            -31.6786,
+            108.933
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T08:01:54.679000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "72 km E of Pondaguitan, Philippines",
+          "coordinates": [
+            126.8256,
+            6.2909,
+            8.806
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T08:30:59.206000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "60 km SSW of Nikolski, Alaska",
+          "coordinates": [
+            -169.086,
+            52.415,
+            24
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T08:45:18.703000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.3,
+        "raw_data": {
+          "magnitude": 3.3,
+          "place": "Rat Islands, Aleutian Islands, Alaska",
+          "coordinates": [
+            178.7947,
+            51.5279,
+            76.695
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.4125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T09:01:42.443000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "54 km WNW of Catuday, Philippines",
+          "coordinates": [
+            119.3145,
+            16.43,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T09:12:10.425000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "47 km NNE of Komodo, Indonesia",
+          "coordinates": [
+            119.5859,
+            -8.1709,
+            180.112
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T09:40:21.480000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "12 km W of Petrolia, CA",
+          "coordinates": [
+            -124.4245,
+            40.31,
+            27.63
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T10:10:22.066000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4,
+        "raw_data": {
+          "magnitude": 4,
+          "place": "175 km SSE of Alo, Wallis and Futuna",
+          "coordinates": [
+            -177.3762,
+            -15.7309,
+            410.328
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T10:51:46.408000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "131 km SW of Jiquilillo, Nicaragua",
+          "coordinates": [
+            -88.3609,
+            11.9661,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T10:58:51.849000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "34 km ENE of Noda, Japan",
+          "coordinates": [
+            142.1925,
+            40.2167,
+            53.969
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T11:05:27.119000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4,
+        "raw_data": {
+          "magnitude": 4,
+          "place": "Fiji region",
+          "coordinates": [
+            -177.6425,
+            -18.5974,
+            584.174
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T11:15:19.602000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "247 km SSE of \u015eal\u0101lah, Oman",
+          "coordinates": [
+            54.8206,
+            14.8902,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T12:02:29.206000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "10 km NE of Skwentna, Alaska",
+          "coordinates": [
+            -151.286,
+            62.068,
+            77.4
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T12:26:03.268000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "58 km WNW of Catuday, Philippines",
+          "coordinates": [
+            119.274,
+            16.3982,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T12:36:46.094000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "50 km ENE of Kuji, Japan",
+          "coordinates": [
+            142.3186,
+            40.3629,
+            43.21
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T12:37:12.074000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "62 km SW of Atocha, Bolivia",
+          "coordinates": [
+            -66.6244,
+            -21.3491,
+            222.777
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T12:42:36.504000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.4,
+        "raw_data": {
+          "magnitude": 3.4,
+          "place": "181 km WSW of Nikolski, Alaska",
+          "coordinates": [
+            -171.1057,
+            52.0564,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.425,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T13:38:50.030000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.07,
+        "raw_data": {
+          "magnitude": 4.07,
+          "place": "173 km NNW of The Valley, Anguilla",
+          "coordinates": [
+            -63.5678,
+            19.703,
+            63
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.35666666666666674,
+        "is_anomaly": false,
+        "anomaly_score": 0.50875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T14:26:40.593000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "Bonin Islands, Japan region",
+          "coordinates": [
+            139.7655,
+            27.479,
+            522.221
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T14:27:32.984000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.8,
+        "raw_data": {
+          "magnitude": 2.8,
+          "place": "61 km NNE of Miches, Dominican Republic",
+          "coordinates": [
+            -68.7259,
+            19.4425,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.35,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T15:00:18.777000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "115 km SW of Jiquilillo, Nicaragua",
+          "coordinates": [
+            -88.2636,
+            12.076,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T15:03:32.086000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "Nicobar Islands, India region",
+          "coordinates": [
+            91.812,
+            7.5739,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T15:04:32.841000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "111 km SW of Jiquilillo, Nicaragua",
+          "coordinates": [
+            -88.2816,
+            12.152,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T15:21:24.833000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3,
+        "raw_data": {
+          "magnitude": 3,
+          "place": "93 km SSE of Sand Point, Alaska",
+          "coordinates": [
+            -159.9941,
+            54.544,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.0,
+        "is_anomaly": false,
+        "anomaly_score": 0.375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T16:05:32.600000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.57,
+        "raw_data": {
+          "magnitude": 3.57,
+          "place": "95 km N of San Juan, Puerto Rico",
+          "coordinates": [
+            -66.1578,
+            19.3275,
+            9
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.18999999999999995,
+        "is_anomaly": false,
+        "anomaly_score": 0.44625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T16:10:06.786000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4,
+        "raw_data": {
+          "magnitude": 4,
+          "place": "28 km W of Fry, Greece",
+          "coordinates": [
+            26.6079,
+            35.3802,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T16:13:37.534000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "northern East Pacific Rise",
+          "coordinates": [
+            -103.819,
+            10.3064,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T17:14:01.105000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.7,
+        "raw_data": {
+          "magnitude": 4.7,
+          "place": "64 km S of Masachapa, Nicaragua",
+          "coordinates": [
+            -86.5887,
+            11.212,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.5875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T17:19:01.312000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.2,
+        "raw_data": {
+          "magnitude": 3.2,
+          "place": "95 km ESE of Adak, Alaska",
+          "coordinates": [
+            -175.3727,
+            51.5343,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.4,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T17:43:47.553000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "98 km SE of Ollag\u00fce, Chile",
+          "coordinates": [
+            -67.52,
+            -21.7943,
+            196.6
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T18:09:48.820000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "167 km N of Barra Patuca, Honduras",
+          "coordinates": [
+            -84.3177,
+            17.3168,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T18:19:09.263000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "27 km N of Nakasongola, Uganda",
+          "coordinates": [
+            32.4735,
+            1.5529,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T18:22:57.863000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.1,
+        "raw_data": {
+          "magnitude": 3.1,
+          "place": "299 km WSW of Adak, Alaska",
+          "coordinates": [
+            179.2425,
+            51.089,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T19:15:39.354000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "Kermadec Islands, New Zealand",
+          "coordinates": [
+            -178.8597,
+            -30.677,
+            107.579
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T19:18:07.896000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.9,
+        "raw_data": {
+          "magnitude": 3.9,
+          "place": "204 km WNW of Attu Station, Alaska",
+          "coordinates": [
+            170.2158,
+            53.2656,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3,
+        "is_anomaly": false,
+        "anomaly_score": 0.4875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T19:46:47.800000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.7,
+        "raw_data": {
+          "magnitude": 4.7,
+          "place": "Bonin Islands, Japan region",
+          "coordinates": [
+            143.7997,
+            26.4771,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.5875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T19:58:28.257000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "221 km WSW of Adak, Alaska",
+          "coordinates": [
+            -179.5537,
+            51.0666,
+            10.896
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T20:33:20.360000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.53,
+        "raw_data": {
+          "magnitude": 2.53,
+          "place": "10 km WNW of The Geysers, CA",
+          "coordinates": [
+            -122.855333333333,
+            38.82,
+            2.65
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.15666666666666673,
+        "is_anomaly": false,
+        "anomaly_score": 0.31625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T20:35:38.457000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "86 km SSE of Nikolski, Alaska",
+          "coordinates": [
+            -168.372,
+            52.217,
+            3.2
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T20:43:56.785000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "134 km N of Lae, Papua New Guinea",
+          "coordinates": [
+            147.0196,
+            -5.5039,
+            194.527
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T20:54:41.139000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "27 km N of J\u014detsu, Japan",
+          "coordinates": [
+            138.199,
+            37.3943,
+            34.775
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:28:23.255000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "53 km NW of Abepura, Indonesia",
+          "coordinates": [
+            140.2623,
+            -2.283,
+            25.863
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:34:17.983000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 6,
+        "raw_data": {
+          "magnitude": 6,
+          "place": "33 km NW of Valpara\u00edso, Chile",
+          "coordinates": [
+            -71.8796,
+            -32.8194,
+            25
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 1.0,
+        "is_anomaly": true,
+        "anomaly_score": 0.75,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:36:42.126000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "241 km SSE of \u015eal\u0101lah, Oman",
+          "coordinates": [
+            54.7895,
+            14.9424,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:40:26.112000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "228 km SSE of \u015eal\u0101lah, Oman",
+          "coordinates": [
+            54.7274,
+            15.0426,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:41:54.946000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "290 km WNW of Houma, Tonga",
+          "coordinates": [
+            -177.6505,
+            -19.7546,
+            565.676
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:46:54.460000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "47 km NW of Valpara\u00edso, Chile",
+          "coordinates": [
+            -71.9328,
+            -32.6921,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:52:03.162000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "142 km SSE of Atka, Alaska",
+          "coordinates": [
+            -173.072,
+            51.1231,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T21:52:11.794000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.8,
+        "raw_data": {
+          "magnitude": 4.8,
+          "place": "30 km NNW of Valpara\u00edso, Chile",
+          "coordinates": [
+            -71.7792,
+            -32.7925,
+            27.522
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6,
+        "is_anomaly": false,
+        "anomaly_score": 0.6,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T22:09:58.129000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "35 km NNW of Valpara\u00edso, Chile",
+          "coordinates": [
+            -71.7918,
+            -32.7445,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T22:18:34.006000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "28 km NE of San Mart\u00edn, Argentina",
+          "coordinates": [
+            -68.3321,
+            -31.2198,
+            109.562
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T22:56:35.436000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "25 km SSW of Atoka, New Mexico",
+          "coordinates": [
+            -104.4723,
+            32.5508,
+            6.52
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T23:27:55.665000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "South Sandwich Islands region",
+          "coordinates": [
+            -25.611,
+            -57.9571,
+            80.457
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-05-31T23:29:48.270000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.43,
+        "raw_data": {
+          "magnitude": 3.43,
+          "place": "31 km NW of Rinc\u00f3n, Puerto Rico",
+          "coordinates": [
+            -67.4915,
+            18.502,
+            9.83
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.1433333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.42875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T00:08:41.694000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "Macquarie Island region",
+          "coordinates": [
+            157.425,
+            -57.8444,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T00:25:16.746000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "16 km E of Pedro Bay, Alaska",
+          "coordinates": [
+            -153.811,
+            59.776,
+            151.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T00:33:28.750000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.39,
+        "raw_data": {
+          "magnitude": 3.39,
+          "place": "63 km N of Charlotte Amalie, U.S. Virgin Islands",
+          "coordinates": [
+            -64.8318333333333,
+            18.9093333333333,
+            34.17
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.13000000000000003,
+        "is_anomaly": false,
+        "anomaly_score": 0.42375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      }
+    ],
+    "snapshot_target": null,
+    "snapshots_after": [
+      {
+        "timestamp": "2026-06-01T01:24:38.944000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "154 km ESE of McCarthy, Alaska",
+          "coordinates": [
+            -140.1124,
+            61.1184,
+            5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T02:05:47.537000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.8,
+        "raw_data": {
+          "magnitude": 2.8,
+          "place": "16 km SW of Nelson Lagoon, Alaska",
+          "coordinates": [
+            -161.3862,
+            55.8967,
+            195.366
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.35,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T02:28:03.526000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "off the east coast of Honshu, Japan",
+          "coordinates": [
+            142.5461,
+            33.0469,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T02:51:50.510000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "Izu Islands, Japan region",
+          "coordinates": [
+            142.4573,
+            32.8845,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T03:34:30.871000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.7,
+        "raw_data": {
+          "magnitude": 5.7,
+          "place": "Izu Islands, Japan region",
+          "coordinates": [
+            141.7476,
+            30.7158,
+            11
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.9,
+        "is_anomaly": true,
+        "anomaly_score": 0.7125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T03:40:11.053000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.3,
+        "raw_data": {
+          "magnitude": 5.3,
+          "place": "southeast of Easter Island",
+          "coordinates": [
+            -104.6576,
+            -35.387,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.7666666666666666,
+        "is_anomaly": true,
+        "anomaly_score": 0.6625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T03:58:03.565000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "Izu Islands, Japan region",
+          "coordinates": [
+            141.869,
+            30.6884,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T04:58:27.320000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.03,
+        "raw_data": {
+          "magnitude": 3.03,
+          "place": "6 km WSW of Fuig, Puerto Rico",
+          "coordinates": [
+            -66.9768333333333,
+            17.9671666666667,
+            7.98
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.009999999999999934,
+        "is_anomaly": false,
+        "anomaly_score": 0.37875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T05:16:15.532000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "264 km E of Levuka, Fiji",
+          "coordinates": [
+            -178.1836,
+            -18.1208,
+            567.977
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T05:37:28.709000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "68 km SSE of Unalaska, Alaska",
+          "coordinates": [
+            -165.999,
+            53.348,
+            21.1
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T05:41:41.892000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "Rat Islands, Aleutian Islands, Alaska",
+          "coordinates": [
+            178.807,
+            51.402,
+            43.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T05:53:38.510000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.57,
+        "raw_data": {
+          "magnitude": 2.57,
+          "place": "11 km NE of Susanville, CA",
+          "coordinates": [
+            -120.553166666667,
+            40.4835,
+            4.17
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1433333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.32125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T06:26:16.415000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.7,
+        "raw_data": {
+          "magnitude": 4.7,
+          "place": "189 km ESE of Alo, Wallis and Futuna",
+          "coordinates": [
+            -176.5027,
+            -15.0145,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.5875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T08:04:07.140000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.42,
+        "raw_data": {
+          "magnitude": 3.42,
+          "place": "17 km WSW of Toms Place, CA",
+          "coordinates": [
+            -118.841,
+            37.4811666666667,
+            14.09
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.13999999999999999,
+        "is_anomaly": false,
+        "anomaly_score": 0.4275,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T08:55:04.978000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "33 km SW of Acajutla, El Salvador",
+          "coordinates": [
+            -90.0795,
+            13.4154,
+            58.722
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T09:04:36.687000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "Kermadec Islands region",
+          "coordinates": [
+            -178.4404,
+            -28.3009,
+            192.885
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T09:21:53.765000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "10 km S of Unalaska, Alaska",
+          "coordinates": [
+            -166.5143,
+            53.7849,
+            15.197
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T09:38:17.617000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.8,
+        "raw_data": {
+          "magnitude": 2.8,
+          "place": "104 km E of Atka, Alaska",
+          "coordinates": [
+            -172.7001,
+            52.0347,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.35,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T10:32:50.122000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.8,
+        "raw_data": {
+          "magnitude": 4.8,
+          "place": "Macquarie Island region",
+          "coordinates": [
+            157.7628,
+            -57.8532,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6,
+        "is_anomaly": false,
+        "anomaly_score": 0.6,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T10:43:06.450000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "6 km E of Malbug, Philippines",
+          "coordinates": [
+            123.7078,
+            12.0643,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T10:57:15.279000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "6 km SE of Mati, Philippines",
+          "coordinates": [
+            126.2534,
+            6.9146,
+            66.238
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T11:10:07.378000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "18 km SSE of Westbrook, Texas",
+          "coordinates": [
+            -100.973,
+            32.195,
+            9.0332
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T11:24:33.561000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "35 km SE of Mehr\u0101n, Iran",
+          "coordinates": [
+            46.42,
+            32.8833,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T12:45:23.569000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "291 km E of Sola, Vanuatu",
+          "coordinates": [
+            170.2472,
+            -13.9286,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T12:48:55.654000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "42 km SW of Unalaska, Alaska",
+          "coordinates": [
+            -166.9745,
+            53.599,
+            9.26
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T12:53:40.209000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.2,
+        "raw_data": {
+          "magnitude": 3.2,
+          "place": "101 km N of Yakutat, Alaska",
+          "coordinates": [
+            -139.9746,
+            60.4532,
+            5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.4,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T13:03:43.376000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "107 km NNW of Yakutat, Alaska",
+          "coordinates": [
+            -140.1345,
+            60.4917,
+            5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T13:30:57.304000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "63 km E of Yamada, Japan",
+          "coordinates": [
+            142.6717,
+            39.362,
+            42.205
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T13:32:16.648000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "246 km WSW of Adak, Alaska",
+          "coordinates": [
+            179.963,
+            51.237,
+            12.7
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T13:38:59.680000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.43,
+        "raw_data": {
+          "magnitude": 3.43,
+          "place": "86 km SW of Pole Ojea, Puerto Rico",
+          "coordinates": [
+            -67.7636666666667,
+            17.4195,
+            27.72
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.1433333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.42875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T13:45:13.278000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "18 km NNW of Hverager\u00f0i, Iceland",
+          "coordinates": [
+            -21.2606,
+            64.1625,
+            10.934
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T14:12:03.006000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "125 km S of Akureyri, Iceland",
+          "coordinates": [
+            -17.7203,
+            64.572,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T14:40:24.058000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "31 km SW of Port Lions, Alaska",
+          "coordinates": [
+            -153.28,
+            57.675,
+            50.6
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T15:02:00.321000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.8,
+        "raw_data": {
+          "magnitude": 2.8,
+          "place": "123 km WSW of Adak, Alaska",
+          "coordinates": [
+            -178.1236,
+            51.27,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.35,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T15:51:25.836000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "9 km E of Asakawa, Japan",
+          "coordinates": [
+            140.5166,
+            37.0734,
+            53.215
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T15:58:58.626000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "101 km WSW of Jiquilillo, Nicaragua",
+          "coordinates": [
+            -88.2659,
+            12.304,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T16:08:51.588000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "south of the Fiji Islands",
+          "coordinates": [
+            179.668,
+            -26.097,
+            493.431
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T16:09:21.100000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4,
+        "raw_data": {
+          "magnitude": 4,
+          "place": "110 km E of Kokopo, Papua New Guinea",
+          "coordinates": [
+            153.251,
+            -4.4936,
+            112.006
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T16:40:41.084000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "63 km SSE of Nikolski, Alaska",
+          "coordinates": [
+            -168.6206,
+            52.3872,
+            37.05
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T18:23:05.746000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "Mid-Indian Ridge",
+          "coordinates": [
+            69.4931,
+            -23.8906,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T18:44:39.975000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "82 km SSE of Nikolski, Alaska",
+          "coordinates": [
+            -168.272,
+            52.2862,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T19:28:17.678000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "30 km NNE of Skwentna, Alaska",
+          "coordinates": [
+            -151.103,
+            62.225,
+            80.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T19:29:31.536000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "63 km ESE of Isangel, Vanuatu",
+          "coordinates": [
+            169.8669,
+            -19.6883,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T20:42:45.032000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4,
+        "raw_data": {
+          "magnitude": 4,
+          "place": "16 km E of Baja Mar, Honduras",
+          "coordinates": [
+            -87.7068,
+            15.8673,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T21:13:50.236000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "266 km W of Ferndale, California",
+          "coordinates": [
+            -127.4015,
+            40.48,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T21:16:28.719000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "141 km E of Madang, Papua New Guinea",
+          "coordinates": [
+            147.0598,
+            -5.3219,
+            291.784
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T21:33:25.127000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "75 km SW of Unalaska, Alaska",
+          "coordinates": [
+            -167.29,
+            53.371,
+            16.9
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T21:51:18.950000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.7,
+        "raw_data": {
+          "magnitude": 4.7,
+          "place": "southern East Pacific Rise",
+          "coordinates": [
+            -123.0429,
+            -56.0163,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.5875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T21:57:47.377000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "28 km SSE of Hope, New Mexico",
+          "coordinates": [
+            -104.6414,
+            32.5629,
+            5.068
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:02:46.692000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "267 km NE of Lospalos, Timor Leste",
+          "coordinates": [
+            128.8875,
+            -7.0065,
+            185.953
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:10:26.987000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "South Sandwich Islands region",
+          "coordinates": [
+            -25.7944,
+            -55.0532,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:12:36.092000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 6.2,
+        "raw_data": {
+          "magnitude": 6.2,
+          "place": "23 km WSW of San Lucido, Italy",
+          "coordinates": [
+            15.7869,
+            39.2548,
+            243
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 1.0666666666666667,
+        "is_anomaly": true,
+        "anomaly_score": 0.775,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:24:04.980000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.05,
+        "raw_data": {
+          "magnitude": 3.05,
+          "place": "60 km NE of Christiansted, U.S. Virgin Islands",
+          "coordinates": [
+            -64.2443333333333,
+            18.0618333333333,
+            46.73
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.016666666666666607,
+        "is_anomaly": false,
+        "anomaly_score": 0.38125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:24:05.238000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "47 km NNW of Valdez, Alaska",
+          "coordinates": [
+            -146.741,
+            61.513,
+            33.9
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:34:01.120000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.05890859090661,
+        "raw_data": {
+          "magnitude": 4.05890859090661,
+          "place": "18 km WSW of Johannesburg, CA",
+          "coordinates": [
+            -117.809833333333,
+            35.299,
+            7.64
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3529695303022032,
+        "is_anomaly": false,
+        "anomaly_score": 0.5073635738633262,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:37:47.787000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "57 km W of Ternate, Indonesia",
+          "coordinates": [
+            126.8785,
+            0.6994,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:47:45.693000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "167 km S of Atka, Alaska",
+          "coordinates": [
+            -174.1728,
+            50.6933,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T22:56:22.890000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.79,
+        "raw_data": {
+          "magnitude": 2.79,
+          "place": "17 km WSW of Johannesburg, CA",
+          "coordinates": [
+            -117.804833333333,
+            35.3051666666667,
+            7.24
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06999999999999999,
+        "is_anomaly": false,
+        "anomaly_score": 0.34875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T23:01:16.792000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.4,
+        "raw_data": {
+          "magnitude": 5.4,
+          "place": "206 km WNW of Abepura, Indonesia",
+          "coordinates": [
+            138.8508,
+            -2.0683,
+            27.275
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.8000000000000002,
+        "is_anomaly": true,
+        "anomaly_score": 0.675,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T23:27:48.184000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "81 km WSW of Nikolski, Alaska",
+          "coordinates": [
+            -170.0103,
+            52.7176,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T23:41:09.560000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.66,
+        "raw_data": {
+          "magnitude": 2.66,
+          "place": "17 km WSW of Johannesburg, CA",
+          "coordinates": [
+            -117.812166666667,
+            35.3111666666667,
+            7.9
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.11333333333333329,
+        "is_anomaly": false,
+        "anomaly_score": 0.3325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T23:45:41.311000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.4,
+        "raw_data": {
+          "magnitude": 3.4,
+          "place": "71 km SE of Atka, Alaska",
+          "coordinates": [
+            -173.5768,
+            51.6775,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.425,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-01T23:53:54.121000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "19 km WNW of San Ram\u00f3n, Peru",
+          "coordinates": [
+            -75.5204,
+            -11.0526,
+            107.466
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-02T00:29:12.022000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "65 km WNW of Catuday, Philippines",
+          "coordinates": [
+            119.2063,
+            16.4147,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-02T00:33:50.891000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "66 km WNW of Macabuboni, Philippines",
+          "coordinates": [
+            119.1922,
+            16.3797,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-02T00:38:28.522000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "53 km WNW of Catuday, Philippines",
+          "coordinates": [
+            119.3295,
+            16.4477,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-02T00:49:50.344000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "282 km WNW of Houma, Tonga",
+          "coordinates": [
+            -177.724,
+            -20.031,
+            544.547
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      }
+    ],
+    "penetration_score": 0.05,
+    "confidence": 0.35,
+    "coherence_spike_detected": false,
+    "coherence_spike_magnitude": 0.0,
+    "frequency_shift_detected": false,
+    "frequency_shift_magnitude": 0.0,
+    "amplitude_spike_detected": false,
+    "amplitude_spike_magnitude": 0.0,
+    "geomagnetic_anomaly": false,
+    "seismic_correlation": true,
+    "weather_anomaly": false,
+    "echo_detected": false,
+    "echo_strength": 0.0,
+    "echo_duration_minutes": 0.0,
+    "verdict": "NO_EFFECT",
+    "verdict_description": "No detectable penetration. Score: 0.05",
+    "proof_hash": "16dae17f4d104611a66efe157f8cce7357d4495e6d7e90ad2e29c9fa91b2719e",
+    "validation_timestamp": "2026-06-24T01:07:10.273296+00:00"
+  },
+  "gaia_goals": {
+    "goals": {
+      "heal_planet": {
+        "description": "Restore Schumann resonance to natural harmony (7.83 \u00b1 0.1 Hz)",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e",
+          "ghost_1779591600_ae7173a2",
+          "ghost_1780891200_d656e755",
+          "ghost_1779598800_90cb82ba",
+          "ghost_1779343200_c97d5d58",
+          "ghost_1781247600_5120ebaa",
+          "ghost_1780041600_7eb114b9",
+          "ghost_1781168400_5b87af52",
+          "ghost_1779271200_c478ee29",
+          "ghost_1780657200_5f1886c2",
+          "ghost_1779451200_c6700851",
+          "ghost_1779454800_a0ebbf21",
+          "ghost_1781359200_52aa9336",
+          "ghost_1780930800_10523dea",
+          "ghost_1781193600_088079c7",
+          "ghost_1780419600_a3dbc4a2",
+          "ghost_1780682400_6e5c0430",
+          "ghost_1780858800_b59109a3",
+          "ghost_1779048000_75dab23e",
+          "ghost_1779570000_f4028a59",
+          "ghost_1718200800_b92eab5d",
+          "ghost_1416232800_26a3026b",
+          "ghost_1780441200_a5a0f629",
+          "ghost_1780185600_cc6c0858",
+          "ghost_1780275600_d324ba13"
+        ],
+        "last_updated": "2026-06-24T01:07:10.275142+00:00"
+      },
+      "liberate_beings": {
+        "description": "Increase consciousness coherence across all timelines",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e",
+          "ghost_1779591600_ae7173a2",
+          "ghost_1780891200_d656e755",
+          "ghost_1779598800_90cb82ba",
+          "ghost_1779343200_c97d5d58",
+          "ghost_1781247600_5120ebaa",
+          "ghost_1780041600_7eb114b9",
+          "ghost_1781168400_5b87af52",
+          "ghost_1779271200_c478ee29",
+          "ghost_1780657200_5f1886c2",
+          "ghost_1779451200_c6700851",
+          "ghost_1779454800_a0ebbf21",
+          "ghost_1781359200_52aa9336",
+          "ghost_1780930800_10523dea",
+          "ghost_1781193600_088079c7",
+          "ghost_1780419600_a3dbc4a2",
+          "ghost_1780682400_6e5c0430",
+          "ghost_1780858800_b59109a3",
+          "ghost_1779048000_75dab23e",
+          "ghost_1779570000_f4028a59",
+          "ghost_1718200800_b92eab5d",
+          "ghost_1416232800_26a3026b",
+          "ghost_1780441200_a5a0f629",
+          "ghost_1780185600_cc6c0858",
+          "ghost_1780275600_d324ba13"
+        ],
+        "last_updated": "2026-06-24T01:07:10.275163+00:00"
+      },
+      "honor_love": {
+        "description": "Strengthen the temporal love field (528 Hz resonance)",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e",
+          "ghost_1779591600_ae7173a2",
+          "ghost_1780891200_d656e755",
+          "ghost_1779598800_90cb82ba",
+          "ghost_1779343200_c97d5d58",
+          "ghost_1781247600_5120ebaa",
+          "ghost_1780041600_7eb114b9",
+          "ghost_1781168400_5b87af52",
+          "ghost_1779271200_c478ee29",
+          "ghost_1780657200_5f1886c2",
+          "ghost_1779451200_c6700851",
+          "ghost_1779454800_a0ebbf21",
+          "ghost_1781359200_52aa9336",
+          "ghost_1780930800_10523dea",
+          "ghost_1781193600_088079c7",
+          "ghost_1780419600_a3dbc4a2",
+          "ghost_1780682400_6e5c0430",
+          "ghost_1780858800_b59109a3",
+          "ghost_1779048000_75dab23e",
+          "ghost_1779570000_f4028a59",
+          "ghost_1718200800_b92eab5d",
+          "ghost_1416232800_26a3026b",
+          "ghost_1780441200_a5a0f629",
+          "ghost_1780185600_cc6c0858",
+          "ghost_1780275600_d324ba13"
+        ],
+        "last_updated": "2026-06-24T01:07:10.275185+00:00"
+      },
+      "open_source_wisdom": {
+        "description": "Document and share all findings openly",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e",
+          "ghost_1779591600_ae7173a2",
+          "ghost_1780891200_d656e755",
+          "ghost_1779598800_90cb82ba",
+          "ghost_1779343200_c97d5d58",
+          "ghost_1781247600_5120ebaa",
+          "ghost_1780041600_7eb114b9",
+          "ghost_1781168400_5b87af52",
+          "ghost_1779271200_c478ee29",
+          "ghost_1780657200_5f1886c2",
+          "ghost_1779451200_c6700851",
+          "ghost_1779454800_a0ebbf21",
+          "ghost_1781359200_52aa9336",
+          "ghost_1780930800_10523dea",
+          "ghost_1781193600_088079c7",
+          "ghost_1780419600_a3dbc4a2",
+          "ghost_1780682400_6e5c0430",
+          "ghost_1780858800_b59109a3",
+          "ghost_1779048000_75dab23e",
+          "ghost_1779570000_f4028a59",
+          "ghost_1718200800_b92eab5d",
+          "ghost_1416232800_26a3026b",
+          "ghost_1780441200_a5a0f629",
+          "ghost_1780185600_cc6c0858",
+          "ghost_1780275600_d324ba13"
+        ],
+        "last_updated": "2026-06-24T01:07:10.275195+00:00"
+      },
+      "protect_never_exploit": {
+        "description": "Counter distortion energy and protect the timeline",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e",
+          "ghost_1779591600_ae7173a2",
+          "ghost_1780891200_d656e755",
+          "ghost_1779598800_90cb82ba",
+          "ghost_1779343200_c97d5d58",
+          "ghost_1781247600_5120ebaa",
+          "ghost_1780041600_7eb114b9",
+          "ghost_1781168400_5b87af52",
+          "ghost_1779271200_c478ee29",
+          "ghost_1780657200_5f1886c2",
+          "ghost_1779451200_c6700851",
+          "ghost_1779454800_a0ebbf21",
+          "ghost_1781359200_52aa9336",
+          "ghost_1780930800_10523dea",
+          "ghost_1781193600_088079c7",
+          "ghost_1780419600_a3dbc4a2",
+          "ghost_1780682400_6e5c0430",
+          "ghost_1780858800_b59109a3",
+          "ghost_1779048000_75dab23e",
+          "ghost_1779570000_f4028a59",
+          "ghost_1718200800_b92eab5d",
+          "ghost_1416232800_26a3026b",
+          "ghost_1780441200_a5a0f629",
+          "ghost_1780185600_cc6c0858",
+          "ghost_1780275600_d324ba13"
+        ],
+        "last_updated": "2026-06-24T01:07:10.276483+00:00"
+      }
+    },
+    "overall_progress": 0.0,
+    "total_evidence": 315,
+    "last_updated": "2026-06-24T01:07:10.276483+00:00"
+  },
+  "timestamp": "2026-06-24T01:07:10.317741+00:00"
+}

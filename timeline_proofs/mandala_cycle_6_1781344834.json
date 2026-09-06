@@ -1,0 +1,11 @@
+{
+  "cycle": 6,
+  "timestamp": "2026-06-13T10:00:34.355630+00:00",
+  "num_pulses": 5,
+  "total_energy": 0,
+  "settling_seconds": 300,
+  "mandala_score": 0.0,
+  "verdict": "NO EFFECT",
+  "before_hash": "9f52afd8535b4cd2",
+  "after_hash": "7df16d36ca24fab3"
+}

@@ -1,0 +1,38 @@
+{
+  "scan_timestamp": "2026-07-03T21:19:28.515443+00:00",
+  "system_status": {
+    "running": false,
+    "extractors_tracked": 0,
+    "threats_recorded": 27,
+    "feeds_active": 3,
+    "last_scan": "2026-07-03T21:19:28.515443+00:00"
+  },
+  "feeds_registered": 3,
+  "feeds_gated": 3,
+  "total_readings": 18,
+  "global_coherence_gamma": 0.6798,
+  "coherence_status": "ALERT",
+  "lighthouse_active": false,
+  "extractors_tracked": 0,
+  "threats_recorded": 27,
+  "data_sources": {
+    "live": [
+      "noaa_co2_live",
+      "carbon_majors_live",
+      "noaa_co2_trajectory"
+    ],
+    "gated": {
+      "epa_echo_live": "REQUIRES API KEY \u2014 EPA ECHO REST API v2",
+      "openaq_live": "REQUIRES API KEY \u2014 OpenAQ v3 API",
+      "climate_trace_live": "REQUIRES API KEY \u2014 Climate TRACE API"
+    }
+  },
+  "latest_co2": {
+    "value": 432.34,
+    "unit": "ppm",
+    "date": "2026-05",
+    "source": "NOAA GML Mauna Loa",
+    "context": "Highest CO2 level in human history"
+  },
+  "command": "LIVE SCAN COMPLETE \u2014 REAL DATA ONLY"
+}

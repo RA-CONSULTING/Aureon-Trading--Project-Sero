@@ -1,0 +1,43 @@
+[
+  {
+    "source": "hackernews",
+    "url": "https://news.ycombinator.com/rss",
+    "timestamp": "2026-06-13T08:53:39.763892+00:00",
+    "headlines": [
+      "Leaving Mozilla",
+      "Shepherd&#x27;s Dog: A Game by the Most Dangerous AI Model",
+      "Electric motors with no rare earths",
+      "Statement on US government directive to suspend access to Fable 5 and Mythos 5",
+      "CRISPR tech selectively shreds cancer cells, including &quot;undruggable&quot; cancers"
+    ],
+    "full_text": "Leaving Mozilla\nShepherd&#x27;s Dog: A Game by the Most Dangerous AI Model\nElectric motors with no rare earths\nStatement on US government directive to suspend access to Fable 5 and Mythos 5\nCRISPR tech selectively shreds cancer cells, including &quot;undruggable&quot; cancers",
+    "word_count": 41,
+    "hash": "8eb80557ce2e261d"
+  },
+  {
+    "source": "reddit_worldnews",
+    "url": "https://www.reddit.com/r/worldnews/.rss",
+    "timestamp": "2026-06-13T08:53:39.763892+00:00",
+    "headlines": [
+      "/r/WorldNews Live Thread: Russian Invasion of Ukraine Day 1570, Part 1 (Thread #1717)",
+      "/r/WorldNews Discussion Thread: US and Israel launch attack on Iran; Iran retaliates (Thread #19)",
+      "Ukraine to ask for $20B to make Russia \u2018burn\u2019",
+      "Russia wrapped a whole building in an anti-drone cage, satellite imagery shows. Ukraine fired on it with cruise missiles.",
+      "UAE paid Iran $3B, agreed to release $10B more to halt attacks - Reuters"
+    ],
+    "full_text": "/r/WorldNews Live Thread: Russian Invasion of Ukraine Day 1570, Part 1 (Thread #1717)\n/r/WorldNews Discussion Thread: US and Israel launch attack on Iran; Iran retaliates (Thread #19)\nUkraine to ask for $20B to make Russia \u2018burn\u2019\nRussia wrapped a whole building in an anti-drone cage, satellite imagery shows. Ukraine fired on it with cruise missiles.\nUAE paid Iran $3B, agreed to release $10B more to halt attacks - Reuters",
+    "word_count": 69,
+    "hash": "6ebaff5be1262b62"
+  },
+  {
+    "source": "textise_bbc",
+    "url": "https://r.jina.ai/http://feeds.bbci.co.uk/news/rss.xml",
+    "timestamp": "2026-06-13T08:53:39.763892+00:00",
+    "headlines": [
+      "ERROR: HTTPSConnectionPool(host='r.jina.ai', port=443): Read timed out. (read timeout=15)"
+    ],
+    "full_text": "ERROR: HTTPSConnectionPool(host='r.jina.ai', port=443): Read timed out. (read timeout=15)",
+    "word_count": 0,
+    "hash": "ERROR"
+  }
+]

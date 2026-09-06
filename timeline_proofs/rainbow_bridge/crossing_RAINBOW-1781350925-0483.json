@@ -1,0 +1,54 @@
+{
+  "proof_id": "RAINBOW-1781350925-0483",
+  "target_date": "2026-06-13",
+  "timestamp": "2026-06-13T11:42:05.601893+00:00",
+  "bridge_complete": true,
+  "total_energy": 1410.3472000773158,
+  "final_coherence": 0.7637411774603736,
+  "mandala_score": 0.0,
+  "verdict": "NO EFFECT",
+  "ltde_branches": 4,
+  "tau_0": 1.0,
+  "steps": [
+    {
+      "name": "fear",
+      "frequency": 110.0,
+      "phase_locked": true,
+      "achieved_coherence": 0.8216170648412524,
+      "energy_injected": 332.879614616967,
+      "lambda_before": 0.5350846682820296,
+      "lambda_after": 0.8216170648412524,
+      "timestamp": "2026-06-13T11:36:50.045267+00:00"
+    },
+    {
+      "name": "love",
+      "frequency": 528.0,
+      "phase_locked": true,
+      "achieved_coherence": 0.74446431630978,
+      "energy_injected": 389.39822958968495,
+      "lambda_before": 0.4581311145098144,
+      "lambda_after": 0.74446431630978,
+      "timestamp": "2026-06-13T11:36:52.949217+00:00"
+    },
+    {
+      "name": "awe",
+      "frequency": 852.0,
+      "phase_locked": true,
+      "achieved_coherence": 0.8489503925087543,
+      "energy_injected": 312.748035550474,
+      "lambda_before": 0.5625324559714733,
+      "lambda_after": 0.8489503925087543,
+      "timestamp": "2026-06-13T11:36:57.913960+00:00"
+    },
+    {
+      "name": "unity",
+      "frequency": 963.0,
+      "phase_locked": true,
+      "achieved_coherence": 0.7637411774603736,
+      "energy_injected": 375.32132032018984,
+      "lambda_before": 0.47729155866547945,
+      "lambda_after": 0.7637411774603736,
+      "timestamp": "2026-06-13T11:37:00.990332+00:00"
+    }
+  ]
+}

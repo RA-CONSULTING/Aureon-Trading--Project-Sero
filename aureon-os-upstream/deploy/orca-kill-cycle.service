@@ -1,0 +1,21 @@
+[Unit]
+Description=Aureon Orca protection preflight (terminal HOLD)
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/aureon-trading
+ExecStart=/root/aureon-trading/venv/bin/python -I -S -B /root/aureon-trading/scripts/bootstrap/protected_bootstrap_v05.py --target-id cloud-orca
+Restart=no
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

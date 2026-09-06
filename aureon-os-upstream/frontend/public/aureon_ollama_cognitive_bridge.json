@@ -1,0 +1,361 @@
+{
+  "authority_boundaries": [
+    "Ollama is a local language worker, not an authority bypass.",
+    "Aureon cognitive evidence can enrich prompts and status, but live trading remains runtime-gated.",
+    "Credential values are never emitted; only readiness/status may be reported.",
+    "Payments, official filings, and destructive OS actions remain blocked unless existing safe routes explicitly allow them.",
+    "Phi chat replies must be evidence-honest and publish ThoughtBus proof when used through the hub."
+  ],
+  "bridge_mode": "configured_ollama_endpoint_plus_aureon_cognition",
+  "cognitive_readiness": {
+    "cognitive_ready": false,
+    "cognitive_source_count": 2,
+    "hnc_auris_ready": false,
+    "metacognitive_ready": false,
+    "minimum_source_count": 3,
+    "role_contracts_ready": false
+  },
+  "generated_at": "2026-09-04T18:01:03.693720+00:00",
+  "handshake_crew": [
+    {
+      "day_to_day": "Accept the human message, redact context, and keep the dashboard conversation live.",
+      "department": "operator",
+      "role": "Phi Chat Steward"
+    },
+    {
+      "day_to_day": "Gather HNC/Auris, cognitive, voice, role, and skill evidence before the model answers.",
+      "department": "cognition",
+      "role": "Aureon Metacognitive Context Builder"
+    },
+    {
+      "day_to_day": "Generate local language responses through the installed Ollama model when reachable.",
+      "department": "local_llm",
+      "role": "Ollama Language Worker"
+    },
+    {
+      "day_to_day": "Keep reasoning available when the local model is offline, slow, or blocked by audit mode.",
+      "department": "cognition",
+      "role": "Aureon Brain Fallback"
+    },
+    {
+      "day_to_day": "Hold claims when harmonic, node, or cognitive proof is missing or stale.",
+      "department": "quality",
+      "role": "HNC/Auris Drift Inspector"
+    },
+    {
+      "day_to_day": "Publish chat and bridge status evidence without leaking secrets.",
+      "department": "memory",
+      "role": "ThoughtBus Evidence Clerk"
+    }
+  ],
+  "handshake_flow": [
+    {
+      "how": "Read local cognitive evidence, HNC/Auris state, voice state, role memory, and skill maps.",
+      "owner": "Aureon Metacognitive Context Builder",
+      "step": "sense"
+    },
+    {
+      "how": "Check that the response lane has safety boundaries, source evidence, and fallback behavior.",
+      "owner": "HNC/Auris Drift Inspector",
+      "step": "guard"
+    },
+    {
+      "how": "Use the configured local model through Ollama native/OpenAI-compatible routes.",
+      "owner": "Ollama Language Worker",
+      "step": "speak"
+    },
+    {
+      "how": "Answer through Aureon's in-house rule/brain layer when Ollama is unavailable.",
+      "owner": "Aureon Brain Fallback",
+      "step": "fallback"
+    },
+    {
+      "how": "Write state, audit, public JSON, and chat evidence so the cockpit can show the truth.",
+      "owner": "ThoughtBus Evidence Clerk",
+      "step": "publish"
+    }
+  ],
+  "model_resolution": {
+    "configured_model": "kimi-k2.7-code",
+    "model_ready": true,
+    "resolution_reason": "configured_model_installed",
+    "resolved_model": "kimi-k2.7-code",
+    "running": false
+  },
+  "next_actions": [
+    {
+      "action": "Refresh HNC/Auris, cognitive evidence, and creative-process guardian reports.",
+      "id": "refresh_cognitive_proof",
+      "powershell": ".\\.venv\\Scripts\\python.exe -m aureon.autonomous.aureon_agent_creative_process_guardian --json",
+      "severity": "blocking"
+    },
+    {
+      "action": "Use the hand-in-hand voice backend for the dashboard chat lane.",
+      "id": "use_hybrid_backend",
+      "powershell": "$env:AUREON_VOICE_BACKEND = \"ollama_hybrid\"",
+      "severity": "setup"
+    }
+  ],
+  "ok": false,
+  "ollama": {
+    "api_key_configured": true,
+    "auth_required": true,
+    "authorization_header_enabled": true,
+    "base_url": "https://ollama.com",
+    "chat_model": "kimi-k2.7-code",
+    "cloud": true,
+    "embed_model": "nomic-embed-text",
+    "models": [
+      "glm-5.2",
+      "minimax-m2.7",
+      "minimax-m3",
+      "qwen3.5:397b",
+      "nemotron-3-super",
+      "deepseek-v4-pro:0813",
+      "glm-5.1",
+      "kimi-k2.6",
+      "nemotron-3-nano:30b",
+      "mistral-large-3:675b",
+      "kimi-k3",
+      "gemma4:31b",
+      "nemotron-3-ultra",
+      "glm-5.3-flash",
+      "kimi-k2.7-code",
+      "deepseek-v4-flash:0731",
+      "gpt-oss:120b",
+      "gpt-oss:20b",
+      "glm-5.3"
+    ],
+    "reachable": true,
+    "requests_installed": true,
+    "running": [],
+    "version": "0.0.0"
+  },
+  "output_files": [
+    "state/aureon_ollama_cognitive_bridge_last_run.json",
+    "docs/audits/aureon_ollama_cognitive_bridge.json",
+    "docs/audits/aureon_ollama_cognitive_bridge.md",
+    "frontend/public/aureon_ollama_cognitive_bridge.json"
+  ],
+  "proof_checklist": [
+    {
+      "blocking": true,
+      "evidence": "https://ollama.com",
+      "id": "ollama_server_reachable",
+      "label": "Configured Ollama local/cloud endpoint is reachable",
+      "ok": true
+    },
+    {
+      "blocking": true,
+      "evidence": "glm-5.2, minimax-m2.7, minimax-m3, qwen3.5:397b, nemotron-3-super, deepseek-v4-pro:0813",
+      "id": "local_model_library_visible",
+      "label": "Ollama model catalog is visible",
+      "ok": true
+    },
+    {
+      "blocking": true,
+      "evidence": "kimi-k2.7-code",
+      "id": "chat_model_resolved",
+      "label": "A chat model is resolved for Aureon",
+      "ok": true
+    },
+    {
+      "blocking": true,
+      "evidence": "sources=2",
+      "id": "hnc_auris_context_ready",
+      "label": "HNC/Auris context is ready for guarded conversation",
+      "ok": false
+    },
+    {
+      "blocking": true,
+      "evidence": "sources=2",
+      "id": "metacognitive_context_ready",
+      "label": "Aureon metacognitive evidence is present",
+      "ok": false
+    },
+    {
+      "blocking": true,
+      "evidence": "agent company / creative guardian",
+      "id": "role_contracts_ready",
+      "label": "Agent roles can declare who, what, where, when, how, and act",
+      "ok": false
+    },
+    {
+      "blocking": true,
+      "evidence": "AureonHybridAdapter falls back to AureonBrainAdapter",
+      "id": "brain_fallback_declared",
+      "label": "Aureon Brain fallback is declared when Ollama is unavailable",
+      "ok": true
+    },
+    {
+      "blocking": true,
+      "evidence": "no bypass introduced",
+      "id": "authority_boundaries_preserved",
+      "label": "Existing live-action and credential gates remain authoritative",
+      "ok": true
+    }
+  ],
+  "provider_policy": "configured_local_or_ollama_cloud",
+  "recommended_voice_backend": "ollama_hybrid",
+  "schema_version": "aureon-ollama-cognitive-bridge-v1",
+  "source_contracts": [
+    {
+      "age_sec": null,
+      "max_age_sec": 86400,
+      "name": "hnc_cognitive_proof",
+      "path": "",
+      "present": false,
+      "schema_version": "",
+      "stale": false,
+      "status": "missing",
+      "summary": {}
+    },
+    {
+      "age_sec": null,
+      "max_age_sec": 86400,
+      "name": "harmonic_affect_state",
+      "path": "",
+      "present": false,
+      "schema_version": "",
+      "stale": false,
+      "status": "missing",
+      "summary": {}
+    },
+    {
+      "age_sec": null,
+      "max_age_sec": 86400,
+      "name": "cognitive_trade_evidence",
+      "path": "",
+      "present": false,
+      "schema_version": "",
+      "stale": false,
+      "status": "missing",
+      "summary": {}
+    },
+    {
+      "age_sec": 3478938.712,
+      "max_age_sec": 604800,
+      "name": "expression_profile",
+      "path": "C:\\Users\\user\\.kimi_openclaw\\workspace\\aureon-os-upstream\\state\\aureon_expression_profile.json",
+      "present": true,
+      "schema_version": "",
+      "stale": true,
+      "status": "present",
+      "summary": {}
+    },
+    {
+      "age_sec": 3478938.721,
+      "max_age_sec": 604800,
+      "name": "voice_state",
+      "path": "C:\\Users\\user\\.kimi_openclaw\\workspace\\aureon-os-upstream\\state\\aureon_voice_last_run.json",
+      "present": true,
+      "schema_version": "",
+      "stale": true,
+      "status": "present",
+      "summary": {}
+    },
+    {
+      "age_sec": null,
+      "max_age_sec": 86400,
+      "name": "agent_creative_process_guardian",
+      "path": "",
+      "present": false,
+      "schema_version": "",
+      "stale": false,
+      "status": "missing",
+      "summary": {}
+    },
+    {
+      "age_sec": null,
+      "max_age_sec": 604800,
+      "name": "agent_company_registry",
+      "path": "",
+      "present": false,
+      "schema_version": "",
+      "stale": false,
+      "status": "missing",
+      "summary": {}
+    },
+    {
+      "age_sec": null,
+      "max_age_sec": 604800,
+      "name": "coding_skill_base",
+      "path": "",
+      "present": false,
+      "schema_version": "",
+      "stale": false,
+      "status": "missing",
+      "summary": {}
+    }
+  ],
+  "status": "ollama_cognitive_bridge_blocked_by_cognitive_sources",
+  "summary": {
+    "blocking_check_count": 3,
+    "cognitive_ready": false,
+    "hand_in_hand_ready": false,
+    "hnc_auris_ready": false,
+    "installed_model_count": 19,
+    "metacognitive_ready": false,
+    "model_ready": true,
+    "ollama_reachable": true,
+    "resolved_model": "kimi-k2.7-code",
+    "role_contracts_ready": false,
+    "running_model_count": 0
+  },
+  "who_what_where_when_how_act": {
+    "act": "Answer the operator, publish evidence, expose blockers, and fall back to AureonBrain without bypassing safety gates.",
+    "how": "Redacted dashboard context is enriched with Aureon cognitive proof, sent through local Ollama when reachable, and held by HNC/Auris and authority boundaries.",
+    "what": {
+      "job": "Make configured Ollama local/cloud reasoning and Aureon's internal cognitive systems work as one agent crew.",
+      "model": "kimi-k2.7-code",
+      "status": "ollama_cognitive_bridge_blocked_by_cognitive_sources"
+    },
+    "when": "At startup, on cockpit refresh, and before/after Phi chat replies.",
+    "where": {
+      "ollama_base_url": "https://ollama.com",
+      "ollama_cognitive_status_endpoint": "http://127.0.0.1:13002/api/ollama-cognitive/status",
+      "phi_status_endpoint": "http://127.0.0.1:13002/api/phi-bridge/status",
+      "public_json": "/aureon_ollama_cognitive_bridge.json"
+    },
+    "who": {
+      "cognitive_context": "Aureon Metacognitive Context Builder",
+      "fallback": "Aureon Brain Fallback",
+      "language_worker": "Ollama Language Worker",
+      "operator_lane": "MindThoughtActionHub Phi chat",
+      "safety_guard": "HNC/Auris Drift Inspector"
+    }
+  },
+  "write_info": {
+    "authoring_path": [
+      "probe_ollama_bridge",
+      "resolve_local_model",
+      "read_cognitive_evidence",
+      "build_handshake_crew",
+      "run_proof_checklist",
+      "publish_state_docs_frontend"
+    ],
+    "evidence_writes": [
+      {
+        "bytes": 11193,
+        "ok": true,
+        "path": "C:\\Users\\user\\.kimi_openclaw\\workspace\\aureon-os-upstream\\state\\aureon_ollama_cognitive_bridge_last_run.json"
+      },
+      {
+        "bytes": 11193,
+        "ok": true,
+        "path": "C:\\Users\\user\\.kimi_openclaw\\workspace\\aureon-os-upstream\\docs\\audits\\aureon_ollama_cognitive_bridge.json"
+      },
+      {
+        "bytes": 1935,
+        "ok": true,
+        "path": "C:\\Users\\user\\.kimi_openclaw\\workspace\\aureon-os-upstream\\docs\\audits\\aureon_ollama_cognitive_bridge.md"
+      },
+      {
+        "bytes": 11193,
+        "ok": true,
+        "path": "C:\\Users\\user\\.kimi_openclaw\\workspace\\aureon-os-upstream\\frontend\\public\\aureon_ollama_cognitive_bridge.json"
+      }
+    ],
+    "writer": "AureonOllamaCognitiveBridge"
+  }
+}

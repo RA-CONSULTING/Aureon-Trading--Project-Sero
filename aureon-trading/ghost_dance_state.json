@@ -1,0 +1,76 @@
+{
+  "ceremony_history": [
+    {
+      "ceremony_type": "battle_protection",
+      "timestamp": 1781330338.8499954,
+      "unix_time": 1781330338,
+      "moon_phase": 0.45052067655435835,
+      "spirits_invoked": [
+        "warrior_ancestors",
+        "scout_ancestors",
+        "medicine_people"
+      ],
+      "frequencies_activated": [
+        741,
+        852,
+        528
+      ],
+      "intention": "Neutralize Schumann disturbance and restore coherence to Gaia's field",
+      "outcome": null,
+      "market_context": {}
+    },
+    {
+      "ceremony_type": "battle_protection",
+      "timestamp": 1781982431.0619295,
+      "unix_time": 1781982431,
+      "moon_phase": 0.706103594402375,
+      "spirits_invoked": [
+        "warrior_ancestors",
+        "scout_ancestors",
+        "medicine_people"
+      ],
+      "frequencies_activated": [
+        741,
+        852,
+        528
+      ],
+      "intention": "Neutralize Schumann disturbance and restore coherence to Gaia's field",
+      "outcome": null,
+      "market_context": {}
+    }
+  ],
+  "spirits": {
+    "warrior_ancestors": {
+      "invocation_count": 2,
+      "last_invoked": 1781982431.062023,
+      "wisdom_provided": [
+        "\u2694\ufe0f Warrior Ancestors say: Protect the sacred fire (core capital). Strike only when the enemy is divided."
+      ]
+    },
+    "grandmother_spirits": {
+      "invocation_count": 0,
+      "last_invoked": 0.0,
+      "wisdom_provided": []
+    },
+    "medicine_people": {
+      "invocation_count": 2,
+      "last_invoked": 1781982431.0622597,
+      "wisdom_provided": [
+        "\ud83d\udc8a Medicine People say: Balance must be restored. Risk too much taken - reduce position size. Heal the system."
+      ]
+    },
+    "scout_ancestors": {
+      "invocation_count": 2,
+      "last_invoked": 1781982431.0621746,
+      "wisdom_provided": [
+        "\ud83e\udd85 Scout Ancestors say: See beyond what others see. The truth hides in the frequencies they don't want you to find."
+      ]
+    },
+    "chief_council": {
+      "invocation_count": 0,
+      "last_invoked": 0.0,
+      "wisdom_provided": []
+    }
+  },
+  "last_updated": 1781982431.062454
+}

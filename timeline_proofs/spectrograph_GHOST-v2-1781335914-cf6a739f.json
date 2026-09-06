@@ -1,0 +1,60 @@
+{
+  "bands": [
+    {
+      "amplitude": 0.8457504,
+      "color": "blue",
+      "frequency": 7.83,
+      "label": "Schumann Ground",
+      "phase": 180.0,
+      "source": "signal"
+    },
+    {
+      "amplitude": 0.9,
+      "color": "green",
+      "frequency": 527.9728752,
+      "label": "Love Carrier",
+      "phase": 0.0,
+      "source": "signal"
+    },
+    {
+      "amplitude": 0.7686255999999999,
+      "color": "red",
+      "frequency": 810.11752,
+      "label": "Prime Sentinel",
+      "phase": 90.0,
+      "source": "signal"
+    },
+    {
+      "amplitude": 0.6,
+      "color": "gold",
+      "frequency": 161.80339887498948,
+      "label": "Phi Harmonic",
+      "phase": 45.0,
+      "source": "signal"
+    },
+    {
+      "amplitude": 0.3333333333333333,
+      "color": "orange",
+      "frequency": 8.5,
+      "label": "Kp=3",
+      "phase": 0.0,
+      "source": "historical"
+    },
+    {
+      "amplitude": 0.26666666666666666,
+      "color": "purple",
+      "frequency": 7.4,
+      "label": "A=8",
+      "phase": 180.0,
+      "source": "historical"
+    }
+  ],
+  "metadata": {
+    "band_count": 6,
+    "generated_at": "2026-06-13T07:31:54.077635+00:00",
+    "height": 20,
+    "historical_bands": 2,
+    "signal_bands": 4,
+    "width": 80
+  }
+}

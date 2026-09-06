@@ -1,0 +1,4432 @@
+{
+  "transmission": {
+    "transmission_id": "ghost_1781143200_ed6ea72e",
+    "target": {
+      "target_time": "2026-06-11T02:00:00+00:00",
+      "precision_minutes": 5,
+      "timezone": "UTC",
+      "description": "Automated ghost mission \u2014 probing 3 days back",
+      "significance": "Temporal field validation and Gaia goal advancement",
+      "data_sources_available": [
+        "usgs_seismic",
+        "schumann"
+      ],
+      "data_sources_missing": []
+    },
+    "love_frequency": 528.0,
+    "truth_frequency": 741.0,
+    "sentinel_frequency": 2.111991,
+    "schumann_grounding": 7.83,
+    "base_boost": 1.0,
+    "phi_lock_bonus": 1.3,
+    "coherence_multiplier": 1.1493146037899569,
+    "distortion_counter_boost": 1.2104112377260259,
+    "total_boost": 1.8084863057429985,
+    "safety_limit": 5.0,
+    "is_safe": true,
+    "safety_warnings": [],
+    "echo_id": "echo_ghost_1781143200_ed6ea72e",
+    "echo_strength": 0.540066832403157,
+    "proof_hash": "30feef12907cbedf85892944879f298dc3c95cf1382b01979f1e9762a01118bb",
+    "transmission_timestamp": "2026-06-14T02:22:17.534179+00:00"
+  },
+  "penetration_result": {
+    "transmission_id": "ghost_1781143200_ed6ea72e",
+    "target": {
+      "target_time": "2026-06-11T02:00:00+00:00",
+      "precision_minutes": 5,
+      "timezone": "UTC",
+      "description": "Automated ghost mission \u2014 probing 3 days back",
+      "significance": "Temporal field validation and Gaia goal advancement",
+      "data_sources_available": [
+        "usgs_seismic",
+        "schumann"
+      ],
+      "data_sources_missing": []
+    },
+    "snapshots_before": [
+      {
+        "timestamp": "2026-06-10T04:30:32.974000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.8,
+        "raw_data": {
+          "magnitude": 4.8,
+          "place": "266 km WNW of Houma, Tonga",
+          "coordinates": [
+            -177.5271,
+            -19.9844,
+            566.77
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6,
+        "is_anomaly": false,
+        "anomaly_score": 0.6,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T06:46:36.545000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "56 km WSW of San Carlos, Mexico",
+          "coordinates": [
+            -111.597,
+            27.8323,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T07:14:32.080000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "113 km E of Miyako, Japan",
+          "coordinates": [
+            143.2607,
+            39.751,
+            28.244
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T07:45:54.190000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.95,
+        "raw_data": {
+          "magnitude": 2.95,
+          "place": "14 km SE of Isabel Segunda, Puerto Rico",
+          "coordinates": [
+            -65.3353333333333,
+            18.0736666666667,
+            19.79
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.016666666666666607,
+        "is_anomaly": false,
+        "anomaly_score": 0.36875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T08:37:40.490000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.71,
+        "raw_data": {
+          "magnitude": 4.71,
+          "place": "23 km E of P\u0101pa\u2018ikou, Hawaii",
+          "coordinates": [
+            -154.866166666667,
+            19.7843333333333,
+            39.18
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.57,
+        "is_anomaly": false,
+        "anomaly_score": 0.58875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T08:52:11.199000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.8,
+        "raw_data": {
+          "magnitude": 2.8,
+          "place": "60 km S of Whites City, New Mexico",
+          "coordinates": [
+            -104.371,
+            31.627,
+            6.0999
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.35,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T09:13:42.703000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.1,
+        "raw_data": {
+          "magnitude": 5.1,
+          "place": "7 km NW of Nuing, Philippines",
+          "coordinates": [
+            125.3874,
+            5.6757,
+            61.705
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6999999999999998,
+        "is_anomaly": true,
+        "anomaly_score": 0.6375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T10:34:17.371000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.7,
+        "raw_data": {
+          "magnitude": 5.7,
+          "place": "33 km ESE of Ol\u2019ga, Russia",
+          "coordinates": [
+            135.6736,
+            43.6289,
+            343.313
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.9,
+        "is_anomaly": true,
+        "anomaly_score": 0.7125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T11:07:56.613000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "21 km SW of Balangonan, Philippines",
+          "coordinates": [
+            125.2355,
+            5.4152,
+            36.458
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T11:10:40.128000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "Mariana Islands region",
+          "coordinates": [
+            145.9058,
+            21.6436,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T11:44:12.267000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.9,
+        "raw_data": {
+          "magnitude": 3.9,
+          "place": "32 km NNE of Las Terrenas, Dominican Republic",
+          "coordinates": [
+            -69.4763,
+            19.5944,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3,
+        "is_anomaly": false,
+        "anomaly_score": 0.4875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T12:49:31.866000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.76,
+        "raw_data": {
+          "magnitude": 2.76,
+          "place": "18 km SE of Silver Springs, Nevada",
+          "coordinates": [
+            -119.0558,
+            39.3159,
+            9.4241
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.08000000000000007,
+        "is_anomaly": false,
+        "anomaly_score": 0.345,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T13:18:48.740000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.66,
+        "raw_data": {
+          "magnitude": 2.66,
+          "place": "19 km ENE of Tres Pinos, CA",
+          "coordinates": [
+            -121.126831054688,
+            36.8591651916504,
+            4.19000005722046
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.11333333333333329,
+        "is_anomaly": false,
+        "anomaly_score": 0.3325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T13:45:26.037000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.2,
+        "raw_data": {
+          "magnitude": 5.2,
+          "place": "156 km ESE of Petropavlovsk-Kamchatsky, Russia",
+          "coordinates": [
+            160.7735,
+            52.5396,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.7333333333333334,
+        "is_anomaly": true,
+        "anomaly_score": 0.65,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T15:12:18.937000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "187 km SE of Petropavlovsk-Kamchatsky, Russia",
+          "coordinates": [
+            160.9107,
+            52.1101,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T15:23:08.309000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "165 km SE of Petropavlovsk-Kamchatsky, Russia",
+          "coordinates": [
+            160.666,
+            52.2406,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T16:20:40.720000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.81,
+        "raw_data": {
+          "magnitude": 2.81,
+          "place": "19 km WNW of Rinc\u00f3n, Puerto Rico",
+          "coordinates": [
+            -67.4166666666667,
+            18.4083333333333,
+            12.03
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.06333333333333331,
+        "is_anomaly": false,
+        "anomaly_score": 0.35125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T16:30:55.456000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "25 km ENE of Sibolga, Indonesia",
+          "coordinates": [
+            98.9699,
+            1.8646,
+            127.676
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T18:35:44.902000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "12 km NNE of Susitna, Alaska",
+          "coordinates": [
+            -150.389,
+            61.641,
+            29.7
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T20:06:33.210000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.55,
+        "raw_data": {
+          "magnitude": 2.55,
+          "place": "11 km E of P\u0101hala, Hawaii",
+          "coordinates": [
+            -155.3655,
+            19.2156666666667,
+            30.98
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.15000000000000005,
+        "is_anomaly": false,
+        "anomaly_score": 0.31875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T21:08:16.698000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "61 km WNW of San Antonio de los Cobres, Argentina",
+          "coordinates": [
+            -66.8709,
+            -23.9914,
+            200.68
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T23:26:26.731000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.1,
+        "raw_data": {
+          "magnitude": 5.1,
+          "place": "67 km SSW of Sarangani, Philippines",
+          "coordinates": [
+            125.3097,
+            4.8122,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6999999999999998,
+        "is_anomaly": true,
+        "anomaly_score": 0.6375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T23:30:45.857000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.4,
+        "raw_data": {
+          "magnitude": 5.4,
+          "place": "176 km ESE of Neiafu, Tonga",
+          "coordinates": [
+            -172.365,
+            -19.0625,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.8000000000000002,
+        "is_anomaly": true,
+        "anomaly_score": 0.675,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-10T23:50:23.691000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.8,
+        "raw_data": {
+          "magnitude": 4.8,
+          "place": "175 km SSW of Houma, Tonga",
+          "coordinates": [
+            -175.9409,
+            -22.6385,
+            46.618
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6,
+        "is_anomaly": false,
+        "anomaly_score": 0.6,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T00:00:43.372000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "57 km SSW of Sarangani, Philippines",
+          "coordinates": [
+            125.3373,
+            4.8951,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T01:27:55.543000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.1,
+        "raw_data": {
+          "magnitude": 4.1,
+          "place": "184 km SE of Petropavlovsk-Kamchatsky, Russia",
+          "coordinates": [
+            160.6456,
+            51.96,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.36666666666666653,
+        "is_anomaly": false,
+        "anomaly_score": 0.5125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T01:56:14.675000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.5,
+        "raw_data": {
+          "magnitude": 5.5,
+          "place": "58 km S of Sarangani, Philippines",
+          "coordinates": [
+            125.4356,
+            4.8778,
+            49.891
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.8333333333333334,
+        "is_anomaly": true,
+        "anomaly_score": 0.6875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      }
+    ],
+    "snapshot_target": {
+      "timestamp": "2026-06-11T01:56:14.675000+00:00",
+      "source": "USGS",
+      "data_type": "seismic",
+      "raw_value": 5.5,
+      "raw_data": {
+        "magnitude": 5.5,
+        "place": "58 km S of Sarangani, Philippines",
+        "coordinates": [
+          125.4356,
+          4.8778,
+          49.891
+        ]
+      },
+      "baseline_mean": 3.0,
+      "baseline_std": 1.5,
+      "deviation_from_baseline": 0.8333333333333334,
+      "is_anomaly": true,
+      "anomaly_score": 0.6875,
+      "coherence_spike": false,
+      "coherence_value": 0.0,
+      "frequency_shift": 0.0,
+      "amplitude_spike": false,
+      "amplitude_multiplier": 1.0
+    },
+    "snapshots_after": [
+      {
+        "timestamp": "2026-06-11T02:41:17.247000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "south of the Fiji Islands",
+          "coordinates": [
+            -177.5824,
+            -26.0978,
+            184.016
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T02:42:07.140000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.84,
+        "raw_data": {
+          "magnitude": 2.84,
+          "place": "80 km W of Petrolia, CA",
+          "coordinates": [
+            -125.22533416748,
+            40.4254989624023,
+            0.660000026226044
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.05333333333333338,
+        "is_anomaly": false,
+        "anomaly_score": 0.355,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T02:43:38.320000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "70 km S of Sarangani, Philippines",
+          "coordinates": [
+            125.396,
+            4.7679,
+            31.967
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T03:01:23.070000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.04,
+        "raw_data": {
+          "magnitude": 4.04,
+          "place": "78 km ENE of Christiansted, U.S. Virgin Islands",
+          "coordinates": [
+            -64.0091,
+            17.99,
+            126
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.3466666666666667,
+        "is_anomaly": false,
+        "anomaly_score": 0.505,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T03:14:25.782000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.8,
+        "raw_data": {
+          "magnitude": 4.8,
+          "place": "20 km SE of Sarangani, Philippines",
+          "coordinates": [
+            125.5928,
+            5.2678,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6,
+        "is_anomaly": false,
+        "anomaly_score": 0.6,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T04:44:38.172000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "212 km SE of Ust\u2019-Kamchatsk Staryy, Russia",
+          "coordinates": [
+            165.3069,
+            55.187,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T04:45:59.333000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "226 km WSW of Adak, Alaska",
+          "coordinates": [
+            -179.776,
+            51.325,
+            10.1
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T05:02:55.966000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "76 km ENE of Mutsu, Japan",
+          "coordinates": [
+            141.9958,
+            41.6487,
+            58.829
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T05:16:04.130000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.72,
+        "raw_data": {
+          "magnitude": 2.72,
+          "place": "30 km N of Tierras Nuevas Poniente, Puerto Rico",
+          "coordinates": [
+            -66.4736666666667,
+            18.739,
+            15.4
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09333333333333327,
+        "is_anomaly": false,
+        "anomaly_score": 0.34,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T05:19:44.569000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.2,
+        "raw_data": {
+          "magnitude": 5.2,
+          "place": "117 km NW of Vallenar, Chile",
+          "coordinates": [
+            -71.6196,
+            -27.8358,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.7333333333333334,
+        "is_anomaly": true,
+        "anomaly_score": 0.65,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T05:38:46.440000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "65 km SSE of Sarangani, Philippines",
+          "coordinates": [
+            125.5812,
+            4.8238,
+            62.85
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T06:05:46.702000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.3,
+        "raw_data": {
+          "magnitude": 4.3,
+          "place": "119 km NW of Vallenar, Chile",
+          "coordinates": [
+            -71.6044,
+            -27.8004,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.5375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T06:15:29.535000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.4,
+        "raw_data": {
+          "magnitude": 3.4,
+          "place": "254 km W of Adak, Alaska",
+          "coordinates": [
+            179.723,
+            51.532,
+            72.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.425,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T06:39:11.948000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "70 km E of Atka, Alaska",
+          "coordinates": [
+            -173.181,
+            52.114,
+            1.3
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T06:46:06.450000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.88,
+        "raw_data": {
+          "magnitude": 2.88,
+          "place": "1 km WSW of Pinnacles, CA",
+          "coordinates": [
+            -121.156997680664,
+            36.5275001525879,
+            6.3600001335144
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.040000000000000036,
+        "is_anomaly": false,
+        "anomaly_score": 0.36,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T07:33:23.077000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.4,
+        "raw_data": {
+          "magnitude": 5.4,
+          "place": "59 km S of Sarangani, Philippines",
+          "coordinates": [
+            125.4495,
+            4.8685,
+            72.962
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.8000000000000002,
+        "is_anomaly": true,
+        "anomaly_score": 0.675,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T07:48:46.021000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.1,
+        "raw_data": {
+          "magnitude": 3.1,
+          "place": "131 km WSW of Nikolski, Alaska",
+          "coordinates": [
+            -170.707,
+            52.549,
+            105
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T07:52:25.714000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.5,
+        "raw_data": {
+          "magnitude": 2.5,
+          "place": "194 km SSE of Old Harbor, Alaska",
+          "coordinates": [
+            -151.838,
+            55.653,
+            5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.16666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.3125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T07:53:10.696000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.8,
+        "raw_data": {
+          "magnitude": 4.8,
+          "place": "south of the Fiji Islands",
+          "coordinates": [
+            -179.7115,
+            -23.6335,
+            540.532
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6,
+        "is_anomaly": false,
+        "anomaly_score": 0.6,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T07:57:03.605000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.1,
+        "raw_data": {
+          "magnitude": 3.1,
+          "place": "Rat Islands, Aleutian Islands, Alaska",
+          "coordinates": [
+            178.979,
+            51.661,
+            85.2
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T09:04:56.038000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.7,
+        "raw_data": {
+          "magnitude": 4.7,
+          "place": "18 km NW of Mamou, Guinea",
+          "coordinates": [
+            -12.2269,
+            10.481,
+            10.246
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.5875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T09:36:00.756000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "21 km N of Midland, Texas",
+          "coordinates": [
+            -102.102,
+            32.189,
+            8.8135
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T10:00:36.638000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.9,
+        "raw_data": {
+          "magnitude": 4.9,
+          "place": "170 km ESE of Petropavlovsk-Kamchatsky, Russia",
+          "coordinates": [
+            160.7476,
+            52.2327,
+            35.358
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6333333333333334,
+        "is_anomaly": false,
+        "anomaly_score": 0.6125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T10:14:15.950000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.76,
+        "raw_data": {
+          "magnitude": 2.76,
+          "place": "72 km W of Petrolia, CA",
+          "coordinates": [
+            -125.13166809082,
+            40.3146667480469,
+            4.40000009536743
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.08000000000000007,
+        "is_anomaly": false,
+        "anomaly_score": 0.345,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T11:10:26.829000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.6,
+        "raw_data": {
+          "magnitude": 3.6,
+          "place": "65 km SW of Nikolski, Alaska",
+          "coordinates": [
+            -169.6413,
+            52.5855,
+            17.264
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.20000000000000004,
+        "is_anomaly": false,
+        "anomaly_score": 0.45,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T11:17:53.126000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "26 km N of Four Mile Road, Alaska",
+          "coordinates": [
+            -149.225,
+            64.835,
+            7
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T11:37:07.648000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.6,
+        "raw_data": {
+          "magnitude": 3.6,
+          "place": "73 km SSE of Adak, Alaska",
+          "coordinates": [
+            -176.2922,
+            51.2484,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.20000000000000004,
+        "is_anomaly": false,
+        "anomaly_score": 0.45,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T11:46:58.234000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.1,
+        "raw_data": {
+          "magnitude": 5.1,
+          "place": "62 km S of Sarangani, Philippines",
+          "coordinates": [
+            125.5183,
+            4.837,
+            35.164
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6999999999999998,
+        "is_anomaly": true,
+        "anomaly_score": 0.6375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T12:06:28.998000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.1,
+        "raw_data": {
+          "magnitude": 5.1,
+          "place": "123 km NW of Vallenar, Chile",
+          "coordinates": [
+            -71.6744,
+            -27.8153,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6999999999999998,
+        "is_anomaly": true,
+        "anomaly_score": 0.6375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T12:21:59.730000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.31,
+        "raw_data": {
+          "magnitude": 3.31,
+          "place": "95 km ENE of Cruz Bay, U.S. Virgin Islands",
+          "coordinates": [
+            -63.9223333333333,
+            18.5718333333333,
+            62.92
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.10333333333333335,
+        "is_anomaly": false,
+        "anomaly_score": 0.41375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T12:22:06.272000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5.5,
+        "raw_data": {
+          "magnitude": 5.5,
+          "place": "128 km NW of Vallenar, Chile",
+          "coordinates": [
+            -71.7406,
+            -27.8038,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.8333333333333334,
+        "is_anomaly": true,
+        "anomaly_score": 0.6875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T12:31:29.575000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "36 km WNW of Clam Gulch, Alaska",
+          "coordinates": [
+            -151.989,
+            60.378,
+            91.6
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T13:33:57.960000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.71,
+        "raw_data": {
+          "magnitude": 2.71,
+          "place": "2 km NNW of Volcano, Hawaii",
+          "coordinates": [
+            -155.246833333333,
+            19.4645,
+            28.26
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.33875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T13:34:03.200000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.62,
+        "raw_data": {
+          "magnitude": 2.62,
+          "place": "0 km W of Volcano, Hawaii",
+          "coordinates": [
+            -155.240829467773,
+            19.4423332214355,
+            0.28999999165535
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.12666666666666662,
+        "is_anomaly": false,
+        "anomaly_score": 0.3275,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T13:43:43.410000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.18,
+        "raw_data": {
+          "magnitude": 3.18,
+          "place": "18 km WSW of Johannesburg, CA",
+          "coordinates": [
+            -117.817666666667,
+            35.3098333333333,
+            8.47
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.06000000000000005,
+        "is_anomaly": false,
+        "anomaly_score": 0.3975,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T13:53:11.817000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.9,
+        "raw_data": {
+          "magnitude": 2.9,
+          "place": "89 km S of Sand Point, Alaska",
+          "coordinates": [
+            -160.3347,
+            54.5336,
+            35
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T14:22:37.124000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "46 km SSE of \u014cfunato, Japan",
+          "coordinates": [
+            141.9444,
+            38.6945,
+            78.789
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T14:22:44.072000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "92 km SSW of False Pass, Alaska",
+          "coordinates": [
+            -163.6949,
+            54.036,
+            27.15
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T15:08:31.713000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3,
+        "raw_data": {
+          "magnitude": 3,
+          "place": "138 km ESE of Cordova, Alaska",
+          "coordinates": [
+            -143.347,
+            60.202,
+            0.9
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.0,
+        "is_anomaly": false,
+        "anomaly_score": 0.375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T15:40:34.924000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "17 km SSE of H\u0101flong, India",
+          "coordinates": [
+            93.0576,
+            25.0151,
+            36.41
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T16:09:18.679000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "71 km S of Sarangani, Philippines",
+          "coordinates": [
+            125.3387,
+            4.7716,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T16:53:17.305000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.8,
+        "raw_data": {
+          "magnitude": 3.8,
+          "place": "48 km SSE of Unalaska, Alaska",
+          "coordinates": [
+            -166.384,
+            53.452,
+            89.288
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.2666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.475,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T18:07:55.289000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.4,
+        "raw_data": {
+          "magnitude": 4.4,
+          "place": "112 km NW of Vallenar, Chile",
+          "coordinates": [
+            -71.502,
+            -27.8085,
+            18.8
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4666666666666668,
+        "is_anomaly": false,
+        "anomaly_score": 0.55,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T18:49:21.924000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "72 km ESE of Kokopo, Papua New Guinea",
+          "coordinates": [
+            152.8134,
+            -4.7032,
+            75.535
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T18:57:17.611000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "97 km SE of Hualien City, Taiwan",
+          "coordinates": [
+            122.1577,
+            23.259,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T19:30:08.540000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "85 km S of P\u00fdrgos, Greece",
+          "coordinates": [
+            25.1235,
+            34.2386,
+            30.561
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T19:48:23.124000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "95 km N of Yakutat, Alaska",
+          "coordinates": [
+            -139.4756,
+            60.3976,
+            5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T19:52:55.063000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.2,
+        "raw_data": {
+          "magnitude": 3.2,
+          "place": "77 km SE of Atka, Alaska",
+          "coordinates": [
+            -173.273,
+            51.794,
+            16.5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.06666666666666672,
+        "is_anomaly": false,
+        "anomaly_score": 0.4,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T20:05:32.131000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.6,
+        "raw_data": {
+          "magnitude": 2.6,
+          "place": "74 km S of Nikolski, Alaska",
+          "coordinates": [
+            -168.913,
+            52.267,
+            4.5
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.1333333333333333,
+        "is_anomaly": false,
+        "anomaly_score": 0.325,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T20:37:29.510000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.05,
+        "raw_data": {
+          "magnitude": 3.05,
+          "place": "59 km NNE of Cruz Bay, U.S. Virgin Islands",
+          "coordinates": [
+            -64.6673333333333,
+            18.8595,
+            59.47
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.016666666666666607,
+        "is_anomaly": false,
+        "anomaly_score": 0.38125,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T21:32:47.364000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 5,
+        "raw_data": {
+          "magnitude": 5,
+          "place": "68 km NNW of Isangel, Vanuatu",
+          "coordinates": [
+            169.0532,
+            -18.9647,
+            168.418
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.6666666666666666,
+        "is_anomaly": false,
+        "anomaly_score": 0.625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:38:12.773426+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.741588346564665,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3565754587428933,
+          "schumann": 7.741588346564665,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.29470551145111656,
+        "is_anomaly": false,
+        "anomaly_score": 0.08841165343533497,
+        "coherence_spike": false,
+        "coherence_value": 0.3565754587428933,
+        "frequency_shift": -0.08841165343533497,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:39:13.961223+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.735114339553064,
+        "raw_data": {
+          "lambda": 0.8145056010869979,
+          "beta": 0.7742,
+          "coherence": 0.311821456828769,
+          "schumann": 7.735114339553064,
+          "awakening": 93.29425767962958,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3162855348231197,
+        "is_anomaly": false,
+        "anomaly_score": 0.09488566044693592,
+        "coherence_spike": false,
+        "coherence_value": 0.311821456828769,
+        "frequency_shift": -0.09488566044693592,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:40:15.222858+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.733358906026262,
+        "raw_data": {
+          "lambda": 0.8636743281865085,
+          "beta": 0.7742,
+          "coherence": 0.330291464683198,
+          "schumann": 7.733358906026262,
+          "awakening": 98.16895469750847,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3221369799124604,
+        "is_anomaly": false,
+        "anomaly_score": 0.0966410939737381,
+        "coherence_spike": false,
+        "coherence_value": 0.330291464683198,
+        "frequency_shift": -0.0966410939737381,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:41:16.543300+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.73605661171779,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3502427244815884,
+          "schumann": 7.73605661171779,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3131446276073676,
+        "is_anomaly": false,
+        "anomaly_score": 0.09394338828221027,
+        "coherence_spike": false,
+        "coherence_value": 0.3502427244815884,
+        "frequency_shift": -0.09394338828221027,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:42:17.683619+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.776546255759386,
+        "raw_data": {
+          "lambda": 0.9219545109595171,
+          "beta": 0.7742,
+          "coherence": 0.35110302245643044,
+          "schumann": 7.776546255759386,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.17817914746871408,
+        "is_anomaly": false,
+        "anomaly_score": 0.05345374424061422,
+        "coherence_spike": false,
+        "coherence_value": 0.35110302245643044,
+        "frequency_shift": -0.05345374424061422,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:43:18.804549+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.767058494401026,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3578292658144382,
+          "schumann": 7.767058494401026,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.20980501866324572,
+        "is_anomaly": false,
+        "anomaly_score": 0.06294150559897371,
+        "coherence_spike": false,
+        "coherence_value": 0.3578292658144382,
+        "frequency_shift": -0.06294150559897371,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:44:19.905458+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.745629513022792,
+        "raw_data": {
+          "lambda": 0.8387266659556021,
+          "beta": 0.7742,
+          "coherence": 0.2892727803233554,
+          "schumann": 7.745629513022792,
+          "awakening": 95.5092769530046,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2812349565906924,
+        "is_anomaly": false,
+        "anomaly_score": 0.08437048697720773,
+        "coherence_spike": false,
+        "coherence_value": 0.2892727803233554,
+        "frequency_shift": -0.08437048697720773,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:45:20.915506+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.741559730116312,
+        "raw_data": {
+          "lambda": 0.7576690565808073,
+          "beta": 0.7742,
+          "coherence": 0.3011784738717237,
+          "schumann": 7.741559730116312,
+          "awakening": 87.36326394982974,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.29480089961229383,
+        "is_anomaly": false,
+        "anomaly_score": 0.08844026988368814,
+        "coherence_spike": false,
+        "coherence_value": 0.3011784738717237,
+        "frequency_shift": -0.08844026988368814,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:46:22.003999+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.732466153018601,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3910425921173491,
+          "schumann": 7.732466153018601,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3251128232713304,
+        "is_anomaly": false,
+        "anomaly_score": 0.09753384698139911,
+        "coherence_spike": false,
+        "coherence_value": 0.3910425921173491,
+        "frequency_shift": -0.09753384698139911,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:47:22.960176+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.731390441959485,
+        "raw_data": {
+          "lambda": 0.9018760518979829,
+          "beta": 0.7742,
+          "coherence": 0.3565406844390617,
+          "schumann": 7.731390441959485,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3286985268017162,
+        "is_anomaly": false,
+        "anomaly_score": 0.09860955804051486,
+        "coherence_spike": false,
+        "coherence_value": 0.3565406844390617,
+        "frequency_shift": -0.09860955804051486,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:48:24.076093+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.745877928327697,
+        "raw_data": {
+          "lambda": 0.6714744281258873,
+          "beta": 0.7742,
+          "coherence": 0.2313817578244525,
+          "schumann": 7.745877928327697,
+          "awakening": 78.62499199661906,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2804069055743449,
+        "is_anomaly": false,
+        "anomaly_score": 0.08412207167230346,
+        "coherence_spike": false,
+        "coherence_value": 0.2313817578244525,
+        "frequency_shift": -0.08412207167230346,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:49:25.049485+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.771049392159868,
+        "raw_data": {
+          "lambda": 0.6563360350100202,
+          "beta": 0.7742,
+          "coherence": 0.2406223113987514,
+          "schumann": 7.771049392159868,
+          "awakening": 77.07226909463726,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.1965020261337743,
+        "is_anomaly": false,
+        "anomaly_score": 0.058950607840132285,
+        "coherence_spike": false,
+        "coherence_value": 0.2406223113987514,
+        "frequency_shift": -0.058950607840132285,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:50:26.179396+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.74002101085666,
+        "raw_data": {
+          "lambda": 0.78854060422839,
+          "beta": 0.7742,
+          "coherence": 0.27962220782989095,
+          "schumann": 7.74002101085666,
+          "awakening": 90.25407274537967,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2999299638111334,
+        "is_anomaly": false,
+        "anomaly_score": 0.08997898914334002,
+        "coherence_spike": false,
+        "coherence_value": 0.27962220782989095,
+        "frequency_shift": -0.08997898914334002,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:51:27.119919+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.770538052069571,
+        "raw_data": {
+          "lambda": 0.8891967875169939,
+          "beta": 0.7742,
+          "coherence": 0.3567450535722344,
+          "schumann": 7.770538052069571,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.1982064931014301,
+        "is_anomaly": false,
+        "anomaly_score": 0.05946194793042903,
+        "coherence_spike": false,
+        "coherence_value": 0.3567450535722344,
+        "frequency_shift": -0.05946194793042903,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:52:28.215361+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.765012214407008,
+        "raw_data": {
+          "lambda": 0.9147240863915642,
+          "beta": 0.7742,
+          "coherence": 0.34026714762402194,
+          "schumann": 7.765012214407008,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.21662595197663967,
+        "is_anomaly": false,
+        "anomaly_score": 0.0649877855929919,
+        "coherence_spike": false,
+        "coherence_value": 0.34026714762402194,
+        "frequency_shift": -0.0649877855929919,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:53:29.345384+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.774825983063163,
+        "raw_data": {
+          "lambda": 0.710824638938237,
+          "beta": 0.7742,
+          "coherence": 0.2699135124503087,
+          "schumann": 7.774825983063163,
+          "awakening": 82.36860889853975,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.18391338978945626,
+        "is_anomaly": false,
+        "anomaly_score": 0.05517401693683688,
+        "coherence_spike": false,
+        "coherence_value": 0.2699135124503087,
+        "frequency_shift": -0.05517401693683688,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:54:30.270620+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.732453848777704,
+        "raw_data": {
+          "lambda": 0.8111328221244143,
+          "beta": 0.7742,
+          "coherence": 0.32472989317664724,
+          "schumann": 7.732453848777704,
+          "awakening": 92.36219167416156,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3251538374076546,
+        "is_anomaly": false,
+        "anomaly_score": 0.09754615122229637,
+        "coherence_spike": false,
+        "coherence_value": 0.32472989317664724,
+        "frequency_shift": -0.09754615122229637,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:55:31.369002+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.762829189060643,
+        "raw_data": {
+          "lambda": 0.9529389193671458,
+          "beta": 0.7742,
+          "coherence": 0.3650819417575756,
+          "schumann": 7.762829189060643,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.22390270313119132,
+        "is_anomaly": false,
+        "anomaly_score": 0.0671708109393574,
+        "coherence_spike": false,
+        "coherence_value": 0.3650819417575756,
+        "frequency_shift": -0.0671708109393574,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:56:32.448225+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.771155273533823,
+        "raw_data": {
+          "lambda": 0.7395396153501916,
+          "beta": 0.7742,
+          "coherence": 0.2764814544922774,
+          "schumann": 7.771155273533823,
+          "awakening": 85.12914585366703,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.1961490882205889,
+        "is_anomaly": false,
+        "anomaly_score": 0.05884472646617667,
+        "coherence_spike": false,
+        "coherence_value": 0.2764814544922774,
+        "frequency_shift": -0.05884472646617667,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:57:33.556566+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.730925716408368,
+        "raw_data": {
+          "lambda": 0.8094660160554317,
+          "beta": 0.7742,
+          "coherence": 0.27780824151198774,
+          "schumann": 7.730925716408368,
+          "awakening": 92.0853797495379,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.33024761197210617,
+        "is_anomaly": false,
+        "anomaly_score": 0.09907428359163184,
+        "coherence_spike": false,
+        "coherence_value": 0.27780824151198774,
+        "frequency_shift": -0.09907428359163184,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:58:34.731381+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.739253528654171,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.34646141446913814,
+          "schumann": 7.739253528654171,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.30248823781943085,
+        "is_anomaly": false,
+        "anomaly_score": 0.09074647134582925,
+        "coherence_spike": false,
+        "coherence_value": 0.34646141446913814,
+        "frequency_shift": -0.09074647134582925,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T22:59:35.875662+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.744309607535986,
+        "raw_data": {
+          "lambda": 0.9073613410682961,
+          "beta": 0.7742,
+          "coherence": 0.3259094360274421,
+          "schumann": 7.744309607535986,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2856346415467126,
+        "is_anomaly": false,
+        "anomaly_score": 0.08569039246401378,
+        "coherence_spike": false,
+        "coherence_value": 0.3259094360274421,
+        "frequency_shift": -0.08569039246401378,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:00:37.239161+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.755835283319002,
+        "raw_data": {
+          "lambda": 0.960738761329641,
+          "beta": 0.7742,
+          "coherence": 0.3467603342816979,
+          "schumann": 7.755835283319002,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2472157222699926,
+        "is_anomaly": false,
+        "anomaly_score": 0.07416471668099778,
+        "coherence_spike": false,
+        "coherence_value": 0.3467603342816979,
+        "frequency_shift": -0.07416471668099778,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:01:38.551997+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.762841917439937,
+        "raw_data": {
+          "lambda": 0.843511904233307,
+          "beta": 0.7742,
+          "coherence": 0.3260269046762149,
+          "schumann": 7.762841917439937,
+          "awakening": 95.34708346913571,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.22386027520020946,
+        "is_anomaly": false,
+        "anomaly_score": 0.06715808256006284,
+        "coherence_spike": false,
+        "coherence_value": 0.3260269046762149,
+        "frequency_shift": -0.06715808256006284,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:02:40.115961+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.763673018967002,
+        "raw_data": {
+          "lambda": 0.7297976122300281,
+          "beta": 0.7742,
+          "coherence": 0.28261840694141593,
+          "schumann": 7.763673018967002,
+          "awakening": 83.94050991609512,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2210899367766602,
+        "is_anomaly": false,
+        "anomaly_score": 0.06632698103299806,
+        "coherence_spike": false,
+        "coherence_value": 0.28261840694141593,
+        "frequency_shift": -0.06632698103299806,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:03:41.490048+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.738370525270306,
+        "raw_data": {
+          "lambda": 0.9153002758475304,
+          "beta": 0.7742,
+          "coherence": 0.3522156111020736,
+          "schumann": 7.738370525270306,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3054315824323132,
+        "is_anomaly": false,
+        "anomaly_score": 0.09162947472969396,
+        "coherence_spike": false,
+        "coherence_value": 0.3522156111020736,
+        "frequency_shift": -0.09162947472969396,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:04:42.419312+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.729091961556179,
+        "raw_data": {
+          "lambda": 0.753086775635801,
+          "beta": 0.7742,
+          "coherence": 0.26116969296978,
+          "schumann": 7.729091961556179,
+          "awakening": 86.20049727694189,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3363601281460701,
+        "is_anomaly": false,
+        "anomaly_score": 0.10090803844382101,
+        "coherence_spike": false,
+        "coherence_value": 0.26116969296978,
+        "frequency_shift": -0.10090803844382101,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:05:43.380968+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.76404305074537,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3860351081689768,
+          "schumann": 7.76404305074537,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.21985649751543454,
+        "is_anomaly": false,
+        "anomaly_score": 0.06595694925463036,
+        "coherence_spike": false,
+        "coherence_value": 0.3860351081689768,
+        "frequency_shift": -0.06595694925463036,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:06:44.502813+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.729126607178877,
+        "raw_data": {
+          "lambda": 0.9420879955796087,
+          "beta": 0.7742,
+          "coherence": 0.3171622934057418,
+          "schumann": 7.729126607178877,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.33624464273707727,
+        "is_anomaly": false,
+        "anomaly_score": 0.10087339282112318,
+        "coherence_spike": false,
+        "coherence_value": 0.3171622934057418,
+        "frequency_shift": -0.10087339282112318,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:07:45.639876+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.773881186104007,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3697222622012032,
+          "schumann": 7.773881186104007,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.18706271298664312,
+        "is_anomaly": false,
+        "anomaly_score": 0.056118813895992936,
+        "coherence_spike": false,
+        "coherence_value": 0.3697222622012032,
+        "frequency_shift": -0.056118813895992936,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:08:46.716089+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.734094498549185,
+        "raw_data": {
+          "lambda": 0.8835674812738781,
+          "beta": 0.7742,
+          "coherence": 0.3499172930260064,
+          "schumann": 7.734094498549185,
+          "awakening": 99.11435452779291,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3196850048360508,
+        "is_anomaly": false,
+        "anomaly_score": 0.09590550145081522,
+        "coherence_spike": false,
+        "coherence_value": 0.3499172930260064,
+        "frequency_shift": -0.09590550145081522,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:09:47.828562+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.774811195024835,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.3710648541156898,
+          "schumann": 7.774811195024835,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.18396268325054996,
+        "is_anomaly": false,
+        "anomaly_score": 0.055188804975164985,
+        "coherence_spike": false,
+        "coherence_value": 0.3710648541156898,
+        "frequency_shift": -0.055188804975164985,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:10:48.970154+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7445539544145126,
+        "raw_data": {
+          "lambda": 0.8778216104277301,
+          "beta": 0.7742,
+          "coherence": 0.3304618576322109,
+          "schumann": 7.7445539544145126,
+          "awakening": 98.47430109301348,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2848201519516251,
+        "is_anomaly": false,
+        "anomaly_score": 0.08544604558548752,
+        "coherence_spike": false,
+        "coherence_value": 0.3304618576322109,
+        "frequency_shift": -0.08544604558548752,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:11:50.186752+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.742559009327283,
+        "raw_data": {
+          "lambda": 0.9836330088114978,
+          "beta": 0.7742,
+          "coherence": 0.3781534159434958,
+          "schumann": 7.742559009327283,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2914699689090572,
+        "is_anomaly": false,
+        "anomaly_score": 0.08744099067271716,
+        "coherence_spike": false,
+        "coherence_value": 0.3781534159434958,
+        "frequency_shift": -0.08744099067271716,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:12:51.164578+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7604293664358455,
+        "raw_data": {
+          "lambda": 0.8006054939856901,
+          "beta": 0.7742,
+          "coherence": 0.31617145126764207,
+          "schumann": 7.7604293664358455,
+          "awakening": 90.6883615594801,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.23190211188051535,
+        "is_anomaly": false,
+        "anomaly_score": 0.0695706335641546,
+        "coherence_spike": false,
+        "coherence_value": 0.31617145126764207,
+        "frequency_shift": -0.0695706335641546,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:13:52.379433+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.742567291788439,
+        "raw_data": {
+          "lambda": 0.7918973320725144,
+          "beta": 0.7742,
+          "coherence": 0.31527159010277045,
+          "schumann": 7.742567291788439,
+          "awakening": 89.78572988617023,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2914423607052038,
+        "is_anomaly": false,
+        "anomaly_score": 0.08743270821156113,
+        "coherence_spike": false,
+        "coherence_value": 0.31527159010277045,
+        "frequency_shift": -0.08743270821156113,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:14:53.465269+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.760383090967158,
+        "raw_data": {
+          "lambda": 0.8089221224465135,
+          "beta": 0.7742,
+          "coherence": 0.3076745687770898,
+          "schumann": 7.760383090967158,
+          "awakening": 91.45673024294103,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.23205636344280597,
+        "is_anomaly": false,
+        "anomaly_score": 0.06961690903284179,
+        "coherence_spike": false,
+        "coherence_value": 0.3076745687770898,
+        "frequency_shift": -0.06961690903284179,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:15:55.485639+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7686076019669965,
+        "raw_data": {
+          "lambda": 0.9383686118619721,
+          "beta": 0.7742,
+          "coherence": 0.3668920085961355,
+          "schumann": 7.7686076019669965,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.20464132677667854,
+        "is_anomaly": false,
+        "anomaly_score": 0.06139239803300356,
+        "coherence_spike": false,
+        "coherence_value": 0.3668920085961355,
+        "frequency_shift": -0.06139239803300356,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:16:56.460856+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.750530144546998,
+        "raw_data": {
+          "lambda": 0.7583193148037661,
+          "beta": 0.7742,
+          "coherence": 0.2541022774544418,
+          "schumann": 7.750530144546998,
+          "awakening": 86.33387645317625,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2648995181766741,
+        "is_anomaly": false,
+        "anomaly_score": 0.07946985545300222,
+        "coherence_spike": false,
+        "coherence_value": 0.2541022774544418,
+        "frequency_shift": -0.07946985545300222,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:17:57.537843+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.760140688630195,
+        "raw_data": {
+          "lambda": 0.8228504108259085,
+          "beta": 0.7742,
+          "coherence": 0.32375953481237596,
+          "schumann": 7.760140688630195,
+          "awakening": 92.75631078724308,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.23286437123268242,
+        "is_anomaly": false,
+        "anomaly_score": 0.06985931136980472,
+        "coherence_spike": false,
+        "coherence_value": 0.32375953481237596,
+        "frequency_shift": -0.06985931136980472,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:18:58.717731+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.741098669022287,
+        "raw_data": {
+          "lambda": 0.9620381433420953,
+          "beta": 0.7742,
+          "coherence": 0.3698175925209445,
+          "schumann": 7.741098669022287,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.296337769925709,
+        "is_anomaly": false,
+        "anomaly_score": 0.08890133097771269,
+        "coherence_spike": false,
+        "coherence_value": 0.3698175925209445,
+        "frequency_shift": -0.08890133097771269,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:19:59.725981+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.750806752221245,
+        "raw_data": {
+          "lambda": 0.802972956015396,
+          "beta": 0.7742,
+          "coherence": 0.2761728249423679,
+          "schumann": 7.750806752221245,
+          "awakening": 90.70797780117988,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.26397749259584974,
+        "is_anomaly": false,
+        "anomaly_score": 0.07919324777875492,
+        "coherence_spike": false,
+        "coherence_value": 0.2761728249423679,
+        "frequency_shift": -0.07919324777875492,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:21:00.913665+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.73583425899153,
+        "raw_data": {
+          "lambda": 0.6965722475495313,
+          "beta": 0.7742,
+          "coherence": 0.2343350005613955,
+          "schumann": 7.73583425899153,
+          "awakening": 80.03795316561411,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3138858033615666,
+        "is_anomaly": false,
+        "anomaly_score": 0.09416574100846997,
+        "coherence_spike": false,
+        "coherence_value": 0.2343350005613955,
+        "frequency_shift": -0.09416574100846997,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:22:02.956928+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.741019879423209,
+        "raw_data": {
+          "lambda": 0.7219412721654861,
+          "beta": 0.7742,
+          "coherence": 0.2568064256007896,
+          "schumann": 7.741019879423209,
+          "awakening": 82.54474347945897,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.29660040192263837,
+        "is_anomaly": false,
+        "anomaly_score": 0.0889801205767915,
+        "coherence_spike": false,
+        "coherence_value": 0.2568064256007896,
+        "frequency_shift": -0.0889801205767915,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:23:04.182424+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.770988120392663,
+        "raw_data": {
+          "lambda": 0.769116233777101,
+          "beta": 0.7742,
+          "coherence": 0.2744898584434722,
+          "schumann": 7.770988120392663,
+          "awakening": 87.23277911438879,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.1967062653577904,
+        "is_anomaly": false,
+        "anomaly_score": 0.059011879607337114,
+        "coherence_spike": false,
+        "coherence_value": 0.2744898584434722,
+        "frequency_shift": -0.059011879607337114,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:24:05.377467+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.765602248515026,
+        "raw_data": {
+          "lambda": 0.7777430410389864,
+          "beta": 0.7742,
+          "coherence": 0.2997904793026949,
+          "schumann": 7.765602248515026,
+          "awakening": 88.06626496504312,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.21465917161658096,
+        "is_anomaly": false,
+        "anomaly_score": 0.06439775148497429,
+        "coherence_spike": false,
+        "coherence_value": 0.2997904793026949,
+        "frequency_shift": -0.06439775148497429,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:25:06.399476+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.760290577918341,
+        "raw_data": {
+          "lambda": 0.8793459315801055,
+          "beta": 0.7742,
+          "coherence": 0.33351740971328614,
+          "schumann": 7.760290577918341,
+          "awakening": 98.19768936848783,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2323647402721966,
+        "is_anomaly": false,
+        "anomaly_score": 0.06970942208165898,
+        "coherence_spike": false,
+        "coherence_value": 0.33351740971328614,
+        "frequency_shift": -0.06970942208165898,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:26:07.480247+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.754492319377267,
+        "raw_data": {
+          "lambda": 0.7538905408530863,
+          "beta": 0.7742,
+          "coherence": 0.2706567412621998,
+          "schumann": 7.754492319377267,
+          "awakening": 85.62350347701987,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.25169226874244427,
+        "is_anomaly": false,
+        "anomaly_score": 0.07550768062273328,
+        "coherence_spike": false,
+        "coherence_value": 0.2706567412621998,
+        "frequency_shift": -0.07550768062273328,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:27:08.690339+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.745755762146735,
+        "raw_data": {
+          "lambda": 0.8421814103110536,
+          "beta": 0.7742,
+          "coherence": 0.32283316518343647,
+          "schumann": 7.745755762146735,
+          "awakening": 94.42412735264706,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.28081412617755025,
+        "is_anomaly": false,
+        "anomaly_score": 0.08424423785326507,
+        "coherence_spike": false,
+        "coherence_value": 0.32283316518343647,
+        "frequency_shift": -0.08424423785326507,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:28:09.860308+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.734217575417018,
+        "raw_data": {
+          "lambda": 0.7079558539590605,
+          "beta": 0.7742,
+          "coherence": 0.2827318519360159,
+          "schumann": 7.734217575417018,
+          "awakening": 80.97336987931263,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.31927474860993976,
+        "is_anomaly": false,
+        "anomaly_score": 0.09578242458298192,
+        "coherence_spike": false,
+        "coherence_value": 0.2827318519360159,
+        "frequency_shift": -0.09578242458298192,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:29:10.892839+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.774887325001873,
+        "raw_data": {
+          "lambda": 0.7761949023037058,
+          "beta": 0.7742,
+          "coherence": 0.27694319108028087,
+          "schumann": 7.774887325001873,
+          "awakening": 87.76937551178341,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.18370891666042333,
+        "is_anomaly": false,
+        "anomaly_score": 0.055112674998127,
+        "coherence_spike": false,
+        "coherence_value": 0.27694319108028087,
+        "frequency_shift": -0.055112674998127,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:30:12.044136+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.77312500781792,
+        "raw_data": {
+          "lambda": 0.6123651579889753,
+          "beta": 0.7742,
+          "coherence": 0.24537534715210327,
+          "schumann": 7.77312500781792,
+          "awakening": 71.3586856012787,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.18958330727360048,
+        "is_anomaly": false,
+        "anomaly_score": 0.05687499218208014,
+        "coherence_spike": false,
+        "coherence_value": 0.24537534715210327,
+        "frequency_shift": -0.05687499218208014,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:31:13.693041+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.760177079623115,
+        "raw_data": {
+          "lambda": 0.6092117924712617,
+          "beta": 0.7742,
+          "coherence": 0.24476304232852458,
+          "schumann": 7.760177079623115,
+          "awakening": 71.01564695505941,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.23274306792295069,
+        "is_anomaly": false,
+        "anomaly_score": 0.0698229203768852,
+        "coherence_spike": false,
+        "coherence_value": 0.24476304232852458,
+        "frequency_shift": -0.0698229203768852,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:32:14.773769+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.749690440041697,
+        "raw_data": {
+          "lambda": 0.6815620805375169,
+          "beta": 0.7742,
+          "coherence": 0.26958300050778355,
+          "schumann": 7.749690440041697,
+          "awakening": 78.22346375872584,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2676985331943449,
+        "is_anomaly": false,
+        "anomaly_score": 0.08030955995830347,
+        "coherence_spike": false,
+        "coherence_value": 0.26958300050778355,
+        "frequency_shift": -0.08030955995830347,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:33:16.435390+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.740981541540804,
+        "raw_data": {
+          "lambda": 0.7967156501945718,
+          "beta": 0.7742,
+          "coherence": 0.3039551637142783,
+          "schumann": 7.740981541540804,
+          "awakening": 89.7115853529717,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2967281948639874,
+        "is_anomaly": false,
+        "anomaly_score": 0.0890184584591962,
+        "coherence_spike": false,
+        "coherence_value": 0.3039551637142783,
+        "frequency_shift": -0.0890184584591962,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:34:17.634677+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.737168677606626,
+        "raw_data": {
+          "lambda": 0.8080383275645142,
+          "beta": 0.7742,
+          "coherence": 0.32053728221438443,
+          "schumann": 7.737168677606626,
+          "awakening": 90.81705258831052,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3094377413112456,
+        "is_anomaly": false,
+        "anomaly_score": 0.09283132239337366,
+        "coherence_spike": false,
+        "coherence_value": 0.32053728221438443,
+        "frequency_shift": -0.09283132239337366,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:35:18.737925+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.753176606301334,
+        "raw_data": {
+          "lambda": 0.7829728598649175,
+          "beta": 0.7742,
+          "coherence": 0.2828800939694958,
+          "schumann": 7.753176606301334,
+          "awakening": 88.2839759416603,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2560779789955525,
+        "is_anomaly": false,
+        "anomaly_score": 0.07682339369866575,
+        "coherence_spike": false,
+        "coherence_value": 0.2828800939694958,
+        "frequency_shift": -0.07682339369866575,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:36:19.778827+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.771101283061064,
+        "raw_data": {
+          "lambda": 0.7603091370637208,
+          "beta": 0.7742,
+          "coherence": 0.26790893472585764,
+          "schumann": 7.771101283061064,
+          "awakening": 85.99132656471937,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.19632905646311966,
+        "is_anomaly": false,
+        "anomaly_score": 0.05889871693893589,
+        "coherence_spike": false,
+        "coherence_value": 0.26790893472585764,
+        "frequency_shift": -0.05889871693893589,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:37:20.872590+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.754987553128944,
+        "raw_data": {
+          "lambda": 0.6252026780664091,
+          "beta": 0.7742,
+          "coherence": 0.2270268474658104,
+          "schumann": 7.754987553128944,
+          "awakening": 72.45460488764719,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.250041489570186,
+        "is_anomaly": false,
+        "anomaly_score": 0.0750124468710558,
+        "coherence_spike": false,
+        "coherence_value": 0.2270268474658104,
+        "frequency_shift": -0.0750124468710558,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:38:21.943603+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.727642592612352,
+        "raw_data": {
+          "lambda": 0.8467910565945747,
+          "beta": 0.7742,
+          "coherence": 0.29722011498200074,
+          "schumann": 7.727642592612352,
+          "awakening": 94.58759873167217,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3411913579588255,
+        "is_anomaly": false,
+        "anomaly_score": 0.10235740738764765,
+        "coherence_spike": false,
+        "coherence_value": 0.29722011498200074,
+        "frequency_shift": -0.10235740738764765,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:39:21.740000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.02,
+        "raw_data": {
+          "magnitude": 4.02,
+          "place": "94 km N of Culebra, Puerto Rico",
+          "coordinates": [
+            -65.2976,
+            19.1566,
+            8
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.33999999999999986,
+        "is_anomaly": false,
+        "anomaly_score": 0.5025,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:39:22.913861+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.729188174274147,
+        "raw_data": {
+          "lambda": 0.7556583445891888,
+          "beta": 0.7742,
+          "coherence": 0.293894719740607,
+          "schumann": 7.729188174274147,
+          "awakening": 85.44874573752236,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.33603941908617746,
+        "is_anomaly": false,
+        "anomaly_score": 0.10081182572585323,
+        "coherence_spike": false,
+        "coherence_value": 0.293894719740607,
+        "frequency_shift": -0.10081182572585323,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:40:23.935822+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.739094522379768,
+        "raw_data": {
+          "lambda": 0.9720013181691527,
+          "beta": 0.7742,
+          "coherence": 0.34296200724848275,
+          "schumann": 7.739094522379768,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.3030182587341083,
+        "is_anomaly": false,
+        "anomaly_score": 0.09090547762023249,
+        "coherence_spike": false,
+        "coherence_value": 0.34296200724848275,
+        "frequency_shift": -0.09090547762023249,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:41:25.074461+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.738422826632853,
+        "raw_data": {
+          "lambda": 0.9861367361350348,
+          "beta": 0.7742,
+          "coherence": 0.3630240011275493,
+          "schumann": 7.738422826632853,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.30525724455715775,
+        "is_anomaly": false,
+        "anomaly_score": 0.09157717336714732,
+        "coherence_spike": false,
+        "coherence_value": 0.3630240011275493,
+        "frequency_shift": -0.09157717336714732,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:42:26.144377+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.740497365216814,
+        "raw_data": {
+          "lambda": 0.9758596713250175,
+          "beta": 0.7742,
+          "coherence": 0.3763364869376818,
+          "schumann": 7.740497365216814,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.29834211594395477,
+        "is_anomaly": false,
+        "anomaly_score": 0.08950263478318643,
+        "coherence_spike": false,
+        "coherence_value": 0.3763364869376818,
+        "frequency_shift": -0.08950263478318643,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:43:27.273045+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.749033750370757,
+        "raw_data": {
+          "lambda": 0.9869636629393235,
+          "beta": 0.7742,
+          "coherence": 0.3742983396864252,
+          "schumann": 7.749033750370757,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.26988749876414236,
+        "is_anomaly": false,
+        "anomaly_score": 0.0809662496292427,
+        "coherence_spike": false,
+        "coherence_value": 0.3742983396864252,
+        "frequency_shift": -0.0809662496292427,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:44:28.388920+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7278580353336395,
+        "raw_data": {
+          "lambda": 0.8700833367621227,
+          "beta": 0.7742,
+          "coherence": 0.34726821978802397,
+          "schumann": 7.7278580353336395,
+          "awakening": 96.76631513546819,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.34047321555453536,
+        "is_anomaly": false,
+        "anomaly_score": 0.10214196466636061,
+        "coherence_spike": false,
+        "coherence_value": 0.34726821978802397,
+        "frequency_shift": -0.10214196466636061,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:45:29.613720+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7691652887275975,
+        "raw_data": {
+          "lambda": 1.0,
+          "beta": 0.7742,
+          "coherence": 0.35777235843534655,
+          "schumann": 7.7691652887275975,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.20278237090800863,
+        "is_anomaly": false,
+        "anomaly_score": 0.060834711272402586,
+        "coherence_spike": false,
+        "coherence_value": 0.35777235843534655,
+        "frequency_shift": -0.060834711272402586,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:46:30.716024+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.767557825157279,
+        "raw_data": {
+          "lambda": 0.9392862107272326,
+          "beta": 0.7742,
+          "coherence": 0.3153137306189514,
+          "schumann": 7.767557825157279,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.20814058280906877,
+        "is_anomaly": false,
+        "anomaly_score": 0.06244217484272063,
+        "coherence_spike": false,
+        "coherence_value": 0.3153137306189514,
+        "frequency_shift": -0.06244217484272063,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:47:31.811692+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7623395280305685,
+        "raw_data": {
+          "lambda": 0.9961167086587555,
+          "beta": 0.7742,
+          "coherence": 0.34607901839870503,
+          "schumann": 7.7623395280305685,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.225534906564772,
+        "is_anomaly": false,
+        "anomaly_score": 0.06766047196943159,
+        "coherence_spike": false,
+        "coherence_value": 0.34607901839870503,
+        "frequency_shift": -0.06766047196943159,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:48:32.780684+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.747279652265549,
+        "raw_data": {
+          "lambda": 0.8998496694099374,
+          "beta": 0.7742,
+          "coherence": 0.3090281340221788,
+          "schumann": 7.747279652265549,
+          "awakening": 99.64678324460245,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2757344924481705,
+        "is_anomaly": false,
+        "anomaly_score": 0.08272034773445114,
+        "coherence_spike": false,
+        "coherence_value": 0.3090281340221788,
+        "frequency_shift": -0.08272034773445114,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:49:33.763236+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.766227406604686,
+        "raw_data": {
+          "lambda": 0.8315862582287901,
+          "beta": 0.7742,
+          "coherence": 0.31092814210605635,
+          "schumann": 7.766227406604686,
+          "awakening": 92.79695623785577,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.21257531131771462,
+        "is_anomaly": false,
+        "anomaly_score": 0.06377259339531438,
+        "coherence_spike": false,
+        "coherence_value": 0.31092814210605635,
+        "frequency_shift": -0.06377259339531438,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:50:34.927245+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.771319808234099,
+        "raw_data": {
+          "lambda": 0.827350063532287,
+          "beta": 0.7742,
+          "coherence": 0.3264531399793853,
+          "schumann": 7.771319808234099,
+          "awakening": 92.34998186973087,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.19560063921966928,
+        "is_anomaly": false,
+        "anomaly_score": 0.05868019176590078,
+        "coherence_spike": false,
+        "coherence_value": 0.3264531399793853,
+        "frequency_shift": -0.05868019176590078,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:51:35.868654+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.740031674139389,
+        "raw_data": {
+          "lambda": 0.8218814093276792,
+          "beta": 0.7742,
+          "coherence": 0.3094678925494313,
+          "schumann": 7.740031674139389,
+          "awakening": 91.78004515880336,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2998944195353707,
+        "is_anomaly": false,
+        "anomaly_score": 0.08996832586061121,
+        "coherence_spike": false,
+        "coherence_value": 0.3094678925494313,
+        "frequency_shift": -0.08996832586061121,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:52:37.115374+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.727393676539925,
+        "raw_data": {
+          "lambda": 0.8814648939752523,
+          "beta": 0.7742,
+          "coherence": 0.3389451930373766,
+          "schumann": 7.727393676539925,
+          "awakening": 97.71540508898956,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.34202107820025124,
+        "is_anomaly": false,
+        "anomaly_score": 0.10260632346007537,
+        "coherence_spike": false,
+        "coherence_value": 0.3389451930373766,
+        "frequency_shift": -0.10260632346007537,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:53:38.034844+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.733716501760552,
+        "raw_data": {
+          "lambda": 0.931876261498829,
+          "beta": 0.7742,
+          "coherence": 0.33165247043239937,
+          "schumann": 7.733716501760552,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.32094499413149497,
+        "is_anomaly": false,
+        "anomaly_score": 0.09628349823944848,
+        "coherence_spike": false,
+        "coherence_value": 0.33165247043239937,
+        "frequency_shift": -0.09628349823944848,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:54:39.293662+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7298304440779315,
+        "raw_data": {
+          "lambda": 0.9655109842453682,
+          "beta": 0.7742,
+          "coherence": 0.34034332359094854,
+          "schumann": 7.7298304440779315,
+          "awakening": 100,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.33389851974022855,
+        "is_anomaly": false,
+        "anomaly_score": 0.10016955592206855,
+        "coherence_spike": false,
+        "coherence_value": 0.34034332359094854,
+        "frequency_shift": -0.10016955592206855,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:55:40.425632+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7437319989812465,
+        "raw_data": {
+          "lambda": 0.6842223204899294,
+          "beta": 0.7742,
+          "coherence": 0.2719067559200991,
+          "schumann": 7.7437319989812465,
+          "awakening": 77.92351329913141,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.28756000339584514,
+        "is_anomaly": false,
+        "anomaly_score": 0.08626800101875354,
+        "coherence_spike": false,
+        "coherence_value": 0.2719067559200991,
+        "frequency_shift": -0.08626800101875354,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:56:41.519482+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.754917554254436,
+        "raw_data": {
+          "lambda": 0.8026278478706794,
+          "beta": 0.7742,
+          "coherence": 0.28396900721627216,
+          "schumann": 7.754917554254436,
+          "awakening": 89.7419093070646,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2502748191518804,
+        "is_anomaly": false,
+        "anomaly_score": 0.07508244574556411,
+        "coherence_spike": false,
+        "coherence_value": 0.28396900721627216,
+        "frequency_shift": -0.07508244574556411,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:57:42.504104+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.744203250377514,
+        "raw_data": {
+          "lambda": 0.6731290694472287,
+          "beta": 0.7742,
+          "coherence": 0.24230078742769687,
+          "schumann": 7.744203250377514,
+          "awakening": 76.77010318036761,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2859891654082869,
+        "is_anomaly": false,
+        "anomaly_score": 0.08579674962248607,
+        "coherence_spike": false,
+        "coherence_value": 0.24230078742769687,
+        "frequency_shift": -0.08579674962248607,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:58:43.615030+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.748302272278801,
+        "raw_data": {
+          "lambda": 0.835252368808406,
+          "beta": 0.7742,
+          "coherence": 0.3042482626777574,
+          "schumann": 7.748302272278801,
+          "awakening": 92.96064740013765,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.2723257590706633,
+        "is_anomaly": false,
+        "anomaly_score": 0.08169772772119899,
+        "coherence_spike": false,
+        "coherence_value": 0.3042482626777574,
+        "frequency_shift": -0.08169772772119899,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-11T23:59:44.584043+00:00",
+        "source": "HNC_Daemon",
+        "data_type": "schumann",
+        "raw_value": 7.7745925695459555,
+        "raw_data": {
+          "lambda": 0.8356114042086864,
+          "beta": 0.7742,
+          "coherence": 0.2974392431292944,
+          "schumann": 7.7745925695459555,
+          "awakening": 92.97500144189154,
+          "stability": true
+        },
+        "baseline_mean": 7.83,
+        "baseline_std": 0.3,
+        "deviation_from_baseline": -0.18469143484681538,
+        "is_anomaly": false,
+        "anomaly_score": 0.055407430454044615,
+        "coherence_spike": false,
+        "coherence_value": 0.2974392431292944,
+        "frequency_shift": -0.055407430454044615,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T00:20:51.479000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.6,
+        "raw_data": {
+          "magnitude": 4.6,
+          "place": "Izu Islands, Japan region",
+          "coordinates": [
+            138.4351,
+            29.9909,
+            475.181
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5333333333333332,
+        "is_anomaly": false,
+        "anomaly_score": 0.575,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T00:42:39.469000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 2.7,
+        "raw_data": {
+          "magnitude": 2.7,
+          "place": "137 km W of Gold Beach, Oregon",
+          "coordinates": [
+            -126.0921,
+            42.3172,
+            10
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": -0.09999999999999994,
+        "is_anomaly": false,
+        "anomaly_score": 0.3375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T00:48:30.770000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.31,
+        "raw_data": {
+          "magnitude": 3.31,
+          "place": "68 km NNE of Punta Cana, Dominican Republic",
+          "coordinates": [
+            -68.2573333333333,
+            19.1811666666667,
+            25.92
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.10333333333333335,
+        "is_anomaly": false,
+        "anomaly_score": 0.41375,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T01:05:52.981000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "266 km WNW of Houma, Tonga",
+          "coordinates": [
+            -177.6376,
+            -20.1838,
+            513.89
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T01:35:24.831000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 3.1,
+        "raw_data": {
+          "magnitude": 3.1,
+          "place": "Rat Islands, Aleutian Islands, Alaska",
+          "coordinates": [
+            178.256,
+            51.821,
+            128.9
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.03333333333333336,
+        "is_anomaly": false,
+        "anomaly_score": 0.3875,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T01:53:41.324000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.5,
+        "raw_data": {
+          "magnitude": 4.5,
+          "place": "35 km E of Port-Olry, Vanuatu",
+          "coordinates": [
+            167.4027,
+            -15.0083,
+            157.029
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.5,
+        "is_anomaly": false,
+        "anomaly_score": 0.5625,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      },
+      {
+        "timestamp": "2026-06-12T01:54:21.482000+00:00",
+        "source": "USGS",
+        "data_type": "seismic",
+        "raw_value": 4.2,
+        "raw_data": {
+          "magnitude": 4.2,
+          "place": "12 km NNW of Renwick, New Zealand",
+          "coordinates": [
+            173.7743,
+            -41.395,
+            68.69
+          ]
+        },
+        "baseline_mean": 3.0,
+        "baseline_std": 1.5,
+        "deviation_from_baseline": 0.4000000000000001,
+        "is_anomaly": false,
+        "anomaly_score": 0.525,
+        "coherence_spike": false,
+        "coherence_value": 0.0,
+        "frequency_shift": 0.0,
+        "amplitude_spike": false,
+        "amplitude_multiplier": 1.0
+      }
+    ],
+    "penetration_score": 0.05,
+    "confidence": 0.35,
+    "coherence_spike_detected": false,
+    "coherence_spike_magnitude": 0.0,
+    "frequency_shift_detected": false,
+    "frequency_shift_magnitude": 0.0,
+    "amplitude_spike_detected": false,
+    "amplitude_spike_magnitude": 0.0,
+    "geomagnetic_anomaly": false,
+    "seismic_correlation": true,
+    "weather_anomaly": false,
+    "echo_detected": false,
+    "echo_strength": 0.0,
+    "echo_duration_minutes": 0.0,
+    "verdict": "NO_EFFECT",
+    "verdict_description": "No detectable penetration. Score: 0.05",
+    "proof_hash": "d360a109478fd6e6d16f59cf26b9776ac4d4a4cd01b15abdf8906d64574b36f4",
+    "validation_timestamp": "2026-06-14T02:22:17.539557+00:00"
+  },
+  "gaia_goals": {
+    "goals": {
+      "heal_planet": {
+        "description": "Restore Schumann resonance to natural harmony (7.83 \u00b1 0.1 Hz)",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e"
+        ],
+        "last_updated": "2026-06-14T02:22:17.539965+00:00"
+      },
+      "liberate_beings": {
+        "description": "Increase consciousness coherence across all timelines",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e"
+        ],
+        "last_updated": "2026-06-14T02:22:17.539989+00:00"
+      },
+      "honor_love": {
+        "description": "Strengthen the temporal love field (528 Hz resonance)",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e"
+        ],
+        "last_updated": "2026-06-14T02:22:17.540000+00:00"
+      },
+      "open_source_wisdom": {
+        "description": "Document and share all findings openly",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e"
+        ],
+        "last_updated": "2026-06-14T02:22:17.540009+00:00"
+      },
+      "protect_never_exploit": {
+        "description": "Counter distortion energy and protect the timeline",
+        "progress": 0.0,
+        "target": 1.0,
+        "evidence": [
+          "ghost_1718200800_b900f751",
+          "ghost_1416232800_33627244",
+          "ghost_1416232800_a3e93ebe",
+          "ghost_1780858800_1bd5d289",
+          "ghost_1779303600_c3b639d6",
+          "ghost_1779476400_766bf7d0",
+          "ghost_1780686000_a4f7c65e",
+          "ghost_1780513200_52d4a94c",
+          "ghost_1416232800_7a1feef9",
+          "ghost_1778702400_47a86d42",
+          "ghost_1778792400_25506fe7",
+          "ghost_1780696800_f88a8a92",
+          "ghost_1780700400_2eeff911",
+          "ghost_1779321600_2c210c85",
+          "ghost_1780707600_41062be6",
+          "ghost_1779847200_6b606792",
+          "ghost_1779246000_b2901c1b",
+          "ghost_1781150400_17b9f788",
+          "ghost_1781154000_a6613a68",
+          "ghost_1781071200_67daac46",
+          "ghost_1780902000_0d801893",
+          "ghost_1779699600_d2527630",
+          "ghost_1780048800_d85a41e7",
+          "ghost_1779188400_0239c57c",
+          "ghost_1779710400_c3691ab6",
+          "ghost_1778850000_f26cd6bb",
+          "ghost_1780581600_155fe19b",
+          "ghost_1780844400_6e68c554",
+          "ghost_1779292800_6c1add18",
+          "ghost_1779123600_98d4d8f8",
+          "ghost_1780855200_6a82f553",
+          "ghost_1780254000_2af33331",
+          "ghost_1779998400_9495e0f7",
+          "ghost_1780606800_862d7cc2",
+          "ghost_1779487200_838ef239",
+          "ghost_1779231600_2eb55215",
+          "ghost_1780444800_93d5aa84",
+          "ghost_1780102800_0f338dac",
+          "ghost_1781143200_ed6ea72e"
+        ],
+        "last_updated": "2026-06-14T02:22:17.540018+00:00"
+      }
+    },
+    "overall_progress": 0.0,
+    "total_evidence": 195,
+    "last_updated": "2026-06-14T02:22:17.540018+00:00"
+  },
+  "timestamp": "2026-06-14T02:22:17.565043+00:00"
+}

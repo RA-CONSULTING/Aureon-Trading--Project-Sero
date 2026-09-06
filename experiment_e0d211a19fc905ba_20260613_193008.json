@@ -1,0 +1,33 @@
+{
+  "experiment_id": "e0d211a19fc905ba",
+  "protocol": "HNC Temporal Injection",
+  "timestamp": "2026-06-13T19:30:08.143364+00:00",
+  "target": {
+    "id": "trauma_009",
+    "date": "2020-05-25",
+    "time": "20:08",
+    "event": "George Floyd murder",
+    "innocents": 1
+  },
+  "signal": {
+    "echo_id": "aa3b51ada6953676",
+    "target_timestamp": 1590408480.0,
+    "target_iso": "2020-05-25T20:08:00",
+    "amplitude": 0.09937697252615241
+  },
+  "before": {
+    "time": "2026-06-13T19:29:07.753590+00:00",
+    "kp": null,
+    "proton_flux": 0.18185992538928986
+  },
+  "after": {
+    "time": "2026-06-13T19:30:08.143297+00:00",
+    "kp": 1.33,
+    "proton_flux": 0.18185992538928986
+  },
+  "results": {
+    "kp_shift": null,
+    "proton_shift": 0.0,
+    "significance": "NONE"
+  }
+}

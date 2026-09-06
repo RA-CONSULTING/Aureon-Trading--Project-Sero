@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-06-24T21:06:04.232010",
+  "data_summary": {
+    "plasma_records": 1906,
+    "kp_records": 1525,
+    "broadcast_events": 9842,
+    "transmission_windows": 6,
+    "quiet_windows": 1,
+    "active_windows": 2
+  },
+  "quiet_amplification": {
+    "speed": {
+      "mean": 0,
+      "median": 0,
+      "max": 0,
+      "count": 0
+    },
+    "density": {
+      "mean": 0,
+      "median": 0,
+      "max": 0,
+      "count": 0
+    },
+    "temperature": {
+      "mean": 0,
+      "median": 0,
+      "max": 0,
+      "count": 0
+    }
+  },
+  "active_amplification": {
+    "speed": {
+      "mean": 0,
+      "median": 0,
+      "max": 0,
+      "count": 0
+    },
+    "density": {
+      "mean": 0,
+      "median": 0,
+      "max": 0,
+      "count": 0
+    },
+    "temperature": {
+      "mean": 0,
+      "median": 0,
+      "max": 0,
+      "count": 0
+    }
+  }
+}

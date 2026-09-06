@@ -1,0 +1,132 @@
+{
+  "timestamp": "2026-09-06T21:36:29.086823+00:00",
+  "collection_status": {
+    "total_sources": 8,
+    "successful_sources": 8,
+    "failed_sources": 0
+  },
+  "solar_activity": {
+    "sunspot_number": 76.0,
+    "f10.7_flux": 116.22,
+    "cycle_phase": "descending",
+    "activity_level": "moderate",
+    "time_tag": "unknown"
+  },
+  "solar_wind": {
+    "speed": 351.7,
+    "density": 4.61,
+    "temperature": 72455,
+    "dynamic_pressure": 0.952274452243,
+    "regime": "intermediate",
+    "time_tag": "2026-09-05T21:36:00"
+  },
+  "magnetic_field": {
+    "bx": 1.2,
+    "by": -6.29,
+    "bz": -0.73,
+    "bt": 6.5,
+    "clock_angle": -96.61997358669878,
+    "coupling_efficiency": 0.256741,
+    "time_tag": "2026-09-05T21:36:00"
+  },
+  "particle_environment": {
+    "proton_flux": 0.20802608132362366,
+    "sep_level": "none",
+    "electron_flux": 240.59754943847656,
+    "xray_flux": 4.487031901589944e-07,
+    "flare_class": "B"
+  },
+  "alerts": {
+    "total": 78,
+    "geomagnetic": 1,
+    "radio_blackout": 0,
+    "radiation_storm": 9,
+    "max_geomagnetic_scale": 0,
+    "max_radio_scale": 0,
+    "max_radiation_scale": 0
+  },
+  "aurora": {
+    "power": 651.6,
+    "coordinate_count": 65160
+  },
+  "solar_system_health": {
+    "score": 1.0,
+    "threat_level": "low",
+    "concerns": []
+  },
+  "raw_results": {
+    "sunspot_cycle": {
+      "source": "sunspot_cycle",
+      "time_tag": "unknown",
+      "sunspot_number": 76.0,
+      "smoothed_ssn": -1.0,
+      "f10.7_flux": 116.22,
+      "cycle_phase": "descending",
+      "activity_level": "moderate",
+      "confidence": 0.9
+    },
+    "solar_wind_l1": {
+      "source": "solar_wind_l1",
+      "time_tag": "2026-09-05T21:36:00",
+      "density": 4.61,
+      "speed": 351.7,
+      "temperature": 72455,
+      "dynamic_pressure": 0.952274452243,
+      "regime": "intermediate",
+      "confidence": 0.85
+    },
+    "mag_field_l1": {
+      "source": "mag_field_l1",
+      "time_tag": "2026-09-05T21:36:00",
+      "bx": 1.2,
+      "by": -6.29,
+      "bz": -0.73,
+      "bt": 6.5,
+      "clock_angle": -96.61997358669878,
+      "coupling_efficiency": 0.256741,
+      "confidence": 0.8
+    },
+    "proton_flux": {
+      "source": "proton_flux",
+      "time_tag": "2026-09-06T21:25:00Z",
+      "flux": 0.20802608132362366,
+      "energy": ">=500 MeV",
+      "sep_level": "none",
+      "confidence": 0.7
+    },
+    "electron_flux": {
+      "source": "electron_flux",
+      "time_tag": "2026-09-06T21:25:00Z",
+      "flux": 240.59754943847656,
+      "energy": ">=2 MeV",
+      "confidence": 0.7
+    },
+    "xray_flux": {
+      "source": "xray_flux",
+      "time_tag": "2026-09-06T21:33:00Z",
+      "flux": 4.487031901589944e-07,
+      "flare_class": "B",
+      "confidence": 0.8
+    },
+    "alerts": {
+      "source": "alerts",
+      "time_tag": "2026-09-06T21:36:28.970460+00:00",
+      "total_alerts": 78,
+      "geomagnetic_alerts": 1,
+      "radio_blackout_alerts": 0,
+      "radiation_storm_alerts": 9,
+      "max_geomagnetic_scale": 0,
+      "max_radio_scale": 0,
+      "max_radiation_scale": 0,
+      "confidence": 0.95
+    },
+    "aurora_forecast": {
+      "source": "aurora_forecast",
+      "forecast_time": "2026-09-06T22:35:00Z",
+      "observation_time": "2026-09-06T21:19:00Z",
+      "auroral_power": 651.6,
+      "coordinate_count": 65160,
+      "confidence": 0.6
+    }
+  }
+}

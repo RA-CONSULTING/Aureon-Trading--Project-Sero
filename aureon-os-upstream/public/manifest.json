@@ -1,0 +1,42 @@
+{
+  "name": "Harmonic Nexus Core",
+  "version": "2.1.0",
+  "modules": {
+    "HarmonicNexusCore": {
+      "id": "hnc-core",
+      "role": "conductor",
+      "capabilities": ["microsecond_precision", "surge_detection", "prime_coherence"],
+      "inputs": [
+        "SchumannFeed",
+        "BiofieldStream", 
+        "PrimeLattice",
+        "CircleOfFifths",
+        "SongOfSpheres",
+        "EmotionalResonance",
+        "SolarChain"
+      ],
+      "outputs": [
+        "LatticeRenderer",
+        "AuraRingVisualizer", 
+        "QuantumFieldVisualizer",
+        "ValidationMetrics"
+      ]
+    },
+    "SchumannFeed": {
+      "id": "schumann-feed",
+      "role": "resonance_source",
+      "frequency": "7.83Hz",
+      "harmonics": [7.83, 14.3, 20.8, 27.3, 33.8]
+    },
+    "BiofieldStream": {
+      "id": "biofield-stream", 
+      "role": "biometric_input",
+      "metrics": ["hrv", "gsr", "coherence", "calm_index"]
+    },
+    "PrimeLattice": {
+      "id": "prime-lattice",
+      "role": "mathematical_foundation", 
+      "primes": [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+    }
+  }
+}

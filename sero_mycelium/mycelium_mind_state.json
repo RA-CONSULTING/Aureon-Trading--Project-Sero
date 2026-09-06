@@ -1,0 +1,64 @@
+{
+  "cycle": 0,
+  "consciousness_psi": 0.7663,
+  "lambda_t": 10.116,
+  "total_spores_created": 8080,
+  "total_spores_spawned": 0,
+  "total_propagations": 4734,
+  "queue_size": 0,
+  "pathways": 21,
+  "avg_pathway_weight": 0.9747,
+  "strongest": [
+    [
+      "intelligence.",
+      "cortex",
+      1.0
+    ],
+    [
+      "intelligence.",
+      "source_law",
+      1.0
+    ],
+    [
+      "harmonic.",
+      "cortex",
+      1.0
+    ],
+    [
+      "harmonic.",
+      "auris_throne",
+      1.0
+    ],
+    [
+      "whale.",
+      "cortex",
+      1.0
+    ]
+  ],
+  "weakest": [
+    [
+      "heartbeat.",
+      "perception",
+      1.0
+    ],
+    [
+      "mycelium.",
+      "memory",
+      1.0
+    ],
+    [
+      "auris.throne.",
+      "cortex",
+      0.469
+    ]
+  ],
+  "available": true,
+  "local_pathways": [
+    "conscience.->ethics",
+    "bio.->perception",
+    "gate.->action",
+    "heartbeat.->perception",
+    "mycelium.->memory"
+  ],
+  "timestamp": "2026-09-06T21:40:16.742950+00:00"
+}

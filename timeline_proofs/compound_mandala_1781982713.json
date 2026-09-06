@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-06-20T19:11:53.382778+00:00",
+  "protocol": "compound",
+  "num_pulses": 3,
+  "total_energy": 0,
+  "settling_seconds": 300,
+  "before_hash": "69291a94a6f74e22",
+  "after_hash": "13330fb3c8461da8",
+  "mandala_score": 0.07048422033184473,
+  "verdict": "MARGINAL EFFECT"
+}

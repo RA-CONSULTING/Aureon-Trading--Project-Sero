@@ -1,0 +1,30 @@
+[Unit]
+Description=Aureon appliance organism protection preflight (terminal HOLD)
+PartOf=aureon-appliance.target
+ConditionPathExists=/etc/aureon/firstboot.complete
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=aureon
+Group=aureon
+WorkingDirectory=/opt/aureon/source
+ExecStart=/opt/aureon/.venv/bin/python -I -S -B /opt/aureon/source/scripts/bootstrap/protected_bootstrap_v05.py --target-id organism
+Restart=no
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+
+[Install]
+WantedBy=aureon-appliance.target

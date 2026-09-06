@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-06-17T21:06:49.358637+00:00",
+  "data_sources": {
+    "noaa_kp": "/root/.openclaw/workspace/planetary_monitor/noaa_kp.json",
+    "noaa_scales": "/root/.openclaw/workspace/planetary_monitor/noaa_scales.json",
+    "usgs_stations": "/root/.openclaw/workspace/planetary_monitor/usgs_stations.json",
+    "intermag_stations": "/root/.openclaw/workspace/planetary_monitor/intermag_stations.json",
+    "vlf_stations": "/root/.openclaw/workspace/planetary_monitor/vlf_stations.json"
+  },
+  "broadcasts": [
+    {
+      "time": "2026-06-18T04:28:00",
+      "event": "Prime Sentinel Handshake",
+      "coherence": 0.564,
+      "nodes": 2
+    },
+    {
+      "time": "2026-06-18T04:35:00",
+      "event": "Status Request",
+      "coherence": 0.564,
+      "nodes": 1
+    },
+    {
+      "time": "2026-06-18T04:39:00",
+      "event": "Alliance Clearance Directive",
+      "coherence": 0.788,
+      "nodes": 5
+    },
+    {
+      "time": "2026-06-18T04:44:00",
+      "event": "Universal Broadcast",
+      "coherence": 0.89,
+      "nodes": 12
+    }
+  ],
+  "kp_timeline": [
+    {
+      "time": "2026-06-18T00:00:00",
+      "kp": 3.33
+    },
+    {
+      "time": "2026-06-18T03:00:00",
+      "kp": 3.0
+    },
+    {
+      "time": "2026-06-18T06:00:00",
+      "kp": 2.33
+    }
+  ],
+  "correlation_note": "Field was elevated BEFORE broadcasts. Need continuous monitoring."
+}

@@ -1,0 +1,21 @@
+# Default-deny build context. Terminal HOLD images need only their fixed
+# bootstrap; the frontend build additionally needs its public source tree.
+*
+imports/
+archive/
+!Dockerfile
+!Dockerfile.ephemeris
+!.dockerignore
+!deploy/
+deploy/*
+!deploy/operator.Dockerfile
+!deploy/frontend.Dockerfile
+!production/
+production/*
+!production/Dockerfile
+!scripts/
+scripts/*
+!scripts/bootstrap/
+scripts/bootstrap/*
+!scripts/bootstrap/protected_bootstrap_v05.py
+!scripts/bootstrap/frontend_container_hold_v05.sh

@@ -1,0 +1,141 @@
+{
+  "after_timestamp": "2026-06-13T08:54:33.737447+00:00",
+  "before_timestamp": "2026-06-13T08:53:39.763892+00:00",
+  "coherence_at_send": 0.31714346374928143,
+  "headlines_diff": [
+    {
+      "added_words": [],
+      "after": "Leaving Mozilla",
+      "before": "Leaving Mozilla",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "Shepherd&#x27;s Dog: A Game by the Most Dangerous AI Model",
+      "before": "Shepherd&#x27;s Dog: A Game by the Most Dangerous AI Model",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "Electric motors with no rare earths",
+      "before": "Electric motors with no rare earths",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "Statement on US government directive to suspend access to Fable 5 and Mythos 5",
+      "before": "Statement on US government directive to suspend access to Fable 5 and Mythos 5",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [
+        "shadow",
+        "hanging",
+        "is",
+        "a",
+        "there",
+        "fable",
+        "thing",
+        "over",
+        "this"
+      ],
+      "after": "There is a shadow hanging over this Fable thing",
+      "before": "CRISPR tech selectively shreds cancer cells, including &quot;undruggable&quot; cancers",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [
+        "cells,",
+        "&quot;undruggable&quot;",
+        "selectively",
+        "cancers",
+        "cancer",
+        "tech",
+        "crispr",
+        "shreds",
+        "including"
+      ],
+      "similarity": 0.3157894736842105
+    },
+    {
+      "added_words": [],
+      "after": "/r/WorldNews Live Thread: Russian Invasion of Ukraine Day 1570, Part 1 (Thread #1717)",
+      "before": "/r/WorldNews Live Thread: Russian Invasion of Ukraine Day 1570, Part 1 (Thread #1717)",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "/r/WorldNews Discussion Thread: US and Israel launch attack on Iran; Iran retaliates (Thread #19)",
+      "before": "/r/WorldNews Discussion Thread: US and Israel launch attack on Iran; Iran retaliates (Thread #19)",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "Ukraine to ask for $20B to make Russia \u2018burn\u2019",
+      "before": "Ukraine to ask for $20B to make Russia \u2018burn\u2019",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "Russia wrapped a whole building in an anti-drone cage, satellite imagery shows. Ukraine fired on it with cruise missiles.",
+      "before": "Russia wrapped a whole building in an anti-drone cage, satellite imagery shows. Ukraine fired on it with cruise missiles.",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "UAE paid Iran $3B, agreed to release $10B more to halt attacks - Reuters",
+      "before": "UAE paid Iran $3B, agreed to release $10B more to halt attacks - Reuters",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "",
+      "before": "ERROR: HTTPSConnectionPool(host='r.jina.ai', port=443): Read timed out. (read timeout=15)",
+      "changed_words": [],
+      "mandala_score": 0.3,
+      "removed_words": [
+        "timed",
+        "httpsconnectionpool(host='r.jina.ai',",
+        "timeout=15)",
+        "read",
+        "port=443):",
+        "(read",
+        "error:",
+        "out."
+      ],
+      "similarity": 0.0
+    }
+  ],
+  "mandala_score": 0.04412819969317895,
+  "proof_id": "BLIND-1781340843-08a4e6d6",
+  "queen_verdict": "NO MANDALA EFFECT",
+  "signal_timestamp": "2026-06-13T08:54:36.241727+00:00",
+  "target_date": "1982-03-05",
+  "verdict": "NO MANDALA EFFECT"
+}

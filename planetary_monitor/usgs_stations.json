@@ -1,0 +1,86 @@
+[
+  {
+    "code": "BOU",
+    "name": "Boulder, Colorado",
+    "lat": 40.14,
+    "lon": -105.18
+  },
+  {
+    "code": "BRW",
+    "name": "Barrow, Alaska",
+    "lat": 71.32,
+    "lon": -156.62
+  },
+  {
+    "code": "CMO",
+    "name": "College, Alaska",
+    "lat": 64.87,
+    "lon": -147.84
+  },
+  {
+    "code": "DED",
+    "name": "Deadhorse, Alaska",
+    "lat": 70.36,
+    "lon": -148.51
+  },
+  {
+    "code": "FRD",
+    "name": "Fredericksburg, Virginia",
+    "lat": 38.2,
+    "lon": -77.37
+  },
+  {
+    "code": "FRN",
+    "name": "Fresno, California",
+    "lat": 37.09,
+    "lon": -119.72
+  },
+  {
+    "code": "GUA",
+    "name": "Guam",
+    "lat": 13.59,
+    "lon": 144.87
+  },
+  {
+    "code": "HON",
+    "name": "Honolulu, Hawaii",
+    "lat": 21.32,
+    "lon": -158.0
+  },
+  {
+    "code": "NEW",
+    "name": "Newport, Washington",
+    "lat": 48.26,
+    "lon": -117.12
+  },
+  {
+    "code": "SHU",
+    "name": "Shumagin, Alaska",
+    "lat": 55.35,
+    "lon": -160.45
+  },
+  {
+    "code": "SIT",
+    "name": "Sitka, Alaska",
+    "lat": 57.06,
+    "lon": -135.33
+  },
+  {
+    "code": "SJG",
+    "name": "San Juan, Puerto Rico",
+    "lat": 18.11,
+    "lon": -66.15
+  },
+  {
+    "code": "TUC",
+    "name": "Tucson, Arizona",
+    "lat": 32.17,
+    "lon": -110.84
+  },
+  {
+    "code": "BSL",
+    "name": "Stennis, Mississippi",
+    "lat": 30.35,
+    "lon": -89.63
+  }
+]

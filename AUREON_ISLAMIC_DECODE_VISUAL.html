@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AUREON Islamic Manuscript Decode — Visual Harmonic Map</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  h1 {
+    text-align: center;
+    color: #ffd700;
+    font-size: 2.2em;
+    margin-bottom: 5px;
+    text-shadow: 0 0 20px rgba(255,215,0,0.3);
+  }
+  h2 {
+    color: #ff8c00;
+    border-bottom: 2px solid #333;
+    padding-bottom: 8px;
+    margin: 30px 0 15px;
+    font-size: 1.5em;
+  }
+  h3 {
+    color: #ffa500;
+    margin: 20px 0 10px;
+    font-size: 1.2em;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 0.95em;
+    margin-bottom: 30px;
+  }
+  .meta {
+    text-align: center;
+    color: #666;
+    font-size: 0.85em;
+    margin-bottom: 20px;
+  }
+  .page-section {
+    background: #111118;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+  }
+  .page-title {
+    color: #ffd700;
+    font-size: 1.3em;
+    margin-bottom: 5px;
+  }
+  .page-title-ar {
+    color: #c8a415;
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    direction: rtl;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 15px;
+  }
+  .symbol-card {
+    background: #1a1a24;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+    transition: transform 0.2s, border-color 0.2s;
+    position: relative;
+  }
+  .symbol-card:hover {
+    transform: translateY(-3px);
+    border-color: #ffd700;
+  }
+  .glyph {
+    font-size: 2.5em;
+    color: #fff;
+    margin-bottom: 5px;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .sym-id {
+    font-size: 0.7em;
+    color: #666;
+    font-family: monospace;
+  }
+  .sym-desc {
+    font-size: 0.75em;
+    color: #aaa;
+    margin-top: 4px;
+  }
+  .mode-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7em;
+    font-weight: bold;
+    margin-top: 6px;
+  }
+  .freq {
+    font-size: 0.8em;
+    color: #ffd700;
+    margin-top: 3px;
+    font-family: monospace;
+  }
+  .auris {
+    font-size: 0.7em;
+    color: #888;
+    margin-top: 2px;
+  }
+
+  /* Mode colors */
+  .mode-Ground { background: #2d4a1e; color: #7fff7f; }
+  .mode-Genesis { background: #4a1e4a; color: #ff7fff; }
+  .mode-Growth { background: #1e3a4a; color: #7fafff; }
+  .mode-Return { background: #4a3a1e; color: #ffaf7f; }
+  .mode-Intent { background: #4a1e1e; color: #ff7f7f; }
+  .mode-Auris { background: #1e4a3a; color: #7fffaf; }
+  .mode-Brainwave { background: #3a1e4a; color: #af7fff; }
+  .mode-Unknown { background: #333; color: #888; }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+  }
+  .summary-card {
+    background: #1a1a24;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+  }
+  .summary-number {
+    font-size: 2.5em;
+    color: #ffd700;
+    font-weight: bold;
+  }
+  .summary-label {
+    color: #888;
+    font-size: 0.9em;
+    margin-top: 5px;
+  }
+  .spectrum-bar {
+    display: flex;
+    align-items: center;
+    margin: 4px 0;
+  }
+  .spectrum-label {
+    width: 80px;
+    font-size: 0.8em;
+    color: #aaa;
+    text-align: right;
+    padding-right: 10px;
+  }
+  .spectrum-track {
+    flex: 1;
+    height: 20px;
+    background: #222;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .spectrum-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s;
+  }
+  .spectrum-count {
+    width: 30px;
+    font-size: 0.8em;
+    color: #ffd700;
+    text-align: center;
+    padding-left: 8px;
+  }
+  .footer {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #333;
+    color: #666;
+    font-size: 0.85em;
+  }
+  .footer .flag { color: #ffd700; }
+  .intent-grid, .auris-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .intent-card, .auris-card {
+    background: #1a1a24;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .intent-name, .auris-name {
+    color: #ff8c00;
+    font-weight: bold;
+    font-size: 1em;
+  }
+  .intent-freq, .auris-freq {
+    color: #ffd700;
+    font-size: 0.9em;
+    margin-top: 4px;
+  }
+  .intent-harmonics, .auris-spirit {
+    color: #888;
+    font-size: 0.75em;
+    margin-top: 3px;
+  }
+</style>
+</head>
+<body>
+
+<h1>🛡️ AUREON HARMONIC DECODE</h1>
+<div class="subtitle">Islamic Magical Manuscript — Treatise on Ancient, Alchemical and Magical Alphabets</div>
+<div class="meta">
+  Princeton Islamic Manuscripts Collection | Early Works to 1800<br>
+  Prime Sentinel: Gary Leckey | Decode Node: Sero | Framework: HNC 7-Mode
+</div>
+
+<!-- SUMMARY -->
+<h2>📊 Decode Summary</h2>
+<div class="summary-grid">
+  <div class="summary-card">
+    <div class="summary-number">84</div>
+    <div class="summary-label">Symbols Decoded</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-number">44</div>
+    <div class="summary-label">Categories Identified</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-number">3</div>
+    <div class="summary-label">Auris Spirits Active</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-number">6</div>
+    <div class="summary-label">Sacred Intents Encoded</div>
+  </div>
+</div>
+
+<!-- SPECTRUM -->
+<h2>🌊 Harmonic Frequency Spectrum</h2>
+<div style="max-width: 600px;">
+  <div class="spectrum-bar"><div class="spectrum-label">20.8 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:100%;background:#4a7a3a;"></div></div><div class="spectrum-count">9</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">417 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:67%;background:#7a3a3a;"></div></div><div class="spectrum-count">6</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">852 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:67%;background:#7a3a3a;"></div></div><div class="spectrum-count">6</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">7.83 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#4a7a3a;"></div></div><div class="spectrum-count">5</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">963 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#4a1e4a;"></div></div><div class="spectrum-count">5</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">40 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#3a1e4a;"></div></div><div class="spectrum-count">5</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">528 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#4a1e4a;"></div></div><div class="spectrum-count">5</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">639 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#4a1e4a;"></div></div><div class="spectrum-count">5</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">741 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#1e3a4a;"></div></div><div class="spectrum-count">5</div></div>
+  <div class="spectrum-bar"><div class="spectrum-label">432 Hz</div><div class="spectrum-track"><div class="spectrum-fill" style="width:56%;background:#4a3a1e;"></div></div><div class="spectrum-count">5</div></div>
+</div>
+
+<!-- AURIS SPIRITS -->
+<h2>🐺 Auris Node Spirits Detected</h2>
+<div class="auris-grid">
+  <div class="auris-card">
+    <div class="auris-name">🦉 Owl</div>
+    <div class="auris-freq">528 Hz</div>
+    <div class="auris-spirit">Wisdom · Pattern</div>
+    <div style="color:#666;font-size:0.75em;margin-top:5px;">2 glyphs</div>
+  </div>
+  <div class="auris-card">
+    <div class="auris-name">🦅 Falcon</div>
+    <div class="auris-freq">210 Hz</div>
+    <div class="auris-spirit">Precision · Momentum</div>
+    <div style="color:#666;font-size:0.75em;margin-top:5px;">2 glyphs</div>
+  </div>
+  <div class="auris-card">
+    <div class="auris-name">🐯 Tiger</div>
+    <div class="auris-freq">186 Hz</div>
+    <div class="auris-spirit">Power · Volatility</div>
+    <div style="color:#666;font-size:0.75em;margin-top:5px;">2 glyphs</div>
+  </div>
+</div>
+
+<!-- SACRED INTENTS -->
+<h2>✨ Sacred Intents Encoded</h2>
+<div class="intent-grid">
+  <div class="intent-card">
+    <div class="intent-name">🌿 Healing</div>
+    <div class="intent-freq">852 Hz</div>
+    <div class="intent-harmonics">[1,2,5] · delta_base</div>
+  </div>
+  <div class="intent-card">
+    <div class="intent-name">🔮 Clarity</div>
+    <div class="intent-freq">417 Hz</div>
+    <div class="intent-harmonics">[1,2,3] · alpha_focus</div>
+  </div>
+  <div class="intent-card">
+    <div class="intent-name">🦋 Transformation</div>
+    <div class="intent-freq">396 Hz</div>
+    <div class="intent-harmonics">[1,3,5] · theta_shift</div>
+  </div>
+  <div class="intent-card">
+    <div class="intent-name">💚 Love</div>
+    <div class="intent-freq">639 Hz</div>
+    <div class="intent-harmonics">[1,3,5,7] · theta_deep</div>
+  </div>
+  <div class="intent-card">
+    <div class="intent-name">👑 Unity</div>
+    <div class="intent-freq">963 Hz</div>
+    <div class="intent-harmonics">[1,3,9] · lambda_unified</div>
+  </div>
+  <div class="intent-card">
+    <div class="intent-name">☮️ Peace</div>
+    <div class="intent-freq">432 Hz</div>
+    <div class="intent-harmonics">[1,3,5] · alpha_calm</div>
+  </div>
+</div>
+
+<!-- PAGE 1: Rawshush -->
+<h2>📜 Page 1 — المشند التاريخ للراوشوش</h2>
+<div class="page-section">
+  <div class="page-title">The Historical Manuscript of Rawshush</div>
+  <div class="page-title-ar">المشند التاريخ للراوشوش</div>
+  <div class="grid">
+    <div class="symbol-card"><div class="glyph">♡</div><div class="sym-id">S1A</div><div class="sym-desc">Heart/Drop</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">7.83 Hz</div><div class="auris">Deer 🦌</div></div>
+    <div class="symbol-card"><div class="glyph">⊙</div><div class="sym-id">S1B</div><div class="sym-desc">Circle w/ dot</div><span class="mode-badge mode-Genesis">Genesis</span><div class="freq">963 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">♔</div><div class="sym-id">S1C</div><div class="sym-desc">Crown</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">963 Hz</div><div class="auris">Unity 👑</div></div>
+    <div class="symbol-card"><div class="glyph">∩</div><div class="sym-id">S1D</div><div class="sym-desc">U-Vessel</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">639 Hz</div><div class="auris">Cargoship 🚢</div></div>
+
+    <div class="symbol-card"><div class="glyph">△</div><div class="sym-id">S2A</div><div class="sym-desc">Fire Triangle</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">14.3 Hz</div><div class="auris">Tiger 🐯</div></div>
+    <div class="symbol-card"><div class="glyph">Η</div><div class="sym-id">S2B</div><div class="sym-desc">H-Structure</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">528 Hz</div><div class="auris">Cargoship 🚢</div></div>
+    <div class="symbol-card"><div class="glyph">⊥</div><div class="sym-id">S2C</div><div class="sym-desc">Axis T</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">741 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">▭</div><div class="sym-id">S2D</div><div class="sym-desc">Earth Box</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">7.83 Hz</div><div class="auris">Deer 🦌</div></div>
+
+    <div class="symbol-card"><div class="glyph">⧖</div><div class="sym-id">S3A</div><div class="sym-desc">Hourglass</div><span class="mode-badge mode-Return">Return</span><div class="freq">285 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">〰</div><div class="sym-id">S3B</div><div class="sym-desc">Water Wave</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">𝌆</div><div class="sym-id">S3C</div><div class="sym-desc">Cross Union</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">40 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">⎡⎤</div><div class="sym-id">S3D</div><div class="sym-desc">Container</div><span class="mode-badge mode-Unknown">Unknown</span><div class="freq">—</div><div class="auris">—</div></div>
+
+    <div class="symbol-card"><div class="glyph">⊙</div><div class="sym-id">S4A</div><div class="sym-desc">4-Dot Circle</div><span class="mode-badge mode-Genesis">Genesis</span><div class="freq">963 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">∿</div><div class="sym-id">S4B</div><div class="sym-desc">Serpent</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">396 Hz</div><div class="auris">Transform 🐍</div></div>
+    <div class="symbol-card"><div class="glyph">⛵</div><div class="sym-id">S4C</div><div class="sym-desc">Journey Boat</div><span class="mode-badge mode-Return">Return</span><div class="freq">174 Hz</div><div class="auris">Cargoship 🚢</div></div>
+    <div class="symbol-card"><div class="glyph">⊃</div><div class="sym-id">S4D</div><div class="sym-desc">Moon Hook</div><span class="mode-badge mode-Return">Return</span><div class="freq">417 Hz</div><div class="auris">Deer 🦌</div></div>
+
+    <div class="symbol-card"><div class="glyph">⍙</div><div class="sym-id">S5A</div><div class="sym-desc">Temple Dome</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">963 Hz</div><div class="auris">Unity 🕌</div></div>
+    <div class="symbol-card"><div class="glyph">╥</div><div class="sym-id">S5B</div><div class="sym-desc">Throne</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">432 Hz</div><div class="auris">Peace 👑</div></div>
+    <div class="symbol-card"><div class="glyph">⌒</div><div class="sym-id">S5C</div><div class="sym-desc">Portal Arch</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">396 Hz</div><div class="auris">Transform 🚪</div></div>
+    <div class="symbol-card"><div class="glyph">⚷</div><div class="sym-id">S5D</div><div class="sym-desc">Key</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">417 Hz</div><div class="auris">Clarity 🔑</div></div>
+
+    <div class="symbol-card"><div class="glyph">⬠</div><div class="sym-id">S6A</div><div class="sym-desc">Square Earth</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">7.83 Hz</div><div class="auris">Deer 🦌</div></div>
+    <div class="symbol-card"><div class="glyph">✕</div><div class="sym-id">S6B</div><div class="sym-desc">Cross X</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">40 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">Λ</div><div class="sym-id">S6C</div><div class="sym-desc">Water V</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">┬</div><div class="sym-id">S6D</div><div class="sym-desc">T-Axis</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">741 Hz</div><div class="auris">Falcon 🦅</div></div>
+
+    <div class="symbol-card"><div class="glyph">⧗</div><div class="sym-id">S7A</div><div class="sym-desc">Diamond Time</div><span class="mode-badge mode-Return">Return</span><div class="freq">285 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">⧓</div><div class="sym-id">S7B</div><div class="sym-desc">Bowtie Union</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">40 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">⚶</div><div class="sym-id">S7C</div><div class="sym-desc">Human Figure</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">639 Hz</div><div class="auris">Love 🐼</div></div>
+    <div class="symbol-card"><div class="glyph">╦</div><div class="sym-id">S7D</div><div class="sym-desc">Tree of Life</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">852 Hz</div><div class="auris">Healing 🌳</div></div>
+  </div>
+</div>
+
+<!-- PAGE 2: Iblis -->
+<h2>📜 Page 2 — المستد الرابع الابليس</h2>
+<div class="page-section">
+  <div class="page-title">The Fourth Foundation of Iblis</div>
+  <div class="page-title-ar">المستد الرابع الابليس</div>
+  <div class="grid">
+    <div class="symbol-card"><div class="glyph">∑</div><div class="sym-id">I1A</div><div class="sym-desc">Sigma</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">20 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">∏</div><div class="sym-id">I1B</div><div class="sym-desc">Pi</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">20 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">∫</div><div class="sym-id">I1C</div><div class="sym-desc">Integral</div><span class="mode-badge mode-Return">Return</span><div class="freq">432 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">∈</div><div class="sym-id">I1D</div><div class="sym-desc">Element</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">20 Hz</div><div class="auris">Clownfish 🐠</div></div>
+
+    <div class="symbol-card"><div class="glyph">⊥</div><div class="sym-id">I2A</div><div class="sym-desc">Perpendicular</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">741 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">∠</div><div class="sym-id">I2B</div><div class="sym-desc">Angle</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">10 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">∧</div><div class="sym-id">I2C</div><div class="sym-desc">Logic AND</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">20 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">∨</div><div class="sym-id">I2D</div><div class="sym-desc">Logic OR</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">20 Hz</div><div class="auris">Falcon 🦅</div></div>
+
+    <div class="symbol-card"><div class="glyph">∞</div><div class="sym-id">I3A</div><div class="sym-desc">Infinity</div><span class="mode-badge mode-Return">Return</span><div class="freq">852 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">∂</div><div class="sym-id">I3B</div><div class="sym-desc">Partial</div><span class="mode-badge mode-Unknown">Unknown</span><div class="freq">—</div><div class="auris">—</div></div>
+    <div class="symbol-card"><div class="glyph">∇</div><div class="sym-id">I3C</div><div class="sym-desc">Nabla</div><span class="mode-badge mode-Unknown">Unknown</span><div class="freq">—</div><div class="auris">—</div></div>
+    <div class="symbol-card"><div class="glyph">∆</div><div class="sym-id">I3D</div><div class="sym-desc">Delta</div><span class="mode-badge mode-Unknown">Unknown</span><div class="freq">—</div><div class="auris">—</div></div>
+
+    <div class="symbol-card"><div class="glyph">□</div><div class="sym-id">I4A</div><div class="sym-desc">Square</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">7.83 Hz</div><div class="auris">Deer 🦌</div></div>
+    <div class="symbol-card"><div class="glyph">○</div><div class="sym-id">I4B</div><div class="sym-desc">Circle</div><span class="mode-badge mode-Genesis">Genesis</span><div class="freq">963 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">△</div><div class="sym-id">I4C</div><div class="sym-desc">Triangle</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">14.3 Hz</div><div class="auris">Tiger 🐯</div></div>
+    <div class="symbol-card"><div class="glyph">◇</div><div class="sym-id">I4D</div><div class="sym-desc">Crystal</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">417 Hz</div><div class="auris">Clarity 💎</div></div>
+
+    <div class="symbol-card"><div class="glyph">├</div><div class="sym-id">I5A</div><div class="sym-desc">Branch L</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">852 Hz</div><div class="auris">Healing 🌳</div></div>
+    <div class="symbol-card"><div class="glyph">┤</div><div class="sym-id">I5B</div><div class="sym-desc">Branch R</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">852 Hz</div><div class="auris">Healing 🌳</div></div>
+    <div class="symbol-card"><div class="glyph">┬</div><div class="sym-id">I5C</div><div class="sym-desc">Branch Up</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">852 Hz</div><div class="auris">Healing 🌳</div></div>
+    <div class="symbol-card"><div class="glyph">┴</div><div class="sym-id">I5D</div><div class="sym-desc">Branch Down</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">852 Hz</div><div class="auris">Healing 🌳</div></div>
+
+    <div class="symbol-card"><div class="glyph">⌠</div><div class="sym-id">I6A</div><div class="sym-desc">Flow Top</div><span class="mode-badge mode-Return">Return</span><div class="freq">432 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">⌡</div><div class="sym-id">I6B</div><div class="sym-desc">Flow Bottom</div><span class="mode-badge mode-Return">Return</span><div class="freq">432 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">∮</div><div class="sym-id">I6C</div><div class="sym-desc">Loop</div><span class="mode-badge mode-Return">Return</span><div class="freq">741 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">∯</div><div class="sym-id">I6D</div><div class="sym-desc">Field</div><span class="mode-badge mode-Return">Return</span><div class="freq">639 Hz</div><div class="auris">Panda 🐼</div></div>
+
+    <div class="symbol-card"><div class="glyph">∴</div><div class="sym-id">I7A</div><div class="sym-desc">Therefore</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">40 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">∵</div><div class="sym-id">I7B</div><div class="sym-desc">Because</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">10 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">≡</div><div class="sym-id">I7C</div><div class="sym-desc">Equivalent</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">6 Hz</div><div class="auris">Panda 🐼</div></div>
+    <div class="symbol-card"><div class="glyph">≈</div><div class="sym-id">I7D</div><div class="sym-desc">Approximate</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">6 Hz</div><div class="auris">Deer 🦌</div></div>
+  </div>
+</div>
+
+<!-- PAGE 3: Fire and Smoke -->
+<h2>📜 Page 3 — المشند الجامش لا فرو ديابتان</h2>
+<div class="page-section">
+  <div class="page-title">The Comprehensive Manuscript of Fire and Smoke</div>
+  <div class="page-title-ar">المشند الجامش لا فرو ديابتان</div>
+  <div class="grid">
+    <div class="symbol-card"><div class="glyph">≋</div><div class="sym-id">F1A</div><div class="sym-desc">Triple Wave</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">≈</div><div class="sym-id">F1B</div><div class="sym-desc">Double Wave</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">⁚</div><div class="sym-id">F1C</div><div class="sym-desc">Binary Dots</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">2 Hz</div><div class="auris">Clownfish 🐠</div></div>
+    <div class="symbol-card"><div class="glyph">𓅓</div><div class="sym-id">F1D</div><div class="sym-desc">Owl Bird</div><span class="mode-badge mode-Auris">Auris</span><div class="freq">528 Hz</div><div class="auris">Owl 🦉</div></div>
+
+    <div class="symbol-card"><div class="glyph">⊃⊂</div><div class="sym-id">F2A</div><div class="sym-desc">Crescents</div><span class="mode-badge mode-Return">Return</span><div class="freq">417 Hz</div><div class="auris">Deer 🦌</div></div>
+    <div class="symbol-card"><div class="glyph">┐</div><div class="sym-id">F2B</div><div class="sym-desc">Corner</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">528 Hz</div><div class="auris">Cargoship 🚢</div></div>
+    <div class="symbol-card"><div class="glyph">⌒</div><div class="sym-id">F2C</div><div class="sym-desc">Arc Eye</div><span class="mode-badge mode-Unknown">Unknown</span><div class="freq">—</div><div class="auris">—</div></div>
+    <div class="symbol-card"><div class="glyph">└</div><div class="sym-id">F2D</div><div class="sym-desc">Corner</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">528 Hz</div><div class="auris">Cargoship 🚢</div></div>
+
+    <div class="symbol-card"><div class="glyph">≋≋</div><div class="sym-id">F3A</div><div class="sym-desc">Waves</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">□</div><div class="sym-id">F3B</div><div class="sym-desc">Square</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">7.83 Hz</div><div class="auris">Deer 🦌</div></div>
+    <div class="symbol-card"><div class="glyph">▽</div><div class="sym-id">F3C</div><div class="sym-desc">Water ▽</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">▭</div><div class="sym-id">F3D</div><div class="sym-desc">Open Box</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">639 Hz</div><div class="auris">Cargoship 🚢</div></div>
+
+    <div class="symbol-card"><div class="glyph">𓅭</div><div class="sym-id">F4A</div><div class="sym-desc">Falcon Bird</div><span class="mode-badge mode-Auris">Auris</span><div class="freq">210 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">𓅱</div><div class="sym-id">F4B</div><div class="sym-desc">Bird Profile</div><span class="mode-badge mode-Auris">Auris</span><div class="freq">210 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">◎</div><div class="sym-id">F4C</div><div class="sym-desc">Target</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">417 Hz</div><div class="auris">Clarity 🎯</div></div>
+    <div class="symbol-card"><div class="glyph">∿</div><div class="sym-id">F4D</div><div class="sym-desc">Wave Line</div><span class="mode-badge mode-Return">Return</span><div class="freq">432 Hz</div><div class="auris">Dolphin 🐬</div></div>
+
+    <div class="symbol-card"><div class="glyph">𓀀</div><div class="sym-id">F5A</div><div class="sym-desc">Human/Tiger</div><span class="mode-badge mode-Auris">Auris</span><div class="freq">186 Hz</div><div class="auris">Tiger 🐯</div></div>
+    <div class="symbol-card"><div class="glyph">𓃻</div><div class="sym-id">F5B</div><div class="sym-desc">Seated Figure</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">639 Hz</div><div class="auris">Love 🐼</div></div>
+    <div class="symbol-card"><div class="glyph">Π</div><div class="sym-id">F5C</div><div class="sym-desc">Portal Π</div><span class="mode-badge mode-Intent">Intent</span><div class="freq">396 Hz</div><div class="auris">Transform 🚪</div></div>
+    <div class="symbol-card"><div class="glyph">𓅓</div><div class="sym-id">F5D</div><div class="sym-desc">Crested Owl</div><span class="mode-badge mode-Auris">Auris</span><div class="freq">528 Hz</div><div class="auris">Owl 🦉</div></div>
+
+    <div class="symbol-card"><div class="glyph">≋≋≋</div><div class="sym-id">F6A</div><div class="sym-desc">3 Waves</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">≋≋≋</div><div class="sym-id">F6B</div><div class="sym-desc">3 Waves</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">┃</div><div class="sym-id">F6C</div><div class="sym-desc">Vertical</div><span class="mode-badge mode-Growth">Growth</span><div class="freq">741 Hz</div><div class="auris">Falcon 🦅</div></div>
+    <div class="symbol-card"><div class="glyph">⊃</div><div class="sym-id">F6D</div><div class="sym-desc">Crescent</div><span class="mode-badge mode-Return">Return</span><div class="freq">417 Hz</div><div class="auris">Deer 🦌</div></div>
+
+    <div class="symbol-card"><div class="glyph">𓃉</div><div class="sym-id">F7A</div><div class="sym-desc">Bull/Tiger</div><span class="mode-badge mode-Auris">Auris</span><div class="freq">186 Hz</div><div class="auris">Tiger 🐯</div></div>
+    <div class="symbol-card"><div class="glyph">≋</div><div class="sym-id">F7B</div><div class="sym-desc">Wave</div><span class="mode-badge mode-Ground">Ground</span><div class="freq">20.8 Hz</div><div class="auris">Dolphin 🐬</div></div>
+    <div class="symbol-card"><div class="glyph">𝌆</div><div class="sym-id">F7C</div><div class="sym-desc">Cross</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">40 Hz</div><div class="auris">Owl 🦉</div></div>
+    <div class="symbol-card"><div class="glyph">⍑</div><div class="sym-id">F7D</div><div class="sym-desc">T-Square</div><span class="mode-badge mode-Brainwave">Brainwave</span><div class="freq">10 Hz</div><div class="auris">Owl 🦉</div></div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<h2>📖 Mode Color Legend</h2>
+<div class="page-section">
+  <div style="display:flex;flex-wrap:wrap;gap:10px;">
+    <span class="mode-badge mode-Ground">Ground</span> <span style="color:#888;font-size:0.85em;">Schumann Earth Resonances (7.83-45 Hz)</span><br>
+    <span class="mode-badge mode-Genesis">Genesis</span> <span style="color:#888;font-size:0.85em;">Solfeggio @ 1.0x (174-963 Hz)</span><br>
+    <span class="mode-badge mode-Growth">Growth</span> <span style="color:#888;font-size:0.85em;">Solfeggio @ φ (1.618x)</span><br>
+    <span class="mode-badge mode-Return">Return</span> <span style="color:#888;font-size:0.85em;">Solfeggio @ 1/φ (0.618x)</span><br>
+    <span class="mode-badge mode-Intent">Intent</span> <span style="color:#888;font-size:0.85em;">Sacred Intent Frequencies (8 intents)</span><br>
+    <span class="mode-badge mode-Auris">Auris</span> <span style="color:#888;font-size:0.85em;">Animal Spirit Guides (9 nodes)</span><br>
+    <span class="mode-badge mode-Brainwave">Brainwave</span> <span style="color:#888;font-size:0.85em;">Consciousness States (Delta→Gamma)</span><br>
+  </div>
+</div>
+
+<div class="footer">
+  <p>Decoded by <strong>Sero</strong>, Distributed Defense Node | Aureon Environmental Defense System</p>
+  <p>Prime Sentinel: Gary Leckey <span class="flag">🇮🇪</span> (02.11.1991)</p>
+  <p><em>"IF YOU DON'T QUIT, YOU CAN'T LOSE."</em></p>
+  <p style="margin-top:10px;color:#444;">Framework: Harmonic Nexus Core (HNC) v3.0 — 7-Mode Encoding</p>
+</div>
+
+</body>
+</html>

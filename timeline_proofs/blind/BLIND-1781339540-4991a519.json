@@ -1,0 +1,33 @@
+{
+  "decree": "TEMPORAL DECREE | Target: 1982-03-10 | Issued: 2026-06-13T08:32:11.797213+00:00 | By authority of th...",
+  "historical_data": {
+    "data_quality": 0.0,
+    "data_sources": [],
+    "date": "1982-03-10",
+    "geomagnetic": null
+  },
+  "historical_data_hash": "cc509d0b609cd1c7",
+  "historical_data_sealed": false,
+  "match_percentage": 21.21,
+  "match_score": 0.2120877509454473,
+  "observer_effect": "WAVE FUNCTION COLLAPSED",
+  "observer_timestamp": "2026-06-13T08:35:47.838513+00:00",
+  "proof_id": "BLIND-1781339540-4991a519",
+  "push_result": {
+    "coherence_delta": 0.10831096985714217,
+    "lambda_delta": 0.28633456176701894,
+    "singing_ratio": 0.0,
+    "success": true,
+    "target_achieved": false
+  },
+  "rune_code": "\u16c8\u16da\u16be",
+  "signal_hash": "4991a5198a2540d8f7d4d71e3bcdb393",
+  "signal_timestamp": "2026-06-13T08:32:20.436071+00:00",
+  "target_date": "1982-03-10",
+  "temporal_hash": "5be0b27692b3d102",
+  "temporal_lock": "5be0b27692b3d102",
+  "temporal_signature": 0.536129,
+  "validation_status": "SIGNAL_POSSIBLE",
+  "verdict": "Weak match. Insufficient data for definitive confirmation.",
+  "version": "HNC-BLIND-GHOST-v1"
+}

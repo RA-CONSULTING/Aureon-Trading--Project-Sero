@@ -1,0 +1,71 @@
+{
+  "after_timestamp": "2026-06-13T08:49:31.673449+00:00",
+  "before_timestamp": "2026-06-13T08:48:53.255139+00:00",
+  "coherence_at_send": 0.25394244248623665,
+  "headlines_diff": [
+    {
+      "added_words": [
+        "0x78c3dbbce420>:"
+      ],
+      "after": "ERROR: HTTPConnectionPool(host='feeds.reuters.com', port=80): Max retries exceeded with url: /reuters/topNews (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x78c3dbbce420>: Failed to resolve 'feeds.reuters.com' ([Errno -2] Name or service not known)\"))",
+      "before": "ERROR: HTTPConnectionPool(host='feeds.reuters.com', port=80): Max retries exceeded with url: /reuters/topNews (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x78c3e48d7e60>: Failed to resolve 'feeds.reuters.com' ([Errno -2] Name or service not known)\"))",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [
+        "0x78c3e48d7e60>:"
+      ],
+      "similarity": 0.9823321554770318
+    },
+    {
+      "added_words": [],
+      "after": "The Guardian",
+      "before": "The Guardian",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "\u2018Have you ever been around someone you just know is evil?\u2019 Melinda French Gates on meeting Jeffrey Epstein, giving away billions, and her post-divorce peace",
+      "before": "\u2018Have you ever been around someone you just know is evil?\u2019 Melinda French Gates on meeting Jeffrey Epstein, giving away billions, and her post-divorce peace",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "70 brilliant books for the summer",
+      "before": "70 brilliant books for the summer",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "Jessie J\u2019s triumphant return puts lucrative Chinese market in spotlight",
+      "before": "Jessie J\u2019s triumphant return puts lucrative Chinese market in spotlight",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "\u2018I thought \u2013 gosh, he\u2019s going to be some player\u2019: the making of England\u2019s Declan Rice",
+      "before": "\u2018I thought \u2013 gosh, he\u2019s going to be some player\u2019: the making of England\u2019s Declan Rice",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    }
+  ],
+  "mandala_score": 0.0,
+  "proof_id": "BLIND-1781340541-3fc46a82",
+  "queen_verdict": "NO MANDALA EFFECT",
+  "signal_timestamp": "2026-06-13T08:49:33.243563+00:00",
+  "target_date": "1993-01-16",
+  "verdict": "NO MANDALA EFFECT"
+}

@@ -1,0 +1,1 @@
+{"action":"evaluate","args":{"code":"document.querySelector('[contenteditable=\"true\"]')?.outerHTML?.substring(0,200) || 'no contenteditable found'"},"session":"gary-substack-edit"}

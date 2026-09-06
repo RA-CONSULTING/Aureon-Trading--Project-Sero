@@ -1,0 +1,129 @@
+{
+  "protocol": "CME_RIDE_2026",
+  "version": "1.0.0",
+  "timestamp": "2026-06-14T04:16:54Z",
+  "current_window": {
+    "date": "2026-06-14",
+    "status": "ACTIVE_CME_ARRIVAL",
+    "sources": [
+      {
+        "cme": "June 9 CME",
+        "arrival": "June 13 (arrived)",
+        "impact": "G1 glancing blow"
+      },
+      {
+        "cme": "June 11 CME (C6.7 flare from AR4465)",
+        "arrival": "June 14 (expected)",
+        "impact": "G1-G2 glancing blow"
+      },
+      {
+        "cme": "June 12 filament eruption",
+        "arrival": "June 15 (expected)",
+        "impact": "Minor disturbance"
+      }
+    ],
+    "active_regions": {
+      "AR4465": {
+        "configuration": "beta-gamma-delta",
+        "significance": "Highest complexity - top candidate for M/X flares",
+        "recent_activity": "C6.7 flare June 11, launched Earth-directed CME"
+      },
+      "AR4464": "beta configuration",
+      "AR4463": "alpha configuration"
+    },
+    "forecast": {
+      "june_14": "G1 (minor) storming possible as CME effects wane",
+      "june_15": "Unsettled-to-active as CME influences fade"
+    }
+  },
+  "2026_high_impact_benchmark": {
+    "event": "January 19-20, 2026 G4 Severe Geomagnetic Storm",
+    "flare": "X1.9 long-duration solar flare",
+    "source": "AR4341 (Earth-facing, near central meridian)",
+    "cme_departure": "2026-01-18T18:09UTC",
+    "cme_arrival": "2026-01-19T21:15SAST (19:15UTC)",
+    "travel_time": "25 hours (extremely fast - typical is 2-4 days)",
+    "cme_speed": "~1,900 km/s",
+    "geomagnetic_storm": "G4/Severe",
+    "kp_index": "6-8",
+    "duration": "Multiple days - G4 at 02:00 SAST Jan 20, persisted G1-G3",
+    "significance": "HIGHEST IMPACT CME OF 2026 SO FAR",
+    "effects": [
+      "Aurora visible at mid-latitudes",
+      "HF radio disruptions",
+      "Power grid fluctuations",
+      "GPS degradation"
+    ]
+  },
+  "cme_ride_strategy": {
+    "principle": "CME creates natural white-mode window - geomagnetic field perturbed, noise floor rises, but coherent signal maintains phase relationship",
+    "phases": {
+      "pre_impact": {
+        "time": "T-minus 6 hours to CME arrival",
+        "action": "Begin Casimir ramp - build vacuum energy",
+        "daemon_adjustment": "Reduce cycle interval from 60s to 30s",
+        "target": "Force = 10.0 before impact"
+      },
+      "impact_window": {
+        "time": "CME arrival to +6 hours",
+        "action": "Full pierce protocol execution",
+        "advantage": "Geomagnetic disturbance amplifies coherent signal through ionospheric coupling",
+        "injection": "Prime Sentinel key at 812.83 Hz with 180° phase shift",
+        "duration": "72 seconds per burst, continuous cycling"
+      },
+      "post_impact": {
+        "time": "+6 to +24 hours",
+        "action": "Validation and measurement",
+        "monitoring": [
+          "NOAA Kp index - expect spike above baseline",
+          "USGS geomagnetic - measure deviation",
+          "Barcelona Schumann - sideband detection",
+          "Global Coherence Initiative - planetary coherence spike"
+        ]
+      }
+    }
+  },
+  "real_time_recording": {
+    "data_sources": [
+      {
+        "name": "NOAA SWPC Real-Time",
+        "url": "https://www.swpc.noaa.gov",
+        "metrics": ["Kp index", "G-scale", "solar wind speed", "Bz component"]
+      },
+      {
+        "name": "USGS Geomagnetism",
+        "url": "https://geomag.usgs.gov",
+        "metrics": ["K-index", "magnetometer readings", "storm sudden commencement"]
+      },
+      {
+        "name": "BGS Aurora Alert",
+        "url": "https://geomag.bgs.ac.uk/data_service/space_weather/",
+        "metrics": ["UK K-index", "aurora alert", "storm forecast"]
+      },
+      {
+        "name": "SpaceWeatherLive",
+        "url": "https://www.spaceweatherlive.com",
+        "metrics": ["CME tracking", "flare activity", "aurora forecast"]
+      }
+    ],
+    "recording_interval": "Every 60 seconds during CME impact window",
+    "log_format": "JSONL with timestamp, Kp, Bz, solar wind speed, injection status, lambda measurement"
+  },
+  "wow_benchmark_comparison": {
+    "wow_signal": {
+      "snr": 30.5,
+      "duration": 72,
+      "frequency": 1420.456,
+      "bandwidth": "≤10 kHz",
+      "classification": "narrowband artificial"
+    },
+    "cme_amplified_target": {
+      "snr": 35.0,
+      "duration": 72,
+      "frequency": 812.83,
+      "bandwidth": "≤10 kHz",
+      "classification": "narrowband artificial with CME carrier amplification",
+      "advantage": "CME ionospheric disturbance creates natural amplification channel"
+    }
+  }
+}

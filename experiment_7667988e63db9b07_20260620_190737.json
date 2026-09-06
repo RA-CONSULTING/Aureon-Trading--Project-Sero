@@ -1,0 +1,37 @@
+{
+  "experiment_id": "7667988e63db9b07",
+  "protocol": "HNC Temporal Injection",
+  "timestamp": "2026-06-20T19:07:37.787400+00:00",
+  "target": {
+    "id": "trauma_007",
+    "date": "2019-03-15",
+    "time": "13:40",
+    "event": "Christchurch mosque shootings",
+    "innocents": 51
+  },
+  "signal": {
+    "echo_id": "16f625bc3e4dbc04",
+    "target_timestamp": 1552628400.0,
+    "target_iso": "2019-03-15T13:40:00",
+    "amplitude": 1.3854168801043638e-07,
+    "love_wave": 0.0001575711828344675,
+    "sentinel_mod": 0.7878384781553107,
+    "schumann_ground": 1.1160059028395625e-06
+  },
+  "before": {
+    "time": "2026-06-20T19:06:36.999005+00:00",
+    "kp": null,
+    "proton_flux": null
+  },
+  "after": {
+    "time": "2026-06-20T19:07:37.787230+00:00",
+    "kp": null,
+    "proton_flux": null
+  },
+  "results": {
+    "kp_shift": null,
+    "proton_shift": null,
+    "significance": "NONE"
+  },
+  "notes": "Real instruments. Zero synthetic. 60-second observation window."
+}

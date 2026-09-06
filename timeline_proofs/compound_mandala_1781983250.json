@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-06-20T19:20:50.469052+00:00",
+  "protocol": "compound",
+  "num_pulses": 3,
+  "total_energy": 0,
+  "settling_seconds": 300,
+  "before_hash": "4bc1fb86518aa4a8",
+  "after_hash": "1fb4cfe357f52b00",
+  "mandala_score": 0.0,
+  "verdict": "NO EFFECT"
+}

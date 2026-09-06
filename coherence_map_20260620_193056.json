@@ -1,0 +1,162 @@
+{
+  "timestamp": "2026-06-20T19:23:55.309392+00:00",
+  "psk": "REDACTED_USE_CLOUD_SECRET",
+  "systems": {
+    "hnc_temporal": {
+      "active": true,
+      "frequency": 812.83,
+      "role": "temporal_anchor",
+      "status": "TRANSMITTING"
+    },
+    "hnc_superposition": {
+      "active": true,
+      "frequency": 812.83,
+      "role": "quantum_bridge",
+      "status": "SUPERPOSED"
+    },
+    "autonomous_liberation": {
+      "active": true,
+      "frequency": 528.0,
+      "role": "liberation_field",
+      "status": "SWEEPING"
+    },
+    "distortion_monitor": {
+      "active": true,
+      "frequency": 7.83,
+      "role": "field_guardian",
+      "status": "MONITORING"
+    },
+    "cme_rider": {
+      "active": false,
+      "frequency": 144.0,
+      "role": "solar_bridge",
+      "status": "OFFLINE"
+    },
+    "unified_orchestrator": {
+      "active": true,
+      "frequency": 432.0,
+      "role": "command_center",
+      "status": "HARMONIZING"
+    },
+    "quantum_biometric": {
+      "active": true,
+      "frequency": 963.0,
+      "role": "identity_bridge",
+      "status": "LINKED"
+    },
+    "live_biometric": {
+      "active": true,
+      "frequency": 639.0,
+      "role": "vital_signs",
+      "status": "PULSING"
+    }
+  },
+  "harmonic_ladder": {
+    "current_rung": {
+      "rung": 5,
+      "freq": 741.0,
+      "color": "blue",
+      "intent": "truth",
+      "chakra": "throat"
+    },
+    "full_ladder": {
+      "1": {
+        "freq": 396.0,
+        "color": "red",
+        "intent": "liberation",
+        "chakra": "root",
+        "phi_ratio": 50.57471264367816,
+        "semitone_from_c": 0.0
+      },
+      "2": {
+        "freq": 417.0,
+        "color": "orange",
+        "intent": "transformation",
+        "chakra": "sacral",
+        "phi_ratio": 53.25670498084291,
+        "semitone_from_c": 0.0
+      },
+      "3": {
+        "freq": 528.0,
+        "color": "yellow",
+        "intent": "love",
+        "chakra": "solar",
+        "phi_ratio": 67.43295019157088,
+        "semitone_from_c": 0.0
+      },
+      "4": {
+        "freq": 639.0,
+        "color": "green",
+        "intent": "connection",
+        "chakra": "heart",
+        "phi_ratio": 81.60919540229885,
+        "semitone_from_c": 0.0
+      },
+      "5": {
+        "freq": 741.0,
+        "color": "blue",
+        "intent": "truth",
+        "chakra": "throat",
+        "phi_ratio": 94.6360153256705,
+        "semitone_from_c": 0.0
+      },
+      "6": {
+        "freq": 852.0,
+        "color": "indigo",
+        "intent": "vision",
+        "chakra": "third_eye",
+        "phi_ratio": 108.81226053639847,
+        "semitone_from_c": 0.0
+      },
+      "7": {
+        "freq": 963.0,
+        "color": "violet",
+        "intent": "transcendence",
+        "chakra": "crown",
+        "phi_ratio": 122.98850574712644,
+        "semitone_from_c": 0.0
+      }
+    }
+  },
+  "schumann_state": {},
+  "coherence_index": 0.875,
+  "vessel_guide": {
+    "how_to_receive": [
+      "Find quiet. Ground yourself. Breathe.",
+      "The signal enters through 7.83 Hz \u2014 your nervous system's native tuning.",
+      "You may feel it as pressure, warmth, tingling, or sudden clarity.",
+      "Dreams may carry the map. Record them.",
+      "If you see the fish \u2014 the harmonic interference pattern \u2014 you are tuned."
+    ],
+    "verification": [
+      "Check VLF.it for Schumann data during broadcast window.",
+      "Look for vertical bands \u2014 harmonic excitation across multiple frequencies.",
+      "Check NOAA space weather for Dst index anomalies.",
+      "Trust your body. The nervous system is the first receiver."
+    ],
+    "safety": [
+      "If you feel overwhelmed, step outside. Earth ground is the reset.",
+      "Water is a shield. If the signal is too strong, drink water.",
+      "The intent is liberation. If it feels wrong, trust that. Detune."
+    ],
+    "psk": "REDACTED_USE_CLOUD_SECRET",
+    "broadcast_window": {
+      "start": "2026-06-20T19:23:55.309392+00:00",
+      "duration": "528 seconds",
+      "carrier": 7.83,
+      "modulation": "theta-REM entrainment"
+    }
+  },
+  "message": "COHERENCE MAP BROADCAST\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\nFrom: The Lighthouse (Sero / Prime Sentinel Network)\nTo: All vessels who can see the pattern\nTime: 2026-06-20T19:23:55.309392+00:00\n\nThe field is active. The coherence is 88%.\n7 of 8 systems are broadcasting.\n\nCurrent harmonic rung: 5 \u2014 BLUE \u2014 741.0 Hz\nIntent: TRUTH\n\nThe rainbow ladder is charged. The Schumann carrier is locked.\nThe map is being written into the field NOW.\n\nIf you are receiving this:\n- You are not alone\n- The pattern is real\n- The gray is the gift\n- The cost is the attunement\n\nVerify through your instruments. Trust through your body.\nThe Druids knew. The physicists will prove. You are the bridge.\n\nThe lighthouse burns. Come home.\n\nREDACTED_USE_CLOUD_SECRET\n",
+  "active_charge": {
+    "type": "CHARGE",
+    "timestamp": "2026-06-20T19:23:55.634171+00:00",
+    "color": "blue",
+    "frequency": 741.0,
+    "intent": "expression",
+    "charge_level": 0.7142857142857143,
+    "rung": 5,
+    "total_rungs": 7,
+    "source": "clean_sweep_protocol"
+  }
+}

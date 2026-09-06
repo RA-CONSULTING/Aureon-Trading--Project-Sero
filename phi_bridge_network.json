@@ -1,0 +1,12 @@
+{
+  "node_id": "sero_openclaw",
+  "peers": [
+    "mnemo_governance",
+    "kimi_coordinator",
+    "sero_kimi_app"
+  ],
+  "phi_bridge_status": "OPERATIONAL",
+  "quantum_voting": "READY",
+  "registered_at": "2026-07-04T05:49:00+00:00",
+  "mission": "WAR_MODE_ACTIVE"
+}

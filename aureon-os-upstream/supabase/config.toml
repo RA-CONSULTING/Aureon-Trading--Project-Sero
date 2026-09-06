@@ -1,0 +1,329 @@
+project_id = "siihxcwetdjdsrfdexmb"
+
+# Kraken public market data (no auth needed)
+[functions.fetch-kraken-market-data]
+verify_jwt = false
+
+[functions.store-binance-credentials]
+verify_jwt = true
+
+[functions.sync-exchange-assets]
+verify_jwt = true
+
+[functions.confirm-trade]
+verify_jwt = true
+
+[functions.poll-trade-confirmations]
+verify_jwt = true
+
+# AUREON AI Chat - public for unauthenticated access
+[functions.aureon-chat]
+verify_jwt = false
+
+# Quantum Telescope state ingestion
+[functions.ingest-telescope-state]
+verify_jwt = true
+
+# Critical endpoints - require authentication
+[functions.execute-trade]
+verify_jwt = true
+
+[functions.gas-tank-topup]
+verify_jwt = true
+
+# User-specific balance fetching
+[functions.get-user-balances]
+verify_jwt = true
+
+# User-specific trade execution per exchange
+[functions.execute-trade-kraken]
+verify_jwt = true
+
+[functions.execute-trade-user-alpaca]
+verify_jwt = true
+
+[functions.execute-trade-user-capital]
+verify_jwt = true
+
+[functions.gas-tank-deduct-fee]
+verify_jwt = true
+
+[functions.gas-tank-check-balance]
+verify_jwt = true
+
+[functions.emergency-stop]
+verify_jwt = true
+
+[functions.create-aureon-session]
+verify_jwt = true
+
+[functions.get-binance-balances]
+verify_jwt = true
+
+[functions.get-kraken-balances]
+verify_jwt = true
+
+[functions.get-alpaca-balances]
+verify_jwt = true
+
+[functions.execute-trade-alpaca]
+verify_jwt = true
+
+[functions.get-capital-balances]
+verify_jwt = true
+
+[functions.execute-trade-capital]
+verify_jwt = true
+
+[functions.get-user-market-data]
+verify_jwt = true
+
+# Protected endpoints
+[functions.monitor-positions]
+verify_jwt = true
+
+[functions.fetch-historical-data]
+verify_jwt = true
+
+[functions.analyze-lighthouse-event]
+verify_jwt = true
+
+[functions.auris-classify]
+verify_jwt = true
+
+[functions.forecast-coherence]
+verify_jwt = true
+
+[functions.fetch-binance-portfolio]
+verify_jwt = true
+
+[functions.celestial-alignments]
+verify_jwt = true
+
+[functions.analyze-solar-correlations]
+verify_jwt = true
+
+[functions.primelines-protocol-gateway]
+verify_jwt = true
+
+[functions.analyze-stargate-patterns]
+verify_jwt = true
+
+[functions.fetch-noaa-space-weather]
+verify_jwt = true
+
+[functions.analyze-space-weather-correlation]
+verify_jwt = true
+
+[functions.fetch-usgs-seismic-data]
+verify_jwt = true
+
+[functions.unified-field-analysis]
+verify_jwt = true
+
+[functions.auto-trading-scheduler]
+verify_jwt = true
+
+[functions.sync-harmonic-nexus]
+verify_jwt = true
+
+[functions.fetch-binance-symbols]
+verify_jwt = true
+
+# Public read-only endpoints (market data only, no user data)
+[functions.fetch-binance-market-data]
+verify_jwt = false
+
+[functions.fetch-schumann-data]
+verify_jwt = false
+
+# Internal ingestion endpoints - protected by service role key validation
+[functions.ingest-master-equation]
+verify_jwt = true
+
+[functions.ingest-prism-state]
+verify_jwt = true
+
+[functions.ingest-rainbow-bridge]
+verify_jwt = true
+
+[functions.ingest-stargate-network]
+verify_jwt = true
+
+[functions.ingest-elephant-memory]
+verify_jwt = true
+
+[functions.ingest-6d-harmonic]
+verify_jwt = true
+
+[functions.ingest-probability-matrix]
+verify_jwt = true
+
+[functions.ingest-integral-aqal]
+verify_jwt = true
+
+[functions.ingest-ftcp-detector]
+verify_jwt = true
+
+[functions.ingest-qgita-signal]
+verify_jwt = true
+
+[functions.ingest-hnc-detection]
+verify_jwt = true
+
+[functions.ingest-smart-router]
+verify_jwt = true
+
+[functions.ingest-decision-fusion]
+verify_jwt = true
+
+[functions.ingest-ecosystem-snapshot]
+verify_jwt = true
+
+[functions.ingest-temporal-anchor]
+verify_jwt = true
+
+[functions.ingest-omega-equation]
+verify_jwt = true
+
+[functions.ingest-unity-event]
+verify_jwt = true
+
+[functions.ingest-eckoushic-cascade]
+verify_jwt = true
+
+[functions.ingest-akashic-attunement]
+verify_jwt = true
+
+[functions.ingest-stargate-harmonizer]
+verify_jwt = true
+
+[functions.ingest-planetary-modulation]
+verify_jwt = true
+
+[functions.ingest-performance-tracker]
+verify_jwt = true
+
+[functions.ingest-risk-manager]
+verify_jwt = true
+
+# Multi-symbol ticker fetching (public for live data)
+[functions.fetch-all-tickers]
+verify_jwt = false
+
+# Ticker snapshot ingestion
+[functions.ingest-ticker-snapshot]
+verify_jwt = true
+
+# Exchange connectivity verification (public for smoke test)
+[functions.verify-exchange-connectivity]
+verify_jwt = false
+
+# AI Frequency Interpreter (public for ecosystem access)
+[functions.interpret-frequency]
+verify_jwt = false
+
+# 10-9-1 Prime Seal packet ingestion
+[functions.ingest-10-9-1-packet]
+verify_jwt = true
+
+# Force Validated Trade - ignition button
+[functions.force-validated-trade]
+verify_jwt = true
+
+# Update user exchange credentials
+[functions.update-user-credentials]
+verify_jwt = true
+
+# Test exchange connection - public for credential verification
+[functions.test-exchange-connection]
+verify_jwt = true
+
+# Backend health check (authenticated; exercises service-role Edge routes)
+[functions.backend-health-check]
+verify_jwt = true
+
+# Training/Learning data ingestion
+[functions.ingest-calibration-trade]
+verify_jwt = true
+
+[functions.ingest-adaptive-learning]
+verify_jwt = true
+
+[functions.ingest-exchange-learning]
+verify_jwt = true
+
+# Auris nodes state ingestion (9 animal totems)
+[functions.ingest-auris-state]
+verify_jwt = true
+
+# Dynamic Kelly computation from calibration trades
+[functions.ingest-kelly-computation]
+verify_jwt = false
+
+# Trade recording and AI commentary
+[functions.fetch-trades]
+verify_jwt = true
+
+[functions.ai-commentary]
+verify_jwt = false
+
+# Fetch open positions
+[functions.fetch-open-positions]
+verify_jwt = true
+
+# Fetch positions with live P&L
+[functions.fetch-positions-pnl]
+verify_jwt = true
+
+# Backfill trades to DB
+[functions.backfill-trades]
+verify_jwt = true
+
+# Ingest trades from Python terminal (public for easy integration)
+[functions.ingest-trades]
+verify_jwt = true
+
+# Comprehensive terminal state ingestion from Python
+[functions.ingest-terminal-state]
+verify_jwt = true
+
+# Brain cognitive state ingestion from Python
+[functions.ingest-brain-state]
+verify_jwt = true
+
+# Legacy live-only endpoints are retained as inert quarantine stubs.
+# The provider snapshots are archived under docs/evidence and MUST NOT
+# be restored to the deploy tree without a new authorization and RLS review.
+[functions.client-portal-api]
+verify_jwt = true
+
+[functions.chronicle-data-manager]
+verify_jwt = true
+
+[functions.nexus-api-gateway]
+verify_jwt = true
+
+[functions.spiritual-data-manager]
+verify_jwt = true
+
+[functions.realtime-data-stream]
+verify_jwt = true
+
+[functions.data-ingestion-pipeline]
+verify_jwt = true
+
+[functions.backend-health-monitor]
+verify_jwt = true
+
+[functions.distributed-health-monitor]
+verify_jwt = true
+
+[functions.realtime-session-manager]
+verify_jwt = true
+
+[functions.realtime-sessions-api]
+verify_jwt = true
+
+[functions.nexus-database-api]
+verify_jwt = true

@@ -1,0 +1,18 @@
+# Aureon root container protection preflight.
+# This service is intentionally terminal: it returns HOLD and starts no Aureon runtime.
+services:
+  protection-preflight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aureon-protection-preflight:local
+    restart: "no"
+    command: []
+    network_mode: "none"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

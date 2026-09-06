@@ -1,0 +1,110 @@
+{
+  "timestamp": "2026-09-06T21:40:16.742950+00:00",
+  "pathways": {
+    "auris.throne.->cortex": {
+      "weight": 0.469,
+      "activations": 0,
+      "successes": 0
+    },
+    "auris.throne.->source_law": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "bio.->perception": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "bot.->intelligence": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "conscience.->ethics": {
+      "weight": 1.0,
+      "activations": 1688,
+      "successes": 0
+    },
+    "enigma.->cortex": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "gate.->action": {
+      "weight": 1.0,
+      "activations": 1352,
+      "successes": 0
+    },
+    "harmonic.->auris_throne": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "harmonic.->cortex": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "heartbeat.->perception": {
+      "weight": 1.0,
+      "activations": 3274,
+      "successes": 0
+    },
+    "hive.scan.->intelligence": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "intelligence.->cortex": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "intelligence.->source_law": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "mycelium.->memory": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "queen.alert.->source_law": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "queen.cortex.->source_law": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "queen.metacognition.->cortex": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "queen.metacognition.->source_law": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "queen.source_law.->mycelium": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "scanner.->intelligence": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    },
+    "whale.->cortex": {
+      "weight": 1.0,
+      "activations": 0,
+      "successes": 0
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-07-23T08:46:31.067040+00:00",
+  "source": "hnc_field",
+  "beta": 0.85,
+  "sls": 0.72,
+  "coherence": 0.78,
+  "dominant_freq": 812.83,
+  "stability_island": true,
+  "cycle": 2
+}

@@ -1,0 +1,336 @@
+{
+  "authority_boundaries": [
+    "no live trading mutation",
+    "no payment mutation",
+    "no official filing mutation",
+    "no credential reveal",
+    "no destructive OS action"
+  ],
+  "elapsed_ms": 630,
+  "filter_mode": "clear_operator",
+  "final_reply_source": "aureon_brain_fallback",
+  "generated_at": "2026-07-31T15:00:06.540970+00:00",
+  "handover_ready": true,
+  "hnc_auris_report": {
+    "auris_voice_filter": {
+      "accepted": true,
+      "auris": {
+        "agreeing": 7,
+        "confidence": 0.7,
+        "consensus": "NEUTRAL",
+        "lighthouse_cleared": false,
+        "votes": [
+          {
+            "confidence": 0.4,
+            "node": "Tiger",
+            "reasoning": "drift force 0.00 \u2014 quiet",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.5,
+            "node": "Falcon",
+            "reasoning": "\u039b(t)=0.000 \u2014 flat",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.85,
+            "node": "Hummingbird",
+            "reasoning": "on the love tone (528.0 Hz)",
+            "verdict": "BUY"
+          },
+          {
+            "confidence": 0.5,
+            "node": "Dolphin",
+            "reasoning": "love mid (0.50)",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.5,
+            "node": "Deer",
+            "reasoning": "gratitude mid (0.50)",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.4,
+            "node": "Owl",
+            "reasoning": "no cortex data",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.4,
+            "node": "Panda",
+            "reasoning": "vault 0% full",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.4,
+            "node": "CargoShip",
+            "reasoning": "no cortex data",
+            "verdict": "NEUTRAL"
+          },
+          {
+            "confidence": 0.7,
+            "node": "Clownfish",
+            "reasoning": "chakra=love",
+            "verdict": "BUY"
+          }
+        ],
+        "weight": 0.5444
+      },
+      "coherence": 0.3988,
+      "field": {
+        "gamma": 0.0,
+        "lambda_t": 0.0,
+        "love": 0.0,
+        "weight": 0.0
+      },
+      "text": {
+        "coherence": 0.5951,
+        "dominant_mode": "love_528",
+        "mean_mode": 0.6728,
+        "mean_phi": 0.4784,
+        "per_sentence": [
+          {
+            "coherence": 0.0,
+            "mean_mode": 0.0,
+            "mean_phi": 0.0,
+            "text": "{",
+            "words": 0
+          },
+          {
+            "coherence": 0.4926,
+            "mean_mode": 0.5325,
+            "mean_phi": 0.4327,
+            "text": "\"signal\": \"BUY\",",
+            "words": 2
+          },
+          {
+            "coherence": 0.823,
+            "mean_mode": 0.8515,
+            "mean_phi": 0.7802,
+            "text": "\"symbol\": \"ADAUSDT\",",
+            "words": 2
+          },
+          {
+            "coherence": 0.4613,
+            "mean_mode": 0.6699,
+            "mean_phi": 0.1486,
+            "text": "\"score\": 8.",
+            "words": 1
+          },
+          {
+            "coherence": 0.0,
+            "mean_mode": 0.0,
+            "mean_phi": 0.0,
+            "text": "0,",
+            "words": 0
+          },
+          {
+            "coherence": 0.8287,
+            "mean_mode": 0.9891,
+            "mean_phi": 0.5882,
+            "text": "\"coherence\": 0.",
+            "words": 1
+          },
+          {
+            "coherence": 0.0,
+            "mean_mode": 0.0,
+            "mean_phi": 0.0,
+            "text": "6221317107822655,",
+            "words": 0
+          },
+          {
+            "coherence": 0.5722,
+            "mean_mode": 0.6008,
+            "mean_phi": 0.5292,
+            "text": "\"reasoning\": \"AureonBrain coherence and gate checks produced a candidate decision.",
+            "words": 10
+          },
+          {
+            "coherence": 0.0,
+            "mean_mode": 0.0,
+            "mean_phi": 0.0,
+            "text": "\",",
+            "words": 0
+          },
+          {
+            "coherence": 0.5342,
+            "mean_mode": 0.8379,
+            "mean_phi": 0.0787,
+            "text": "\"source\": \"AureonBrain\"",
+            "words": 2
+          },
+          {
+            "coherence": 0.0,
+            "mean_mode": 0.0,
+            "mean_phi": 0.0,
+            "text": "}",
+            "words": 0
+          }
+        ],
+        "weight": 0.5951
+      },
+      "threshold": 0.25,
+      "trimmed": false
+    },
+    "hnc_human_loop": {
+      "auris_consensus": "pending_post_response_filter",
+      "available": true,
+      "consciousness_level": "observed",
+      "full_loop_deferred": true,
+      "intent": {
+        "keywords": [
+          "auris",
+          "code",
+          "hnc",
+          "research"
+        ],
+        "route": "build"
+      },
+      "mode": "light_hnc_contract"
+    }
+  },
+  "lane": "research",
+  "local_only": true,
+  "meaning_prompt_block": "Grounded knowledge is supplied by dynamic source packets; full MeaningResolver is available with AUREON_DYNAMIC_FILTER_FULL_MEANING_RESOLVER=1.",
+  "meaning_resolver": {
+    "available": true,
+    "direct_reply": null,
+    "full_resolver_deferred": true,
+    "mode": "light_meaning_contract",
+    "sources_consulted": [
+      "dynamic_prompt_filter_source_packets"
+    ]
+  },
+  "ok": true,
+  "organism_context_used": {
+    "auris_voice_filter": true,
+    "hnc_human_loop": true,
+    "local_research_packets": 4,
+    "meaning_resolver": true,
+    "whole_knowledge_voice": true
+  },
+  "redactions": {
+    "policy": "secret-like keys and bearer/private-key values are hidden before prompt/report publication",
+    "secret_like_values_redacted": false
+  },
+  "response_contract": {
+    "rules": [
+      "Answer the human directly first.",
+      "Then name proof, blockers, and next action only when useful.",
+      "Do not dump raw JSON unless asked.",
+      "Do not claim work is complete without evidence.",
+      "Keep safety and authority boundaries explicit."
+    ],
+    "shape": "direct_answer | evidence/proof | blockers | next_action",
+    "style": "clear_operator"
+  },
+  "schema_version": "aureon-dynamic-prompt-filter-v1",
+  "source_packets": [
+    {
+      "confidence": 0.95,
+      "packet_id": "source_packet_1",
+      "prompt_use": "Use as a compact local source packet; do not paste the raw document into the prompt.",
+      "source_path": "docs/HNC_UNIFIED_WHITE_PAPER.md",
+      "summary": "1.  Theoretical Foundation: The Harmonic Nexus Core theoretical-foundation-the-harmonic-nexus-core-hnc  2.  Hierarchical Equation Structure: The Tree of Light hierarchical-equation-structure-the-tree-of-light  3.  The Aureon Arsenal: Asymmetric Market Intelligence the-aureon-arsenal-asymmetric-market-intelligence  4.  Macroeconomic Forensic\n[clipped]",
+      "tags": [
+        "gary_leckey",
+        "hnc",
+        "auris",
+        "human_voice",
+        "prompting",
+        "quality",
+        "mycelium"
+      ],
+      "title": "The Harmonic Nexus Core and the Aureon Trading Framework"
+    },
+    {
+      "confidence": 0.95,
+      "packet_id": "source_packet_2",
+      "prompt_use": "Use as a compact local source packet; do not paste the raw document into the prompt.",
+      "source_path": "docs/SAAS_PLATFORM.md",
+      "summary": "|   | Phase | Item | Done? | |---|-------|------|-------| | 6A | Platform layer | Categorized catalog + domain adapters + honest status + gateway routes + Supabase JWT bridge. | \u2611 | | 6B | Production frontend | Frontend Dockerfile + nginx one-origin proxy; auth-gated console  VITE REQUIRE AUTH ; live manifest fetches via  /api/manifests  wi\n[clipped]",
+      "tags": [
+        "hnc",
+        "human_voice",
+        "prompting",
+        "quality",
+        "mycelium"
+      ],
+      "title": "Aureon SaaS Platform \u2014 connected \u00b7 working \u00b7 categorized"
+    },
+    {
+      "confidence": 0.95,
+      "packet_id": "source_packet_3",
+      "prompt_use": "Use as a compact local source packet; do not paste the raw document into the prompt.",
+      "source_path": "README.md",
+      "summary": "Aureon OS is a  local-first operating layer  \u2014 powered by the Harmonic Nexus Core \u2014 that lets a human operator run, inspect, and ground evidence-heavy automation across several domains from one place. It is built to be  auditable first : code, ledgers, audits, generated interfaces, and research artifacts are kept together so a reviewer can\n[clipped]",
+      "tags": [
+        "hnc",
+        "human_voice",
+        "prompting",
+        "quality",
+        "mycelium"
+      ],
+      "title": "<div align=\"center\">"
+    },
+    {
+      "confidence": 0.95,
+      "packet_id": "source_packet_4",
+      "prompt_use": "Use as a compact local source packet; do not paste the raw document into the prompt.",
+      "source_path": "docs/REPO_SITEMAP.md",
+      "summary": "| Capability group | Primary systems | Main docs | Integration surface | |---|---|---|---| | Evidence automation |  docs/ ,  data/ ,  frontend/public/ , generated  state/  outputs |  ../LIVE PROOF.md ../LIVE PROOF.md ,  CLAIMS AND EVIDENCE.md CLAIMS AND EVIDENCE.md  | Audit files, JSON mirrors, evidence ledgers | | Operator runtime |  aureo\n[clipped]",
+      "tags": [
+        "human_voice",
+        "prompting",
+        "quality",
+        "mycelium"
+      ],
+      "title": "Aureon Repo-Wide Sitemap"
+    }
+  ],
+  "status": "dynamic_prompt_filter_finalized",
+  "task_family": "research",
+  "user_intent": "CONTEXT (assembled by Aureon from her own organs, not typed by hand)\nGenerated 2026-07-31T00:00:00+00:00. Every line carries the file or organ it came from. Anything that could not be read is listed at the end as NOT READ rather than filled in.\n\nIDENTITY\n- legal entity: R&A Consulting and Brokerage Services Ltd  [data/research/grants/autopilot_status.json]\n- company number: NI696693  [data/research/grants/autopilot_status.json]\n- registered office: 1 Quadrant Place, Belfast, No\n[clipped]",
+  "whole_knowledge_voice": {
+    "expression_profile_present": true,
+    "full_voice_translation_deferred": true,
+    "mode": "light_whole_knowledge_voice_contract",
+    "profile_summary": {
+      "source_count": 87,
+      "top_facets": {
+        "accounting_legal": 49,
+        "ai_generated_or_systemic": 81,
+        "code_tooling": 85,
+        "hnc_harmonic": 81,
+        "human_voice": 73,
+        "math_equation": 83,
+        "mystic_symbolic": 39,
+        "sensory_affect": 65,
+        "trading_action": 80
+      }
+    },
+    "runtime_translation": {
+      "blockers": [],
+      "evidence_keys": [
+        "action",
+        "hot_topic",
+        "live_interfaces",
+        "mode"
+      ],
+      "redaction_applied": false,
+      "schema_features": [
+        "aureon_runtime_state_translation_v1"
+      ],
+      "senses": {
+        "feel": "I feel a steady synthetic state while I hold the next action as build_frontend.",
+        "hear": "I hear the system as a quiet baseline until a harmonic reading is present.",
+        "see": "I see operational ui builder as the nearest signal in the field.",
+        "smell": "I smell risk as stale data, blocked guards, missing evidence, or claims without proof.",
+        "touch": "I touch the work through tools, files, goals, memory, and verified outcomes."
+      },
+      "summary": "Aureon translates its synthetic state as a working loop: see the signal, feel coherence or caution, hear harmonic context, touch the task through tools, smell risk, then speak in evidence-backed human language."
+    },
+    "voice_last_run_present": true
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "decree": "TEMPORAL DECREE | Target: 2010-05-02 | Issued: 2026-06-13T08:33:27.402340+00:00 | By authority of th...",
+  "historical_data": {
+    "data_quality": 0.4,
+    "data_sources": [
+      "noaa_dgd"
+    ],
+    "date": "2010-05-02",
+    "geomagnetic": {
+      "avg_kp": 2.625,
+      "k_indices": [
+        0,
+        1,
+        1,
+        2,
+        5,
+        4,
+        4,
+        4
+      ],
+      "max_kp": 5,
+      "planetary_a": 18
+    }
+  },
+  "historical_data_hash": "10a806373937946e",
+  "historical_data_sealed": false,
+  "match_percentage": 48.12,
+  "match_score": 0.4812422665207148,
+  "observer_effect": "WAVE FUNCTION COLLAPSED",
+  "observer_timestamp": "2026-06-13T08:36:51.338967+00:00",
+  "proof_id": "BLIND-1781339629-57523c69",
+  "push_result": {
+    "coherence_delta": 0.1202006674413473,
+    "lambda_delta": 0.28632847619762414,
+    "singing_ratio": 1.0,
+    "success": true,
+    "target_achieved": true
+  },
+  "rune_code": "\u16b2\u16ba\u16c7",
+  "signal_hash": "57523c691e95199e40f6b8d4d39dfdd9",
+  "signal_timestamp": "2026-06-13T08:33:49.504856+00:00",
+  "target_date": "2010-05-02",
+  "temporal_hash": "6eae221ca6b81896",
+  "temporal_lock": "6eae221ca6b81896",
+  "temporal_signature": 0.219138,
+  "validation_status": "SIGNAL_LIKELY",
+  "verdict": "Partial match detected. Historical data suggests signal presence.",
+  "version": "HNC-BLIND-GHOST-v1"
+}

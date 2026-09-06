@@ -1,0 +1,35 @@
+# Nightly release-boundary audit. No daemon, listener, target module, or live
+# benchmark is started while the full OS protection release remains on HOLD.
+name: nightly-protection-hold-audit
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-protection-hold-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  protection-hold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify the isolated boundary and official launch surfaces
+        run: |
+          python -m pip install --disable-pip-version-check "pytest>=8,<9" "PyYAML>=6,<7"
+          python -m pytest -q \
+            tests/plumber/test_isolated_protected_bootstrap_v05.py \
+            tests/test_primary_launcher_paths.py \
+            tests/test_digitalocean_app_spec_fail_closed.py \
+            tests/test_linux_packaging.py

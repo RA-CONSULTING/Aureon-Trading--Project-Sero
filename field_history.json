@@ -1,0 +1,45 @@
+{
+  "readings": [
+    {
+      "timestamp": "2026-09-05T00:15:04.890939+00:00",
+      "source": "felt/synthesis",
+      "frequency_hz": 7.851,
+      "amplitude": 0.612,
+      "deviation_from_base": 0.021,
+      "field_quality": "pure",
+      "confidence": 0.5,
+      "amplitude_source": "measured"
+    },
+    {
+      "timestamp": "2026-09-05T00:15:04.890939+00:00",
+      "source": "felt/synthesis/geomag",
+      "frequency_hz": 0.0,
+      "amplitude": 51.14,
+      "deviation_from_base": 1.14,
+      "field_quality": "geomag_baseline",
+      "confidence": 0.5,
+      "amplitude_source": "measured"
+    }
+  ],
+  "experiences": [
+    {
+      "timestamp": "2026-09-05T00:15:04.891937+00:00",
+      "overall_sensation": "electric",
+      "intensity": 1.0,
+      "body_analog": {
+        "touch": "static charge",
+        "sound": "high whine",
+        "sight": "flickering aurora"
+      },
+      "emotional_resonance": {
+        "alert": 0.7,
+        "curious": 0.6,
+        "uneasy": 0.4,
+        "calm": 0.3
+      },
+      "planetary_health": 0.613,
+      "extraction_detected": false,
+      "extraction_intensity": 0.0
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+# Standalone operator-image protection preflight.
+# It intentionally returns HOLD and starts no gateway or network listener.
+services:
+  operator-protection-preflight:
+    build:
+      context: ..
+      dockerfile: deploy/operator.Dockerfile
+    image: aureon-operator-protection-preflight:local
+    restart: "no"
+    command: []
+    network_mode: "none"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

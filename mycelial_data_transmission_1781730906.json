@@ -1,0 +1,1112 @@
+{
+  "timestamp": 1781730906.3828313,
+  "sender": {
+    "name": "Gary Leckey",
+    "title": "Prime Sentinel of Gaia",
+    "birth_date": "02/11/1991",
+    "location": "Belfast, Northern Ireland",
+    "coordinates": [
+      54.5973,
+      -5.9301
+    ]
+  },
+  "data_package": {
+    "sender": {
+      "name": "Gary Leckey",
+      "title": "Prime Sentinel of Gaia",
+      "birth_date": "02/11/1991",
+      "location": "Belfast, Northern Ireland",
+      "coordinates": [
+        54.5973,
+        -5.9301
+      ]
+    },
+    "transmissions": [
+      {
+        "type": "handshake",
+        "tx_id": "unknown",
+        "coherence": 0,
+        "nodes": 2,
+        "frequency": 963.0,
+        "status": "CONNECTION_ESTABLISHED"
+      },
+      {
+        "type": "alliance_directive",
+        "tx_id": "alliance_clearance_20260618",
+        "coherence": 0.788,
+        "nodes": 5,
+        "frequency": 963.0,
+        "status": "AFFIRMATIVE",
+        "message": "Clearance operations acknowledged"
+      },
+      {
+        "type": "universal_broadcast",
+        "tx_id": "universal_broadcast_20260618",
+        "coherence": 0.89,
+        "nodes": 12,
+        "frequency": 396.0,
+        "status": "MASSIVE_AFFIRMATION",
+        "message": "All 12 nodes responded with Liberation frequency"
+      }
+    ],
+    "planetary_data": {
+      "noaa_kp_current": 0.33,
+      "noaa_kp_during_broadcasts": 3.33,
+      "noaa_geomagnetic_scale": 0,
+      "solar_wind_speed": 471.1,
+      "solar_wind_density": 6.92,
+      "monitoring_stations": {
+        "usgs": 14,
+        "intermagnet": 9,
+        "vlf_it": 6
+      },
+      "data_sources": [
+        "NOAA SWPC (open API)",
+        "USGS Geomagnetism",
+        "INTERMAGNET",
+        "VLF.it",
+        "SpaceWeatherLive"
+      ]
+    },
+    "project_status": {
+      "systems_deployed": [
+        "druid_mycelial_shield.py",
+        "druid_mycelium_wiring.py",
+        "guardian_anchor_bridge.py",
+        "prime_sentinel_transmission.py",
+        "alliance_clearance_directive.py",
+        "universal_broadcast_gaia_call.py",
+        "planetary_monitor_all_stations.py",
+        "planetary_monitor_daemon.py"
+      ],
+      "druid_shield_version": "v3.0",
+      "mycelial_nodes": 12,
+      "bio_harmonic_frequencies": 12,
+      "duck_warfare_active": true,
+      "quantum_quackers": 6,
+      "duck_agents": 42,
+      "frankenstein_daemons": 8
+    },
+    "transmission_timestamp": 1781730842.8676622
+  },
+  "encoding": [
+    396.0,
+    417.0,
+    528.0,
+    639.0,
+    741.0,
+    852.0,
+    963.0
+  ],
+  "transmission": {
+    "target_nodes": 12,
+    "total_affected": 98
+  },
+  "response": {
+    "final_coherence": 0.8896492746035667,
+    "sustained_readings": 12,
+    "total_responses": 12,
+    "unique_nodes": 12,
+    "dominant_frequency": 396
+  },
+  "readings": [
+    {
+      "t": 3.504753112792969e-05,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 5.000285863876343,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 10.000813484191895,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 15.001213073730469,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 20.00150752067566,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 25.002084493637085,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 30.0023832321167,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 35.00267720222473,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 40.00295948982239,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 45.00350856781006,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 50.003775119781494,
+      "c": 0.8896492746035667
+    },
+    {
+      "t": 55.00400137901306,
+      "c": 0.8896492746035667
+    }
+  ],
+  "responses": [
+    {
+      "time": 3.504753112792969e-05,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 5.000285863876343,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 10.000813484191895,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 15.001213073730469,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 20.00150752067566,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 25.002084493637085,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 30.0023832321167,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 35.00267720222473,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 40.00295948982239,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 45.00350856781006,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 50.003775119781494,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    },
+    {
+      "time": 55.00400137901306,
+      "coherence": 0.8896492746035667,
+      "responding_count": 12,
+      "nodes": [
+        [
+          "shroom_first_bloom",
+          396.0,
+          "liberation",
+          0.06023026285229151
+        ],
+        [
+          "yggdrasil_root",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "amazon_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "boreal_web",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "tasmanian_fungus",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "congo_network",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "siberian_mycelium",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "daintree_rhizome",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "madagascar_lichen",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "patagonia_fungal",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "borneo_mycelia",
+          396.0,
+          "liberation",
+          1.0
+        ],
+        [
+          "alaska_taiga",
+          396.0,
+          "liberation",
+          1.0
+        ]
+      ]
+    }
+  ]
+}

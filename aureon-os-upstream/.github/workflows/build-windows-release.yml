@@ -1,0 +1,35 @@
+name: Windows release protection HOLD
+
+on:
+  push:
+    tags:
+      - "v*"
+  release:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-boundary-hold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify the fixed Windows release HOLD receipt
+        shell: bash
+        run: |
+          set +e
+          python -I -S -B scripts/bootstrap/protected_bootstrap_v05.py --target-id local-gui > hold.json
+          status=$?
+          set -e
+          test "$status" -eq 1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path("hold.json").read_text(encoding="utf-8"))
+          assert receipt["decision"] == "HOLD"
+          assert receipt["target_registered"] is True
+          assert receipt["process_start_authorized"] is False
+          PY

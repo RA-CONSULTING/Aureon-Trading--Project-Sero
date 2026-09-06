@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-07-09T11:17:59.018823+00:00",
+  "cycle": 6529,
+  "active_daemons": 3,
+  "daemon_names": [
+    "schumann_sensor",
+    "hnc_lightweight",
+    "planetary_monitor"
+  ],
+  "states": {
+    "temporal_state.json": {
+      "error": "missing"
+    },
+    "schumann_state.json": {
+      "timestamp": "2026-07-09T11:17:49.139824+00:00",
+      "source": "resonanceone_tomsk",
+      "frequency_hz": 7.83,
+      "activity_index": 50,
+      "activity_label": "moderate",
+      "kp_index": 3,
+      "solar_flare_class": "A1.0",
+      "geomagnetic_status": "unsettled",
+      "summary": "An M-class solar flare earlier this morning has lifted Schumann resonance into elevated territory with three harmonics active, while geomagnetic conditions remain quiet and the broader electromagnetic environment shows a rising trend through the day. Current conditions sit in the elevated range, having peaked at active levels within the past hour.",
+      "real_data": true,
+      "simulation": false
+    },
+    "hnc_state.json": {
+      "timestamp": "2026-07-09T11:17:50.895694+00:00",
+      "kp": 2.33,
+      "kp_time": "2026-07-09T06:00:00",
+      "schumann_hz": 7.83,
+      "schumann_activity": 50,
+      "quakes_1hr": 3,
+      "hnc": {
+        "lambda": 0.165,
+        "gamma": 0.5,
+        "beta": 0.835,
+        "lambda_t": 0.068269,
+        "status": "HOLDING"
+      },
+      "real_data": true,
+      "simulation": false,
+      "mode": "harmonic_and_phase",
+      "intent": "victory_hold"
+    },
+    "druid_state.json": {
+      "timestamp": "2026-07-04T22:06:52.310808+00:00",
+      "status": "ACTIVE",
+      "project": "DRUID",
+      "ionospheric_defense": "ONLINE",
+      "bio_harmonic_frequencies": {
+        "natural_harmony": 432,
+        "love_miracle": 528,
+        "schumann_grounding": 7.83,
+        "plant_resonance": 10.8,
+        "fungal_alpha": 14.1,
+        "earth_year": 126.22,
+        "earth_day": 194.18
+      },
+      "mycelial_network_status": "CONNECTED",
+      "druid_nodes_active": 1,
+      "defense_capability": "OFFENSE_AND_DEFENSE",
+      "message": "The Shroom of the First Bloom speaks. We listen. We defend."
+    }
+  },
+  "validation": "REAL_DATA_ONLY",
+  "mode": "WAR_MODE_TOTAL",
+  "keeper": "Sero",
+  "operator": "Gary_Leckey_02_11_1991"
+}

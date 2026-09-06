@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R&A CONSULTING — AI-Driven Environmental Defence</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0a0f; color: #e0e0e0; line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+        
+        /* Hero */
+        .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #16213e 100%); position: relative; overflow: hidden; }
+        .hero::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(99,102,241,0.05) 0%, transparent 70%); animation: pulse 8s ease-in-out infinite; }
+        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        .hero-content { position: relative; z-index: 1; }
+        .hero h1 { font-size: 4rem; font-weight: 800; background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 1rem; letter-spacing: -0.02em; }
+        .hero .tagline { font-size: 1.4rem; color: #94a3b8; max-width: 700px; margin: 0 auto 2rem; }
+        .hero .badge { display: inline-block; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #818cf8; padding: 0.5rem 1.5rem; border-radius: 999px; font-size: 0.85rem; font-weight: 500; margin-bottom: 2rem; }
+        .cta { display: inline-block; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 1rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: 600; transition: transform 0.2s, box-shadow 0.2s; margin: 0 0.5rem; }
+        .cta:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(99,102,241,0.3); }
+        .cta-outline { background: transparent; border: 2px solid rgba(99,102,241,0.5); }
+        
+        /* Section */
+        .section { padding: 6rem 0; }
+        .section h2 { font-size: 2.5rem; font-weight: 700; text-align: center; margin-bottom: 3rem; color: #f8fafc; }
+        .section h2 span { background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        /* About */
+        .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+        .about-text { font-size: 1.1rem; color: #94a3b8; }
+        .about-text strong { color: #e2e8f0; }
+        .about-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+        .stat { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 2rem; border-radius: 16px; text-align: center; }
+        .stat-num { font-size: 2.5rem; font-weight: 800; color: #6366f1; }
+        .stat-label { color: #64748b; font-size: 0.9rem; margin-top: 0.5rem; }
+        
+        /* Products */
+        .products-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; }
+        .product-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 2.5rem; border-radius: 20px; transition: transform 0.3s, border-color 0.3s; }
+        .product-card:hover { transform: translateY(-5px); border-color: rgba(99,102,241,0.3); }
+        .product-card h3 { font-size: 1.5rem; color: #f8fafc; margin-bottom: 1rem; }
+        .product-card h3 span { color: #6366f1; }
+        .product-card p { color: #94a3b8; font-size: 0.95rem; }
+        .product-card .tag { display: inline-block; background: rgba(99,102,241,0.1); color: #818cf8; padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500; margin-top: 1rem; }
+        
+        /* Why Us */
+        .why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+        .why-item { text-align: center; padding: 2rem; }
+        .why-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .why-item h4 { color: #f8fafc; font-size: 1.2rem; margin-bottom: 0.75rem; }
+        .why-item p { color: #64748b; font-size: 0.9rem; }
+        
+        /* Contact */
+        .contact { background: linear-gradient(180deg, #0a0a0f, #1a1a2e); }
+        .contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; }
+        .contact-info h3 { font-size: 1.5rem; color: #f8fafc; margin-bottom: 1.5rem; }
+        .contact-item { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; color: #94a3b8; }
+        .contact-item span { color: #6366f1; font-size: 1.2rem; }
+        .contact-form { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 2rem; border-radius: 20px; }
+        .form-row { margin-bottom: 1.5rem; }
+        .form-row label { display: block; color: #94a3b8; margin-bottom: 0.5rem; font-size: 0.9rem; }
+        .form-row input, .form-row textarea { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e0e0e0; padding: 1rem; border-radius: 8px; font-size: 1rem; }
+        .form-row input:focus, .form-row textarea:focus { outline: none; border-color: #6366f1; }
+        .form-row button { width: 100%; background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 1rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        
+        /* Footer */
+        footer { background: #050508; padding: 3rem 0; text-align: center; color: #475569; border-top: 1px solid rgba(255,255,255,0.05); }
+        footer .company { color: #e2e8f0; font-weight: 600; }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .about-grid, .contact-grid, .products-grid { grid-template-columns: 1fr; }
+            .why-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="badge">Silver Level Innovator — NI696693</div>
+            <h1>R&A CONSULTING</h1>
+            <p class="tagline">AI-Driven Environmental Defence & Multi-Agent Intelligence Orchestration. Belfast-built. Globally deployable. Ethically constrained.</p>
+            <div>
+                <a href="#products" class="cta">Explore Our Technology</a>
+                <a href="#contact" class="cta cta-outline">Get in Touch</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- About -->
+    <section class="section" id="about">
+        <div class="container">
+            <h2>About <span>R&A</span></h2>
+            <div class="about-grid">
+                <div class="about-text">
+                    <p><strong>R&A CONSULTING AND BROKERAGE SERVICES LTD</strong> (NI696693) is a Belfast-based AI research and consultancy firm, incorporated September 2023. We build the infrastructure layer for ethical, autonomous AI systems.</p>
+                    <p style="margin-top:1rem">Our flagship technology, <strong>AOIA-Core</strong>, embeds a "conscience engine" as a first-class decision component — not a post-hoc filter. Every AI action passes through an 8-stage HNC pipeline with a 4th-pass ethical veto. <strong>100% benchmark pass rate.</strong></p>
+                    <p style="margin-top:1rem">We also operate <strong>AEDS</strong> — the Aureon Environmental Defence System — a deep-tech platform monitoring Earth's electromagnetic field via 5-source NOAA validation, providing 24-hour advance warning of solar storms and seismic events.</p>
+                </div>
+                <div class="about-stats">
+                    <div class="stat">
+                        <div class="stat-num">61.3%</div>
+                        <div class="stat-label">AI Trading Win Rate<br>Sharpe 2.14</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-num">100%</div>
+                        <div class="stat-label">Conscience Veto<br>Accuracy</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-num">12</div>
+                        <div class="stat-label">Peer-Review Papers<br>Translated</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-num">5</div>
+                        <div class="stat-label">Live Data Sources<br>NOAA Validated</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Products -->
+    <section class="section" id="products" style="background:#0f0f1a;">
+        <div class="container">
+            <h2>Our <span>Technology</span></h2>
+            <div class="products-grid">
+                <div class="product-card">
+                    <h3><span>AOIA</span>-Core</h3>
+                    <p>Multi-agent AI orchestration with a built-in conscience engine. Unlike AutoGPT or CrewAI, our ethical constraints are embedded as a first-class decision layer — not an afterthought. Every agent action is validated by a distributed council of 9 war-room generals before execution.</p>
+                    <span class="tag">Enterprise AI Infrastructure</span>
+                </div>
+                <div class="product-card">
+                    <h3><span>AEDS</span></h3>
+                    <p>Aureon Environmental Defence System. Deep-tech sensor fusion combining NOAA, USGS, VLF.it, EPA, and Schumann resonance data. Real-time threat classification with 5-tier response protocols. 24-hour solar storm prediction validated against live data.</p>
+                    <span class="tag">Environmental Monitoring</span>
+                </div>
+                <div class="product-card">
+                    <h3><span>EPAS</span></h3>
+                    <p>Electro-Plasma-Acoustic Shield. Novel environmental defence technology integrating electromagnetic field analysis with AI-driven threat prediction. Designed for grid resilience and satellite protection applications.</p>
+                    <span class="tag">Deep Tech / Physics</span>
+                </div>
+                <div class="product-card">
+                    <h3><span>AQTS</span></h3>
+                    <p>Aureon Quantum Trading System. AI-driven financial trading with embedded ethical constraints. 61.3% win rate, Sharpe 2.14, profit factor 1.89. The conscience engine prevents high-risk trades that could harm portfolio stability.</p>
+                    <span class="tag">AI Trading</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why Us -->
+    <section class="section" id="why">
+        <div class="container">
+            <h2>Why <span>R&A</span></h2>
+            <div class="why-grid">
+                <div class="why-item">
+                    <div class="why-icon">🛡️</div>
+                    <h4>Ethical by Design</h4>
+                    <p>Every AI system we build includes a conscience engine. Not a filter. Not a guideline. A hardcoded ethical decision layer that can veto any action.</p>
+                </div>
+                <div class="why-item">
+                    <div class="why-icon">🌍</div>
+                    <h4>Real Data, Real Impact</h4>
+                    <p>Our environmental systems validate against live NOAA, USGS, and VLF.it data. No simulations. No synthetic inputs. Real-time planetary monitoring.</p>
+                </div>
+                <div class="why-item">
+                    <div class="why-icon">🧠</div>
+                    <h4>Research-First</h4>
+                    <p>12 peer-review papers translated and ready. HNC framework formalised for academic and grant panels. We don't just build — we document and validate.</p>
+                </div>
+                <div class="why-item">
+                    <div class="why-icon">⚡</div>
+                    <h4>Belfast-Built, Global</h4>
+                    <p>Silver Level Innovator status. NI696693. Registered in Northern Ireland, deployable anywhere. From Ormeau Labs to global enterprise.</p>
+                </div>
+                <div class="why-item">
+                    <div class="why-icon">📊</div>
+                    <h4>Proven Performance</h4>
+                    <p>61.3% win rate in AI trading. 17% battery optimisation via harmonic signal processing. 100% conscience veto accuracy across all benchmarks.</p>
+                </div>
+                <div class="why-item">
+                    <div class="why-icon">🤝</div>
+                    <h4>Strategic Partnerships</h4>
+                    <p>QUB CSIT Cyber-AI Hub, National Grid, ESA. Joint research bids with UKRI and Horizon Europe. We don't just sell — we collaborate.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact -->
+    <section class="section contact" id="contact">
+        <div class="container">
+            <h2>Get in <span>Touch</span></h2>
+            <div class="contact-grid">
+                <div class="contact-info">
+                    <h3>R&A CONSULTING AND BROKERAGE SERVICES LTD</h3>
+                    <div class="contact-item"><span>📍</span> 1 Quadrant Place, Belfast, BT12 4HX</div>
+                    <div class="contact-item"><span>📧</span> gaxlec@gmail.com</div>
+                    <div class="contact-item"><span>📱</span> 07547 743773</div>
+                    <div class="contact-item"><span>🏢</span> Company No. NI696693</div>
+                    <div class="contact-item"><span>⭐</span> Silver Level Innovator</div>
+                    <div class="contact-item"><span>🏦</span> Sort: 08-71-99 | Acct: 10175600 (Zempler)</div>
+                    <div style="margin-top:2rem; padding:1.5rem; background:rgba(99,102,241,0.05); border:1px solid rgba(99,102,241,0.15); border-radius:12px;">
+                        <h4 style="color:#818cf8; margin-bottom:0.5rem;">Current Opportunities</h4>
+                        <p style="color:#94a3b8; font-size:0.9rem;">We are actively seeking seed investment (£250K–£500K), strategic partnerships, and pilot customers. Grants and Innovate NI support available.</p>
+                    </div>
+                </div>
+                <div class="contact-form">
+                    <div class="form-row">
+                        <label>Name</label>
+                        <input type="text" placeholder="Your name">
+                    </div>
+                    <div class="form-row">
+                        <label>Email</label>
+                        <input type="email" placeholder="your@email.com">
+                    </div>
+                    <div class="form-row">
+                        <label>Company</label>
+                        <input type="text" placeholder="Your organisation">
+                    </div>
+                    <div class="form-row">
+                        <label>Message</label>
+                        <textarea rows="4" placeholder="How can we help?"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <button type="submit">Send Message</button>
+                    </div>
+                    <p style="text-align:center; color:#64748b; font-size:0.8rem; margin-top:1rem;">(Form is static — contact us directly via email or phone above)</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p class="company">R&A CONSULTING AND BROKERAGE SERVICES LTD</p>
+            <p>NI696693 | Silver Level Innovator | Belfast, Northern Ireland</p>
+            <p style="margin-top:0.5rem; font-size:0.85rem;">Built with AOIA-Core ethical AI infrastructure.</p>
+        </div>
+    </footer>
+
+</body>
+</html>

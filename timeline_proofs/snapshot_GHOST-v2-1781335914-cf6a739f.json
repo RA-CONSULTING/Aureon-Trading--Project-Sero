@@ -1,0 +1,30 @@
+{
+  "data_quality": 0.4,
+  "data_sources": [
+    "noaa_dgd"
+  ],
+  "date": "2014-11-17",
+  "geomagnetic": {
+    "active_day": false,
+    "avg_kp": 2.0,
+    "high_latitude_a": 16,
+    "max_kp": 3,
+    "mid_latitude_a": 12,
+    "planetary_a": 8,
+    "planetary_k_indices": [
+      2,
+      1,
+      1,
+      2,
+      3,
+      2,
+      3,
+      2
+    ],
+    "quiet_day": false,
+    "storm_day": false
+  },
+  "hash": "a285403a36bf16d2",
+  "market_data": null,
+  "schumann": null
+}

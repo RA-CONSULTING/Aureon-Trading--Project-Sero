@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Cumiana",
+    "location": "NW Italy",
+    "lat": 44.96,
+    "lon": 7.42,
+    "url": "http://www.vlf.it/cumiana/livedata.html"
+  },
+  {
+    "name": "Rostov",
+    "location": "Russia",
+    "lat": 47.23,
+    "lon": 39.72,
+    "url": "http://www.vlf.it/rostov/livedata.html"
+  },
+  {
+    "name": "Reunion",
+    "location": "Indian Ocean",
+    "lat": -21.12,
+    "lon": 55.53,
+    "url": "http://www.vlf.it/reunion/livedata.html"
+  },
+  {
+    "name": "Cascina/Virgo",
+    "location": "Italy",
+    "lat": 43.63,
+    "lon": 10.5,
+    "url": "http://www.vlf.it/cascina/livedata.html"
+  },
+  {
+    "name": "Barcelona",
+    "location": "Spain",
+    "lat": 41.38,
+    "lon": 2.17,
+    "url": "http://www.vlf.it/barcelona/livedata.html"
+  },
+  {
+    "name": "Silkwood",
+    "location": "Australia",
+    "lat": -27.84,
+    "lon": 153.27,
+    "url": "http://www.vlf.it/silkwood/livedata.html"
+  }
+]

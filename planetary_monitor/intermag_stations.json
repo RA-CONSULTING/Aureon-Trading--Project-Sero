@@ -1,0 +1,56 @@
+[
+  {
+    "code": "ESK",
+    "name": "Eskdalemuir, UK",
+    "lat": 55.32,
+    "lon": -3.2
+  },
+  {
+    "code": "HAD",
+    "name": "Hartland, UK",
+    "lat": 50.99,
+    "lon": -4.48
+  },
+  {
+    "code": "LER",
+    "name": "Lerwick, UK",
+    "lat": 60.14,
+    "lon": -1.18
+  },
+  {
+    "code": "STJ",
+    "name": "St. John's, Canada",
+    "lat": 47.6,
+    "lon": -52.68
+  },
+  {
+    "code": "MEA",
+    "name": "Meanook, Canada",
+    "lat": 54.62,
+    "lon": -113.35
+  },
+  {
+    "code": "OTT",
+    "name": "Ottawa, Canada",
+    "lat": 45.4,
+    "lon": -75.5
+  },
+  {
+    "code": "NGK",
+    "name": "Niemegk, Germany",
+    "lat": 52.07,
+    "lon": 12.68
+  },
+  {
+    "code": "WNG",
+    "name": "Wingst, Germany",
+    "lat": 53.74,
+    "lon": 9.07
+  },
+  {
+    "code": "CNB",
+    "name": "Canberra, Australia",
+    "lat": -35.32,
+    "lon": 149.36
+  }
+]

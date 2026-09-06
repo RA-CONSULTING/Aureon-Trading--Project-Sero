@@ -1,0 +1,76 @@
+{
+  "transmission_id": "BIOSUIT-1781982355-1dfb",
+  "target_date": "2026-06-20",
+  "timestamp": "2026-06-20T19:05:55.114466+00:00",
+  "all_portals_open": true,
+  "highest_chakra": "crown",
+  "crown_coherence": 0.6990728951863132,
+  "total_energy": 2915.921665264952,
+  "mandala_score": 0.05,
+  "verdict": "NO EFFECT",
+  "chakras": [
+    {
+      "name": "Muladhara",
+      "frequency": 396.0,
+      "color": "\ud83d\udd34",
+      "coherence": 0.6264500380134475,
+      "energy": 475.792396952265,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:24.521435+00:00"
+    },
+    {
+      "name": "Svadhisthana",
+      "frequency": 417.0,
+      "color": "\ud83d\udfe0",
+      "coherence": 0.7372282964208456,
+      "energy": 394.9424555041995,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:28.376191+00:00"
+    },
+    {
+      "name": "Manipura",
+      "frequency": 528.0,
+      "color": "\ud83d\udfe1",
+      "coherence": 0.6858777415830035,
+      "energy": 432.45547416463063,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:32.119479+00:00"
+    },
+    {
+      "name": "Anahata",
+      "frequency": 639.0,
+      "color": "\ud83d\udc9a",
+      "coherence": 0.6909725017508219,
+      "energy": 428.6947408540443,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:35.915343+00:00"
+    },
+    {
+      "name": "Vishuddha",
+      "frequency": 741.0,
+      "color": "\ud83d\udd35",
+      "coherence": 0.715757483754824,
+      "energy": 410.63943179923956,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:39.601403+00:00"
+    },
+    {
+      "name": "Ajna",
+      "frequency": 852.0,
+      "color": "\ud83d\udd2e",
+      "coherence": 0.7972851932274301,
+      "energy": 350.6808294204346,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:45.986832+00:00"
+    },
+    {
+      "name": "Sahasrara",
+      "frequency": 963.0,
+      "color": "\ud83d\udfe3",
+      "coherence": 0.6990728951863132,
+      "energy": 422.7163365701379,
+      "portal_open": true,
+      "timestamp": "2026-06-20T19:00:49.712426+00:00"
+    }
+  ]
+}

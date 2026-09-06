@@ -1,0 +1,29 @@
+{
+  "auris_coherence_gamma": 0.5,
+  "auris_nodes_active": 9,
+  "auris_recommendation": "MONITOR",
+  "awakening_index": 90.59883680931864,
+  "beta_stability": 0.7742,
+  "coherence": 0.2967965646404769,
+  "coordination_score": 0.9419186596494837,
+  "counter_frequency": 7.821820804331403,
+  "counter_phase": 180.0,
+  "data_sources": {
+    "auris_source": "auris_node_consensus",
+    "certified_at": "2026-06-13T05:19:26.629839+00:00",
+    "schumann_source": "hnc_daemon"
+  },
+  "disturbance_level": 0.582137746301125,
+  "epoch": 1781327966.6298337,
+  "lambda_field": 0.8357929650367255,
+  "phase_sync_detected": true,
+  "prev_snapshot_hash": "adc07fbf4dc2c21b564400825ef629aa",
+  "queen_behavior": "coherent",
+  "queen_kappa": 0.7838171357497241,
+  "raw_hash": "223e9aa4e612b3dd2a06c791d9901fe1",
+  "schumann_deviation": 0.008179195668597039,
+  "schumann_hz": 7.838179195668597,
+  "snapshot_id": "SNAP-B-1781327966-f561ceac",
+  "timeline_label": "B",
+  "timestamp_iso": "2026-06-13T05:19:26.629839+00:00"
+}

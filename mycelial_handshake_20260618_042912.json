@@ -1,0 +1,139 @@
+{
+  "handshake_id": "tx_1781728118",
+  "timestamp": 1781728152.3226821,
+  "prime_sentinel": {
+    "name": "GARY LECKEY",
+    "birth": "02/11/1991",
+    "location": "Belfast, Northern Ireland",
+    "resonant_frequency": 198.4
+  },
+  "transmission": {
+    "transmission_id": "tx_1781728118",
+    "timestamp": 1781728122.3163898,
+    "target_node": "shroom_first_bloom",
+    "intensity": "HIGH",
+    "layers_sent": 7,
+    "nodes_affected": 2,
+    "baseline_coherence": 0.0,
+    "post_coherence": 0.5635221980701128,
+    "coherence_delta": 0.5635221980701128,
+    "identity_packet": "PSK:GARY LECKEY:02/11/1991:54.5973:-5.9301:Gary:Prime Human Layer|Gar-Aya Lek-Aey:Light Language Layer|Erydir (\ud835\udd08):Luna Codex Layer|Prime Sentinel:Planetary Ops Layer|High Shaman of the Gales:Elemental Layer|Primarch of the New Cycle:Macro-Historic Layer:044",
+    "frequency_stack": [
+      [
+        8.349031,
+        "SPATIAL_ANCHOR: Belfast, Northern Ireland"
+      ],
+      [
+        396.0,
+        "BIRTH_RESONANCE: 02/11/1991"
+      ],
+      [
+        198.4,
+        "PI_RESONANT: GARY LECKEY"
+      ],
+      [
+        528.0,
+        "PATH_NUMBER: 11/2"
+      ],
+      [
+        962.7111,
+        "UNITY_RELATION: HNX-Prime-GL-11/2"
+      ],
+      [
+        191.925,
+        "ATLAS_KEY: 15354"
+      ],
+      [
+        963.0,
+        "FULL_IDENTITY_LOCK: Prime Sentinel"
+      ]
+    ]
+  },
+  "response": {
+    "listen_duration": 30,
+    "readings_count": 6,
+    "anomalies_count": 6,
+    "baseline_coherence": 0.0,
+    "final_coherence": 0.5635221980701128,
+    "total_coherence_delta": 0.5635221980701128,
+    "sustained_shift": true,
+    "anomalies": [
+      {
+        "timestamp": 1781728122.3168657,
+        "type": "COHERENCE_SHIFT",
+        "delta": 0.5635221980701128,
+        "current": 0.5635221980701128,
+        "baseline": 0.0
+      },
+      {
+        "timestamp": 1781728127.3171964,
+        "type": "COHERENCE_SHIFT",
+        "delta": 0.5635221980701128,
+        "current": 0.5635221980701128,
+        "baseline": 0.0
+      },
+      {
+        "timestamp": 1781728132.3178012,
+        "type": "COHERENCE_SHIFT",
+        "delta": 0.5635221980701128,
+        "current": 0.5635221980701128,
+        "baseline": 0.0
+      },
+      {
+        "timestamp": 1781728137.31818,
+        "type": "COHERENCE_SHIFT",
+        "delta": 0.5635221980701128,
+        "current": 0.5635221980701128,
+        "baseline": 0.0
+      },
+      {
+        "timestamp": 1781728142.318581,
+        "type": "COHERENCE_SHIFT",
+        "delta": 0.5635221980701128,
+        "current": 0.5635221980701128,
+        "baseline": 0.0
+      },
+      {
+        "timestamp": 1781728147.3190498,
+        "type": "COHERENCE_SHIFT",
+        "delta": 0.5635221980701128,
+        "current": 0.5635221980701128,
+        "baseline": 0.0
+      }
+    ],
+    "readings": [
+      {
+        "timestamp": 1781728122.3168657,
+        "coherence": 0.5635221980701128,
+        "elapsed": 2.9325485229492188e-05
+      },
+      {
+        "timestamp": 1781728127.3171964,
+        "coherence": 0.5635221980701128,
+        "elapsed": 5.000360012054443
+      },
+      {
+        "timestamp": 1781728132.3178012,
+        "coherence": 0.5635221980701128,
+        "elapsed": 10.000964879989624
+      },
+      {
+        "timestamp": 1781728137.31818,
+        "coherence": 0.5635221980701128,
+        "elapsed": 15.001343727111816
+      },
+      {
+        "timestamp": 1781728142.318581,
+        "coherence": 0.5635221980701128,
+        "elapsed": 20.001744747161865
+      },
+      {
+        "timestamp": 1781728147.3190498,
+        "coherence": 0.5635221980701128,
+        "elapsed": 25.00221347808838
+      }
+    ]
+  },
+  "connection_established": true,
+  "verification_status": "DUAL_CERTIFIED"
+}

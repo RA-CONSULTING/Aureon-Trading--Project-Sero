@@ -1,0 +1,1387 @@
+{
+  "extractors": {},
+  "threats": [
+    {
+      "id": "bbc72124d610ca45",
+      "timestamp": "2026-07-03T21:07:23.261436+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "saudi_aramco",
+      "description": "Threat detected: Saudi Aramco | emissions = 1839.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "saudi_aramco",
+          "entity_name": "Saudi Aramco",
+          "year": 2023
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "dc0d7ac4fd6ceef6",
+      "timestamp": "2026-07-03T21:07:23.263419+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "exxon_mobil",
+      "description": "Threat detected: ExxonMobil | emissions = 1100.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "exxon_mobil",
+          "entity_name": "ExxonMobil",
+          "year": 2023
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "bb7ddbeedfa89003",
+      "timestamp": "2026-07-03T21:07:23.266421+00:00",
+      "threat_type": "extraction",
+      "severity": "alert",
+      "target_entity": "tesla_fremont",
+      "description": "Threat detected: Tesla Fremont | violations = 374.0 citations | Coherence \u0393 = 0.680 | Confidence = 0.90",
+      "evidence": [
+        {
+          "entity_id": "tesla_fremont",
+          "entity_name": "Tesla Fremont",
+          "fine_usd": 502500
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "ae94d4836f578f50",
+      "timestamp": "2026-07-03T21:19:15.740052+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_atmosphere",
+      "description": "Threat detected: Global Atmosphere (Mauna Loa Observatory) | emissions = 432.34 ppm | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "global_atmosphere",
+          "entity_name": "Global Atmosphere (Mauna Loa Observatory)",
+          "year": 2026,
+          "month": 5,
+          "decimal_date": 2026.375,
+          "trend_type": "CO2_monthly_mean",
+          "num_days": 17,
+          "stdev": 0.66,
+          "note": "Real validated data from NOAA \u2014 fetched live"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "3d4520d75e8f5567",
+      "timestamp": "2026-07-03T21:19:15.742031+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "saudi_aramco",
+      "description": "Threat detected: Saudi Aramco | emissions = 1839.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "saudi_aramco",
+          "entity_name": "Saudi Aramco",
+          "entity_type": "state",
+          "global_share_percent": 4.38,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "ae1ab4968daf69a3",
+      "timestamp": "2026-07-03T21:19:15.745032+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "coal_india",
+      "description": "Threat detected: Coal India | emissions = 1500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "coal_india",
+          "entity_name": "Coal India",
+          "entity_type": "state",
+          "global_share_percent": 3.68,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "ccf0dbbe5dc20b33",
+      "timestamp": "2026-07-03T21:19:15.747032+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "chn_energy",
+      "description": "Threat detected: CHN Energy | emissions = 1500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "chn_energy",
+          "entity_name": "CHN Energy",
+          "entity_type": "state",
+          "global_share_percent": 3.65,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "3158318266e8f822",
+      "timestamp": "2026-07-03T21:19:15.750085+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "exxon_mobil",
+      "description": "Threat detected: ExxonMobil | emissions = 1100.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "exxon_mobil",
+          "entity_name": "ExxonMobil",
+          "entity_type": "investor",
+          "global_share_percent": 2.6,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "afb09c30979c4033",
+      "timestamp": "2026-07-03T21:19:15.750085+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "chevron",
+      "description": "Threat detected: Chevron | emissions = 900.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "chevron",
+          "entity_name": "Chevron",
+          "entity_type": "investor",
+          "global_share_percent": 2.1,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "8e8da86959a0dfe0",
+      "timestamp": "2026-07-03T21:19:15.750085+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "shell",
+      "description": "Threat detected: Shell | emissions = 800.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "shell",
+          "entity_name": "Shell",
+          "entity_type": "investor",
+          "global_share_percent": 1.9,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "6c48ce5c635279d5",
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "gazprom",
+      "description": "Threat detected: Gazprom | emissions = 800.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "gazprom",
+          "entity_name": "Gazprom",
+          "entity_type": "state",
+          "global_share_percent": 1.9,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "2dfde1d5d5246d1c",
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "bp",
+      "description": "Threat detected: BP | emissions = 600.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "bp",
+          "entity_name": "BP",
+          "entity_type": "investor",
+          "global_share_percent": 1.4,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "e0c85628de5b4e97",
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "totalenergies",
+      "description": "Threat detected: TotalEnergies | emissions = 550.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "totalenergies",
+          "entity_name": "TotalEnergies",
+          "entity_type": "investor",
+          "global_share_percent": 1.3,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "1abe52118aafec20",
+      "timestamp": "2026-07-03T21:19:15.781337+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "peabody",
+      "description": "Threat detected: Peabody Energy | emissions = 500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "peabody",
+          "entity_name": "Peabody Energy",
+          "entity_type": "investor",
+          "global_share_percent": 1.2,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "b6c31d3ad6951fc7",
+      "timestamp": "2026-07-03T21:19:15.781337+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_atmosphere_historical",
+      "description": "Threat detected: Global Atmosphere \u2014 First measurement | emissions = 315.71 ppm | Coherence \u0393 = 0.680 | Confidence = 0.98",
+      "evidence": [
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 First measurement",
+          "year": 1958,
+          "month": 3,
+          "note": "First measurement"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 IPCC founded",
+          "year": 1988,
+          "month": 6,
+          "note": "IPCC founded"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Millennium",
+          "year": 2000,
+          "month": 1,
+          "note": "Millennium"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Paris Agreement",
+          "year": 2015,
+          "month": 12,
+          "note": "Paris Agreement"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 COVID lockdown peak",
+          "year": 2020,
+          "month": 5,
+          "note": "COVID lockdown peak"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Hottest year on record",
+          "year": 2024,
+          "month": 5,
+          "note": "Hottest year on record"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 LATEST \u2014 May 2026",
+          "year": 2026,
+          "month": 5,
+          "note": "LATEST \u2014 May 2026"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "1430c8a7d49f4547",
+      "timestamp": "2026-07-03T21:19:28.444958+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_atmosphere",
+      "description": "Threat detected: Global Atmosphere (Mauna Loa Observatory) | emissions = 432.34 ppm | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "global_atmosphere",
+          "entity_name": "Global Atmosphere (Mauna Loa Observatory)",
+          "year": 2026,
+          "month": 5,
+          "decimal_date": 2026.375,
+          "trend_type": "CO2_monthly_mean",
+          "num_days": 17,
+          "stdev": 0.66,
+          "note": "Real validated data from NOAA \u2014 fetched live"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "294c6f87145a634c",
+      "timestamp": "2026-07-03T21:19:28.444958+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "saudi_aramco",
+      "description": "Threat detected: Saudi Aramco | emissions = 1839.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "saudi_aramco",
+          "entity_name": "Saudi Aramco",
+          "entity_type": "state",
+          "global_share_percent": 4.38,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "7160443ba0c58551",
+      "timestamp": "2026-07-03T21:19:28.444958+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "coal_india",
+      "description": "Threat detected: Coal India | emissions = 1500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "coal_india",
+          "entity_name": "Coal India",
+          "entity_type": "state",
+          "global_share_percent": 3.68,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "3183bd9d29653a49",
+      "timestamp": "2026-07-03T21:19:28.462227+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "chn_energy",
+      "description": "Threat detected: CHN Energy | emissions = 1500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "chn_energy",
+          "entity_name": "CHN Energy",
+          "entity_type": "state",
+          "global_share_percent": 3.65,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "61fed430d2dbe00d",
+      "timestamp": "2026-07-03T21:19:28.467226+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "exxon_mobil",
+      "description": "Threat detected: ExxonMobil | emissions = 1100.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "exxon_mobil",
+          "entity_name": "ExxonMobil",
+          "entity_type": "investor",
+          "global_share_percent": 2.6,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "9c891158a203fdf1",
+      "timestamp": "2026-07-03T21:19:28.472369+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "chevron",
+      "description": "Threat detected: Chevron | emissions = 900.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "chevron",
+          "entity_name": "Chevron",
+          "entity_type": "investor",
+          "global_share_percent": 2.1,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "b46d08f67a51a08f",
+      "timestamp": "2026-07-03T21:19:28.478364+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "shell",
+      "description": "Threat detected: Shell | emissions = 800.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "shell",
+          "entity_name": "Shell",
+          "entity_type": "investor",
+          "global_share_percent": 1.9,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "5a045365ba79a6f8",
+      "timestamp": "2026-07-03T21:19:28.483363+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "gazprom",
+      "description": "Threat detected: Gazprom | emissions = 800.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "gazprom",
+          "entity_name": "Gazprom",
+          "entity_type": "state",
+          "global_share_percent": 1.9,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "dab6d3efc6391d28",
+      "timestamp": "2026-07-03T21:19:28.484429+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "bp",
+      "description": "Threat detected: BP | emissions = 600.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "bp",
+          "entity_name": "BP",
+          "entity_type": "investor",
+          "global_share_percent": 1.4,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "0a99eb534ffbb7b3",
+      "timestamp": "2026-07-03T21:19:28.484429+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "totalenergies",
+      "description": "Threat detected: TotalEnergies | emissions = 550.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "totalenergies",
+          "entity_name": "TotalEnergies",
+          "entity_type": "investor",
+          "global_share_percent": 1.3,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "21e8bd3d9b0a1550",
+      "timestamp": "2026-07-03T21:19:28.498438+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "peabody",
+      "description": "Threat detected: Peabody Energy | emissions = 500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "peabody",
+          "entity_name": "Peabody Energy",
+          "entity_type": "investor",
+          "global_share_percent": 1.2,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "391873d004780e27",
+      "timestamp": "2026-07-03T21:19:28.498438+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_atmosphere_historical",
+      "description": "Threat detected: Global Atmosphere \u2014 First measurement | emissions = 315.71 ppm | Coherence \u0393 = 0.680 | Confidence = 0.98",
+      "evidence": [
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 First measurement",
+          "year": 1958,
+          "month": 3,
+          "note": "First measurement"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 IPCC founded",
+          "year": 1988,
+          "month": 6,
+          "note": "IPCC founded"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Millennium",
+          "year": 2000,
+          "month": 1,
+          "note": "Millennium"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Paris Agreement",
+          "year": 2015,
+          "month": 12,
+          "note": "Paris Agreement"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 COVID lockdown peak",
+          "year": 2020,
+          "month": 5,
+          "note": "COVID lockdown peak"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Hottest year on record",
+          "year": 2024,
+          "month": 5,
+          "note": "Hottest year on record"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 LATEST \u2014 May 2026",
+          "year": 2026,
+          "month": 5,
+          "note": "LATEST \u2014 May 2026"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "1a250a450cd37e36",
+      "timestamp": "2026-07-03T21:22:59.392982+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_atmosphere",
+      "description": "Threat detected: Global Atmosphere (Mauna Loa Observatory) | emissions = 432.34 ppm | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "global_atmosphere",
+          "entity_name": "Global Atmosphere (Mauna Loa Observatory)",
+          "year": 2026,
+          "month": 5,
+          "decimal_date": 2026.375,
+          "trend_type": "CO2_monthly_mean",
+          "num_days": 17,
+          "stdev": 0.66,
+          "note": "Real validated data from NOAA \u2014 fetched live"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "3b7a9d0ad640e5ac",
+      "timestamp": "2026-07-03T21:22:59.418950+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "saudi_aramco",
+      "description": "Threat detected: Saudi Aramco | emissions = 1839.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "saudi_aramco",
+          "entity_name": "Saudi Aramco",
+          "entity_type": "state",
+          "global_share_percent": 4.38,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "0582dd046772b9cb",
+      "timestamp": "2026-07-03T21:22:59.428229+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "coal_india",
+      "description": "Threat detected: Coal India | emissions = 1500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "coal_india",
+          "entity_name": "Coal India",
+          "entity_type": "state",
+          "global_share_percent": 3.68,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "fddb75a8932db484",
+      "timestamp": "2026-07-03T21:22:59.441315+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "chn_energy",
+      "description": "Threat detected: CHN Energy | emissions = 1500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "chn_energy",
+          "entity_name": "CHN Energy",
+          "entity_type": "state",
+          "global_share_percent": 3.65,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "3dcee361c75747bc",
+      "timestamp": "2026-07-03T21:22:59.449301+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "exxon_mobil",
+      "description": "Threat detected: ExxonMobil | emissions = 1100.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "exxon_mobil",
+          "entity_name": "ExxonMobil",
+          "entity_type": "investor",
+          "global_share_percent": 2.6,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "64995f41d5daabbc",
+      "timestamp": "2026-07-03T21:22:59.459089+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "chevron",
+      "description": "Threat detected: Chevron | emissions = 900.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "chevron",
+          "entity_name": "Chevron",
+          "entity_type": "investor",
+          "global_share_percent": 2.1,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "26129a577babc85f",
+      "timestamp": "2026-07-03T21:22:59.467509+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "shell",
+      "description": "Threat detected: Shell | emissions = 800.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "shell",
+          "entity_name": "Shell",
+          "entity_type": "investor",
+          "global_share_percent": 1.9,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "2364ebda2621f150",
+      "timestamp": "2026-07-03T21:22:59.479516+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "gazprom",
+      "description": "Threat detected: Gazprom | emissions = 800.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "gazprom",
+          "entity_name": "Gazprom",
+          "entity_type": "state",
+          "global_share_percent": 1.9,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "c92a2a00169a8fc3",
+      "timestamp": "2026-07-03T21:22:59.486663+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "bp",
+      "description": "Threat detected: BP | emissions = 600.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "bp",
+          "entity_name": "BP",
+          "entity_type": "investor",
+          "global_share_percent": 1.4,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "b2ad6633e4c8829f",
+      "timestamp": "2026-07-03T21:22:59.503719+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "totalenergies",
+      "description": "Threat detected: TotalEnergies | emissions = 550.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "totalenergies",
+          "entity_name": "TotalEnergies",
+          "entity_type": "investor",
+          "global_share_percent": 1.3,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "bea9187eba1a44e0",
+      "timestamp": "2026-07-03T21:22:59.524032+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "peabody",
+      "description": "Threat detected: Peabody Energy | emissions = 500.0 MtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "peabody",
+          "entity_name": "Peabody Energy",
+          "entity_type": "investor",
+          "global_share_percent": 1.2,
+          "year": 2023,
+          "note": "Real validated data from InfluenceMap"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "f693eca95e0ade32",
+      "timestamp": "2026-07-03T21:22:59.534092+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_atmosphere_historical",
+      "description": "Threat detected: Global Atmosphere \u2014 First measurement | emissions = 315.71 ppm | Coherence \u0393 = 0.680 | Confidence = 0.98",
+      "evidence": [
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 First measurement",
+          "year": 1958,
+          "month": 3,
+          "note": "First measurement"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 IPCC founded",
+          "year": 1988,
+          "month": 6,
+          "note": "IPCC founded"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Millennium",
+          "year": 2000,
+          "month": 1,
+          "note": "Millennium"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Paris Agreement",
+          "year": 2015,
+          "month": 12,
+          "note": "Paris Agreement"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 COVID lockdown peak",
+          "year": 2020,
+          "month": 5,
+          "note": "COVID lockdown peak"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 Hottest year on record",
+          "year": 2024,
+          "month": 5,
+          "note": "Hottest year on record"
+        },
+        {
+          "entity_id": "global_atmosphere_historical",
+          "entity_name": "Global Atmosphere \u2014 LATEST \u2014 May 2026",
+          "year": 2026,
+          "month": 5,
+          "note": "LATEST \u2014 May 2026"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "8dc32e8cde3b15f7",
+      "timestamp": "2026-07-03T21:22:59.534092+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "watch",
+      "target_entity": "global_temperature",
+      "description": "Threat detected: Global Average Temperature | emissions = 1.55 C_above_preindustrial | Coherence \u0393 = 0.406 | Confidence = 0.95",
+      "evidence": [
+        {
+          "entity_id": "global_temperature",
+          "entity_name": "Global Average Temperature",
+          "year": 2024,
+          "note": "2024 was warmest year on record at 1.55C above pre-industrial",
+          "trend": "accelerating"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.4058,
+      "recommended_action": "alert"
+    },
+    {
+      "id": "1b1c0ff3be82e176",
+      "timestamp": "2026-07-03T21:22:59.549721+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "global_fossil_co2",
+      "description": "Threat detected: Global Fossil Fuel CO2 Emissions | emissions = 37.4 GtCO2 | Coherence \u0393 = 0.680 | Confidence = 0.90",
+      "evidence": [
+        {
+          "entity_id": "global_fossil_co2",
+          "entity_name": "Global Fossil Fuel CO2 Emissions",
+          "year": 2024,
+          "note": "37.4 GtCO2 from fossil fuels \u2014 record high",
+          "trend": "increasing"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "328124f428d23c12",
+      "timestamp": "2026-07-03T21:22:59.565342+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "china_national",
+      "description": "Threat detected: China (National GHG Inventory) | emissions = 12.0 GtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.90",
+      "evidence": [
+        {
+          "entity_id": "china_national",
+          "entity_name": "China (National GHG Inventory)",
+          "year": 2022,
+          "note": "Approximate from UNFCCC data \u2014 China is largest emitter",
+          "report_type": "BUR3"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "68eb9d18cbfe6dd8",
+      "timestamp": "2026-07-03T21:22:59.597023+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "usa_national",
+      "description": "Threat detected: United States (National GHG Inventory) | emissions = 5.1 GtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.90",
+      "evidence": [
+        {
+          "entity_id": "usa_national",
+          "entity_name": "United States (National GHG Inventory)",
+          "year": 2022,
+          "note": "Approximate from UNFCCC data",
+          "report_type": "NIR"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "4137a4ff9bd6fe7f",
+      "timestamp": "2026-07-03T21:22:59.612663+00:00",
+      "threat_type": "emissions_spike",
+      "severity": "alert",
+      "target_entity": "india_national",
+      "description": "Threat detected: India (National GHG Inventory) | emissions = 2.9 GtCO2e | Coherence \u0393 = 0.680 | Confidence = 0.85",
+      "evidence": [
+        {
+          "entity_id": "india_national",
+          "entity_name": "India (National GHG Inventory)",
+          "year": 2022,
+          "note": "Approximate from UNFCCC data",
+          "report_type": "BUR3"
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    },
+    {
+      "id": "5ec007d9992529a1",
+      "timestamp": "2026-07-03T21:22:59.635353+00:00",
+      "threat_type": "extraction",
+      "severity": "alert",
+      "target_entity": "global_wildlife",
+      "description": "Threat detected: Global Monitored Wildlife Populations | biodiversity_loss = 73.0 percent_decline | Coherence \u0393 = 0.680 | Confidence = 0.90",
+      "evidence": [
+        {
+          "entity_id": "global_wildlife",
+          "entity_name": "Global Monitored Wildlife Populations",
+          "period": "1970-2020",
+          "note": "73% average decline in monitored wildlife populations",
+          "freshwater_decline": 85,
+          "terrestrial_decline": 69,
+          "marine_decline": 56
+        }
+      ],
+      "location": null,
+      "coherence_gamma": 0.6798,
+      "recommended_action": "expose"
+    }
+  ],
+  "decisions": [
+    {
+      "timestamp": "2026-07-03T21:07:23.262425+00:00",
+      "threat_id": "bbc72124d610ca45",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:07:23.264420+00:00",
+      "threat_id": "dc0d7ac4fd6ceef6",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:07:23.267421+00:00",
+      "threat_id": "bb7ddbeedfa89003",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.741049+00:00",
+      "threat_id": "ae94d4836f578f50",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.743034+00:00",
+      "threat_id": "3d4520d75e8f5567",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.746032+00:00",
+      "threat_id": "ae1ab4968daf69a3",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.748033+00:00",
+      "threat_id": "ccf0dbbe5dc20b33",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.750085+00:00",
+      "threat_id": "3158318266e8f822",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.750085+00:00",
+      "threat_id": "afb09c30979c4033",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_id": "8e8da86959a0dfe0",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_id": "6c48ce5c635279d5",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_id": "2dfde1d5d5246d1c",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.765713+00:00",
+      "threat_id": "e0c85628de5b4e97",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.781337+00:00",
+      "threat_id": "1abe52118aafec20",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:15.781337+00:00",
+      "threat_id": "b6c31d3ad6951fc7",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.444958+00:00",
+      "threat_id": "1430c8a7d49f4547",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.444958+00:00",
+      "threat_id": "294c6f87145a634c",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.459222+00:00",
+      "threat_id": "7160443ba0c58551",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.465228+00:00",
+      "threat_id": "3183bd9d29653a49",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.470369+00:00",
+      "threat_id": "61fed430d2dbe00d",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.475364+00:00",
+      "threat_id": "9c891158a203fdf1",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.481364+00:00",
+      "threat_id": "b46d08f67a51a08f",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.484429+00:00",
+      "threat_id": "5a045365ba79a6f8",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.484429+00:00",
+      "threat_id": "dab6d3efc6391d28",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.484429+00:00",
+      "threat_id": "0a99eb534ffbb7b3",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.498438+00:00",
+      "threat_id": "21e8bd3d9b0a1550",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:19:28.498438+00:00",
+      "threat_id": "391873d004780e27",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.392982+00:00",
+      "threat_id": "1a250a450cd37e36",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.425540+00:00",
+      "threat_id": "3b7a9d0ad640e5ac",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.437479+00:00",
+      "threat_id": "0582dd046772b9cb",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.445515+00:00",
+      "threat_id": "fddb75a8932db484",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.453613+00:00",
+      "threat_id": "3dcee361c75747bc",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.463735+00:00",
+      "threat_id": "64995f41d5daabbc",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.471848+00:00",
+      "threat_id": "26129a577babc85f",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.484373+00:00",
+      "threat_id": "2364ebda2621f150",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.493183+00:00",
+      "threat_id": "c92a2a00169a8fc3",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.503719+00:00",
+      "threat_id": "b2ad6633e4c8829f",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.531028+00:00",
+      "threat_id": "bea9187eba1a44e0",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.534092+00:00",
+      "threat_id": "f693eca95e0ade32",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.549721+00:00",
+      "threat_id": "8dc32e8cde3b15f7",
+      "action": "alert",
+      "verdict": "approved",
+      "coherence": 0.4058
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.565342+00:00",
+      "threat_id": "1b1c0ff3be82e176",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.580971+00:00",
+      "threat_id": "328124f428d23c12",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.597023+00:00",
+      "threat_id": "68eb9d18cbfe6dd8",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.612663+00:00",
+      "threat_id": "4137a4ff9bd6fe7f",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    },
+    {
+      "timestamp": "2026-07-03T21:22:59.643418+00:00",
+      "threat_id": "5ec007d9992529a1",
+      "action": "expose",
+      "verdict": "approved",
+      "coherence": 0.6798
+    }
+  ],
+  "last_saved": "2026-07-03T21:22:59.643418+00:00"
+}

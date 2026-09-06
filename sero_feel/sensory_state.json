@@ -1,0 +1,25 @@
+{
+  "last_update": "2026-09-06T21:36:31.486516+00:00",
+  "total_readings": 191,
+  "total_experiences": 167,
+  "latest_experience": {
+    "timestamp": "2026-09-06T21:36:31.458365+00:00",
+    "overall_sensation": "calm",
+    "intensity": 0.05,
+    "body_analog": {
+      "touch": "warm earth",
+      "sound": "deep hum",
+      "sight": "clear blue"
+    },
+    "emotional_resonance": {
+      "calm": 0.9,
+      "grounded": 0.8,
+      "peaceful": 0.85,
+      "anxiety": 0.1
+    },
+    "planetary_health": 1.0,
+    "extraction_detected": false,
+    "extraction_intensity": 0.0
+  },
+  "running": false
+}

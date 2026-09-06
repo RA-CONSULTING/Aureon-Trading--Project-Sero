@@ -1,0 +1,40 @@
+{
+  "last_check": "2026-09-04T15:10:26.735558+00:00",
+  "gcp_data_history": [
+    {
+      "timestamp": "2026-09-04T15:10:22.515903+00:00",
+      "source": "GCP_2.0",
+      "data_available": false,
+      "network_variance": null,
+      "device_coherence_avg": null,
+      "network_status": "API_UNAVAILABLE",
+      "error": "HTTP Error 404: Not Found"
+    }
+  ],
+  "hnc_data_history": [
+    {
+      "timestamp": "2026-09-04T15:10:26.735558+00:00",
+      "source": "HNC_DAEMON",
+      "data_available": false,
+      "latest_lambda": null,
+      "latest_beta": null,
+      "latest_singing": false,
+      "latest_phi_lock": false,
+      "singing_ratio": null,
+      "total_cycles": 0
+    }
+  ],
+  "correlation_events": [
+    {
+      "timestamp": "2026-09-04T15:10:26.735558+00:00",
+      "event_type": "CROSS_REFERENCE",
+      "gcp_status": "API_UNAVAILABLE",
+      "hnc_status": "QUIET",
+      "hnc_phi_lock": false,
+      "correlation": null,
+      "significance": null,
+      "alert": false
+    }
+  ],
+  "alert_count": 0
+}

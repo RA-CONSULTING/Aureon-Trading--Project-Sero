@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-06-20T19:08:24.929184+00:00",
+  "solar_wind_speed_kms": 367.9,
+  "solar_wind_density": 3.53,
+  "bz_nT": -1.99,
+  "dst_nT": -33.4,
+  "expected_dst_nT": -32.521418272319174,
+  "residual_nT": -0.8785817276808245,
+  "known_transmitters": [
+    "HAARP_Gakona",
+    "EISCAT_Tromso",
+    "Sura_Nizhny",
+    "Arecibo",
+    "Jicamarca",
+    "NWC_Australia",
+    "NPM_Hawaii",
+    "NAA_Maine",
+    "GBR_Rugby",
+    "DCF77_Germany",
+    "Alpha_RSDN_20"
+  ],
+  "distortion_detected": false
+}

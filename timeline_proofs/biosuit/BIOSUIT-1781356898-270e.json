@@ -1,0 +1,76 @@
+{
+  "transmission_id": "BIOSUIT-1781356898-270e",
+  "target_date": "2026-06-13",
+  "timestamp": "2026-06-13T13:21:38.919797+00:00",
+  "all_portals_open": true,
+  "highest_chakra": "crown",
+  "crown_coherence": 0.6406085733671218,
+  "total_energy": 2825.5562114278714,
+  "mandala_score": 0.15453769518861837,
+  "verdict": "MARGINAL EFFECT",
+  "chakras": [
+    {
+      "name": "Muladhara",
+      "frequency": 396.0,
+      "color": "\ud83d\udd34",
+      "coherence": 0.6148766511693172,
+      "energy": 484.6855570722547,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:15.086383+00:00"
+    },
+    {
+      "name": "Svadhisthana",
+      "frequency": 417.0,
+      "color": "\ud83d\udfe0",
+      "coherence": 0.6331454709430618,
+      "energy": 471.1199225469806,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:18.151789+00:00"
+    },
+    {
+      "name": "Manipura",
+      "frequency": 528.0,
+      "color": "\ud83d\udfe1",
+      "coherence": 0.7805014308852478,
+      "energy": 363.14448035824785,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:21.057010+00:00"
+    },
+    {
+      "name": "Anahata",
+      "frequency": 639.0,
+      "color": "\ud83d\udc9a",
+      "coherence": 0.8001090636128849,
+      "energy": 348.58551444906027,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:24.127614+00:00"
+    },
+    {
+      "name": "Vishuddha",
+      "frequency": 741.0,
+      "color": "\ud83d\udd35",
+      "coherence": 0.7881004968932613,
+      "energy": 357.45450137962314,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:27.092282+00:00"
+    },
+    {
+      "name": "Ajna",
+      "frequency": 852.0,
+      "color": "\ud83d\udd2e",
+      "coherence": 0.8188995560616144,
+      "energy": 334.7511452726759,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:32.085654+00:00"
+    },
+    {
+      "name": "Sahasrara",
+      "frequency": 963.0,
+      "color": "\ud83d\udfe3",
+      "coherence": 0.6406085733671218,
+      "energy": 465.8150903490293,
+      "portal_open": true,
+      "timestamp": "2026-06-13T13:16:35.189959+00:00"
+    }
+  ]
+}

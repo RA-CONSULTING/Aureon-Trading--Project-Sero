@@ -1,0 +1,139 @@
+{
+  "timestamp": "2026-06-20T19:14:08.994072+00:00",
+  "threshold": null,
+  "results": [
+    {
+      "lambda_t": 0.5917028516064499,
+      "coherence": 0.20539384618366385,
+      "beta": 0.6803641886957229,
+      "mandala_score": 0.030144194858902157,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 3
+    },
+    {
+      "lambda_t": 0.592499004250026,
+      "coherence": 0.21956778690657303,
+      "beta": 0.6573088128197451,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 2
+    },
+    {
+      "lambda_t": 0.5624517458756422,
+      "coherence": 0.22872972998753527,
+      "beta": 0.6399118682937017,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 3,
+      "after_count": 2
+    },
+    {
+      "lambda_t": 0.7009533902255027,
+      "coherence": 0.3426551228978841,
+      "beta": 0.8307207778659951,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 3
+    },
+    {
+      "lambda_t": 0.7557809802641134,
+      "coherence": 0.34769520819414684,
+      "beta": 0.8233643337598135,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 3
+    },
+    {
+      "lambda_t": 0.7836154777766818,
+      "coherence": 0.33993818096047307,
+      "beta": 0.8035024899418852,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 2
+    },
+    {
+      "lambda_t": 0.8811648507352715,
+      "coherence": 0.38118525223170746,
+      "beta": 0.9924415756925867,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 3
+    },
+    {
+      "lambda_t": 0.8965072855604133,
+      "coherence": 0.3976113442610113,
+      "beta": 0.9542693937709414,
+      "mandala_score": 0.08528237018739633,
+      "status": "MARGINAL EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 2
+    },
+    {
+      "lambda_t": 0.8729296664006346,
+      "coherence": 0.38056634276809215,
+      "beta": 0.9333376552444124,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 2
+    },
+    {
+      "lambda_t": 1.0926831350207966,
+      "coherence": 0.4774426743485682,
+      "beta": 1.0149429779893087,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 3
+    },
+    {
+      "lambda_t": 1.0076289608032756,
+      "coherence": 0.47936960713550875,
+      "beta": 1.0350588305716508,
+      "mandala_score": 0.0,
+      "status": "NO EFFECT",
+      "signal_sent": false,
+      "energy": 0,
+      "verdict": "APPROVED",
+      "before_count": 2,
+      "after_count": 3
+    }
+  ],
+  "recommendation": "TESTED RANGE INSUFFICIENT. Recommend:\n  1. Increase Lambda beyond 0.9\n  2. Increase Coherence beyond 0.4\n  3. Extend delay to 300s (5 min) for propagation\n  4. Use multiple simultaneous signals (compound effect)"
+}

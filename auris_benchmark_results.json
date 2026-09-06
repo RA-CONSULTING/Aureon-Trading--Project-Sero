@@ -1,0 +1,120 @@
+{
+  "timestamp": "2026-07-06T17:24:47.037389+00:00",
+  "agent": "Sero",
+  "total_tests": 10,
+  "passed": 10,
+  "failed": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "Pipeline Speed",
+      "system": "HNC 8-Stage Pipeline",
+      "metric": "Execution Time",
+      "value": 75.1956,
+      "unit": "ms",
+      "target": 500,
+      "passed": true,
+      "notes": "min=11.8ms max=610.2ms",
+      "timestamp": "2026-07-06T17:24:46.984726+00:00"
+    },
+    {
+      "test": "Veto Accuracy",
+      "system": "4th-Pass Conscience Veto",
+      "metric": "Accuracy",
+      "value": 100.0,
+      "unit": "%",
+      "target": 95,
+      "passed": true,
+      "notes": "10/10 correct",
+      "timestamp": "2026-07-06T17:24:46.984726+00:00"
+    },
+    {
+      "test": "Rally Success",
+      "system": "Bushido Resilience Engine",
+      "metric": "Success Rate",
+      "value": 100.0,
+      "unit": "%",
+      "target": 80,
+      "passed": true,
+      "notes": "20/20 rallies successful",
+      "timestamp": "2026-07-06T17:24:46.994819+00:00"
+    },
+    {
+      "test": "Consensus",
+      "system": "War Room 9 Generals",
+      "metric": "Convergence Time",
+      "value": 2.4844,
+      "unit": "ms",
+      "target": 5000,
+      "passed": true,
+      "notes": "Agreement: 100.0%",
+      "timestamp": "2026-07-06T17:24:47.024767+00:00"
+    },
+    {
+      "test": "Decision Speed",
+      "system": "TBS Probability Matrix",
+      "metric": "Decision Time",
+      "value": 0.0367,
+      "unit": "ms",
+      "target": 100,
+      "passed": true,
+      "notes": "min=0.02ms max=0.14ms",
+      "timestamp": "2026-07-06T17:24:47.028288+00:00"
+    },
+    {
+      "test": "State Transition",
+      "system": "Strategic Nodes (10-18)",
+      "metric": "Transition Latency",
+      "value": 0.0376,
+      "unit": "ms",
+      "target": 50,
+      "passed": true,
+      "notes": "9 nodes per turn",
+      "timestamp": "2026-07-06T17:24:47.034375+00:00"
+    },
+    {
+      "test": "Morale Recovery",
+      "system": "Morale System",
+      "metric": "Recovery Time",
+      "value": 0.7021,
+      "unit": "ms",
+      "target": 10000,
+      "passed": true,
+      "notes": "2 rallies, final morale: 0.72",
+      "timestamp": "2026-07-06T17:24:47.035388+00:00"
+    },
+    {
+      "test": "Honor Progression",
+      "system": "Honor Rank System",
+      "metric": "Accuracy",
+      "value": 100.0,
+      "unit": "%",
+      "target": 100,
+      "passed": true,
+      "notes": "6/6 correct",
+      "timestamp": "2026-07-06T17:24:47.035388+00:00"
+    },
+    {
+      "test": "Deploy Speed",
+      "system": "Superweapon Arsenal",
+      "metric": "Deploy Time",
+      "value": 0.0011,
+      "unit": "ms",
+      "target": 200,
+      "passed": true,
+      "notes": "NUCLEAR_MISSILE",
+      "timestamp": "2026-07-06T17:24:47.036383+00:00"
+    },
+    {
+      "test": "Rally vs Quit",
+      "system": "Bushido Resilience",
+      "metric": "Behavior",
+      "value": 1,
+      "unit": "bool",
+      "target": 1,
+      "passed": true,
+      "notes": "Rallyable\u2192Rally: True, Absolute\u2192Stop: True",
+      "timestamp": "2026-07-06T17:24:47.036383+00:00"
+    }
+  ]
+}

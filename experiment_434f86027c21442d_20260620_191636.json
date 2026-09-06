@@ -1,0 +1,37 @@
+{
+  "experiment_id": "434f86027c21442d",
+  "protocol": "HNC Temporal Injection",
+  "timestamp": "2026-06-20T19:16:36.504679+00:00",
+  "target": {
+    "id": "trauma_011",
+    "date": "2022-02-24",
+    "time": "05:00",
+    "event": "Russia invades Ukraine",
+    "innocents": 10000
+  },
+  "signal": {
+    "echo_id": "ddd697c95fdeb46c",
+    "target_timestamp": 1645650000.0,
+    "target_iso": "2022-02-24T05:00:00",
+    "amplitude": 5.035178987856328e-08,
+    "love_wave": -0.0004691645906206528,
+    "sentinel_mod": 0.8090163390046905,
+    "schumann_ground": -1.326576786506463e-07
+  },
+  "before": {
+    "time": "2026-06-20T19:15:23.368181+00:00",
+    "kp": null,
+    "proton_flux": null
+  },
+  "after": {
+    "time": "2026-06-20T19:16:36.481488+00:00",
+    "kp": null,
+    "proton_flux": null
+  },
+  "results": {
+    "kp_shift": null,
+    "proton_shift": null,
+    "significance": "NONE"
+  },
+  "notes": "Real instruments. Zero synthetic. 60-second observation window."
+}

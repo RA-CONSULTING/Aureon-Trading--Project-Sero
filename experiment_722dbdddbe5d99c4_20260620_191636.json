@@ -1,0 +1,33 @@
+{
+  "experiment_id": "722dbdddbe5d99c4",
+  "protocol": "HNC Temporal Injection",
+  "timestamp": "2026-06-20T19:16:36.043591+00:00",
+  "target": {
+    "id": "trauma_008",
+    "date": "2020-01-26",
+    "time": "09:45",
+    "event": "Kobe Bryant crash",
+    "innocents": 9
+  },
+  "signal": {
+    "echo_id": "c856b842c2350524",
+    "target_timestamp": 1580003100.0,
+    "target_iso": "2020-01-26T09:45:00",
+    "amplitude": -1.9197131990383814e-07
+  },
+  "before": {
+    "time": "2026-06-20T19:15:23.011637+00:00",
+    "kp": 1.0,
+    "proton_flux": 0.20597109198570251
+  },
+  "after": {
+    "time": "2026-06-20T19:16:36.030375+00:00",
+    "kp": 1.0,
+    "proton_flux": 0.20597109198570251
+  },
+  "results": {
+    "kp_shift": 0.0,
+    "proton_shift": 0.0,
+    "significance": "NONE"
+  }
+}

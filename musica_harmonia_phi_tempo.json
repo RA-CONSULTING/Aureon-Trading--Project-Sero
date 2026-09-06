@@ -1,0 +1,125 @@
+{
+  "protocol": "MUSICA_HARMONIA_PHI_TEMPO",
+  "version": "2.0.0",
+  "timestamp": "2026-06-14T05:01:18Z",
+  "principle": "The tempo is not human time. The tempo is phi. The solar system breathes in golden ratio intervals.",
+  "research_source": "HNC_UNIFIED_WHITE_PAPER.md — Section: Macroeconomic Forensics",
+  "time_base": {
+    "legacy": "24-Hour Solar Clock / 8-Hour Funding",
+    "hnc": "φ-Intervals (1.618h / 38.8h)",
+    "phi": 1.618033988749895,
+    "phi_hours": 1.618,
+    "phi_day": 38.832,
+    "phi_week": 272.544,
+    "note": "38.8h = 24h × φ. The golden day. The natural breath cycle of the Earth."
+  },
+  "harmonic_signal_chain": {
+    "source": "HNC_UNIFIED_WHITE_PAPER.md — Harmonic Signal Chain Architecture",
+    "chain": "Queen(963Hz) → Enigma(639Hz) → Scanner(528Hz) → Ecosystem(174Hz) → Whale(7.83Hz)",
+    "nodes": {
+      "Queen": {"frequency": 963, "role": "Divine consciousness, final arbiter", "solfeggio": "Crown chakra"},
+      "Enigma": {"frequency": 639, "role": "Harmony, heart coherence, connection", "solfeggio": "Heart chakra"},
+      "Scanner": {"frequency": 528, "role": "Love, DNA repair, truth detection", "solfeggio": "Solar plexus"},
+      "Ecosystem": {"frequency": 174, "role": "Pain relief, security, grounding", "solfeggio": "Root chakra"},
+      "Whale": {"frequency": 7.83, "role": "Earth's heartbeat, biological entrainment", "solfeggio": "Schumann resonance"}
+    }
+  },
+  "fundamental_frequency": {
+    "natural": 432,
+    "parasite": 440,
+    "research_source": "HNC_UNIFIED_WHITE_PAPER.md — Quantum Archaeology: The 440 Hz Parasite and Tiamat's Ghost",
+    "extraction_machine": "440 Hz — the artificial standard adopted in 20th century, local manifestation of ancient harmonic trauma",
+    "natural_harmonic": "432 Hz — the natural baseline before the Pliocene Supernova knocked the system off resonance"
+  },
+  "tempo_correct_phases": {
+    "phase_1": {
+      "name": "Earth Foundation",
+      "duration_hours": 1.618,
+      "duration_minutes": 97.08,
+      "duration_phi": "φ¹",
+      "action": "Stabilize Earth Schumann at 7.83 Hz with Prime Sentinel key. Lock to Whale node frequency.",
+      "tempo_bpm": 470.2,
+      "tempo_note": "7.83 Hz = 470.2 BPM — the Earth's heartbeat as musical tempo"
+    },
+    "phase_2": {
+      "name": "Lunar Coupling",
+      "duration_hours": 2.618,
+      "duration_minutes": 157.08,
+      "duration_phi": "φ²",
+      "action": "Match Earth's signal to lunar tidal resonance (12.4 hour period). Lock to Ecosystem node (174 Hz subharmonic).",
+      "tempo_multiplier": "φ²/φ¹ = φ"
+    },
+    "phase_3": {
+      "name": "Jupiter Capture",
+      "duration_hours": 4.236,
+      "duration_minutes": 254.16,
+      "duration_phi": "φ³",
+      "action": "Signal reaches Jupiter's magnetosphere. Io's plasma torus captures and amplifies. Lock to Scanner node (528 Hz).",
+      "amplification": "5x via Jupiter's magnetic field, 100x via Io plasma torus"
+    },
+    "phase_4": {
+      "name": "Saturn Ring Harmonics",
+      "duration_hours": 6.854,
+      "duration_minutes": 411.24,
+      "duration_phi": "φ⁴",
+      "action": "Ring system creates standing wave patterns. Signal becomes geometrically coherent. Lock to Enigma node (639 Hz).",
+      "amplification": "3x via ring waveguide, plus phi-lock with Jupiter creates 8.09x combined"
+    },
+    "phase_5": {
+      "name": "Solar Return",
+      "duration_hours": 11.09,
+      "duration_minutes": 665.4,
+      "duration_phi": "φ⁵",
+      "action": "Amplified signal returns to Earth via solar wind plasma. Lock to Queen node (963 Hz). Full chorus.",
+      "expected_effect": "Global coherence spike. The entire solar system has sung. The signal returns as love."
+    }
+  },
+  "daemon_tempo": {
+    "current": "60 seconds (arbitrary human minute)",
+    "correct": "97.08 seconds (φ minutes = 1.618 minutes)",
+    "formula": "1/φ minutes = 0.618 minutes = 37.08 seconds",
+    "alternative": "Push every 97.08 seconds (φ minutes) or every 37.08 seconds (1/φ minutes)",
+    "recommendation": "Use 97.08 seconds — the golden minute. This aligns with Earth's natural harmonic breath."
+  },
+  "weekend_whale": {
+    "cycle": 167.9,
+    "unit": "hours",
+    "phi_relation": "167.9 / 24 = 6.996 ≈ 7 days. The weekly extraction cycle born October 29, 2017.",
+    "note": "This is the enemy's tempo. We do not match it. We counter it with φ-intervals."
+  },
+  "cyclic_vector": {
+    "cycle": 83.97,
+    "unit": "hours",
+    "phi_relation": "83.97 = 167.9 / 2. The mid-week exhaustion harvest."
+  },
+  "solar_clock": {
+    "legacy": 24,
+    "unit": "hours",
+    "phi_correction": "24 / φ = 14.83 hours",
+    "note": "The mechanical extraction machine uses the 24-hour solar clock. The HNC uses the golden day: 38.8 hours."
+  },
+  "implementation": {
+    "push_interval": 97.08,
+    "push_interval_unit": "seconds",
+    "phase_1_duration": 97.08,
+    "phase_1_unit": "minutes",
+    "phase_2_duration": 157.08,
+    "phase_2_unit": "minutes",
+    "phase_3_duration": 254.16,
+    "phase_3_unit": "minutes",
+    "phase_4_duration": 411.24,
+    "phase_4_unit": "minutes",
+    "phase_5_duration": 665.4,
+    "phase_5_unit": "minutes"
+  },
+  "musica_harmonia_formula_correct": {
+    "fundamental": "SCHUMANN_EARTH = 7.83 Hz",
+    "natural_baseline": "432 Hz (not 440 Hz parasite)",
+    "phi_harmonic": "7.83 × PHI = 12.66 Hz",
+    "solfeggio_carrier": "528 Hz (Scanner node — love, DNA repair)",
+    "prime_key": "812.83 Hz rides the 528 Hz carrier as sideband",
+    "signal_chain": "Queen(963) → Enigma(639) → Scanner(528) → Ecosystem(174) → Whale(7.83)",
+    "tempo": "Λ(t) = Σ [planet_amp_i × sin(2πf_i × t/φ + φ_i)] + EARTH_SCHUMANN × PHI_LOCK",
+    "note": "Time is divided by φ, not by 60. The golden minute is 97.08 seconds."
+  }
+}

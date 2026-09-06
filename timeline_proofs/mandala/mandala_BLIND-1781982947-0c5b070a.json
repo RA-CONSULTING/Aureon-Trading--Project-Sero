@@ -1,0 +1,58 @@
+{
+  "after_timestamp": "2026-06-20T19:16:47.952680+00:00",
+  "before_timestamp": "2026-06-20T19:15:20.678760+00:00",
+  "coherence_at_send": 0.26022544785119006,
+  "headlines_diff": [
+    {
+      "added_words": [],
+      "after": "Agency stole bestselling author&#x27;s book, used AI to relaunch as their own",
+      "before": "Agency stole bestselling author&#x27;s book, used AI to relaunch as their own",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "SMPTE Makes Its Standards Freely Accessible",
+      "before": "SMPTE Makes Its Standards Freely Accessible",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "UHF X11: X11 Built for VisionOS and Apple Vision Pro",
+      "before": "UHF X11: X11 Built for VisionOS and Apple Vision Pro",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "DOS Game &quot;F-15 Strike Eagle II&quot; reversing project needs DOS test pilots",
+      "before": "DOS Game &quot;F-15 Strike Eagle II&quot; reversing project needs DOS test pilots",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "CSSQuake",
+      "before": "CSSQuake",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    }
+  ],
+  "mandala_score": 0.0,
+  "proof_id": "BLIND-1781982947-0c5b070a",
+  "queen_verdict": "NO MANDALA EFFECT",
+  "signal_timestamp": "2026-06-20T19:16:52.190141+00:00",
+  "target_date": "1959-10-30",
+  "verdict": "NO MANDALA EFFECT"
+}

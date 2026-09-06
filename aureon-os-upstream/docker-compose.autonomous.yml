@@ -1,0 +1,18 @@
+# Aureon autonomous-image protection preflight.
+# It intentionally returns HOLD and starts no trader, listener, or health probe.
+services:
+  autonomous-protection-preflight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aureon-autonomous-protection-preflight:local
+    restart: "no"
+    command: []
+    network_mode: "none"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

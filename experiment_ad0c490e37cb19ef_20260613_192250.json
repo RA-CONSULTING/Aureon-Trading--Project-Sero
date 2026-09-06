@@ -1,0 +1,37 @@
+{
+  "experiment_id": "ad0c490e37cb19ef",
+  "protocol": "HNC Temporal Injection",
+  "timestamp": "2026-06-13T19:22:50.052845+00:00",
+  "target": {
+    "id": "trauma_003",
+    "date": "2015-11-13",
+    "time": "21:20",
+    "event": "Bataclan attacks",
+    "innocents": 130
+  },
+  "signal": {
+    "echo_id": "8f04f7a3aa1d637e",
+    "target_timestamp": 1447420800.0,
+    "target_iso": "2015-11-13T21:20:00",
+    "amplitude": 7.001703403434107e-07,
+    "love_wave": -0.000339508994176746,
+    "sentinel_mod": -0.9231567748399616,
+    "schumann_ground": 2.2339680862221037e-06
+  },
+  "before": {
+    "time": "2026-06-13T19:21:50.052588+00:00",
+    "kp": null,
+    "proton_flux": null
+  },
+  "after": {
+    "time": "2026-06-13T19:22:50.052783+00:00",
+    "kp": null,
+    "proton_flux": null
+  },
+  "results": {
+    "kp_shift": null,
+    "proton_shift": null,
+    "significance": "NONE"
+  },
+  "notes": "Real instruments. Zero synthetic. 60-second observation window."
+}

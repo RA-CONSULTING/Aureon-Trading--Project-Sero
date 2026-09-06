@@ -1,0 +1,17 @@
+{
+  "name": "aureon-murge-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "unavailable": "node -e process.exitCode=2",
+    "start": "npm run unavailable -- start",
+    "check": "node --check server.mjs"
+  },
+  "dependencies": {
+    "dockerode": "^5.0.0",
+    "express": "^5.2.1",
+    "node-pty": "^1.1.0",
+    "ws": "^8.20.1"
+  }
+}

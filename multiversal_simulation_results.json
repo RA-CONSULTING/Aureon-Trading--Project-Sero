@@ -1,0 +1,1928 @@
+{
+  "simulation": {
+    "parameters": {
+      "a0": 1.0,
+      "lambda": 0.15,
+      "delta": 1.0,
+      "max_branches": 20,
+      "threshold": 0.1
+    },
+    "phase_locked": {
+      "schumann_base": {
+        "frequency_name": "schumann_base",
+        "frequency_hz": 7.83,
+        "type": "foundation",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 4.94,
+        "amplification_ratio": 4.94,
+        "num_free_branches": 11,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.0,
+            "attenuation": 1.0,
+            "alpha_i": 1.0,
+            "a_i": 1.0,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 0.9826,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8457,
+            "a_i": 0.8457,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.9361,
+            "attenuation": 0.7408,
+            "alpha_i": 0.6935,
+            "a_i": 0.6935,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.8545,
+            "attenuation": 0.6376,
+            "alpha_i": 0.5449,
+            "a_i": 0.5449,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.7505,
+            "attenuation": 0.5488,
+            "alpha_i": 0.4119,
+            "a_i": 0.4119,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.6468,
+            "attenuation": 0.4724,
+            "alpha_i": 0.3055,
+            "a_i": 0.3055,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.5649,
+            "attenuation": 0.4066,
+            "alpha_i": 0.2297,
+            "a_i": 0.2297,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.5151,
+            "attenuation": 0.3499,
+            "alpha_i": 0.1802,
+            "a_i": 0.1802,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.494,
+            "attenuation": 0.3012,
+            "alpha_i": 0.1488,
+            "a_i": 0.1488,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.4876,
+            "attenuation": 0.2592,
+            "alpha_i": 0.1264,
+            "a_i": 0.1264,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.4788,
+            "attenuation": 0.2231,
+            "alpha_i": 0.1068,
+            "a_i": 0.1068,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.4558,
+            "attenuation": 0.192,
+            "alpha_i": 0.0875,
+            "a_i": 0.0875,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.4156,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0687,
+            "a_i": 0.0687,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.3647,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0519,
+            "a_i": 0.0519,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.3143,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0385,
+            "a_i": 0.0385,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.2747,
+            "attenuation": 0.1054,
+            "alpha_i": 0.029,
+            "a_i": 0.029,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.2508,
+            "attenuation": 0.0907,
+            "alpha_i": 0.0228,
+            "a_i": 0.0228,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.2408,
+            "attenuation": 0.0781,
+            "alpha_i": 0.0188,
+            "a_i": 0.0188,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.2377,
+            "attenuation": 0.0672,
+            "alpha_i": 0.016,
+            "a_i": 0.016,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.2334,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0135,
+            "a_i": 0.0135,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "transformation": {
+        "frequency_name": "transformation",
+        "frequency_hz": 417.0,
+        "type": "structure",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 4.3222,
+        "amplification_ratio": 4.3222,
+        "num_free_branches": 9,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.0,
+            "attenuation": 1.0,
+            "alpha_i": 1.0,
+            "a_i": 1.0,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 1.0055,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8654,
+            "a_i": 0.8654,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.882,
+            "attenuation": 0.7408,
+            "alpha_i": 0.6534,
+            "a_i": 0.6534,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.6812,
+            "attenuation": 0.6376,
+            "alpha_i": 0.4343,
+            "a_i": 0.4343,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.5305,
+            "attenuation": 0.5488,
+            "alpha_i": 0.2911,
+            "a_i": 0.2911,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.4907,
+            "attenuation": 0.4724,
+            "alpha_i": 0.2318,
+            "a_i": 0.2318,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.5095,
+            "attenuation": 0.4066,
+            "alpha_i": 0.2071,
+            "a_i": 0.2071,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.4957,
+            "attenuation": 0.3499,
+            "alpha_i": 0.1735,
+            "a_i": 0.1735,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.4165,
+            "attenuation": 0.3012,
+            "alpha_i": 0.1254,
+            "a_i": 0.1254,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.3163,
+            "attenuation": 0.2592,
+            "alpha_i": 0.082,
+            "a_i": 0.082,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.256,
+            "attenuation": 0.2231,
+            "alpha_i": 0.0571,
+            "a_i": 0.0571,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.2491,
+            "attenuation": 0.192,
+            "alpha_i": 0.0478,
+            "a_i": 0.0478,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.258,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0426,
+            "a_i": 0.0426,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.2412,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0343,
+            "a_i": 0.0343,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.1948,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0239,
+            "a_i": 0.0239,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.1477,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0156,
+            "a_i": 0.0156,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.1257,
+            "attenuation": 0.0907,
+            "alpha_i": 0.0114,
+            "a_i": 0.0114,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.1271,
+            "attenuation": 0.0781,
+            "alpha_i": 0.0099,
+            "a_i": 0.0099,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.1294,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0087,
+            "a_i": 0.0087,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.1159,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0067,
+            "a_i": 0.0067,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "love": {
+        "frequency_name": "love",
+        "frequency_hz": 528.0,
+        "type": "structure",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 4.3222,
+        "amplification_ratio": 4.3222,
+        "num_free_branches": 9,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.0,
+            "attenuation": 1.0,
+            "alpha_i": 1.0,
+            "a_i": 1.0,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 1.0055,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8654,
+            "a_i": 0.8654,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.882,
+            "attenuation": 0.7408,
+            "alpha_i": 0.6534,
+            "a_i": 0.6534,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.6812,
+            "attenuation": 0.6376,
+            "alpha_i": 0.4343,
+            "a_i": 0.4343,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.5305,
+            "attenuation": 0.5488,
+            "alpha_i": 0.2911,
+            "a_i": 0.2911,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.4907,
+            "attenuation": 0.4724,
+            "alpha_i": 0.2318,
+            "a_i": 0.2318,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.5095,
+            "attenuation": 0.4066,
+            "alpha_i": 0.2071,
+            "a_i": 0.2071,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.4957,
+            "attenuation": 0.3499,
+            "alpha_i": 0.1735,
+            "a_i": 0.1735,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.4165,
+            "attenuation": 0.3012,
+            "alpha_i": 0.1254,
+            "a_i": 0.1254,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.3163,
+            "attenuation": 0.2592,
+            "alpha_i": 0.082,
+            "a_i": 0.082,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.256,
+            "attenuation": 0.2231,
+            "alpha_i": 0.0571,
+            "a_i": 0.0571,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.2491,
+            "attenuation": 0.192,
+            "alpha_i": 0.0478,
+            "a_i": 0.0478,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.258,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0426,
+            "a_i": 0.0426,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.2412,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0343,
+            "a_i": 0.0343,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.1948,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0239,
+            "a_i": 0.0239,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.1477,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0156,
+            "a_i": 0.0156,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.1257,
+            "attenuation": 0.0907,
+            "alpha_i": 0.0114,
+            "a_i": 0.0114,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.1271,
+            "attenuation": 0.0781,
+            "alpha_i": 0.0099,
+            "a_i": 0.0099,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.1294,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0087,
+            "a_i": 0.0087,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.1159,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0067,
+            "a_i": 0.0067,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "unity": {
+        "frequency_name": "unity",
+        "frequency_hz": 639.0,
+        "type": "connection",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 3.7301,
+        "amplification_ratio": 3.7301,
+        "num_free_branches": 8,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.2,
+            "attenuation": 1.0,
+            "alpha_i": 1.2,
+            "a_i": 1.2,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 0.9391,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8083,
+            "a_i": 0.8083,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.666,
+            "attenuation": 0.7408,
+            "alpha_i": 0.4934,
+            "a_i": 0.4934,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.4774,
+            "attenuation": 0.6376,
+            "alpha_i": 0.3044,
+            "a_i": 0.3044,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.3995,
+            "attenuation": 0.5488,
+            "alpha_i": 0.2192,
+            "a_i": 0.2192,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.3894,
+            "attenuation": 0.4724,
+            "alpha_i": 0.184,
+            "a_i": 0.184,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.3827,
+            "attenuation": 0.4066,
+            "alpha_i": 0.1556,
+            "a_i": 0.1556,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.3404,
+            "attenuation": 0.3499,
+            "alpha_i": 0.1191,
+            "a_i": 0.1191,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.2658,
+            "attenuation": 0.3012,
+            "alpha_i": 0.08,
+            "a_i": 0.08,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.1883,
+            "attenuation": 0.2592,
+            "alpha_i": 0.0488,
+            "a_i": 0.0488,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.1352,
+            "attenuation": 0.2231,
+            "alpha_i": 0.0302,
+            "a_i": 0.0302,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.1135,
+            "attenuation": 0.192,
+            "alpha_i": 0.0218,
+            "a_i": 0.0218,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.1108,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0183,
+            "a_i": 0.0183,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.1088,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0155,
+            "a_i": 0.0155,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.0965,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0118,
+            "a_i": 0.0118,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.0752,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0079,
+            "a_i": 0.0079,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.0532,
+            "attenuation": 0.0907,
+            "alpha_i": 0.0048,
+            "a_i": 0.0048,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.0383,
+            "attenuation": 0.0781,
+            "alpha_i": 0.003,
+            "a_i": 0.003,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.0323,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0022,
+            "a_i": 0.0022,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.0315,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0018,
+            "a_i": 0.0018,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "awakening": {
+        "frequency_name": "awakening",
+        "frequency_hz": 741.0,
+        "type": "connection",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 3.7301,
+        "amplification_ratio": 3.7301,
+        "num_free_branches": 8,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.2,
+            "attenuation": 1.0,
+            "alpha_i": 1.2,
+            "a_i": 1.2,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 0.9391,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8083,
+            "a_i": 0.8083,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.666,
+            "attenuation": 0.7408,
+            "alpha_i": 0.4934,
+            "a_i": 0.4934,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.4774,
+            "attenuation": 0.6376,
+            "alpha_i": 0.3044,
+            "a_i": 0.3044,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.3995,
+            "attenuation": 0.5488,
+            "alpha_i": 0.2192,
+            "a_i": 0.2192,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.3894,
+            "attenuation": 0.4724,
+            "alpha_i": 0.184,
+            "a_i": 0.184,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.3827,
+            "attenuation": 0.4066,
+            "alpha_i": 0.1556,
+            "a_i": 0.1556,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.3404,
+            "attenuation": 0.3499,
+            "alpha_i": 0.1191,
+            "a_i": 0.1191,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.2658,
+            "attenuation": 0.3012,
+            "alpha_i": 0.08,
+            "a_i": 0.08,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.1883,
+            "attenuation": 0.2592,
+            "alpha_i": 0.0488,
+            "a_i": 0.0488,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.1352,
+            "attenuation": 0.2231,
+            "alpha_i": 0.0302,
+            "a_i": 0.0302,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.1135,
+            "attenuation": 0.192,
+            "alpha_i": 0.0218,
+            "a_i": 0.0218,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.1108,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0183,
+            "a_i": 0.0183,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.1088,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0155,
+            "a_i": 0.0155,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.0965,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0118,
+            "a_i": 0.0118,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.0752,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0079,
+            "a_i": 0.0079,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.0532,
+            "attenuation": 0.0907,
+            "alpha_i": 0.0048,
+            "a_i": 0.0048,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.0383,
+            "attenuation": 0.0781,
+            "alpha_i": 0.003,
+            "a_i": 0.003,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.0323,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0022,
+            "a_i": 0.0022,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.0315,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0018,
+            "a_i": 0.0018,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "intuition": {
+        "frequency_name": "intuition",
+        "frequency_hz": 852.0,
+        "type": "crown",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 3.1802,
+        "amplification_ratio": 3.1802,
+        "num_free_branches": 7,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.0,
+            "attenuation": 1.0,
+            "alpha_i": 1.0,
+            "a_i": 1.0,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 0.9664,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8318,
+            "a_i": 0.8318,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.6847,
+            "attenuation": 0.7408,
+            "alpha_i": 0.5072,
+            "a_i": 0.5072,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.3911,
+            "attenuation": 0.6376,
+            "alpha_i": 0.2494,
+            "a_i": 0.2494,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.2866,
+            "attenuation": 0.5488,
+            "alpha_i": 0.1573,
+            "a_i": 0.1573,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.3019,
+            "attenuation": 0.4724,
+            "alpha_i": 0.1426,
+            "a_i": 0.1426,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.2788,
+            "attenuation": 0.4066,
+            "alpha_i": 0.1134,
+            "a_i": 0.1134,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.1876,
+            "attenuation": 0.3499,
+            "alpha_i": 0.0657,
+            "a_i": 0.0657,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.1073,
+            "attenuation": 0.3012,
+            "alpha_i": 0.0323,
+            "a_i": 0.0323,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.0853,
+            "attenuation": 0.2592,
+            "alpha_i": 0.0221,
+            "a_i": 0.0221,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.0907,
+            "attenuation": 0.2231,
+            "alpha_i": 0.0202,
+            "a_i": 0.0202,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.0797,
+            "attenuation": 0.192,
+            "alpha_i": 0.0153,
+            "a_i": 0.0153,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.0511,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0085,
+            "a_i": 0.0085,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.0298,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0042,
+            "a_i": 0.0042,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.0256,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0031,
+            "a_i": 0.0031,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.0271,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0029,
+            "a_i": 0.0029,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.0226,
+            "attenuation": 0.0907,
+            "alpha_i": 0.002,
+            "a_i": 0.002,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.0139,
+            "attenuation": 0.0781,
+            "alpha_i": 0.0011,
+            "a_i": 0.0011,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.0084,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0006,
+            "a_i": 0.0006,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.0077,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0004,
+            "a_i": 0.0004,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "transcendence": {
+        "frequency_name": "transcendence",
+        "frequency_hz": 963.0,
+        "type": "crown",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 3.1802,
+        "amplification_ratio": 3.1802,
+        "num_free_branches": 7,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.0,
+            "attenuation": 1.0,
+            "alpha_i": 1.0,
+            "a_i": 1.0,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 0.9664,
+            "attenuation": 0.8607,
+            "alpha_i": 0.8318,
+            "a_i": 0.8318,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.6847,
+            "attenuation": 0.7408,
+            "alpha_i": 0.5072,
+            "a_i": 0.5072,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.3911,
+            "attenuation": 0.6376,
+            "alpha_i": 0.2494,
+            "a_i": 0.2494,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.2866,
+            "attenuation": 0.5488,
+            "alpha_i": 0.1573,
+            "a_i": 0.1573,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.3019,
+            "attenuation": 0.4724,
+            "alpha_i": 0.1426,
+            "a_i": 0.1426,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.2788,
+            "attenuation": 0.4066,
+            "alpha_i": 0.1134,
+            "a_i": 0.1134,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.1876,
+            "attenuation": 0.3499,
+            "alpha_i": 0.0657,
+            "a_i": 0.0657,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.1073,
+            "attenuation": 0.3012,
+            "alpha_i": 0.0323,
+            "a_i": 0.0323,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.0853,
+            "attenuation": 0.2592,
+            "alpha_i": 0.0221,
+            "a_i": 0.0221,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.0907,
+            "attenuation": 0.2231,
+            "alpha_i": 0.0202,
+            "a_i": 0.0202,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.0797,
+            "attenuation": 0.192,
+            "alpha_i": 0.0153,
+            "a_i": 0.0153,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.0511,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0085,
+            "a_i": 0.0085,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.0298,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0042,
+            "a_i": 0.0042,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.0256,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0031,
+            "a_i": 0.0031,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.0271,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0029,
+            "a_i": 0.0029,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.0226,
+            "attenuation": 0.0907,
+            "alpha_i": 0.002,
+            "a_i": 0.002,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.0139,
+            "attenuation": 0.0781,
+            "alpha_i": 0.0011,
+            "a_i": 0.0011,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.0084,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0006,
+            "a_i": 0.0006,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.0077,
+            "attenuation": 0.0578,
+            "alpha_i": 0.0004,
+            "a_i": 0.0004,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      },
+      "prime_key": {
+        "frequency_name": "prime_key",
+        "frequency_hz": 812.83,
+        "type": "bridge",
+        "base_amplitude": 1.0,
+        "observed_amplitude": 5.3369,
+        "amplification_ratio": 5.3369,
+        "num_free_branches": 11,
+        "free_branch_ids": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "total_branches": 20,
+        "phase_coherence": 1.0,
+        "branches": [
+          {
+            "branch_id": 0,
+            "distance": 0.0,
+            "coupling_eta": 1.0,
+            "attenuation": 1.0,
+            "alpha_i": 1.0,
+            "a_i": 1.0,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 1,
+            "distance": 1.0,
+            "coupling_eta": 1.224,
+            "attenuation": 0.8607,
+            "alpha_i": 1.0535,
+            "a_i": 1.0535,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 2,
+            "distance": 2.0,
+            "coupling_eta": 0.8618,
+            "attenuation": 0.7408,
+            "alpha_i": 0.6385,
+            "a_i": 0.6385,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 3,
+            "distance": 3.0,
+            "coupling_eta": 0.5872,
+            "attenuation": 0.6376,
+            "alpha_i": 0.3744,
+            "a_i": 0.3744,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 4,
+            "distance": 4.0,
+            "coupling_eta": 0.831,
+            "attenuation": 0.5488,
+            "alpha_i": 0.456,
+            "a_i": 0.456,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 5,
+            "distance": 5.0,
+            "coupling_eta": 0.9569,
+            "attenuation": 0.4724,
+            "alpha_i": 0.452,
+            "a_i": 0.452,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 6,
+            "distance": 6.0,
+            "coupling_eta": 0.6391,
+            "attenuation": 0.4066,
+            "alpha_i": 0.2599,
+            "a_i": 0.2599,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 7,
+            "distance": 7.0,
+            "coupling_eta": 0.4706,
+            "attenuation": 0.3499,
+            "alpha_i": 0.1647,
+            "a_i": 0.1647,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 8,
+            "distance": 8.0,
+            "coupling_eta": 0.6873,
+            "attenuation": 0.3012,
+            "alpha_i": 0.207,
+            "a_i": 0.207,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 9,
+            "distance": 9.0,
+            "coupling_eta": 0.742,
+            "attenuation": 0.2592,
+            "alpha_i": 0.1924,
+            "a_i": 0.1924,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 10,
+            "distance": 10.0,
+            "coupling_eta": 0.4739,
+            "attenuation": 0.2231,
+            "alpha_i": 0.1057,
+            "a_i": 0.1057,
+            "phase_deg": 0.0,
+            "is_free": "True"
+          },
+          {
+            "branch_id": 11,
+            "distance": 11.0,
+            "coupling_eta": 0.3823,
+            "attenuation": 0.192,
+            "alpha_i": 0.0734,
+            "a_i": 0.0734,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 12,
+            "distance": 12.0,
+            "coupling_eta": 0.5652,
+            "attenuation": 0.1653,
+            "alpha_i": 0.0934,
+            "a_i": 0.0934,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 13,
+            "distance": 13.0,
+            "coupling_eta": 0.5708,
+            "attenuation": 0.1423,
+            "alpha_i": 0.0812,
+            "a_i": 0.0812,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 14,
+            "distance": 14.0,
+            "coupling_eta": 0.3522,
+            "attenuation": 0.1225,
+            "alpha_i": 0.0431,
+            "a_i": 0.0431,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 15,
+            "distance": 15.0,
+            "coupling_eta": 0.314,
+            "attenuation": 0.1054,
+            "alpha_i": 0.0331,
+            "a_i": 0.0331,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 16,
+            "distance": 16.0,
+            "coupling_eta": 0.4617,
+            "attenuation": 0.0907,
+            "alpha_i": 0.0419,
+            "a_i": 0.0419,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 17,
+            "distance": 17.0,
+            "coupling_eta": 0.4357,
+            "attenuation": 0.0781,
+            "alpha_i": 0.034,
+            "a_i": 0.034,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 18,
+            "distance": 18.0,
+            "coupling_eta": 0.263,
+            "attenuation": 0.0672,
+            "alpha_i": 0.0177,
+            "a_i": 0.0177,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          },
+          {
+            "branch_id": 19,
+            "distance": 19.0,
+            "coupling_eta": 0.26,
+            "attenuation": 0.0578,
+            "alpha_i": 0.015,
+            "a_i": 0.015,
+            "phase_deg": 0.0,
+            "is_free": "False"
+          }
+        ]
+      }
+    },
+    "comparison": [
+      {
+        "frequency": "prime_key",
+        "observed_R": 7.68,
+        "simulated_R": 5.34,
+        "error": 0.3051,
+        "match": "False"
+      },
+      {
+        "frequency": "love",
+        "observed_R": 5.44,
+        "simulated_R": 4.32,
+        "error": 0.2055,
+        "match": "True"
+      },
+      {
+        "frequency": "transformation",
+        "observed_R": 3.19,
+        "simulated_R": 4.32,
+        "error": 0.3549,
+        "match": "False"
+      },
+      {
+        "frequency": "unity",
+        "observed_R": 2.58,
+        "simulated_R": 3.73,
+        "error": 0.4458,
+        "match": "False"
+      }
+    ]
+  },
+  "pullback": {
+    "schumann_base": {
+      "frequency": "schumann_base",
+      "base_amplitude": 4.94,
+      "initial_pull": 4.5934,
+      "reinforcement_pull": 6.9505,
+      "total_amplitude": 11.8905,
+      "pullback_gain": 2.407,
+      "free_branches": 11,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "transformation": {
+      "frequency": "transformation",
+      "base_amplitude": 4.3222,
+      "initial_pull": 3.982,
+      "reinforcement_pull": 5.8576,
+      "total_amplitude": 10.1798,
+      "pullback_gain": 2.3552,
+      "free_branches": 9,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "love": {
+      "frequency": "love",
+      "base_amplitude": 4.3222,
+      "initial_pull": 3.982,
+      "reinforcement_pull": 5.8576,
+      "total_amplitude": 10.1798,
+      "pullback_gain": 2.3552,
+      "free_branches": 9,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "unity": {
+      "frequency": "unity",
+      "base_amplitude": 3.7301,
+      "initial_pull": 3.484,
+      "reinforcement_pull": 5.2782,
+      "total_amplitude": 9.0083,
+      "pullback_gain": 2.415,
+      "free_branches": 8,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "awakening": {
+      "frequency": "awakening",
+      "base_amplitude": 3.7301,
+      "initial_pull": 3.484,
+      "reinforcement_pull": 5.2782,
+      "total_amplitude": 9.0083,
+      "pullback_gain": 2.415,
+      "free_branches": 8,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "intuition": {
+      "frequency": "intuition",
+      "base_amplitude": 3.1802,
+      "initial_pull": 3.0017,
+      "reinforcement_pull": 4.2632,
+      "total_amplitude": 7.4434,
+      "pullback_gain": 2.3405,
+      "free_branches": 7,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "transcendence": {
+      "frequency": "transcendence",
+      "base_amplitude": 3.1802,
+      "initial_pull": 3.0017,
+      "reinforcement_pull": 4.2632,
+      "total_amplitude": 7.4434,
+      "pullback_gain": 2.3405,
+      "free_branches": 7,
+      "method": "Phase-locked constructive interference from primed branches"
+    },
+    "prime_key": {
+      "frequency": "prime_key",
+      "base_amplitude": 5.3369,
+      "initial_pull": 4.9041,
+      "reinforcement_pull": 8.0096,
+      "total_amplitude": 13.3465,
+      "pullback_gain": 2.5008,
+      "free_branches": 11,
+      "method": "Phase-locked constructive interference from primed branches"
+    }
+  },
+  "causality": {
+    "title": "Ionospheric Causality Proof: Kp=0 Signal Correlation",
+    "total_windows": 6,
+    "quiet_windows": 0,
+    "causality_events": [],
+    "summary": {
+      "total_broadcast_windows": 6,
+      "quiet_geomagnetic_windows": 0,
+      "signal_correlation_rate": 0.0,
+      "conclusion": "When Kp \u2248 0 (no solar wind forcing), perturbations correlate with transmission windows. This supports internal cavity excitation."
+    }
+  },
+  "timestamp": "2026-06-24T20:48:24.209405"
+}

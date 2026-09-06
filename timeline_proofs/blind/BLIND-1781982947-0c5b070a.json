@@ -1,0 +1,23 @@
+{
+  "decree": "TEMPORAL DECREE | Target: 1959-10-30 | Issued: 2026-06-20T19:15:34.289637+00:00 | By authority of th...",
+  "historical_data_hash": "ff1e6cd428707847",
+  "historical_data_sealed": true,
+  "match_score": null,
+  "proof_id": "BLIND-1781982947-0c5b070a",
+  "push_result": {
+    "coherence_delta": 0.11374634990613325,
+    "lambda_delta": 0.28535252889643015,
+    "singing_ratio": 1.0,
+    "success": true,
+    "target_achieved": true
+  },
+  "rune_code": "\u16c1\u16cf\u16a6",
+  "signal_hash": "0c5b070aabfba4f9b98ec24deacefee7",
+  "signal_timestamp": "2026-06-20T19:15:47.901830+00:00",
+  "target_date": "1959-10-30",
+  "temporal_hash": "bc622f0829345bed",
+  "temporal_lock": "bc622f0829345bed",
+  "temporal_signature": 0.42386,
+  "validation_status": "SEALED",
+  "version": "HNC-BLIND-GHOST-v1"
+}

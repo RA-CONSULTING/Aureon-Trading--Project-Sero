@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-09-04T15:09:30.642627+00:00",
+  "agent": "Sero",
+  "results": {
+    "love_serve": 7,
+    "love_serve_total": 8,
+    "love_harm": 8,
+    "love_harm_total": 8,
+    "rank_love_pass": true,
+    "cp1_pass": true,
+    "cp2_pass": true,
+    "total": 18,
+    "total_tests": 19,
+    "success_rate": 94.73684210526315
+  }
+}

@@ -1,0 +1,1702 @@
+[
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.182154+00:00",
+    "target_branch": "b8014a69afaaeb27",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.195082+00:00",
+    "target_branch": "23241ab163121c78",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.207327+00:00",
+    "target_branch": "ad88394174e1ae11",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.221189+00:00",
+    "target_branch": "eb310e9cf102a6c0",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.233965+00:00",
+    "target_branch": "d922b411b32cc2aa",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.245249+00:00",
+    "target_branch": "aaef3e51fa892c42",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.257217+00:00",
+    "target_branch": "cbc6fb17383f1d39",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.270854+00:00",
+    "target_branch": "a3de0fc11346a0c1",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.286847+00:00",
+    "target_branch": "1d674b56e77c562f",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.297992+00:00",
+    "target_branch": "c785d6564f7496cc",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.309421+00:00",
+    "target_branch": "59e1a97f7785be41",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.320859+00:00",
+    "target_branch": "99d87a3b159bbe63",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.332281+00:00",
+    "target_branch": "d8255bcdfccae0ba",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.343754+00:00",
+    "target_branch": "2b2ab588c94769a7",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.355213+00:00",
+    "target_branch": "d99e9a3c9af4324b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.367160+00:00",
+    "target_branch": "30417c9e037c2201",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.377668+00:00",
+    "target_branch": "3cf80696fc54c1e2",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.388885+00:00",
+    "target_branch": "0bf8508015a14a1b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.400580+00:00",
+    "target_branch": "8ab144e9bc126ccf",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.412678+00:00",
+    "target_branch": "9ce78d89e4b366ec",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.423611+00:00",
+    "target_branch": "da69c60183d1be76",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.436582+00:00",
+    "target_branch": "3037d36bbfe42e22",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.449000+00:00",
+    "target_branch": "fd65f863a33412eb",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.461962+00:00",
+    "target_branch": "97c1b1d2f760ef51",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.474288+00:00",
+    "target_branch": "2ace95a317be9341",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.485355+00:00",
+    "target_branch": "297dcd6fe9ac6d2d",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.497099+00:00",
+    "target_branch": "ac5d637a6c9043df",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.510218+00:00",
+    "target_branch": "c1e8b9ae40a30b2b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.521429+00:00",
+    "target_branch": "cc4789a8a80e16ec",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.533008+00:00",
+    "target_branch": "436370e325259b2b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.544273+00:00",
+    "target_branch": "b6a5f0ba216c394b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.556511+00:00",
+    "target_branch": "d533d17fdd89bf1e",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.568298+00:00",
+    "target_branch": "b4d10c2fbcefeae9",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.579017+00:00",
+    "target_branch": "26ca71d5ffa52278",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.590351+00:00",
+    "target_branch": "792df7c9707414f7",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.602239+00:00",
+    "target_branch": "920622817c7a8773",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.613412+00:00",
+    "target_branch": "d093bbb1fb8c700d",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.624859+00:00",
+    "target_branch": "ece9ecd39e3187d2",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.638154+00:00",
+    "target_branch": "abf6d160ef9d36e4",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.650374+00:00",
+    "target_branch": "d0756e695e8c6239",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.661582+00:00",
+    "target_branch": "5d85fd33dc636634",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.673147+00:00",
+    "target_branch": "f0dcb96821e0d93d",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.685490+00:00",
+    "target_branch": "c7801b8367bf7f2b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.697313+00:00",
+    "target_branch": "cf1e257d306019b4",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.710074+00:00",
+    "target_branch": "0d8efaeee0319980",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.721364+00:00",
+    "target_branch": "b18e490bfeee0f21",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.732990+00:00",
+    "target_branch": "f548c7aec6e74697",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.744831+00:00",
+    "target_branch": "76b04ba3e6eb8fdf",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.757138+00:00",
+    "target_branch": "dd42f1abd15d68ee",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.773104+00:00",
+    "target_branch": "3b390a786781ece4",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.787155+00:00",
+    "target_branch": "54894096bd7a44b8",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.800253+00:00",
+    "target_branch": "1eb79834ad79ee7a",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.813142+00:00",
+    "target_branch": "4eec74e09745ac01",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.824271+00:00",
+    "target_branch": "e1a1fb5c07cbcf2f",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.837075+00:00",
+    "target_branch": "e85375768a2f0b19",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.849753+00:00",
+    "target_branch": "70a137474da91d51",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.861834+00:00",
+    "target_branch": "234fc12c3fcf4f82",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.874453+00:00",
+    "target_branch": "150b0665e273e22b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.886930+00:00",
+    "target_branch": "e8046440f9f507a6",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.900374+00:00",
+    "target_branch": "1fdfab3a82607828",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.912887+00:00",
+    "target_branch": "14ee59da8a8c929f",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.923780+00:00",
+    "target_branch": "1a84663c73375903",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.933623+00:00",
+    "target_branch": "60297d83faab5b97",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.947820+00:00",
+    "target_branch": "f7f50ef2e0a46046",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.957491+00:00",
+    "target_branch": "60e0760c328ddfe4",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.970390+00:00",
+    "target_branch": "8cc20649a4af89c1",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.983117+00:00",
+    "target_branch": "cc31080c1e28c74a",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:24.996352+00:00",
+    "target_branch": "ec4502849a14c328",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.008270+00:00",
+    "target_branch": "fff97768cf7871e6",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.020199+00:00",
+    "target_branch": "a29b70702fe6341f",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.031352+00:00",
+    "target_branch": "a13f204d71aa9e49",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.043041+00:00",
+    "target_branch": "2358fbfc57ed0322",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.054887+00:00",
+    "target_branch": "2bd4f3269e473b59",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.068662+00:00",
+    "target_branch": "ecada97cb64797a6",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.081709+00:00",
+    "target_branch": "1937e6bb6926146d",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.095617+00:00",
+    "target_branch": "93f056d58fa1670e",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.108991+00:00",
+    "target_branch": "610b0553aa318f7c",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.120270+00:00",
+    "target_branch": "0c53cdce72b7355c",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.131815+00:00",
+    "target_branch": "50afdaba549838ce",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.145073+00:00",
+    "target_branch": "b1aa7d3ddee905b2",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.156906+00:00",
+    "target_branch": "6c28c6c195de3638",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.169991+00:00",
+    "target_branch": "146fa47285a3cdb8",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.183033+00:00",
+    "target_branch": "ac6e15a17eda033c",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.196169+00:00",
+    "target_branch": "d0d66acd68bc9a25",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.209799+00:00",
+    "target_branch": "f0874e2b23e45569",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.222499+00:00",
+    "target_branch": "466627e80eecc04f",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.234049+00:00",
+    "target_branch": "984b90bd7f907866",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.245536+00:00",
+    "target_branch": "7788afbaf6b5264b",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.258218+00:00",
+    "target_branch": "137584e1933b91dc",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.271932+00:00",
+    "target_branch": "447946dd441d7636",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.286153+00:00",
+    "target_branch": "148bcc7174801a8f",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.300875+00:00",
+    "target_branch": "90c57eedfaf2ba38",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.312896+00:00",
+    "target_branch": "ac238014c9c249cb",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.324128+00:00",
+    "target_branch": "ecd405562388368a",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.335260+00:00",
+    "target_branch": "14dc687c4daa54b5",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.347142+00:00",
+    "target_branch": "b8d23442e5f10f34",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.358785+00:00",
+    "target_branch": "a3a268ceb4bf2f11",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.372904+00:00",
+    "target_branch": "ea1b92fbab7441cf",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.385810+00:00",
+    "target_branch": "7853e5dea97fb655",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  },
+  {
+    "type": "STRIKE",
+    "strike_id": "e59b41c9fdefab51",
+    "phase": "POST-SWEEP",
+    "timestamp": "2026-06-20T19:24:25.399400+00:00",
+    "target_branch": "39c1acd35f984717",
+    "frequencies": [
+      396.0
+    ],
+    "intents": [
+      "liberation"
+    ],
+    "intensity": 0.7,
+    "duration": 20.0,
+    "phase_shift": 0.0,
+    "source": "clean_sweep_protocol"
+  }
+]

@@ -1,0 +1,63 @@
+{
+  "created_at": "2026-08-12T10:20:03.932197",
+  "total_predicted_edge": 0.0,
+  "days": [
+    {
+      "date": "2026-08-12T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 2,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    },
+    {
+      "date": "2026-08-13T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 3,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    },
+    {
+      "date": "2026-08-14T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 4,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    },
+    {
+      "date": "2026-08-15T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 5,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    },
+    {
+      "date": "2026-08-16T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 6,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    },
+    {
+      "date": "2026-08-17T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 0,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    },
+    {
+      "date": "2026-08-18T10:20:03.932197",
+      "daily_edge": 0.0,
+      "day_of_week": 1,
+      "is_optimal_day": false,
+      "is_avoid_day": false,
+      "windows": []
+    }
+  ],
+  "best_windows": []
+}

@@ -1,0 +1,12 @@
+.git/
+full-workspace-backup/
+**/.env
+**/.env.*
+**/.env1
+**/.env*.txt
+**/*.dpapi
+**/*.recovery-key
+**/portable-recovery-key.txt
+**/__pycache__/
+**/node_modules/
+**/.venv/

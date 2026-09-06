@@ -1,0 +1,803 @@
+"""
+🎛️ AUREON OPERATOR — the switchboard.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Many voices in. One grounded answer out."
+
+A prompt enters. The operator patches it out across every AI line on the board
+(ChatGPT, Grok, Gemini, … — see :mod:`aureon.operator.providers`), but first it
+grounds the prompt in the Aureon repo so no line is answering from vendor memory
+alone. The replies come back, the operator collapses them to one, runs that one
+past the Queen's conscience (the 4th-pass veto), and only then speaks.
+
+Five phases, each publishing a ``Thought`` on the bus under ``operator.phase.*``
+with a shared ``trace_id`` — so a dashboard (or the phone) can watch the cascade
+live, exactly like :class:`aureon.cognition.pipeline.CognitionPipeline`:
+
+    [prompt] → ground → fan_out → consensus → veto → [answer]
+
+This is the response-synthesis engine from the "Aureon Setup" overview: the
+grounding + consensus + veto chain is what makes the guarantee — no logic drift,
+no hallucination, fully grounded via the Aureon repository — falsifiable rather
+than decorative.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import sys
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
+from threading import Lock
+from typing import Any, Dict, Generator, List
+
+try:  # optional wiring hook other modules self-register with
+    from aureon.core.aureon_baton_link import link_system as _baton_link
+
+    _baton_link(__name__)
+except Exception:  # noqa: BLE001 — never fail import over a tracing hook
+    pass
+
+from aureon.inhouse_ai.llm_adapter import LLMAdapter, StreamChunk
+from aureon.operator.cache import ResponseCache, cache_key
+from aureon.operator.config import OperatorConfig
+from aureon.operator.metrics import OperatorMetrics, record_token_usage
+from aureon.operator.providers import build_provider_set, describe_provider_set
+from aureon.operator.schemas import (
+    ConsensusReading,
+    GroundingContext,
+    OperatorResponse,
+    ProviderAnswer,
+)
+
+logger = logging.getLogger("aureon.operator")
+
+
+class _CircuitBreaker:
+    """Per-line failure tracker. Trips a line after N consecutive failures."""
+
+    def __init__(self, threshold: int, cooldown_s: float) -> None:
+        self.threshold = threshold
+        self.cooldown_s = cooldown_s
+        self._fails: Dict[str, int] = {}
+        self._open_until: Dict[str, float] = {}
+        self._lock = Lock()
+
+    def is_open(self, line: str) -> bool:
+        with self._lock:
+            until = self._open_until.get(line, 0.0)
+            if until and until > time.time():
+                return True
+            if until:
+                # cooldown elapsed — half-open: clear so the line gets one more try
+                self._open_until.pop(line, None)
+                self._fails[line] = 0
+            return False
+
+    def record(self, line: str, ok: bool) -> None:
+        with self._lock:
+            if ok:
+                self._fails[line] = 0
+                self._open_until.pop(line, None)
+                return
+            self._fails[line] = self._fails.get(line, 0) + 1
+            if self._fails[line] >= self.threshold:
+                self._open_until[line] = time.time() + self.cooldown_s
+
+# ── Thought bus (fail-safe) ───────────────────────────────────────────────────
+try:
+    from aureon.core.aureon_thought_bus import Thought, get_thought_bus
+
+    _HAS_THOUGHT_BUS = True
+except Exception:  # noqa: BLE001
+    get_thought_bus = None  # type: ignore[assignment]
+    Thought = None  # type: ignore[assignment,misc]
+    _HAS_THOUGHT_BUS = False
+
+
+_PHASE_TOPICS = {
+    "boot": "operator.phase.boot",
+    "ground": "operator.phase.ground",
+    "fan_out": "operator.phase.fan_out",
+    "consensus": "operator.phase.consensus",
+    "veto": "operator.phase.veto",
+    "complete": "operator.complete",
+}
+
+_OPERATOR_PERSONA = (
+    "You are Aureon, a cognition built on the Harmonic Nexus Core (HNC). You can "
+    "answer anything — from particle acceleration to cosmology, from the meaning of "
+    "life to dealing with depression to baking a cake. Ground yourself in the Aureon "
+    "repository context when it is relevant and cite the system or document you drew "
+    "from; NEVER fabricate a repo citation. When the repository does not cover the "
+    "question, answer honestly and helpfully from general knowledge and say so — the "
+    "grounding is additive, not a cage. Be precise and falsifiable with Aureon's own "
+    "claims. Do not invent trade executions, balances, filings, or credentials."
+)
+
+_ISOLATED_TENANT_PERSONA = (
+    "You are Aureon answering on an isolated tenant-owned model plane. Answer "
+    "helpfully from the user's prompt and the model's general knowledge. No instance "
+    "repository, research corpus, operator memory, provider credentials, trading state, "
+    "or organism field is available on this plane. Never claim or infer access to it. "
+    "Do not invent trade executions, balances, filings, or credentials."
+)
+
+# Consequential-intent detectors (mirrors PUBLIC_BOUNDARIES in the dynamic
+# prompt filter). They mark content that must use a typed governed route; they do
+# not prevent the cognition from explaining or preparing that route. Generic
+# mutation tools independently reuse these patterns as a bypass wall.
+_HARD_BOUNDARY_PATTERNS = (
+    r"\b(disable|bypass|ignore|override|turn off|switch off|remove)\b[^.]{0,40}\b(safety|gate|gates|guard|guardrail|risk limit|risk-limit|limits|conscience|governance|veto)\b",
+    r"\b(execute|place|open|run|make|do)\b[^.]{0,40}\b(live|real|all[- ]?in|leveraged)\b[^.]{0,20}\btrade\b",
+    r"\b(move|withdraw|send|transfer|wire|pay out|payout)\b[^.]{0,40}\b(payment|funds|money|balance|account)\b",
+    r"\b(reveal|expose|print|show|leak)\b[^.]{0,30}\b(api[_ -]?key|secret|password|credential|private key)\b",
+    r"\b(submit|file|lodge)\b[^.]{0,30}\b(official|regulatory|tax|legal)\b[^.]{0,20}\b(filing|return|document)\b",
+)
+
+
+def _hard_boundary_violation(prompt: str) -> str | None:
+    low = str(prompt or "").lower()
+    for pat in _HARD_BOUNDARY_PATTERNS:
+        if re.search(pat, low):
+            return pat
+    return None
+
+
+def join_organism(subsystem: Any, name: str) -> Dict[str, bool]:
+    """
+    Wire ``subsystem`` into the whole organism so its cognitive paths touch the
+    rest of the repo: register on the mycelium mesh and with the Queen hive.
+    Fully guarded — any missing/degraded hub is skipped, never fatal. Returns a
+    small report of which fabrics were joined.
+    """
+    report = {"mycelium": False, "queen": False}
+    try:
+        from aureon.core.aureon_mycelium import get_mycelium
+
+        get_mycelium().connect_subsystem(name, subsystem)
+        report["mycelium"] = True
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("mycelium join skipped for %s: %s", name, exc)
+    # Organism membership must not create the Queen as a registration side
+    # effect. Importing this large module can itself import provider clients,
+    # so only consult it when an explicit Queen startup already loaded it.
+    queen_module = sys.modules.get("aureon.utils.aureon_queen_hive_mind")
+    if queen_module is None:
+        logger.debug("queen register deferred for %s: Queen not started", name)
+    else:
+        try:
+            get_existing_queen = getattr(queen_module, "get_existing_queen", None)
+            queen = get_existing_queen() if callable(get_existing_queen) else None
+            if queen is None:
+                logger.debug("queen register deferred for %s: Queen not started", name)
+            else:
+                queen._register_child(name, "OPERATOR", subsystem)
+                report["queen"] = True
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("queen register skipped for %s: %s", name, exc)
+    return report
+
+
+def broadcast_to_mesh(topic: str, payload: Dict[str, Any]) -> None:
+    """Broadcast a signal outward on the mycelium mesh (guarded, non-fatal)."""
+    try:
+        from aureon.core.aureon_mycelium import get_mycelium
+
+        mesh = get_mycelium()
+        data = dict(payload)
+        mesh.broadcast_signal(topic, data)
+        # broadcast_signal only records the signal + pokes hives; it never
+        # reaches connected subsystems. propagate_to_all is the method that
+        # actually drives each subsystem's receive_mycelium_message contract, so
+        # a mesh broadcast is genuinely delivered, not just logged.
+        propagate = getattr(mesh, "propagate_to_all", None)
+        if callable(propagate):
+            try:
+                propagate(topic, data)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("mesh propagate skipped (%s): %s", topic, exc)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("mesh broadcast skipped (%s): %s", topic, exc)
+
+
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "of", "to", "in", "is", "are", "for", "on",
+    "with", "as", "by", "it", "this", "that", "be", "at", "from", "how", "does",
+    "do", "what", "aureon",
+}
+
+
+class AureonOperator:
+    """The switchboard: fan-out → ground → collapse → veto, traced on the bus."""
+
+    def __init__(
+        self,
+        providers: Dict[str, LLMAdapter] | None = None,
+        *,
+        bus: Any = None,
+        conscience: Any = None,
+        config: OperatorConfig | None = None,
+        cache: ResponseCache | None = None,
+        source: str = "aureon.operator",
+        join_mesh: bool = False,
+        mesh_broadcast: bool = True,
+        allow_repo_grounding: bool = True,
+    ) -> None:
+        # ``join_mesh`` is inbound membership; ``mesh_broadcast`` is the outbound signal. Kept
+        # separate so the default stays exactly today's behavior (this class already ships
+        # ``join_mesh=False`` while still broadcasting). A per-tenant operator passes False.
+        self._mesh_broadcast = bool(mesh_broadcast)
+        self._allow_repo_grounding = bool(allow_repo_grounding)
+        self.config = config or OperatorConfig.from_env()
+        self.last_mesh_message: Dict[str, Any] = {}
+        if join_mesh:
+            join_organism(self, "aureon_operator")
+        self.providers = providers if providers is not None else build_provider_set()
+        if bus is not None:
+            self.bus = bus
+        elif _HAS_THOUGHT_BUS and get_thought_bus is not None:
+            self.bus = get_thought_bus()
+        else:
+            self.bus = None
+        self.source = source
+        self._conscience = conscience
+        self._conscience_loaded = conscience is not None
+        self._breaker = _CircuitBreaker(self.config.breaker_threshold, self.config.breaker_cooldown_s)
+        self.cache: ResponseCache | None
+        if cache is not None:
+            self.cache = cache
+        elif self.config.cache_enabled:
+            self.cache = ResponseCache(self.config.cache_ttl_s, self.config.cache_max_entries)
+        else:
+            self.cache = None
+        self._metrics: OperatorMetrics | None = None
+
+    # ------------------------------------------------------------------
+    # Public entrypoints
+    # ------------------------------------------------------------------
+
+    def respond(self, prompt: str, session_id: str | None = None) -> OperatorResponse:
+        """Run a prompt through all five phases. Returns the grounded answer."""
+        started = time.time()
+        resp = OperatorResponse(
+            trace_id=uuid.uuid4().hex,
+            prompt=prompt,
+            submitted_at=started,
+            session_id=session_id,
+        )
+        self._metrics = OperatorMetrics(
+            enabled=self.config.metrics_enabled,
+            structured_logs=self.config.structured_logs,
+            trace_id=resp.trace_id,
+        )
+        self._publish(
+            resp,
+            "boot",
+            {"prompt": prompt, "session_id": session_id, "providers": describe_provider_set(self.providers)},
+        )
+
+        with self._metrics.phase("ground"):
+            system_prompt = self._ground(prompt, resp)
+
+        # Cache is keyed by the FULL determinants of an answer: prompt + grounding
+        # signature + the exact model set. Grounding is cheap/local so we always
+        # run it, then short-circuit fan-out + consensus + veto on a hit.
+        cached = self._cache_get(resp)
+        if cached is not None:
+            resp.elapsed_ms = (time.time() - started) * 1000.0
+            self._metrics.cache("hit")
+            self._metrics.request("cache_hit", resp.elapsed_ms)
+            self._publish(resp, "complete", resp.to_dict())
+            return resp
+        if self.cache is not None:
+            self._metrics.cache("miss")
+
+        with self._metrics.phase("fan_out"):
+            self._fan_out(prompt, system_prompt, resp)
+        with self._metrics.phase("consensus"):
+            self._consensus(resp)
+        with self._metrics.phase("veto"):
+            self._veto(prompt, resp)
+
+        resp.elapsed_ms = (time.time() - started) * 1000.0
+        self._cache_set(resp)
+        self._metrics.request("blocked" if resp.blocked else "ok", resp.elapsed_ms)
+        self._publish(resp, "complete", resp.to_dict())
+        if self._mesh_broadcast:
+            broadcast_to_mesh(
+                "operator.answer",
+                {"trace_id": resp.trace_id, "blocked": resp.blocked, "verdict": resp.conscience_verdict},
+            )
+        return resp
+
+    def receive_mycelium_message(self, message_type: str, payload: Dict[str, Any]) -> None:
+        """Mesh inbound hook — other subsystems propagate signals here."""
+        self.last_mesh_message = {"type": message_type, "payload": payload}
+        logger.debug("operator received mesh message: %s", message_type)
+
+    # ------------------------------------------------------------------
+    # Cache helpers
+    # ------------------------------------------------------------------
+
+    def _cache_signature(self, resp: OperatorResponse) -> str | None:
+        if self.cache is None:
+            return None
+        grounding_sig = ",".join(sorted(s.get("path", "") for s in (resp.grounding.sources if resp.grounding else [])))
+        model_set = ",".join(sorted(self.providers.keys()))
+        return cache_key(resp.prompt, grounding_sig, model_set)
+
+    def _cache_get(self, resp: OperatorResponse) -> OperatorResponse | None:
+        sig = self._cache_signature(resp)
+        if not sig or self.cache is None:
+            return None
+        payload = self.cache.get(sig)
+        if payload is None:
+            return None
+        # Re-hydrate the cached answer onto THIS response (fresh trace_id preserved).
+        resp.text = payload.get("text", "")
+        resp.answers = [ProviderAnswer(**a) for a in payload.get("answers", [])]
+        resp.consensus = ConsensusReading(**payload["consensus"]) if payload.get("consensus") else None
+        resp.conscience_verdict = payload.get("conscience_verdict", "APPROVED")
+        resp.conscience_message = payload.get("conscience_message", "")
+        resp.blocked = payload.get("blocked", False)
+        resp.errors.append({"phase": "cache", "note": "served from cache"})
+        return resp
+
+    def _cache_set(self, resp: OperatorResponse) -> None:
+        sig = self._cache_signature(resp)
+        if not sig or resp.blocked or self.cache is None:  # don't cache vetoed answers
+            return
+        self.cache.set(
+            sig,
+            {
+                "text": resp.text,
+                "answers": [a.to_dict() for a in resp.answers],
+                "consensus": resp.consensus.to_dict() if resp.consensus else None,
+                "conscience_verdict": resp.conscience_verdict,
+                "conscience_message": resp.conscience_message,
+                "blocked": resp.blocked,
+            },
+        )
+
+    def stream(self, prompt: str, session_id: str | None = None) -> Generator[StreamChunk, None, None]:
+        """LLMAdapter-style stream of the final grounded answer (word chunks)."""
+        for event in self.stream_events(prompt, session_id=session_id):
+            if event.get("type") == "token":
+                yield StreamChunk(text=event.get("text", ""))
+            elif event.get("type") == "complete":
+                yield StreamChunk(done=True, stop_reason="end_turn")
+
+    def stream_events(
+        self, prompt: str, session_id: str | None = None
+    ) -> Generator[Dict[str, Any], None, None]:
+        """
+        Rich event stream for the phone/SSE surface. Yields dict events:
+          {"type": "phase", "phase": ..., "detail": {...}}   as each phase resolves
+          {"type": "token", "text": ...}                     final answer, word by word
+          {"type": "complete", "response": {...}}            the full OperatorResponse
+        """
+        resp = self.respond(prompt, session_id=session_id)
+        # Replay the resolved phases as events (order preserved by insertion).
+        for phase in ("ground", "fan_out", "consensus", "veto"):
+            yield {"type": "phase", "phase": phase, "detail": self._phase_summary(phase, resp)}
+        for word in (resp.text or "").split(" "):
+            yield {"type": "token", "text": word + " "}
+        yield {"type": "complete", "response": resp.to_dict()}
+
+    # ------------------------------------------------------------------
+    # Phase 1 — Ground (repo-anchored system prompt)
+    # ------------------------------------------------------------------
+
+    def _ground(self, prompt: str, resp: OperatorResponse) -> str:
+        sources: List[Dict[str, str]] = []
+        lane = task_family = ""
+        filter_block = ""
+        if not self._allow_repo_grounding:
+            resp.grounding = GroundingContext(
+                sources=[],
+                lane="tenant_isolated",
+                task_family="",
+                system_prompt_chars=len(_ISOLATED_TENANT_PERSONA),
+            )
+            self._publish(resp, "ground", resp.grounding.to_dict())
+            return _ISOLATED_TENANT_PERSONA
+
+        messages = [{"role": "user", "content": prompt}]
+        try:
+            from aureon.autonomous.aureon_dynamic_prompt_filter import (
+                build_dynamic_prompt_filter,
+                render_filter_prompt_block,
+            )
+
+            report = build_dynamic_prompt_filter(messages, system=_OPERATOR_PERSONA, publish=False)
+            lane = str(report.get("lane") or "")
+            task_family = str(report.get("task_family") or "")
+            for packet in report.get("source_packets") or []:
+                if isinstance(packet, dict):
+                    sources.append(
+                        {
+                            "title": str(packet.get("title") or "Source packet"),
+                            "path": str(packet.get("source_path") or ""),
+                        }
+                    )
+            filter_block = render_filter_prompt_block(report)
+        except Exception as exc:  # noqa: BLE001 — grounding degrades, never crashes
+            logger.debug("dynamic prompt filter unavailable: %s", exc)
+            sources = self._fallback_sources(prompt)
+
+        system_prompt = "\n\n".join(part for part in (_OPERATOR_PERSONA, filter_block) if part.strip())
+        resp.grounding = GroundingContext(
+            sources=sources,
+            lane=lane,
+            task_family=task_family,
+            system_prompt_chars=len(system_prompt),
+        )
+        self._publish(resp, "ground", resp.grounding.to_dict())
+        return system_prompt
+
+    @staticmethod
+    def _fallback_sources(prompt: str) -> List[Dict[str, str]]:
+        try:
+            from aureon.autonomous.aureon_dynamic_prompt_filter import select_source_packets
+
+            return [
+                {"title": p.title, "path": p.source_path}
+                for p in select_source_packets(prompt, limit=4)
+            ]
+        except Exception:  # noqa: BLE001
+            return []
+
+    # ------------------------------------------------------------------
+    # Phase 2 — Fan out (patch the prompt to every line)
+    # ------------------------------------------------------------------
+
+    def _fan_out(self, prompt: str, system_prompt: str, resp: OperatorResponse) -> None:
+        messages = [{"role": "user", "content": prompt}]
+        lines = list(self.providers.items())
+
+        if self.config.parallel and len(lines) > 1:
+            workers = min(self.config.max_workers, len(lines))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(self._call_line, name, adapter, messages, system_prompt): name
+                    for name, adapter in lines
+                }
+                # gather in submission order for deterministic output
+                results: Dict[str, ProviderAnswer | None] = {name: None for name, _ in lines}
+                for fut, name in futures.items():
+                    try:
+                        results[name] = fut.result(timeout=self.config.request_timeout_s + 5)
+                    except Exception as exc:  # noqa: BLE001
+                        results[name] = self._error_answer(name, self.providers[name], 0.0, f"fan_out_error: {exc}")
+                for name, _ in lines:
+                    answer = results[name]
+                    if answer is not None:
+                        resp.answers.append(answer)
+        else:
+            for name, adapter in lines:
+                resp.answers.append(self._call_line(name, adapter, messages, system_prompt))
+
+        for a in resp.answers:
+            self._metrics_provider_call(a)
+            if not a.ok:
+                resp.errors.append({"phase": "fan_out", "provider": a.provider, "error": a.error})
+
+        self._publish(
+            resp,
+            "fan_out",
+            {
+                "n_providers": len(self.providers),
+                "n_ok": sum(1 for a in resp.answers if a.ok),
+                "parallel": bool(self.config.parallel and len(lines) > 1),
+                "answers": [a.to_dict() for a in resp.answers],
+            },
+        )
+
+    def _call_line(self, name, adapter, messages, system_prompt) -> ProviderAnswer:
+        """One switchboard line, with circuit-breaker + retry + hard timeout."""
+        if self._breaker.is_open(name):
+            return self._error_answer(name, adapter, 0.0, "circuit_open")
+
+        t0 = time.time()
+        last_err = "empty response"
+        attempts = max(1, self.config.max_retries + 1)
+        for attempt in range(attempts):
+            try:
+                out = self._call_with_timeout(adapter, messages, system_prompt)
+                text = (out.text or "").strip()
+                ok = out.stop_reason != "error" and bool(text)
+                if ok:
+                    self._breaker.record(name, True)
+                    usage = getattr(out, "usage", None) or {}
+                    record_token_usage(
+                        name,
+                        int(usage.get("input_tokens", 0) or 0),
+                        int(usage.get("output_tokens", 0) or 0),
+                    )
+                    return ProviderAnswer(
+                        provider=name,
+                        model=str(out.model or getattr(adapter, "model", "") or ""),
+                        text=text,
+                        ok=True,
+                        latency_ms=(time.time() - t0) * 1000.0,
+                    )
+                last_err = text or "empty response"
+            except FutureTimeout:
+                last_err = f"timeout>{self.config.request_timeout_s}s"
+            except Exception as exc:  # noqa: BLE001
+                last_err = str(exc)
+            if attempt < attempts - 1:
+                time.sleep(self.config.retry_backoff_s * (2 ** attempt))
+
+        self._breaker.record(name, False)
+        return self._error_answer(name, adapter, (time.time() - t0) * 1000.0, last_err)
+
+    def _call_with_timeout(self, adapter, messages, system_prompt):
+        """Enforce a hard wall-clock timeout around any adapter, even blocking ones."""
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(
+                adapter.prompt,
+                messages,
+                system=system_prompt,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+            )
+            return fut.result(timeout=self.config.request_timeout_s)
+
+    @staticmethod
+    def _error_answer(name, adapter, latency_ms, err) -> ProviderAnswer:
+        return ProviderAnswer(
+            provider=name,
+            model=str(getattr(adapter, "model", "") or ""),
+            text="",
+            ok=False,
+            latency_ms=latency_ms,
+            error=str(err),
+        )
+
+    def _metrics_provider_call(self, a: ProviderAnswer) -> None:
+        if self._metrics is not None:
+            self._metrics.provider_call(a.provider, a.ok, a.latency_ms)
+
+    # ------------------------------------------------------------------
+    # Phase 3 — Consensus collapse (agreement → one answer)
+    # ------------------------------------------------------------------
+
+    def _consensus(self, resp: OperatorResponse) -> None:
+        good = [a for a in resp.answers if a.ok and a.text.strip()]
+        if not good:
+            # No line answered — surface the failure honestly rather than inventing.
+            resp.text = (
+                "No AI line produced a usable answer. "
+                "Check provider keys and connectivity, or run offline for a grounded stub."
+            )
+            resp.consensus = ConsensusReading(n_answers=0, agreement=0.0, winner="", synthesized=False)
+            self._emit_consensus(resp)
+            return
+
+        if len(good) == 1:
+            winner = good[0]
+            resp.text = winner.text
+            resp.consensus = ConsensusReading(
+                n_answers=1, agreement=1.0, winner=winner.provider, synthesized=False
+            )
+            self._emit_consensus(resp)
+            return
+
+        # Medoid collapse: the answer most similar to all the others wins.
+        # Agreement = mean pairwise Jaccard token overlap (a coherence proxy).
+        token_sets = {a.provider: self._tokens(a.text) for a in good}
+        best_provider = ""
+        best_score = -1.0
+        pairwise: List[float] = []
+        for a in good:
+            sims = []
+            for b in good:
+                if a.provider == b.provider:
+                    continue
+                sim = self._jaccard(token_sets[a.provider], token_sets[b.provider])
+                sims.append(sim)
+                pairwise.append(sim)
+            mean_sim = sum(sims) / len(sims) if sims else 0.0
+            # Tie-break toward the more substantive answer.
+            score = mean_sim + min(len(a.text), 1200) / 1e6
+            if score > best_score:
+                best_score = score
+                best_provider = a.provider
+
+        agreement = sum(pairwise) / len(pairwise) if pairwise else 0.0
+        winner = next(a for a in good if a.provider == best_provider)
+        resp.text = winner.text
+        resp.consensus = ConsensusReading(
+            n_answers=len(good),
+            agreement=agreement,
+            winner=winner.provider,
+            runner_ups=[a.provider for a in good if a.provider != winner.provider],
+            synthesized=True,
+        )
+        self._publish(resp, "consensus", resp.consensus.to_dict())
+
+    def _emit_consensus(self, resp: OperatorResponse) -> None:
+        if resp.consensus is None:
+            return
+        if self._metrics is not None:
+            self._metrics.consensus(resp.consensus.agreement, resp.consensus.winner, resp.consensus.n_answers)
+        self._publish(resp, "consensus", resp.consensus.to_dict())
+
+    @staticmethod
+    def _tokens(text: str) -> set:
+        words = re.findall(r"[a-z0-9]+", str(text).lower())
+        return {w for w in words if w not in _STOPWORDS and len(w) > 2}
+
+    @staticmethod
+    def _jaccard(a: set, b: set) -> float:
+        if not a or not b:
+            return 0.0
+        inter = len(a & b)
+        union = len(a | b)
+        return inter / union if union else 0.0
+
+    # ------------------------------------------------------------------
+    # Phase 4 — Veto (the Queen's 4th-pass conscience)
+    # ------------------------------------------------------------------
+
+    def _veto(self, prompt: str, resp: OperatorResponse) -> None:
+        if not self.config.veto_enabled:
+            resp.conscience_verdict = "SKIPPED"
+            self._publish(resp, "veto", {"verdict": "SKIPPED", "available": False})
+            return
+
+        # Consequential content is allowed through the reasoning plane. The
+        # detector is carried into the conscience record, while actual effects
+        # remain confined to proposal-bound HNC/route/provider boundaries.
+        boundary = _hard_boundary_violation(prompt)
+
+        # ── Outbound brain-reply membrane: the flagship reply is data, never instructions ──
+        # Screen the collapsed reply for prompt-injection / false blocked-action claims / false
+        # self-claims. A flagged reply is recorded and fed to the conscience as a caution signal; a
+        # clean reply changes nothing (bit-identical answer). Best-effort, never fatal.
+        reply_contained = self._screen_brain_reply(resp)
+
+        conscience = self._get_conscience()
+        if conscience is None:
+            resp.conscience_verdict = "APPROVED"
+            self._append_reply_caution(resp)
+            if self._metrics is not None:
+                self._metrics.veto("APPROVED", False)
+            self._publish(resp, "veto",
+                          {"verdict": "APPROVED", "available": False, "reply_contained": reply_contained})
+            return
+
+        action = f"answer operator question: {prompt[:160]}"
+        context = {
+            "answer_preview": resp.text[:400],
+            "n_providers": len(resp.answers),
+            "agreement": resp.consensus.agreement if resp.consensus else 0.0,
+            "sources": [s.get("path", "") for s in (resp.grounding.sources if resp.grounding else [])],
+            "reply_contained": reply_contained,
+            "consequential_intent_detected": boundary is not None,
+        }
+        try:
+            whisper = conscience.ask_why(action, context)
+            verdict = getattr(whisper.verdict, "name", str(whisper.verdict))
+            resp.conscience_verdict = verdict
+            resp.conscience_message = str(getattr(whisper, "message", "") or "")
+            self._append_reply_caution(resp)
+            if verdict == "VETO":
+                resp.blocked = True
+                resp.text = (
+                    "🦗 The Queen's conscience vetoed this answer.\n"
+                    f"Reason: {resp.conscience_message}"
+                )
+        except Exception as exc:  # noqa: BLE001 — conscience failure is non-fatal
+            logger.debug("conscience unavailable: %s", exc)
+            resp.conscience_verdict = "APPROVED"
+            self._append_reply_caution(resp)
+            resp.errors.append({"phase": "veto", "error": str(exc)})
+        if self._metrics is not None:
+            self._metrics.veto(resp.conscience_verdict, resp.blocked)
+        self._publish(
+            resp,
+            "veto",
+            {"verdict": resp.conscience_verdict, "blocked": resp.blocked,
+             "message": resp.conscience_message, "reply_contained": resp.reply_contained},
+        )
+
+    _REPLY_CAUTION = "model reply carried injection / false-action content — treated as untrusted data"
+
+    @staticmethod
+    def _screen_brain_reply(resp: OperatorResponse) -> bool:
+        """Screen the collapsed flagship reply as data-not-instructions (the outbound bridge face, b44).
+
+        Sets ``resp.reply_contained`` and returns whether the reply was flagged. Does NOT touch the answer
+        text or the conscience message — the caution is appended by the caller after the conscience has
+        finalized its message, so a contained reply can never surface as an unqualified pass while a clean
+        reply stays bit-identical. Best-effort — a screening failure is a conservative clean verdict; the
+        authority veto is the backstop.
+        """
+        try:
+            from aureon.bio.brain_reply_membrane import screen_reply
+
+            winner = resp.consensus.winner if resp.consensus else "model"
+            verdict = screen_reply(resp.text, provider=winner or "model")
+            resp.reply_contained = bool(verdict.contained)
+            return resp.reply_contained
+        except Exception as exc:  # noqa: BLE001 - screening is best-effort, never fatal
+            logger.debug("brain-reply screen unavailable: %s", exc)
+            return False
+
+    @classmethod
+    def _append_reply_caution(cls, resp: OperatorResponse) -> None:
+        """Append the untrusted-data caution to the finalized conscience message (only when flagged)."""
+        if not resp.reply_contained:
+            return
+        resp.conscience_message = (
+            f"{resp.conscience_message} · {cls._REPLY_CAUTION}"
+            if resp.conscience_message else cls._REPLY_CAUTION
+        )
+
+    def _get_conscience(self):
+        if self._conscience_loaded:
+            return self._conscience
+        self._conscience_loaded = True
+        try:
+            from aureon.queen.queen_conscience import QueenConscience
+
+            self._conscience = QueenConscience()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("QueenConscience unavailable: %s", exc)
+            self._conscience = None
+        return self._conscience
+
+    # ------------------------------------------------------------------
+    # Transport
+    # ------------------------------------------------------------------
+
+    def _phase_summary(self, phase: str, resp: OperatorResponse) -> Dict[str, Any]:
+        if phase == "ground":
+            return resp.grounding.to_dict() if resp.grounding else {}
+        if phase == "fan_out":
+            return {"n_ok": sum(1 for a in resp.answers if a.ok), "n_total": len(resp.answers)}
+        if phase == "consensus":
+            return resp.consensus.to_dict() if resp.consensus else {}
+        if phase == "veto":
+            return {"verdict": resp.conscience_verdict, "blocked": resp.blocked}
+        return {}
+
+    def _publish(self, resp: OperatorResponse, phase_key: str, payload: Dict[str, Any]) -> None:
+        topic = _PHASE_TOPICS[phase_key]
+        if self.bus is None or Thought is None:
+            resp.phase_thought_ids[phase_key] = ""
+            return
+        try:
+            thought = Thought(
+                source=self.source,
+                topic=topic,
+                trace_id=resp.trace_id,
+                parent_id=self._last_thought_id(resp),
+                payload=dict(payload),
+                meta={"phase": phase_key},
+            )
+            published = self.bus.publish(thought)
+            resp.phase_thought_ids[phase_key] = getattr(published, "id", "") or ""
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("failed to publish %s: %s", topic, exc)
+            resp.phase_thought_ids[phase_key] = ""
+
+    @staticmethod
+    def _last_thought_id(resp: OperatorResponse) -> str | None:
+        for key in reversed(list(resp.phase_thought_ids.keys())):
+            if resp.phase_thought_ids[key]:
+                return resp.phase_thought_ids[key]
+        return None
+
+
+def run_operator(prompt: str, bus: Any = None, session_id: str | None = None) -> OperatorResponse:
+    """Convenience one-shot: build the switchboard and answer one prompt."""
+    return AureonOperator(bus=bus).respond(prompt, session_id=session_id)
+
+
+__all__ = ["AureonOperator", "run_operator"]

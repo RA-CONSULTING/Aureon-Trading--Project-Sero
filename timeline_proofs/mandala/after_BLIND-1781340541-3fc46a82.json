@@ -1,0 +1,46 @@
+[
+  {
+    "source": "bbc",
+    "url": "http://feeds.bbci.co.uk/news/rss.xml",
+    "timestamp": "2026-06-13T08:49:31.673449+00:00",
+    "headlines": [],
+    "full_text": "",
+    "word_count": 0,
+    "hash": "b2a0f5100c0aff32"
+  },
+  {
+    "source": "reuters",
+    "url": "http://feeds.reuters.com/reuters/topNews",
+    "timestamp": "2026-06-13T08:49:31.673449+00:00",
+    "headlines": [
+      "ERROR: HTTPConnectionPool(host='feeds.reuters.com', port=80): Max retries exceeded with url: /reuters/topNews (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x78c3dbbce420>: Failed to resolve 'feeds.reuters.com' ([Errno -2] Name or service not known)\"))"
+    ],
+    "full_text": "ERROR: HTTPConnectionPool(host='feeds.reuters.com', port=80): Max retries exceeded with url: /reuters/topNews (Caused by NameResolutionError(\"<urllib3.connection.HTTPConnection object at 0x78c3dbbce420>: Failed to resolve 'feeds.reuters.com' ([Errno -2] Name or service not known)\"))",
+    "word_count": 0,
+    "hash": "ERROR"
+  },
+  {
+    "source": "cnn",
+    "url": "http://rss.cnn.com/rss/edition.rss",
+    "timestamp": "2026-06-13T08:49:31.673449+00:00",
+    "headlines": [],
+    "full_text": "",
+    "word_count": 0,
+    "hash": "f063cdeabb79e478"
+  },
+  {
+    "source": "guardian",
+    "url": "https://www.theguardian.com/uk/rss",
+    "timestamp": "2026-06-13T08:49:31.673449+00:00",
+    "headlines": [
+      "The Guardian",
+      "\u2018Have you ever been around someone you just know is evil?\u2019 Melinda French Gates on meeting Jeffrey Epstein, giving away billions, and her post-divorce peace",
+      "70 brilliant books for the summer",
+      "Jessie J\u2019s triumphant return puts lucrative Chinese market in spotlight",
+      "\u2018I thought \u2013 gosh, he\u2019s going to be some player\u2019: the making of England\u2019s Declan Rice"
+    ],
+    "full_text": "The Guardian\n\u2018Have you ever been around someone you just know is evil?\u2019 Melinda French Gates on meeting Jeffrey Epstein, giving away billions, and her post-divorce peace\n70 brilliant books for the summer\nJessie J\u2019s triumphant return puts lucrative Chinese market in spotlight\n\u2018I thought \u2013 gosh, he\u2019s going to be some player\u2019: the making of England\u2019s Declan Rice",
+    "word_count": 59,
+    "hash": "e7ae3410d5b6553e"
+  }
+]

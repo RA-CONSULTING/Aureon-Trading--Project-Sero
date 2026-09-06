@@ -1,0 +1,24 @@
+{
+  "certification": {
+    "hash_chain": "e9a97961c9cb66aa2374c398bfc69c6a \u2192 570e6c7b89c4c1920a33bd8e312d70b9",
+    "method": "sha256",
+    "verified": true
+  },
+  "cycle_timestamp": "2026-06-13T05:28:49.477738+00:00",
+  "intervention": {
+    "actions": [
+      {
+        "action": "queen_veto",
+        "behavior": "oscillating",
+        "kappa": 1.7249354804019286,
+        "status": "vetoed"
+      }
+    ],
+    "duration_sec": 0.0007734298706054688,
+    "queen_check": {
+      "behavior": "oscillating",
+      "constraint": 5.0,
+      "kappa": 1.7249354804019286,
+      "purity": 0.06930279434469272,
+      "resonance": 0.34651404102625794,
+      "safe_to_push": 

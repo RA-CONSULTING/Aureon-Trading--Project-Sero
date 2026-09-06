@@ -1,0 +1,1 @@
+{"action":"evaluate","args":{"code":"document.querySelector('a[href*=\"competition\"]').click()"},"session":"ukri-grant"}

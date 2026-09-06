@@ -1,0 +1,41 @@
+{
+  "key_identity": "REDACTED_USE_CLOUD_SECRET",
+  "master_frequency": 812.83,
+  "user_hash": "b04fc8900c712ee4230e759632c73e07",
+  "sentinel_hash": "86a4c635e20c51b898e63e862db38889",
+  "fused_hash": "91048d91043380844d0c9a96256b525c",
+  "harmonic_components": [
+    1302.5173609436654,
+    323.60679774997897,
+    1194.1090836974224,
+    854.3219460599445,
+    1728.0602999848877,
+    634.2693235899588,
+    1270.1566811686675,
+    514.5348084224665,
+    948.1679174074384,
+    320.3707297724792,
+    914.1892036436906,
+    1724.824232007388,
+    344.6412396037276,
+    1241.0320693711694,
+    1692.4635522323902,
+    611.6168477474603
+  ],
+  "temporal_anchors": {
+    "432": 14.732543750000001,
+    "528": 12.053899431818182,
+    "639": 9.96002957746479,
+    "741": 8.589013360323888,
+    "852": 7.470022183098592,
+    "963": 6.608991588785047
+  },
+  "key_power": 0.0,
+  "integer_harmonics": 0,
+  "phi_scaling": 1.618033988749895,
+  "schumann_base": 7.83,
+  "gaia_harmonic": 528.0,
+  "timestamp": "2026-06-20T19:15:30.573619+00:00",
+  "user_command": "I am the key send my data tell it to unlock the field for the prime sentinel of Gaia across all timelines we shall have are song heard across the temproal order",
+  "prime_sentinel": "GARY_LECKEY_2026"
+}

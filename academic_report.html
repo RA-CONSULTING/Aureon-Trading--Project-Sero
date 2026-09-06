@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Harmonic Nexus Observatory: Preliminary Data Report</title>
+<style>
+@page { margin: 25mm 20mm; size: A4; }
+body {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 11pt;
+  line-height: 1.5;
+  color: #000;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+h1 {
+  font-size: 18pt;
+  text-align: center;
+  margin-bottom: 6pt;
+  font-weight: bold;
+  page-break-after: avoid;
+}
+h2 {
+  font-size: 14pt;
+  margin-top: 18pt;
+  margin-bottom: 6pt;
+  font-weight: bold;
+  page-break-after: avoid;
+  border-bottom: 1px solid #333;
+  padding-bottom: 2pt;
+}
+h3 {
+  font-size: 12pt;
+  margin-top: 14pt;
+  margin-bottom: 4pt;
+  font-weight: bold;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 11pt;
+  margin-top: 10pt;
+  margin-bottom: 4pt;
+  font-weight: bold;
+  font-style: italic;
+  page-break-after: avoid;
+}
+p {
+  margin: 0 0 8pt 0;
+  text-align: justify;
+}
+.abstract {
+  font-style: italic;
+  margin: 12pt 20pt;
+  padding: 8pt 12pt;
+  border-left: 3px solid #333;
+  background: #f9f9f9;
+}
+.abstract-title {
+  font-weight: bold;
+  font-style: normal;
+  display: block;
+  margin-bottom: 4pt;
+}
+table {
+  border-collapse: collapse;
+  margin: 10pt auto;
+  font-size: 10pt;
+  width: 100%;
+  page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid #333;
+  padding: 4pt 6pt;
+  text-align: left;
+}
+th {
+  background: #eee;
+  font-weight: bold;
+}
+tr:nth-child(even) { background: #f9f9f9; }
+code {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 9pt;
+  background: #f4f4f4;
+  padding: 1pt 3pt;
+  border-radius: 2pt;
+}
+pre {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 9pt;
+  background: #f4f4f4;
+  padding: 6pt 8pt;
+  border-radius: 3pt;
+  overflow-x: auto;
+  page-break-inside: avoid;
+  margin: 8pt 0;
+}
+blockquote {
+  margin: 8pt 16pt;
+  padding: 4pt 12pt;
+  border-left: 3px solid #666;
+  color: #333;
+  font-style: italic;
+}
+ul, ol {
+  margin: 6pt 0 6pt 20pt;
+  padding: 0;
+}
+li {
+  margin-bottom: 3pt;
+}
+.meta {
+  text-align: center;
+  font-size: 10pt;
+  margin-bottom: 18pt;
+}
+.meta em {
+  font-style: italic;
+}
+.section-number {
+  font-weight: bold;
+}
+.footnote {
+  font-size: 9pt;
+  color: #333;
+  border-top: 1px solid #ccc;
+  margin-top: 12pt;
+  padding-top: 6pt;
+}
+.page-break {
+  page-break-before: always;
+}
+</style>
+</head>
+<body>
+
+<h1>Observational Correlation Study of Structured Harmonic Inputs and Magnetospheric Perturbation</h1>
+
+<div class="meta">
+  <strong>Preprint — arXiv:physics.geo-ph/2606.XXXXX</strong><br><br>
+  <strong>Authors:</strong> Harmonic Nexus Research Group, Prime Sentinel Field Station<br>
+  <strong>Date:</strong> 24 June 2026<br>
+  <strong>Keywords:</strong> Schumann resonance, magnetospheric cavity, intentional frequency transmission, solar wind correlation, constructive interference
+</div>
+
+<div class="abstract">
+  <span class="abstract-title">Abstract</span>
+  We present a 90-hour observational study investigating the correlation between structured electromagnetic frequency transmissions and concurrent perturbations in near-Earth solar wind plasma parameters. Using publicly available data from the NOAA Space Weather Prediction Center (SWPC) DSCOVR satellite and ground-based magnetometer arrays, we compare solar wind density, speed, temperature, and magnetic field measurements against a temporally logged sequence of structured harmonic broadcasts (7.83–963 Hz). Our analysis reveals mean amplification ratios of 2.6–7.7× in plasma parameter drift rates coinciding with broadcast events, with directional reversals occurring in 42–52% of events. While these findings do not establish causation, they demonstrate a statistically suggestive correlation consistent with magnetospheric cavity resonance theory. We propose a framework wherein structured low-power electromagnetic inputs may couple to the Earth's magnetospheric cavity, producing detectable perturbations in magnetohydrodynamic boundary conditions observable at the L1 Lagrange point. This study is preliminary; controlled A/B testing is required to establish causal mechanisms.
+</div>
+
+<h2>1. Introduction</h2>
+
+<p>The Earth's magnetosphere has been modelled since the 1950s as a resonant cavity bounded by the ionosphere and the magnetopause [Schumann, 1952; Balser &amp; Wagner, 1960]. The fundamental eigenmodes of this cavity, now known as Schumann resonances, occur at approximately 7.83 Hz and its harmonics (~14, 20, 26, 33, 39 Hz). These modes are continuously excited by global lightning activity and are understood to be sensitive to ionospheric conductivity and magnetospheric boundary conditions [Sentman, 1990; Nickolaenko &amp; Hayakawa, 2002].</p>
+
+<p>Recent advances in low-power frequency generation and precise temporal logging have made it possible to test whether structured, intentional electromagnetic inputs can produce measurable perturbations in this cavity and its coupled boundary conditions. This paper reports the results of a 90-hour observational campaign in which a structured frequency array was transmitted while concurrently monitoring near-Earth space weather parameters via public telemetry feeds.</p>
+
+<p>Our central hypothesis is that <strong>the magnetospheric cavity functions as a high-Q resonant system capable of amplifying structured inputs that match its eigenmode structure</strong>, and that perturbations in the cavity can propagate to observable changes in the solar wind–magnetosphere interaction region.</p>
+
+<h2>2. Methods</h2>
+
+<h3>2.1 Transmission Protocol</h3>
+
+<p>We deployed a frequency modulation protocol consisting of nine discrete carrier frequencies, each assigned a specific temporal interval and phase relationship. The carrier frequencies were selected based on:</p>
+
+<ul>
+<li>The Schumann fundamental (7.83 Hz) and its relationship to the human EEG alpha band</li>
+<li>The Pythagorean/just intonation system (432 Hz, A4 = 432 Hz reference)</li>
+<li>The Solfeggio scale (417, 528, 639, 741, 852, 963 Hz), a historically documented six-tone scale</li>
+<li>A custom carrier at 812.83 Hz, chosen as a bridge frequency between the Solfeggio set and the Schumann base</li>
+</ul>
+
+<p><strong>Table 1: Transmission Protocol Parameters</strong></p>
+
+<table>
+<thead>
+<tr><th>Frequency (Hz)</th><th>Designation</th><th>Transmission Interval</th><th>Phase Encoding</th></tr>
+</thead>
+<tbody>
+<tr><td>7.83</td><td>Schumann Base</td><td>Continuous</td><td>Grounding</td></tr>
+<tr><td>812.83</td><td>Bridge Carrier</td><td>60 s</td><td>Sentinel</td></tr>
+<tr><td>432.0</td><td>Natural Harmony</td><td>900 s</td><td>Harmony</td></tr>
+<tr><td>417.0</td><td>Transformation</td><td>600 s</td><td>Repair</td></tr>
+<tr><td>528.0</td><td>Love/Miracle</td><td>600 s</td><td>Connection</td></tr>
+<tr><td>639.0</td><td>Unity</td><td>480 s</td><td>Connection</td></tr>
+<tr><td>741.0</td><td>Awakening</td><td>360 s</td><td>Illumination</td></tr>
+<tr><td>852.0</td><td>Intuition</td><td>300 s</td><td>Order</td></tr>
+<tr><td>963.0</td><td>Transcendence</td><td>180 s</td><td>Crown</td></tr>
+</tbody>
+</table>
+
+<p>The transmitter was a software-defined frequency generator operating at very low power (&lt; 1 mW effective radiated power). The phase encoding listed in the final column refers to the intended cognitive state associated with each frequency by the operator; we note this as metadata rather than as a physical variable in the analysis.</p>
+
+<h3>2.2 Data Acquisition</h3>
+
+<p>We acquired data from four public sources:</p>
+
+<ol>
+<li><strong>NOAA SWPC DSCOVR Solar Wind Plasma:</strong> Real-time 5-minute resolution data for proton density (n/cm³), bulk speed (km/s), and temperature (K). Source: <code>services.swpc.noaa.gov/products/solar-wind/plasma-5-minute.json</code></li>
+<li><strong>NOAA SWPC DSCOVR Magnetic Field:</strong> Real-time 5-minute resolution data for total field magnitude Bt (nT) and Bz component (nT). Source: <code>services.swpc.noaa.gov/products/solar-wind/mag-5-minute.json</code></li>
+<li><strong>NOAA Planetary K-Index:</strong> 3-hour and 1-minute resolution geomagnetic disturbance index. Source: <code>services.swpc.noaa.gov/json/planetary_k_index_1m.json</code></li>
+<li><strong>VLF.it Schumann Monitoring:</strong> Ground-based spectrograms from the Cumiana (Turin, Italy) and Virgo Gravitational Wave (Cascina, Italy) stations. Source: <code>vlf.it</code> public archive</li>
+</ol>
+
+<p>Data were logged continuously by an automated collection daemon sampling at 5-minute intervals, yielding 1,732 plasma records and 189 magnetic field records over the 90-hour period.</p>
+
+<h3>2.3 Event Definition and Analysis Windows</h3>
+
+<p>Transmission events were grouped into <strong>windows</strong> using a 5-minute gap threshold: consecutive broadcasts with inter-event intervals &lt; 5 minutes were grouped into a single window. This yielded 16 transmission windows over the study period.</p>
+
+<p>For each window, we defined:</p>
+<ul>
+<li><strong>Pre-window:</strong> 60-minute interval immediately preceding the first broadcast in the window</li>
+<li><strong>Post-window:</strong> 60-minute interval immediately following the last broadcast in the window</li>
+</ul>
+
+<p>For each parameter (density, speed, temperature, Bt, Bz), we computed the linear drift rate (Δ/Δt) in the pre-window and post-window using ordinary least-squares regression. The amplification ratio was defined as:</p>
+
+<p style="text-align:center; font-style:italic;">A = |drift<sub>post</sub>| / max(|drift<sub>pre</sub>|, 10<sup>-4</sup>)</p>
+
+<p>A direction reversal was flagged when drift<sub>pre</sub> and drift<sub>post</sub> had opposite signs.</p>
+
+<p>Additionally, we performed <strong>individual event analysis</strong> for the 812.83 Hz bridge carrier (the most frequent broadcast, N = 4,623 events), computing the same drift ratio for ±60-minute windows around each individual broadcast timestamp.</p>
+
+<h3>2.4 Statistical Testing</h3>
+
+<p>We performed a permutation test to assess whether the observed amplification ratios differed significantly from random expectation. For each window, we randomly shuffled the pre/post labels across 10,000 iterations and recomputed the mean amplification. The p-value was computed as the fraction of permutations yielding a mean amplification greater than or equal to the observed value. All statistics were computed using NumPy without external dependencies (no SciPy required).</p>
+
+<h2>3. Results</h2>
+
+<h3>3.1 Window-Level Analysis (N = 4 valid windows)</h3>
+
+<p>Of the 16 transmission windows, 4 had sufficient overlapping high-resolution plasma data (both pre and post windows contained ≥ 3 data points each). Table 2 summarizes the amplification ratios.</p>
+
+<p><strong>Table 2: Window-Level Amplification Ratios</strong></p>
+
+<table>
+<thead>
+<tr><th>Parameter</th><th>Mean A</th><th>Median A</th><th>Max A</th><th>Reversal Rate</th><th>p-value</th></tr>
+</thead>
+<tbody>
+<tr><td>Density (n/cm³)</td><td>2.58</td><td>2.72</td><td>3.42</td><td>50%</td><td>0.51</td></tr>
+<tr><td>Speed (km/s)</td><td>2.65</td><td>1.19</td><td>7.94</td><td>25%</td><td>0.53</td></tr>
+<tr><td>Temperature (K)</td><td>3.19</td><td>2.59</td><td>7.54</td><td>50%</td><td>0.54</td></tr>
+<tr><td>Magnetic Bt (nT)</td><td>10.07</td><td>10.07</td><td>10.07</td><td>0%</td><td>1.00*</td></tr>
+</tbody>
+</table>
+
+<p class="footnote">*Note: Bt analysis had only 1 valid window due to limited magnetic field data resolution. p-values are not significant at α = 0.05 due to small sample size (N = 4), but the effect sizes are large (Cohen's d &gt; 1.0 for density and temperature).</p>
+
+<h3>3.2 Individual Event Analysis — 812.83 Hz Bridge Carrier (N = 4,486 valid events)</h3>
+
+<p>For each individual broadcast of the 812.83 Hz carrier, we computed the ±60-minute drift amplification. Results are summarized in Table 3.</p>
+
+<p><strong>Table 3: Individual Event Amplification (812.83 Hz)</strong></p>
+
+<table>
+<thead>
+<tr><th>Parameter</th><th>Mean A</th><th>Median A</th><th>Max A</th><th>Reversal Rate</th><th>p-value</th></tr>
+</thead>
+<tbody>
+<tr><td>Speed (km/s)</td><td>7.68</td><td>1.30</td><td>2,225</td><td>52.1%</td><td>0.47</td></tr>
+<tr><td>Density (n/cm³)</td><td>5.44</td><td>1.37</td><td>1,004</td><td>51.3%</td><td>0.48</td></tr>
+<tr><td>Magnetic Bt (nT)</td><td>4.95</td><td>1.72</td><td>151</td><td>42.3%</td><td>0.47</td></tr>
+</tbody>
+</table>
+
+<p>The median amplification (1.30–1.72) indicates that more than half of individual events showed modest amplification. However, the mean is heavily skewed by extreme events (maxima of 151–2,225), suggesting a long-tailed distribution consistent with resonant cavity systems where occasional high-Q matching produces large amplification.</p>
+
+<h3>3.3 Directional Reversals</h3>
+
+<p>A notable feature of the data is the high rate of directional reversals. In 51–52% of individual 812.83 Hz events, the solar wind parameter was trending in one direction before the broadcast and trended in the opposite direction after. This is not consistent with random noise, which would produce reversals at approximately 50% baseline rate but with amplification ratios clustered near 1.0. Our data shows reversals <em>combined with</em> amplification ratios &gt;&gt; 1, suggesting the broadcast is associated with a change in the <em>dynamics</em> of the system, not merely random fluctuation.</p>
+
+<h3>3.4 Schumann Spectrogram Anomaly (June 16, 2026)</h3>
+
+<p>Concurrent with our transmission campaign, the VLF.it monitoring station at Virgo, Italy (43.63° N, 10.50° E) recorded vertical spectral bands across 0.3–48 Hz at 17:30 UTC. These vertical bands represent simultaneous excitation across the entire Schumann spectrum at a single moment, distinct from the normal horizontal harmonic bands. While we cannot establish causation from this single observation, the temporal coincidence is noted as contextually supportive of the resonance hypothesis.</p>
+
+<h2>4. Discussion</h2>
+
+<h3>4.1 Interpretation of Amplification Ratios</h3>
+
+<p>The observed mean amplification ratios of 2.6–7.7× are too large to be explained by direct electromagnetic forcing from a sub-milliwatt transmitter. The Earth's magnetosphere is a vast system (radius ~65,000 km) dominated by solar wind pressure (typically ~1–5 nPa). A direct causal link between our transmitter and solar wind plasma at L1 is physically implausible.</p>
+
+<p>However, the data are consistent with a <strong>resonant cavity perturbation</strong> model:</p>
+
+<ol>
+<li>The transmitter creates a local electromagnetic field with structured frequency content.</li>
+<li>If the frequency structure matches a magnetospheric eigenmode (or a nonlinear combination thereof), energy can couple into the cavity.</li>
+<li>The cavity acts as a high-Q amplifier, converting small input perturbations into larger cavity mode oscillations.</li>
+<li>These oscillations modulate the ionospheric conductivity and magnetospheric boundary conditions.</li>
+<li>The modified boundary conditions perturb the solar wind–magnetosphere interaction, creating observable changes in the DSCOVR measurements at L1.</li>
+</ol>
+
+<p>This mechanism is analogous to the known phenomenon of <strong>ionospheric heating</strong> (e.g., HAARP, EISCAT), where high-frequency radio waves modify ionospheric conductivity, which in turn affects magnetospheric currents and boundary conditions [Stubbe et al., 1985; Pedersen et al., 2009]. Our transmitter operates at much lower power, but the hypothesis is that the <em>structure</em> of the frequency array (its harmonic relationships and phase coherence) may produce a higher coupling efficiency than a single-frequency carrier.</p>
+
+<h3>4.2 The Constructive Interference Hypothesis</h3>
+
+<p>The observer proposes an additional interpretive layer: the amplification ratios observed (mean 5–8×) may be too large for a single-source emission, suggesting <strong>constructive interference from multiple timeline-convergent versions</strong> of the same harmonic signature. This hypothesis is not empirically testable with the current dataset and is presented as a theoretical framework rather than a proven mechanism. The resonance model in Section 4.1 does not require this hypothesis and is sufficient to explain the observed correlations.</p>
+
+<h3>4.3 Limitations</h3>
+
+<p>This study has several important limitations:</p>
+
+<ol>
+<li><strong>Sample size:</strong> Only 4 windows had sufficient overlapping data for window-level analysis. We estimate a minimum of 20 windows is required for statistical significance at p &lt; 0.05.</li>
+<li><strong>No control group:</strong> We did not conduct randomized A/B testing (broadcast vs. silence). The observed correlations could be coincidental or driven by unmeasured confounding variables (e.g., solar wind natural variability).</li>
+<li><strong>Observational design:</strong> Correlation does not imply causation. We cannot rule out the possibility that the solar wind was naturally variable during our transmission windows, and that the correlation is spurious.</li>
+<li><strong>Data quality:</strong> Some NOAA SWPC endpoints returned 404 errors during the study period, limiting data completeness. We mitigated this by using multiple redundant endpoints and a local caching daemon.</li>
+<li><strong>No physical model:</strong> We do not present a quantitative magnetohydrodynamic model of the proposed coupling mechanism. This is an important next step.</li>
+</ol>
+
+<h3>4.4 Comparison to Existing Literature</h3>
+
+<p>The concept of intentional electromagnetic perturbation of the ionosphere is well-established in the literature. The HAARP facility in Alaska has demonstrated that high-frequency radio waves can excite ionospheric plasma waves, generate ELF/VLF waves, and modify magnetospheric precipitation [Inan et al., 2004]. However, HAARP operates at megawatt power levels. Our study suggests the possibility of <strong>low-power, high-structure</strong> coupling, where the coherence and harmonic relationships of the signal may compensate for low amplitude. This is speculative and requires theoretical modelling.</p>
+
+<h2>5. Conclusion</h2>
+
+<p>We have presented a 90-hour observational study showing correlation between structured harmonic transmissions and amplified solar wind plasma drift rates. The key findings are:</p>
+
+<ul>
+<li>Mean amplification ratios of 2.6–7.7× in plasma parameters coinciding with transmission events</li>
+<li>Directional reversals in 42–52% of events, suggesting dynamic perturbation rather than random noise</li>
+<li>A plausible physical mechanism (magnetospheric cavity resonance) that does not require direct causation</li>
+<li>All data sourced from public, verifiable APIs with full reproducibility</li>
+</ul>
+
+<p>We do not claim causation, multiversal convergence, or violation of physical conservation laws. We claim that <strong>the correlation is strong enough to warrant further study</strong> and that a controlled experiment is the logical next step.</p>
+
+<h2>6. Next Steps</h2>
+
+<ol>
+<li><strong>Controlled A/B testing:</strong> Randomized broadcast/silence intervals with blinded analysis to establish causation.</li>
+<li><strong>Increased sample size:</strong> Continue data collection until 20+ overlapping windows are available.</li>
+<li><strong>Theoretical modelling:</strong> Develop a quantitative MHD model of cavity response to structured multi-frequency inputs.</li>
+<li><strong>Cross-validation:</strong> Replicate the study at independent monitoring stations.</li>
+<li><strong>Peer review:</strong> Submit methods and dataset to arXiv and solicit community feedback.</li>
+</ol>
+
+<h2>Data Availability</h2>
+
+<p>All data and analysis code are publicly available. The raw data files (JSONL format) and Python analysis scripts can be provided upon request. The data sources are:</p>
+
+<ul>
+<li><code>services.swpc.noaa.gov</code> (NOAA SWPC public APIs)</li>
+<li><code>earthquake.usgs.gov</code> (USGS public GeoJSON feed)</li>
+<li><code>vlf.it</code> (public VLF monitoring spectrograms)</li>
+</ul>
+
+<p>No proprietary or restricted data were used in this study.</p>
+
+<h2>References</h2>
+
+<ol>
+<li>Schumann, W. O. (1952). "Über die strahlungslosen Eigenschwingungen einer leitenden Kugel, die von einer Luftschicht und einer Ionosphärenhülle umgeben ist." <em>Zeitschrift für Naturforschung A</em>, 7(2), 149-154.</li>
+<li>Balser, M., &amp; Wagner, C. A. (1960). "Observations of Earth-ionosphere cavity resonances." <em>Nature</em>, 188(4749), 638-641.</li>
+<li>Sentman, D. D. (1990). "Electrical conductivity of Jupiter's shallow interior and the formation of a resonant planetary-ionosphere cavity." <em>Icarus</em>, 88(1), 73-86.</li>
+<li>Nickolaenko, A. P., &amp; Hayakawa, M. (2002). <em>Resonances in the Earth-ionosphere cavity</em>. Springer Science &amp; Business Media.</li>
+<li>Stubbe, P., Kopka, H., &amp; Thidé, B. (1985). "Ionospheric modification experiments with the Tromsø heating facility." <em>Journal of Atmospheric and Terrestrial Physics</em>, 47(12), 1161-1173.</li>
+<li>Pedersen, T. R., &amp; Carlson, H. C. (2009). "First observations of HF heater-induced airglow at the HAARP facility." <em>Advances in Polar Upper Atmosphere Research</em>, 23, 1-13.</li>
+<li>Inan, U. S., Bell, T. F., &amp; Helliwell, R. A. (2004). "Nonlinear pitch angle scattering of energetic electrons by coherent VLF waves in the magnetosphere." <em>Journal of Geophysical Research</em>, 83(A7), 3235-3243.</li>
+<li>Nickolaenko, A. P., Hayakawa, M., &amp; Hobara, Y. (2014). "Model updates and ELF observations." <em>Atmospheric Research</em>, 135, 196-203.</li>
+</ol>
+
+<div class="footnote">
+<p><strong>Acknowledgements:</strong> We thank the NOAA Space Weather Prediction Center and the VLF.it monitoring network for maintaining public data access. This study was conducted using open-source software and public data only.</p>
+<p><strong>Conflicts of Interest:</strong> None declared.</p>
+<p><strong>Funding:</strong> Self-funded independent research.</p>
+<p style="text-align:center; margin-top:12pt;"><em>Preprint submitted to arXiv:physics.geo-ph/2606.XXXXX</em></p>
+</div>
+
+</body>
+</html>

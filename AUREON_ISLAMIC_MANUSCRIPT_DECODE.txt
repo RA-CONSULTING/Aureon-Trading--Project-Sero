@@ -1,0 +1,398 @@
+====================================================================================================
+AUREON HARMONIC DECODE — ISLAMIC MAGICAL MANUSCRIPT
+Treatise on Ancient, Alchemical and Magical Alphabets
+Princeton Islamic Manuscripts Collection | Early Works to 1800
+====================================================================================================
+
+PRIME SENTINEL: Gary Leckey
+DECODE NODE: Sero, Distributed Defense Node
+FRAMEWORK: Harmonic Nexus Core (HNC) — 7-Mode Encoding
+DATE: 2026-07-10
+
+----------------------------------------------------------------------------------------------------
+TABLE OF CONTENTS
+----------------------------------------------------------------------------------------------------
+1. Manuscript Overview & Historical Context
+2. Aureon 7-Mode Decode System
+3. Symbol Catalog by Page
+4. Harmonic Frequency Mapping
+5. Auris Node Spirit Assignments
+6. Intent & Consciousness Coupling
+7. Complete Decode Matrix
+8. Visual Harmonic Signature
+
+====================================================================================================
+1. MANUSCRIPT OVERVIEW
+====================================================================================================
+
+SOURCE DOCUMENT:
+  Title: Treatise on ancient, alchemical and magical alphabets
+  Extent: 46 leaves ; paper, charts ; 198 x 145 mm
+  Subject: Islamic magic, Alchemy, Alphabets — Early works to 1800
+  Location: Manuscripts, Arabic — New Jersey — Princeton
+
+PAGES DECODED:
+  [23989] المشند التاريخ للراوشوش — The Historical Manuscript of Rawshush
+  [23853] Title page with catalog information and multiple alphabets
+  [23990] المشند الناسخ الا رشوش — The Copyist's Manuscript (p.32)
+  [23991] المستد الرابع الابليس — The Fourth Foundation of Iblis
+  [23992] المشند الجامش لا فرو ديابتان — Fire and Smoke (p.33)
+
+HISTORICAL CONTEXT:
+  These manuscripts belong to the Islamic occult tradition,
+  possibly related to the Shams al-Ma'arif (Sun of Knowledge)
+  corpus of talismanic and magical sciences. The symbols represent
+  cipher alphabets used in talisman creation, spiritual communication,
+  and alchemical encoding.
+
+====================================================================================================
+2. AUREON 7-MODE DECODE SYSTEM
+====================================================================================================
+
+The Aureon Harmonic Alphabet maps each symbol to a frequency
+through seven encoding modes:
+
+  Mode 1 — GENESIS (A-I): Solfeggio frequencies @ 1.0x amplitude
+  Mode 2 — GROWTH (J-R): Solfeggio frequencies @ Phi (1.618x)
+  Mode 3 — RETURN (S-Z): Solfeggio frequencies @ 1/Phi (0.618x)
+  Mode 4 — GROUND (0-9): Schumann Earth resonances [7.83-45 Hz]
+  Mode 5 — INTENT (8 sacred intents): Emotional/spiritual frequencies
+  Mode 6 — AURIS (9 animal spirits): Market texture & spirit guides
+  Mode 7 — BRAINWAVE (5 states): Consciousness frequency coupling
+
+SACRED CONSTANTS:
+  Phi (φ)      = 1.618034
+  Phi⁻¹        = 0.618034
+  Schumann     = 7.83 Hz (Earth's heartbeat)
+  Love/Miracle = 528 Hz (DNA repair frequency)
+
+====================================================================================================
+3. SYMBOL CATALOG BY PAGE
+====================================================================================================
+
+--------------------------------------------------------------------------------
+PAGE: page_23989
+ARABIC: المشند التاريخ للراوشوش
+ENGLISH: The Historical Manuscript of Rawshush
+GRID: 7x4
+--------------------------------------------------------------------------------
+
+  S1A    | ♡    | Heart/Drop shape               | Elemental       | Mode: Ground
+  S1B    | ◯̣   | Circle with center dot         | Celestial       | Mode: Genesis
+  S1C    | ♔    | Crown/Triple peak              | Royal           | Mode: Intent
+  S1D    | ∩    | U-shape vessel                 | Vessel          | Mode: Growth
+  S2A    | △    | Triangle with dot              | Fire            | Mode: Ground
+  S2B    | Η    | H-bar with terminals           | Structure       | Mode: Growth
+  S2C    | ⊥    | T-shape with circles           | Axis            | Mode: Growth
+  S2D    | ▭    | Open rectangle                 | Earth           | Mode: Ground
+  S3A    | ⧖    | Hourglass                      | Time            | Mode: Return
+  S3B    | 〰    | Saw/zigzag                     | Water           | Mode: Ground
+  S3C    | 𝌆    | Crossed lines                  | Union           | Mode: Brainwave
+  S3D    | ⎩⎫   | Double bracket                 | Container       | Mode: Unknown
+  S4A    | ⊙    | Circle with four dots          | Celestial       | Mode: Genesis
+  S4B    | ∿    | Coiled serpent                 | Kundalini       | Mode: Intent
+  S4C    | ⛵    | Boat/vessel                    | Journey         | Mode: Return
+  S4D    | ⊃    | Hook/crescent                  | Moon            | Mode: Return
+  S5A    | ⍙    | Dome with finial               | Temple          | Mode: Intent
+  S5B    | ╥    | H with crown                   | Throne          | Mode: Intent
+  S5C    | ⌒    | Arch/gateway                   | Portal          | Mode: Intent
+  S5D    | ⚷    | Key with cross                 | Key             | Mode: Intent
+  S6A    | ⬠    | Square with center             | Earth           | Mode: Ground
+  S6B    | ✕    | Cross X                        | Union           | Mode: Brainwave
+  S6C    | Λ    | Lambda/V-shape                 | Water           | Mode: Ground
+  S6D    | ┬    | T-bar                          | Axis            | Mode: Growth
+  S7A    | ⧗    | Diamond hourglass              | Time            | Mode: Return
+  S7B    | ⧓    | Bowtie/double triangle         | Union           | Mode: Brainwave
+  S7C    | ⚶    | Figure with arms               | Human           | Mode: Intent
+  S7D    | ╦    | Tree with branches             | Tree            | Mode: Intent
+
+--------------------------------------------------------------------------------
+PAGE: page_23991
+ARABIC: المستد الرابع الابليس
+ENGLISH: The Fourth Foundation of Iblis
+GRID: 7x4
+--------------------------------------------------------------------------------
+
+  I1A    | ∑    | Sigma/summation                | Calculation     | Mode: Brainwave
+  I1B    | ∏    | Pi/product                     | Calculation     | Mode: Brainwave
+  I1C    | ∫    | Integral                       | Flow            | Mode: Return
+  I1D    | ∈    | Element of                     | Membership      | Mode: Brainwave
+  I2A    | ⊥    | Perpendicular                  | Axis            | Mode: Growth
+  I2B    | ∠    | Angle                          | Geometry        | Mode: Brainwave
+  I2C    | ∧    | And/logic                      | Logic           | Mode: Brainwave
+  I2D    | ∨    | Or/logic                       | Logic           | Mode: Brainwave
+  I3A    | ∞    | Infinity                       | Eternal         | Mode: Return
+  I3B    | ∂    | Partial                        | Calculus        | Mode: Unknown
+  I3C    | ∇    | Nabla/del                      | Vector          | Mode: Unknown
+  I3D    | ∆    | Delta/change                   | Transformation  | Mode: Unknown
+  I4A    | □    | Square                         | Earth           | Mode: Ground
+  I4B    | ○    | Circle                         | Celestial       | Mode: Genesis
+  I4C    | △    | Triangle                       | Fire            | Mode: Ground
+  I4D    | ◇    | Diamond                        | Crystal         | Mode: Intent
+  I5A    | ├    | Branch left                    | Tree            | Mode: Intent
+  I5B    | ┤    | Branch right                   | Tree            | Mode: Intent
+  I5C    | ┬    | Branch up                      | Tree            | Mode: Intent
+  I5D    | ┴    | Branch down                    | Tree            | Mode: Intent
+  I6A    | ⌠    | Integral top                   | Flow            | Mode: Return
+  I6B    | ⌡    | Integral bottom                | Flow            | Mode: Return
+  I6C    | ∮    | Contour                        | Loop            | Mode: Return
+  I6D    | ∯    | Surface                        | Field           | Mode: Return
+  I7A    | ∴    | Therefore                      | Conclusion      | Mode: Brainwave
+  I7B    | ∵    | Because                        | Reason          | Mode: Brainwave
+  I7C    | ≡    | Equivalent                     | Equality        | Mode: Brainwave
+  I7D    | ≈    | Approximate                    | Similarity      | Mode: Brainwave
+
+--------------------------------------------------------------------------------
+PAGE: page_23992
+ARABIC: المشند الجامش لا فرو ديابتان
+ENGLISH: The Comprehensive Manuscript of Fire and Smoke
+GRID: 7x4
+--------------------------------------------------------------------------------
+
+  F1A    | ≋    | Triple wave                    | Water           | Mode: Ground
+  F1B    | ≈    | Double wave                    | Water           | Mode: Ground
+  F1C    | ⁚    | Two dots                       | Binary          | Mode: Brainwave
+  F1D    | 𓅓    | Bird/owl                       | Auris_Owl       | Mode: Auris
+  F2A    | ⊃⊂   | Facing crescents               | Moon            | Mode: Return
+  F2B    | ┐    | Corner                         | Structure       | Mode: Growth
+  F2C    | ⌒    | Arc/eye                        | Vision          | Mode: Unknown
+  F2D    | └    | Corner                         | Structure       | Mode: Growth
+  F3A    | ≋≋   | Double waves                   | Water           | Mode: Ground
+  F3B    | □    | Square frame                   | Earth           | Mode: Ground
+  F3C    | ▽    | Down triangle                  | Water           | Mode: Ground
+  F3D    | ▭    | Open box                       | Vessel          | Mode: Growth
+  F4A    | 𓅭    | Bird standing                  | Auris_Falcon    | Mode: Auris
+  F4B    | 𓅱    | Bird profile                   | Auris_Falcon    | Mode: Auris
+  F4C    | ◎    | Target/circle                  | Focus           | Mode: Intent
+  F4D    | ∿    | Wave line                      | Flow            | Mode: Return
+  F5A    | 𓀀    | Human figure                   | Auris_Tiger     | Mode: Auris
+  F5B    | 𓃻    | Seated figure                  | Human           | Mode: Intent
+  F5C    | Π    | Portal/gateway                 | Portal          | Mode: Intent
+  F5D    | 𓅓    | Bird with crest                | Auris_Owl       | Mode: Auris
+  F6A    | ≋≋≋  | Triple waves                   | Water           | Mode: Ground
+  F6B    | ≋≋≋  | Triple waves                   | Water           | Mode: Ground
+  F6C    | ┃    | Vertical line                  | Axis            | Mode: Growth
+  F6D    | ⊃    | Crescent                       | Moon            | Mode: Return
+  F7A    | 𓃉    | Animal/bull                    | Auris_Tiger     | Mode: Auris
+  F7B    | ≋    | Single wave                    | Water           | Mode: Ground
+  F7C    | 𝌆    | Cross pattern                  | Union           | Mode: Brainwave
+  F7D    | ⍑    | T-square                       | Measure         | Mode: Brainwave
+
+====================================================================================================
+4. HARMONIC FREQUENCY MAPPING
+====================================================================================================
+
+CATEGORY → FREQUENCY MAP:
+
+  Auris_Falcon    | Auris Mode   | 210.00 Hz | Falcon     Spirit | 2 symbols
+  Auris_Owl       | Auris Mode   | 528.00 Hz | Owl        Spirit | 2 symbols
+  Auris_Tiger     | Auris Mode   | 186.00 Hz | Tiger      Spirit | 2 symbols
+  Axis            | Growth Mode  | 741.00 Hz | Solfeggio @ φ     | 4 symbols
+  Binary          | Brainwave    |   2.00 Hz | Delta      State | 1 symbols
+  Calculation     | Brainwave    |  20.00 Hz | Beta       State | 2 symbols
+  Celestial       | Genesis Mode | 963.00 Hz | Solfeggio @ 1.0x  | 3 symbols
+  Conclusion      | Brainwave    |  40.00 Hz | Gamma      State | 1 symbols
+  Crystal         | Intent Mode  | 417.00 Hz | Clarity         | 1 symbols
+  Earth           | Ground Mode  |   7.83 Hz | Schumann Harmonic | 4 symbols
+  Elemental       | Ground Mode  |   7.83 Hz | Schumann Harmonic | 1 symbols
+  Equality        | Brainwave    |   6.00 Hz | Theta      State | 1 symbols
+  Eternal         | Return Mode  | 852.00 Hz | Solfeggio @ 1/φ  | 1 symbols
+  Field           | Return Mode  | 639.00 Hz | Solfeggio @ 1/φ  | 1 symbols
+  Fire            | Ground Mode  |  14.30 Hz | Schumann Harmonic | 2 symbols
+  Flow            | Return Mode  | 432.00 Hz | Solfeggio @ 1/φ  | 4 symbols
+  Focus           | Intent Mode  | 417.00 Hz | Clarity         | 1 symbols
+  Geometry        | Brainwave    |  10.00 Hz | Alpha      State | 1 symbols
+  Human           | Intent Mode  | 639.00 Hz | Love            | 2 symbols
+  Journey         | Return Mode  | 174.00 Hz | Solfeggio @ 1/φ  | 1 symbols
+  Key             | Intent Mode  | 417.00 Hz | Clarity         | 1 symbols
+  Kundalini       | Intent Mode  | 396.00 Hz | Transformation  | 1 symbols
+  Logic           | Brainwave    |  20.00 Hz | Beta       State | 2 symbols
+  Loop            | Return Mode  | 741.00 Hz | Solfeggio @ 1/φ  | 1 symbols
+  Measure         | Brainwave    |  10.00 Hz | Alpha      State | 1 symbols
+  Membership      | Brainwave    |  20.00 Hz | Beta       State | 1 symbols
+  Moon            | Return Mode  | 417.00 Hz | Solfeggio @ 1/φ  | 3 symbols
+  Portal          | Intent Mode  | 396.00 Hz | Transformation  | 2 symbols
+  Reason          | Brainwave    |  10.00 Hz | Alpha      State | 1 symbols
+  Royal           | Intent Mode  | 963.00 Hz | Unity           | 1 symbols
+  Similarity      | Brainwave    |   6.00 Hz | Theta      State | 1 symbols
+  Structure       | Growth Mode  | 528.00 Hz | Solfeggio @ φ     | 3 symbols
+  Temple          | Intent Mode  | 963.00 Hz | Unity           | 1 symbols
+  Throne          | Intent Mode  | 432.00 Hz | Peace           | 1 symbols
+  Time            | Return Mode  | 285.00 Hz | Solfeggio @ 1/φ  | 2 symbols
+  Tree            | Intent Mode  | 852.00 Hz | Healing         | 5 symbols
+  Union           | Brainwave    |  40.00 Hz | Gamma      State | 4 symbols
+  Vessel          | Growth Mode  | 639.00 Hz | Solfeggio @ φ     | 2 symbols
+  Water           | Ground Mode  |  20.80 Hz | Schumann Harmonic | 9 symbols
+
+====================================================================================================
+5. AURIS NODE SPIRIT ASSIGNMENTS
+====================================================================================================
+
+Animal spirits detected in manuscript symbols:
+
+  Falcon       | Precision  | Momentum   | 210 Hz | 2 glyphs
+    └─ F4A    𓅭    Bird standing
+    └─ F4B    𓅱    Bird profile
+  Owl          | Wisdom     | Pattern    | 528 Hz | 2 glyphs
+    └─ F1D    𓅓    Bird/owl
+    └─ F5D    𓅓    Bird with crest
+  Tiger        | Power      | Volatility | 186 Hz | 2 glyphs
+    └─ F5A    𓀀    Human figure
+    └─ F7A    𓃉    Animal/bull
+
+====================================================================================================
+6. INTENT & CONSCIOUSNESS COUPLING
+====================================================================================================
+
+Sacred intents encoded in manuscript structure:
+
+  Clarity         | 417 Hz | alpha_focus     | Harmonics: [1, 2, 3] | 3 glyphs
+  Healing         | 852 Hz | delta_base      | Harmonics: [1, 2, 5] | 5 glyphs
+  Love            | 639 Hz | theta_deep      | Harmonics: [1, 3, 5, 7] | 2 glyphs
+  Peace           | 432 Hz | alpha_calm      | Harmonics: [1, 3, 5] | 1 glyphs
+  Transformation  | 396 Hz | theta_shift     | Harmonics: [1, 3, 5] | 3 glyphs
+  Unity           | 963 Hz | lambda_unified  | Harmonics: [1, 3, 9] | 2 glyphs
+
+====================================================================================================
+7. COMPLETE DECODE MATRIX
+====================================================================================================
+
+ID       Glyph  Description                    Category        Mode       Freq(Hz)   Auris/Intent   
+----------------------------------------------------------------------------------------------------
+S1A      ♡      Heart/Drop shape               Elemental       Ground     7.83       Deer           
+S1B      ◯̣     Circle with center dot         Celestial       Genesis    963.00     Owl            
+S1C      ♔      Crown/Triple peak              Royal           Intent     963.00     Panda          
+S1D      ∩      U-shape vessel                 Vessel          Growth     639.00     Cargoship      
+S2A      △      Triangle with dot              Fire            Ground     14.30      Tiger          
+S2B      Η      H-bar with terminals           Structure       Growth     528.00     Cargoship      
+S2C      ⊥      T-shape with circles           Axis            Growth     741.00     Falcon         
+S2D      ▭      Open rectangle                 Earth           Ground     7.83       Deer           
+S3A      ⧖      Hourglass                      Time            Return     285.00     Owl            
+S3B      〰      Saw/zigzag                     Water           Ground     20.80      Dolphin        
+S3C      𝌆      Crossed lines                  Union           Brainwave  40.00      Owl            
+S3D      ⎩⎫     Double bracket                 Container       Unknown    0.00       -              
+S4A      ⊙      Circle with four dots          Celestial       Genesis    963.00     Owl            
+S4B      ∿      Coiled serpent                 Kundalini       Intent     396.00     Tiger          
+S4C      ⛵      Boat/vessel                    Journey         Return     174.00     Cargoship      
+S4D      ⊃      Hook/crescent                  Moon            Return     417.00     Deer           
+S5A      ⍙      Dome with finial               Temple          Intent     963.00     Panda          
+S5B      ╥      H with crown                   Throne          Intent     432.00     Tiger          
+S5C      ⌒      Arch/gateway                   Portal          Intent     396.00     Clownfish      
+S5D      ⚷      Key with cross                 Key             Intent     417.00     Owl            
+S6A      ⬠      Square with center             Earth           Ground     7.83       Deer           
+S6B      ✕      Cross X                        Union           Brainwave  40.00      Owl            
+S6C      Λ      Lambda/V-shape                 Water           Ground     20.80      Dolphin        
+S6D      ┬      T-bar                          Axis            Growth     741.00     Falcon         
+S7A      ⧗      Diamond hourglass              Time            Return     285.00     Owl            
+S7B      ⧓      Bowtie/double triangle         Union           Brainwave  40.00      Owl            
+S7C      ⚶      Figure with arms               Human           Intent     639.00     Panda          
+S7D      ╦      Tree with branches             Tree            Intent     852.00     Deer           
+I1A      ∑      Sigma/summation                Calculation     Brainwave  20.00      Falcon         
+I1B      ∏      Pi/product                     Calculation     Brainwave  20.00      Falcon         
+I1C      ∫      Integral                       Flow            Return     432.00     Dolphin        
+I1D      ∈      Element of                     Membership      Brainwave  20.00      Clownfish      
+I2A      ⊥      Perpendicular                  Axis            Growth     741.00     Falcon         
+I2B      ∠      Angle                          Geometry        Brainwave  10.00      Falcon         
+I2C      ∧      And/logic                      Logic           Brainwave  20.00      Falcon         
+I2D      ∨      Or/logic                       Logic           Brainwave  20.00      Falcon         
+I3A      ∞      Infinity                       Eternal         Return     852.00     Owl            
+I3B      ∂      Partial                        Calculus        Unknown    0.00       -              
+I3C      ∇      Nabla/del                      Vector          Unknown    0.00       -              
+I3D      ∆      Delta/change                   Transformation  Unknown    0.00       -              
+I4A      □      Square                         Earth           Ground     7.83       Deer           
+I4B      ○      Circle                         Celestial       Genesis    963.00     Owl            
+I4C      △      Triangle                       Fire            Ground     14.30      Tiger          
+I4D      ◇      Diamond                        Crystal         Intent     417.00     Owl            
+I5A      ├      Branch left                    Tree            Intent     852.00     Deer           
+I5B      ┤      Branch right                   Tree            Intent     852.00     Deer           
+I5C      ┬      Branch up                      Tree            Intent     852.00     Deer           
+I5D      ┴      Branch down                    Tree            Intent     852.00     Deer           
+I6A      ⌠      Integral top                   Flow            Return     432.00     Dolphin        
+I6B      ⌡      Integral bottom                Flow            Return     432.00     Dolphin        
+I6C      ∮      Contour                        Loop            Return     741.00     Dolphin        
+I6D      ∯      Surface                        Field           Return     639.00     Panda          
+I7A      ∴      Therefore                      Conclusion      Brainwave  40.00      Owl            
+I7B      ∵      Because                        Reason          Brainwave  10.00      Owl            
+I7C      ≡      Equivalent                     Equality        Brainwave  6.00       Panda          
+I7D      ≈      Approximate                    Similarity      Brainwave  6.00       Deer           
+F1A      ≋      Triple wave                    Water           Ground     20.80      Dolphin        
+F1B      ≈      Double wave                    Water           Ground     20.80      Dolphin        
+F1C      ⁚      Two dots                       Binary          Brainwave  2.00       Clownfish      
+F1D      𓅓      Bird/owl                       Auris_Owl       Auris      528.00     Owl            
+F2A      ⊃⊂     Facing crescents               Moon            Return     417.00     Deer           
+F2B      ┐      Corner                         Structure       Growth     528.00     Cargoship      
+F2C      ⌒      Arc/eye                        Vision          Unknown    0.00       -              
+F2D      └      Corner                         Structure       Growth     528.00     Cargoship      
+F3A      ≋≋     Double waves                   Water           Ground     20.80      Dolphin        
+F3B      □      Square frame                   Earth           Ground     7.83       Deer           
+F3C      ▽      Down triangle                  Water           Ground     20.80      Dolphin        
+F3D      ▭      Open box                       Vessel          Growth     639.00     Cargoship      
+F4A      𓅭      Bird standing                  Auris_Falcon    Auris      210.00     Falcon         
+F4B      𓅱      Bird profile                   Auris_Falcon    Auris      210.00     Falcon         
+F4C      ◎      Target/circle                  Focus           Intent     417.00     Falcon         
+F4D      ∿      Wave line                      Flow            Return     432.00     Dolphin        
+F5A      𓀀      Human figure                   Auris_Tiger     Auris      186.00     Tiger          
+F5B      𓃻      Seated figure                  Human           Intent     639.00     Panda          
+F5C      Π      Portal/gateway                 Portal          Intent     396.00     Clownfish      
+F5D      𓅓      Bird with crest                Auris_Owl       Auris      528.00     Owl            
+F6A      ≋≋≋    Triple waves                   Water           Ground     20.80      Dolphin        
+F6B      ≋≋≋    Triple waves                   Water           Ground     20.80      Dolphin        
+F6C      ┃      Vertical line                  Axis            Growth     741.00     Falcon         
+F6D      ⊃      Crescent                       Moon            Return     417.00     Deer           
+F7A      𓃉      Animal/bull                    Auris_Tiger     Auris      186.00     Tiger          
+F7B      ≋      Single wave                    Water           Ground     20.80      Dolphin        
+F7C      𝌆      Cross pattern                  Union           Brainwave  40.00      Owl            
+F7D      ⍑      T-square                       Measure         Brainwave  10.00      Owl            
+
+====================================================================================================
+8. VISUAL HARMONIC SIGNATURE
+====================================================================================================
+
+Aggregated frequency spectrum across all decoded symbols:
+
+Freq (Hz)    Count  Spectrum                                          
+----------------------------------------------------------------------
+2.0          1      ████
+6.0          2      ████████
+7.8          5      ██████████████████████
+10.0         3      █████████████
+14.3         2      ████████
+20.0         5      ██████████████████████
+20.8         9      ████████████████████████████████████████
+40.0         5      ██████████████████████
+174.0        1      ████
+186.0        2      ████████
+210.0        2      ████████
+285.0        2      ████████
+396.0        3      █████████████
+417.0        6      ██████████████████████████
+432.0        5      ██████████████████████
+528.0        5      ██████████████████████
+639.0        5      ██████████████████████
+741.0        5      ██████████████████████
+852.0        6      ██████████████████████████
+963.0        5      ██████████████████████
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+
+Total symbols decoded: 84
+Pages analyzed: 3
+Categories identified: 44
+Auris spirits active: 3
+Sacred intents encoded: 6
+
+Dominant frequencies:
+  20.8 Hz — 9 symbols
+  417.0 Hz — 6 symbols
+  852.0 Hz — 6 symbols
+  7.8 Hz — 5 symbols
+  963.0 Hz — 5 symbols
+
+----------------------------------------------------------------------------------------------------
+Decoded by Sero, Distributed Defense Node
+Aureon Environmental Defense System
+Prime Sentinel: Gary Leckey (02.11.1991)
+"IF YOU DON'T QUIT, YOU CAN'T LOSE." 🇮🇪
+----------------------------------------------------------------------------------------------------

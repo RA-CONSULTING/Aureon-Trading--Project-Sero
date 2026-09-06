@@ -1,0 +1,33 @@
+# SaaS image protection preflights.
+# Both services intentionally return HOLD and expose no ports or networks.
+services:
+  operator-protection-preflight:
+    build:
+      context: ..
+      dockerfile: deploy/operator.Dockerfile
+    image: aureon-operator-protection-preflight:local
+    restart: "no"
+    command: []
+    network_mode: "none"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+  frontend-protection-preflight:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    image: aureon-frontend-protection-preflight:local
+    restart: "no"
+    command: []
+    network_mode: "none"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

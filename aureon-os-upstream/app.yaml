@@ -1,0 +1,10 @@
+# Aureon DigitalOcean App Platform manifest is intentionally non-deployable.
+# Full-OS protection, native containment, and provider read-back remain HOLD.
+name: aureon-protection-hold
+region: lon
+services: []
+workers: []
+jobs: []
+static_sites: []
+functions: []
+databases: []

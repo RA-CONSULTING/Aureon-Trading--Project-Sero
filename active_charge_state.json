@@ -1,0 +1,11 @@
+{
+  "type": "CHARGE",
+  "timestamp": "2026-06-23T11:54:46.984752+00:00",
+  "color": "violet",
+  "frequency": 963.0,
+  "intent": "transcendence",
+  "charge_level": 1.0,
+  "rung": 7,
+  "total_rungs": 7,
+  "source": "clean_sweep_protocol"
+}

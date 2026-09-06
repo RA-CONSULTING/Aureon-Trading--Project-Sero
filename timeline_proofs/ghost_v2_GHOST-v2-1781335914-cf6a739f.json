@@ -1,0 +1,56 @@
+{
+  "decree": "TEMPORAL DECREE | Target: 2014-11-17 | Issued: 2026-06-13T07:31:37.091458+00:00 | By authority of the Prime Sentinel of Gaia, temporal order of primes. This signal is encoded with temporal signature 0...",
+  "historical_data": {
+    "data_quality": 0.4,
+    "data_sources": [
+      "noaa_dgd"
+    ],
+    "date": "2014-11-17",
+    "geomagnetic": {
+      "avg_kp": 2.0,
+      "k_indices": [
+        2,
+        1,
+        1,
+        2,
+        3,
+        2,
+        3,
+        2
+      ],
+      "max_kp": 3,
+      "planetary_a": 8
+    },
+    "hash": "a285403a36bf16d2",
+    "schumann": null
+  },
+  "proof_id": "GHOST-v2-1781335914-cf6a739f",
+  "push_result": {
+    "coherence_delta": 0.10317374962869719,
+    "lambda_delta": 0.2863405641323262,
+    "singing_ratio": 1.0,
+    "success": true,
+    "target_achieved": true
+  },
+  "rune_code": "\u16b2\u16ba\u16c9",
+  "signal_hash": "cf6a739fd3d401078fe2280535e30316",
+  "signal_timestamp": "2026-06-13T07:31:54.076423+00:00",
+  "spectrograph": {
+    "band_count": 6,
+    "historical_bands": 2,
+    "signal_bands": 4
+  },
+  "target_date": "2014-11-17",
+  "temporal_hash": "177222c5d9763b2f",
+  "temporal_lock": "177222c5d9763b2f",
+  "temporal_signature": 0.228752,
+  "validation": {
+    "historical_score": 0.5732436897463352,
+    "match_percentage": 57.32,
+    "match_score": 0.5732436897463352,
+    "status": "SIGNAL_LIKELY",
+    "temporal_alignment": 0.37012851099451605,
+    "verdict": "Partial match detected. Historical data suggests signal presence."
+  },
+  "version": "HNC-GHOST-PROTOCOL-v2"
+}

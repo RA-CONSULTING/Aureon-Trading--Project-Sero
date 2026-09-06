@@ -1,0 +1,1 @@
+{"action":"evaluate","args":{"code":"Array.from(document.querySelectorAll('a[href*=\"/p/\"]')).map(a => a.href).filter((v,i,a) => a.indexOf(v)===i)"},"session":"gary-substack-edit"}

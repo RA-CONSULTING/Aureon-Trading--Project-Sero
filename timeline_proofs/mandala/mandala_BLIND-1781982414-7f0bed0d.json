@@ -1,0 +1,104 @@
+{
+  "after_timestamp": "2026-06-20T19:07:54.429830+00:00",
+  "before_timestamp": "2026-06-20T19:06:25.676279+00:00",
+  "coherence_at_send": 0.31775600107635327,
+  "headlines_diff": [
+    {
+      "added_words": [],
+      "after": "Agency stole bestselling author&#x27;s book, used AI to relaunch as their own",
+      "before": "Agency stole bestselling author&#x27;s book, used AI to relaunch as their own",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "SMPTE Makes Its Standards Freely Accessible",
+      "before": "SMPTE Makes Its Standards Freely Accessible",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [],
+      "after": "UHF X11: X11 Built for VisionOS and Apple Vision Pro",
+      "before": "UHF X11: X11 Built for VisionOS and Apple Vision Pro",
+      "changed_words": [],
+      "mandala_score": 0,
+      "removed_words": [],
+      "similarity": 1.0
+    },
+    {
+      "added_words": [
+        "bun",
+        "open",
+        "shared-memory",
+        "threads",
+        "an",
+        "has",
+        "to",
+        "pr",
+        "adding",
+        "javascriptcore"
+      ],
+      "after": "Bun has an open PR adding shared-memory threads to JavaScriptCore",
+      "before": "DOS Game &quot;F-15 Strike Eagle II&quot; reversing project needs DOS test pilots",
+      "changed_words": [],
+      "mandala_score": 0.03972602739726028,
+      "removed_words": [
+        "needs",
+        "&quot;f-15",
+        "ii&quot;",
+        "strike",
+        "reversing",
+        "project",
+        "test",
+        "dos",
+        "eagle",
+        "game",
+        "pilots"
+      ],
+      "similarity": 0.2602739726027397
+    },
+    {
+      "added_words": [
+        "needs",
+        "&quot;f-15",
+        "ii&quot;",
+        "strike",
+        "reversing",
+        "project",
+        "test",
+        "dos",
+        "eagle",
+        "game",
+        "pilots"
+      ],
+      "after": "DOS Game &quot;F-15 Strike Eagle II&quot; reversing project needs DOS test pilots",
+      "before": "Bun has an open PR adding shared-memory threads to JavaScriptCore",
+      "changed_words": [],
+      "mandala_score": 0.05342465753424658,
+      "removed_words": [
+        "bun",
+        "open",
+        "shared-memory",
+        "threads",
+        "an",
+        "has",
+        "to",
+        "pr",
+        "adding",
+        "javascriptcore"
+      ],
+      "similarity": 0.2465753424657534
+    }
+  ],
+  "mandala_score": 0.030144194858902157,
+  "proof_id": "BLIND-1781982414-7f0bed0d",
+  "queen_verdict": "NO MANDALA EFFECT",
+  "signal_timestamp": "2026-06-20T19:07:57.790511+00:00",
+  "target_date": "1962-03-29",
+  "verdict": "NO MANDALA EFFECT"
+}

@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-09-06T13:14:45.511853",
+  "total_trades": 209054,
+  "wins": 209054,
+  "losses": 0,
+  "win_rate": 100.0,
+  "total_pnl": 4555.813161049766,
+  "avg_pnl": 0.021792518493067656,
+  "avg_hold_bars": 39.14555091029112,
+  "training_complete": false,
+  "parameters": {
+    "position_size": 10.0,
+    "combined_rate": 0.007,
+    "required_r": 0.014158525590513449,
+    "win_gte": 0.1415852559051345,
+    "target_net": 0.0001
+  }
+}

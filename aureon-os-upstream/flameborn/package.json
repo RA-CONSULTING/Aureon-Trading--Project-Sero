@@ -1,0 +1,33 @@
+{
+  "name": "codexprosparrow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "unavailable": "node -e process.exitCode=2",
+    "start": "npm run unavailable -- start",
+    "runtime:start": "npm run unavailable -- runtime:start",
+    "desktop:install": "npm run unavailable -- desktop:install",
+    "desktop:start": "npm run unavailable -- desktop:start",
+    "desktop:smoke": "npm run unavailable -- desktop:smoke",
+    "aureon:cli": "npm run unavailable -- aureon:cli",
+    "sandbox:build": "npm run unavailable -- sandbox:build",
+    "check": "node --check server.mjs && node --check runtime/server.mjs && bash -n scripts/setup_sandbox_runtime.sh && bash -n scripts/fix_docker_sandbox_access.sh && bash -n scripts/start_aureon_brain_local.sh && bash -n scripts/start_flameborn_runtime.sh",
+    "cf:build": "bash scripts/build_workers_assets.sh",
+    "cf:dev": "npm run unavailable -- cf:dev",
+    "cf:preflight": "node scripts/validate_workers_deploy_config.mjs wrangler.jsonc",
+    "cf:deploy": "npm run unavailable -- cf:deploy",
+    "cf:check": "npm run unavailable -- cf:check"
+  },
+  "devDependencies": {
+    "wrangler": "^4.68.0"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "dockerode": "^5.0.0",
+    "express": "^5.2.1",
+    "node-pty": "^1.1.0",
+    "ws": "^8.20.1"
+  }
+}

@@ -1,0 +1,14 @@
+# Aureon App Platform release boundary: terminal HOLD.
+#
+# This intentionally defines no deployable component, repository binding,
+# database, health endpoint, port, environment setting, or secret reference.
+# A reviewed provider-side release specification must replace this file before
+# DigitalOcean deployment can be considered.
+name: aureon-protection-hold
+region: lon
+services: []
+workers: []
+jobs: []
+static_sites: []
+functions: []
+databases: []
