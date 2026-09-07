@@ -572,65 +572,170 @@ class LighthouseMyceliumBridge:
 
 
 # ═══════════════════════════════════════════════════════════════
+# LIVE DATA ANALYSIS (real public klines — no fabricated states)
+# ═══════════════════════════════════════════════════════════════
+
+def _symbol_wave_from_closes(symbol: str, closes: List[float]) -> Optional[Any]:
+    """Derive a SymbolWaveState from a real close-price series (FFT-based)."""
+    if len(closes) < 8:
+        return None
+    r = np.diff(np.log(np.asarray(closes, dtype=float)))
+    r = r[~np.isnan(r)]
+    if len(r) < 8 or np.std(r) == 0:
+        return None
+    centered = r - r.mean()
+    spec = np.abs(np.fft.rfft(centered))
+    if len(spec) <= 1 or spec[1:].sum() <= 0:
+        return None
+    dom = int(np.argmax(spec[1:])) + 1
+    # Spectral concentration as self-coherence (real, derived)
+    coherence = float(np.clip(spec[dom] ** 2 / (np.sum(spec ** 2) + 1e-12), 0.0, 1.0))
+    # Dominant frequency in cycles per day (hourly closes)
+    frequency = float(dom / len(r) * 24.0)
+    phase = float(np.angle(np.fft.rfft(centered)[dom]) % (2 * math.pi))
+    amplitude = float(np.std(r))
+    velocity = float(np.mean(r[-3:])) if len(r) >= 3 else float(r[-1])
+    return SymbolWaveState(
+        symbol=symbol,
+        phase=phase,
+        amplitude=amplitude,
+        frequency=frequency,
+        velocity=velocity,
+        coherence=coherence,
+        last_price=float(closes[-1]),
+        last_volume=0.0,
+        last_update=time.time(),
+        price_history=[float(c) for c in closes],
+    )
+
+
+def build_state_from_klines(klines_map: Dict[str, List[List[Any]]]) -> Optional[Any]:
+    """Build a GlobalHarmonicState from real Binance klines {symbol: klines}."""
+    states = {}
+    for symbol, klines in klines_map.items():
+        try:
+            closes = [float(k[4]) for k in klines]
+        except (TypeError, ValueError, IndexError):
+            continue
+        wave = _symbol_wave_from_closes(symbol, closes)
+        if wave is not None:
+            states[symbol] = wave
+
+    if len(states) < 2:
+        return None
+
+    coherences = [s.coherence for s in states.values()]
+    global_coherence = float(np.mean(coherences))
+
+    # Circular mean of phases
+    phases = np.array([s.phase for s in states.values()])
+    global_phase = float(np.angle(np.mean(np.exp(1j * phases))) % (2 * math.pi))
+
+    dominant_frequency = float(np.mean([s.frequency for s in states.values()]))
+    schumann_harmonics = [SCHUMANN_BASE * n for n in range(1, 10)]
+    min_dist = min(abs(dominant_frequency - h) for h in schumann_harmonics)
+    schumann_alignment = float(1.0 / (1.0 + min_dist))
+
+    avg_velocity = float(np.mean([s.velocity for s in states.values()]))
+    market_regime = "bullish" if avg_velocity > 0 else "bearish" if avg_velocity < 0 else "neutral"
+
+    state = GlobalHarmonicState()
+    state.symbols = states
+    state.global_coherence = global_coherence
+    state.global_phase = global_phase
+    state.dominant_frequency = dominant_frequency
+    state.schumann_alignment = schumann_alignment
+    state.market_regime = market_regime
+    state.last_update = time.time()
+    state.candle_count = max(len(v) for v in klines_map.values())
+    return state
+
+
+def run_analysis(symbols: Optional[List[str]] = None) -> Dict[str, Any]:
+    """One Lighthouse analysis pass over REAL market klines.
+
+    Fetches hourly klines per symbol (throttled via aureon_fusion.api_communion),
+    replays the real series through the detector as a temporal sequence, and
+    returns the detected events. Fail-closed: no data -> ok=False, events=None.
+    """
+    symbols = symbols or ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT"]
+    try:
+        from analyzers import global_energy_data as ged
+    except ImportError:  # standalone: run from inside analyzers/
+        import global_energy_data as ged
+
+    klines_map: Dict[str, List[List[Any]]] = {}
+    fetch_errors = {}
+    for symbol in symbols:
+        klines = ged.fetch_binance_klines(symbol, interval="1h", limit=48)
+        if klines:
+            klines_map[symbol] = klines
+        else:
+            fetch_errors[symbol] = "klines_unavailable_or_stale"
+
+    if len(klines_map) < 2:
+        return {
+            "ok": False,
+            "ts": time.time(),
+            "events": None,
+            "symbols_fetched": sorted(klines_map),
+            "fetch_errors": fetch_errors,
+            "error": "insufficient_live_klines",
+        }
+
+    # Progressive replay: scan the real series as an evolving sequence so the
+    # detector's change-detection windows see genuine temporal structure.
+    min_len = min(len(v) for v in klines_map.values())
+    lighthouse = LighthousePatternDetector()
+    all_events: List[Dict[str, Any]] = []
+    for end in range(12, min_len + 1):
+        sliced = {s: k[:end] for s, k in klines_map.items()}
+        state = build_state_from_klines(sliced)
+        if state is None:
+            continue
+        for event in lighthouse.scan(state):
+            all_events.append(event.to_dict())
+
+    return {
+        "ok": True,
+        "ts": time.time(),
+        "events": all_events[-50:],
+        "event_count": len(all_events),
+        "symbols_fetched": sorted(klines_map),
+        "fetch_errors": fetch_errors,
+        "status": lighthouse.get_status(),
+        "error": None,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════
 # CLI / TESTING
 # ═══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
+    import json as _json
+    import sys as _sys
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s [%(levelname)s] %(message)s'
     )
-    
+
     print("""
     🏮 LIGHTHOUSE PATTERN DETECTOR
     ═══════════════════════════════
-    Testing pattern detection...
+    Running REAL-DATA analysis (Binance public klines)...
     """)
-    
-    # Create mock harmonic state
-    from aureon.harmonic.aureon_harmonic_seed import GlobalHarmonicState, SymbolWaveState
-    
-    state = GlobalHarmonicState()
-    state.global_coherence = 0.6
-    state.global_phase = 1.5
-    state.dominant_frequency = 2.0
-    state.market_regime = "bullish"
-    state.schumann_alignment = 0.3
-    
-    # Add mock symbols
-    for i in range(20):
-        sym = f"TEST{i}/USD"
-        state.symbols[sym] = SymbolWaveState(
-            symbol=sym,
-            phase=1.5 + (0.1 * (i % 5)),  # Some clustering
-            amplitude=0.05,
-            frequency=2.0,
-            velocity=0.01 if i < 15 else -0.01,
-            coherence=0.5,
-            last_price=100.0,
-            last_volume=1000.0,
-            last_update=time.time()
-        )
-    
-    # Create lighthouse and scan
-    lighthouse = LighthousePatternDetector()
-    
-    # Subscribe to see events
-    def on_event(event):
-        print(f"  📡 Event: {event.event_type.value} (severity={event.severity:.2f})")
-    
-    lighthouse.subscribe(on_event)
-    
-    # Run multiple scans to build up history
-    print("\nRunning scans...")
-    for i in range(15):
-        # Simulate some changes
-        state.global_coherence += 0.02 * (1 if i < 10 else -3)  # Surge then collapse
-        state.market_regime = "bullish" if i < 12 else "bearish"
-        
-        events = lighthouse.scan(state)
-        if events:
-            print(f"  Scan {i+1}: {len(events)} events detected")
-    
-    print("\n✅ Lighthouse test complete")
-    print(f"   Total events detected: {len(lighthouse.recent_events)}")
+
+    result = run_analysis()
+    if not result.get("ok"):
+        print(f"  ⛔ FAIL-CLOSED: {result.get('error')} — no fabricated state substituted.")
+        _sys.exit(2)
+
+    print(f"  ✅ Symbols analyzed: {', '.join(result['symbols_fetched'])}")
+    print(f"  📡 Events detected: {result['event_count']}")
+    for event in result["events"]:
+        print(f"     [{event['type']}] severity={event['severity']:.2f} :: {event['message']}")
+    if result.get("fetch_errors"):
+        print(f"  ⚠️  Fetch failures (fail-closed): {_json.dumps(result['fetch_errors'])}")
+    print("\n✅ Lighthouse real-data analysis complete")

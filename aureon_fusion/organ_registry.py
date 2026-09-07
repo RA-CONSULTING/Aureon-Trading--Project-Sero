@@ -107,6 +107,29 @@ SOLAR_SYSTEM_COLLECTOR = WORKSPACE / "solar_system_collector.py"
 SERO_SPACE_WEATHER = WORKSPACE / "sero_space_weather.py"
 RADAR_MASTER_LAUNCHER = AUREON_RADAR / "master_launcher.py"
 
+# UNITY SUPERVISOR wave (2026-09-07 build): ten previously unsupervised
+# radar/fusion loops plus the supervisor itself and the flight-recorder
+# seat (delivered by the FLIGHT-RECORDER agent). These organs are launched
+# from either aureon_radar/ or the workspace root, matching the command
+# lines already observed in the live fleet.
+GRAND_WHEEL = Path(__file__).resolve().parent / "grand_wheel.py"
+KNOWLEDGE_PULSE_FEEDER = Path(__file__).resolve().parent / "knowledge_pulse_feeder.py"
+TRADING_PROGRESS_MONITOR = AUREON_RADAR / "trading_progress_monitor.py"
+PORTFOLIO_WRITER_LOOP = AUREON_RADAR / "_portfolio_writer_loop.py"
+TEMPORAL_REFRESH_LOOP = AUREON_RADAR / "_temporal_refresh_loop.py"
+WORLD_DIGEST_LOOP = AUREON_RADAR / "_world_digest_loop.py"
+HARMONIC_SEED_LOOP = AUREON_RADAR / "_harmonic_seed_loop.py"
+GLOBAL_ENERGY_AGGREGATOR = AUREON_RADAR / "global_energy_aggregator.py"
+ORCA_UNIFIED_KILL_CHAIN = AUREON_RADAR / "bots" / "orca_unified_kill_chain.py"
+ORCA_COMMAND_CENTER = AUREON_RADAR / "bots" / "orca_command_center.py"
+UNITY_SUPERVISOR = Path(__file__).resolve().parent / "unity_supervisor.py"
+FLIGHT_RECORDER = Path(__file__).resolve().parent / "flight_recorder.py"
+BUS_BRIDGE = Path(__file__).resolve().parent / "bus_bridge.py"
+
+# Owner-approval gate for queen_mind restart. Only the unity supervisor
+# checks this; the file is NEVER created or modified by the registry.
+QUEEN_MIND_RESTART_APPROVAL = FUSION_STATE / "queen_mind_restart_approved.json"
+
 # Activation-wave organs (2026-09-04 second memory entry).
 # HNC_CORE_DAEMON is the retired pre-fusion script; the ws2 deliverable is
 # the fused module aureon_fusion.hnc_core, launched with `run`.
@@ -146,6 +169,34 @@ def _launch_env(extra: dict = None) -> dict:
     existing = env.get("PYTHONPATH")
     upstream = str(AUREON_UPSTREAM)
     env["PYTHONPATH"] = upstream + (os.pathsep + existing if existing else "")
+    if extra:
+        env.update(extra)
+    return env
+
+
+def _radar_env(extra: dict = None) -> dict:
+    """Child environment for aureon_radar scripts that import the upstream
+    `aureon` package: PYTHONPATH pinned to the upstream repo root, but NO
+    activation-wave suppression flags (radar loops run in their native
+    mode)."""
+    env = dict(os.environ)
+    existing = env.get("PYTHONPATH")
+    upstream = str(AUREON_UPSTREAM)
+    env["PYTHONPATH"] = upstream + (os.pathsep + existing if existing else "")
+    if extra:
+        env.update(extra)
+    return env
+
+
+def _workspace_env(extra: dict = None) -> dict:
+    """Child environment for aureon_fusion modules that need BOTH the workspace
+    package (aureon_fusion.*) and the upstream package (aureon.*)."""
+    env = dict(os.environ)
+    existing = env.get("PYTHONPATH")
+    parts = [str(WORKSPACE), str(AUREON_UPSTREAM)]
+    if existing:
+        parts.append(existing)
+    env["PYTHONPATH"] = os.pathsep.join(parts)
     if extra:
         env.update(extra)
     return env
@@ -355,6 +406,120 @@ ORGANS = {
         "log": str(LOGS / "organ_heartbeat_daemon.log"),
         "env": _launch_env(),
     },
+    # ── UNITY SUPERVISOR wave (2026-09-07 build): SaaS-style persistent
+    # supervisor plus the ten previously unsupervised loops and the
+    # flight-recorder seat. Command lines mirror the live fleet so the
+    # registry's matcher can adopt already-running instances.
+    "grand_wheel": {
+        "module": "aureon_fusion.grand_wheel",
+        "match": "aureon_fusion.grand_wheel",
+        "args": ["run_once", "--loop", "1000000"],
+        "cwd": str(WORKSPACE),
+        "mode": "continuous (60s happiness wheel)",
+        "log": str(LOGS / "organ_grand_wheel.log"),
+        "env": _launch_env(),
+    },
+    "knowledge_pulse_feeder": {
+        "module": "aureon_fusion.knowledge_pulse_feeder",
+        "match": "aureon_fusion.knowledge_pulse_feeder",
+        "args": ["run", "--interval", "60"],
+        "cwd": str(WORKSPACE),
+        "mode": "continuous (60s knowledge pulse)",
+        "log": str(LOGS / "organ_knowledge_pulse_feeder.log"),
+        "env": _launch_env(),
+    },
+    "trading_progress_monitor": {
+        "script": str(TRADING_PROGRESS_MONITOR),
+        "args": [],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (30s trading progress)",
+        "log": str(AUREON_RADAR / "logs" / "trading_progress_monitor.log"),
+    },
+    "_portfolio_writer_loop": {
+        "script": str(PORTFOLIO_WRITER_LOOP),
+        "args": [],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (60s portfolio truth writer)",
+        "log": str(AUREON_RADAR / "logs" / "portfolio_writer_loop.log"),
+        "env": _radar_env(),
+    },
+    "_temporal_refresh_loop": {
+        "script": str(TEMPORAL_REFRESH_LOOP),
+        "args": [],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (120s temporal refresh + prophecy resolution)",
+        "log": str(AUREON_RADAR / "logs" / "temporal_refresh_loop.log"),
+        "env": _radar_env(),
+    },
+    "_world_digest_loop": {
+        "script": str(WORLD_DIGEST_LOOP),
+        "args": [],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (600s world digest)",
+        "log": str(AUREON_RADAR / "_world_digest_loop.log"),
+        "env": _radar_env({"PYTHONUTF8": "1"}),
+    },
+    "_harmonic_seed_loop": {
+        "script": str(HARMONIC_SEED_LOOP),
+        "args": ["--daemon"],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (2400s harmonic seed)",
+        "log": str(AUREON_RADAR / "harmonic_seed_loop.log"),
+        "env": _radar_env({"PYTHONUTF8": "1"}),
+    },
+    "global_energy_aggregator": {
+        "script": str(GLOBAL_ENERGY_AGGREGATOR),
+        "args": ["--interval", "300"],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (300s global energy aggregator)",
+        "log": str(AUREON_RADAR / "logs" / "global_energy_aggregator.log"),
+        "env": _radar_env({"PYTHONUTF8": "1"}),
+    },
+    "orca_unified_kill_chain": {
+        "script": str(ORCA_UNIFIED_KILL_CHAIN),
+        "match": "orca_unified_kill_chain.py",
+        "args": ["--auto"],
+        "cwd": str(WORKSPACE),
+        "mode": "continuous (30s orca kill chain)",
+        "log": str(LOGS / "organ_orca_unified_kill_chain.log"),
+        "env": _radar_env({"PYTHONUTF8": "1"}),
+    },
+    "orca_command_center": {
+        "script": str(ORCA_COMMAND_CENTER),
+        "match": "orca_command_center.py",
+        "args": ["--port", "8888"],
+        "cwd": str(AUREON_RADAR),
+        "mode": "continuous (aiohttp orca dashboard :8888)",
+        "log": str(AUREON_RADAR / "logs" / "orca_command_center.log"),
+        "env": _radar_env({"PYTHONUTF8": "1"}),
+    },
+    "unity_supervisor": {
+        "module": "aureon_fusion.unity_supervisor",
+        "match": "aureon_fusion.unity_supervisor",
+        "args": [],
+        "cwd": str(WORKSPACE),
+        "mode": "continuous (30-60s fleet supervision)",
+        "log": str(LOGS / "organ_unity_supervisor.log"),
+        "env": _launch_env(),
+    },
+    "flight_recorder": {
+        "module": "aureon_fusion.flight_recorder",
+        "match": "aureon_fusion.flight_recorder",
+        "args": ["--daemon"],
+        "cwd": str(WORKSPACE),
+        "mode": "continuous (per-faculty flight recorder)",
+        "log": str(LOGS / "organ_flight_recorder.log"),
+        "env": _workspace_env(),
+    },
+    "bus_bridge": {
+        "module": "aureon_fusion.bus_bridge",
+        "match": "aureon_fusion.bus_bridge",
+        "args": [],
+        "cwd": str(WORKSPACE),
+        "mode": "continuous (thought-bus unity bridge)",
+        "log": str(LOGS / "organ_bus_bridge.log"),
+        "env": _workspace_env(),
+    },
 }
 
 # On-demand tools that are NOT organs (note only — kept out of ORGANS on
@@ -368,8 +533,6 @@ ORGAN_ORDER = list(ORGANS)
 
 def _release_granted() -> bool:
     """True only when the orchestrator has pulled the capital pin."""
-    if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
-        return False
     return CAPITAL_RELEASE_FLAG.exists()
 
 

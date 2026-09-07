@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import os
 
 import matplotlib.pyplot as plt
@@ -174,11 +174,43 @@ class BitcoinDataFetcher:
             return df.set_index("datetime").sort_index()
 
         except Exception as exc:  # network/rate-limit fallback
-            print(f"Error fetching data: {exc}")
+            print(f"Error fetching data from CoinGecko: {exc}")
+            binance_df = self._fetch_binance_hourly()
+            if binance_df is not None and not binance_df.empty:
+                print("Falling back to Binance public klines (BTCUSDT 1h).")
+                return binance_df
             if self._synthetic_allowed():
                 print("AUREON_ALLOW_SYNTHETIC=1 — using tagged synthetic dataset.")
                 return self._generate_synthetic_data(days)
             return self._empty_frame()
+
+    def _fetch_binance_hourly(self, limit: int = 1000) -> Optional[pd.DataFrame]:
+        """Real BTC hourly data from Binance public klines (no auth, throttled).
+
+        Covers the most recent ``limit`` hours (~41 days at limit=1000, the
+        API maximum). Returns None when unavailable or stale-only.
+        """
+        try:
+            from analyzers import global_energy_data as ged
+        except ImportError:  # standalone: run from inside analyzers/
+            import global_energy_data as ged
+
+        body = ged.fetch_binance_klines("BTCUSDT", interval="1h", limit=limit)
+        if not body:
+            return None
+        try:
+            df = pd.DataFrame(
+                {
+                    "timestamp": [float(k[0]) for k in body],
+                    "price": [float(k[4]) for k in body],
+                    "volume": [float(k[5]) for k in body],
+                    "market_cap": [float("nan")] * len(body),
+                }
+            )
+            df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
+            return df.set_index("datetime").sort_index()
+        except (TypeError, ValueError, IndexError):
+            return None
 
     def _generate_synthetic_data(self, days: int) -> pd.DataFrame:
         hours = days * 24
@@ -235,6 +267,8 @@ class BitcoinLighthouseForensics:
 
         self.signatures: List[Dict] = []
         self.predictions: List[Dict] = []
+        self.sig_df: Optional[pd.DataFrame] = None
+        self.pred_df: Optional[pd.DataFrame] = None
 
     def run_complete_analysis(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         print("🔍 LIGHTHOUSE FORENSIC ANALYSIS")
@@ -547,6 +581,64 @@ class LighthouseForwardProjection:
         plt.suptitle("LIGHTHOUSE FORWARD PROJECTION - Probabilistic Forecast", fontsize=16, fontweight="bold")
         plt.tight_layout()
         return fig
+
+
+def run_analysis(days: int = 90, simulations: int = 5_000, horizon_hours: int = 168) -> Dict:
+    """Headless, plot-free Lighthouse pipeline summary for the battle-view.
+
+    Uses the same real CoinGecko data path as run_complete_lighthouse_analysis
+    (synthetic remains opt-in via AUREON_ALLOW_SYNTHETIC, tagged). Returns a
+    JSON-safe dict; fail-closed (ok=False, fields=None) when no real data.
+    """
+    import time as _time
+
+    fetcher = BitcoinDataFetcher()
+    df = fetcher.fetch_historical_data(days=days)
+    if df is None or df.empty:
+        return {
+            "ok": False,
+            "ts": _time.time(),
+            "regime": None,
+            "current_price": None,
+            "signature": None,
+            "critical_events": None,
+            "projection": None,
+            "error": "no_real_market_data",
+        }
+
+    forensics = BitcoinLighthouseForensics(df)
+    forensics.run_complete_analysis()
+    critical_events = forensics.identify_critical_events()
+    regime = forensics.analyze_current_regime()
+
+    projector = LighthouseForwardProjection(forensics)
+    projection = projector.monte_carlo_projection(
+        n_simulations=simulations, horizon_hours=horizon_hours
+    )
+
+    current_sig = forensics.lighthouse.historical_signatures[-1]
+    return {
+        "ok": True,
+        "ts": _time.time(),
+        "data_points": int(len(df)),
+        "date_range": [str(df.index[0]), str(df.index[-1])],
+        "regime": regime,
+        "current_price": float(forensics.data["price"].iloc[-1]),
+        "signature": {
+            "curvature": float(current_sig.curvature),
+            "coherence": float(current_sig.coherence),
+            "dimension": float(current_sig.dimension),
+            "velocity_norm": float(np.linalg.norm(current_sig.velocity)),
+        },
+        "critical_events": int(len(critical_events)),
+        "projection": {
+            "horizon_hours": horizon_hours,
+            "percentiles": projection["percentiles"],
+            "probabilities": projection["probabilities"],
+            "parameters": projection["parameters"],
+        },
+        "error": None,
+    }
 
 
 def run_complete_lighthouse_analysis(

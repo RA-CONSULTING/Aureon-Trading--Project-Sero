@@ -63,12 +63,20 @@ COINGECKO_MAP = {
 }
 
 # ── CAPITAL SCALING FIX ──
-# Capital.com returns forex in "pip" format (×100 or ×10000)
-# Other assets may also be scaled
+# Maps Capital.com native quote units → normalized (Yahoo-consistent) units.
+# Capital returns some instruments in "pip/point" format that must be rescaled
+# to match Yahoo/free data. Order placement converts normalized levels back to
+# Capital native units by dividing by the same factor.
 CAPITAL_SCALE = {
     "USDJPY": 0.01,      # 15843 → 158.43
     "EURUSD": 0.0001,    # 11579 → 1.1579
     "GBPUSD": 0.0001,    # 13485 → 1.3485
+    "NATURALGAS": 0.001, # 3052  → 3.052 (Capital ticker is ×1000)
+    "OIL_CRUDE": 0.01,   # 9045  → 90.45 (Capital ticker is ×100)
+    "SILVER": 0.01,      # 6545  → 65.45 (Capital ticker is ×100)
+    "AAPL": 0.01,        # 31976 → 319.76 (single-stock CFDs quoted in cents)
+    "TSLA": 0.01,        # 35338 → 353.38
+    "NVDA": 0.01,        # 22997 → 229.97
 }
 
 
@@ -142,72 +150,78 @@ def _fetch_coingecko(symbol: str) -> Optional[float]:
 
 
 def _fetch_capital(capital_connector, symbol: str) -> Optional[float]:
-    """LAST RESORT: Capital.com with forex scaling fix."""
+    """Fetch live price from Capital.com and normalize to Yahoo-style units."""
     if not capital_connector:
         return None
     try:
-        price = capital_connector.get_price(symbol)
-        if price and price > 0:
-            # Apply forex scaling if known
+        ticker = capital_connector.get_ticker(symbol)
+        if ticker and ticker.get("price"):
+            raw = float(ticker["price"])
+            # Normalize from Capital's native quote units to Yahoo-style units.
             scale = CAPITAL_SCALE.get(symbol, 1.0)
-            if scale != 1.0:
-                fixed = price * scale
-                logger.info(f"[PRICE] Capital {symbol} raw={price} scaled={fixed}")
-                return fixed
-            logger.debug(f"[PRICE] Capital {symbol} = {price}")
-            return float(price)
+            fixed = raw * scale
+            logger.info(f"[PRICE] Capital {symbol} raw={raw} scaled={fixed}")
+            return fixed
     except Exception as e:
         logger.debug(f"Capital failed for {symbol}: {e}")
     return None
 
 
-def get_price(symbol: str, capital_connector=None) -> Optional[float]:
+def get_price(symbol: str, capital_connector=None, prefer_capital: bool = False) -> Optional[float]:
     """
     Get price. Priority:
-    1. Yahoo Finance (covers everything)
-    2. Binance (crypto)
-    3. CoinGecko (crypto)
-    4. Capital.com (forex scaling fix)
+    1. Capital.com (when prefer_capital=True and connector is ready)
+    2. Yahoo Finance (covers everything)
+    3. Binance (crypto)
+    4. CoinGecko (crypto)
+    5. Capital.com (fallback when not preferred)
     """
-    # Check cache
-    if symbol in _price_cache:
+    # Check cache (skip when execution-grade Capital freshness is requested)
+    if not prefer_capital and symbol in _price_cache:
         cached = _price_cache[symbol]
         if time.time() - cached["time"] < _CACHE_TTL:
             return cached["price"]
-    
+
     price = None
     source = None
-    
-    # 1. Yahoo Finance first (covers stocks, forex, commodities, indices, crypto)
-    price = _fetch_yahoo(symbol)
-    if price:
-        source = "yahoo"
-    
-    # 2. Binance for crypto
+
+    # 1. Capital.com first when execution-grade freshness is required.
+    if prefer_capital and capital_connector is not None:
+        price = _fetch_capital(capital_connector, symbol)
+        if price:
+            source = "capital"
+
+    # 2. Yahoo Finance first for normal/non-trading calls
+    if not price:
+        price = _fetch_yahoo(symbol)
+        if price:
+            source = "yahoo"
+
+    # 3. Binance for crypto
     if not price:
         price = _fetch_binance(symbol)
         if price:
             source = "binance"
-    
-    # 3. CoinGecko for crypto fallback
+
+    # 4. CoinGecko for crypto fallback
     if not price:
         price = _fetch_coingecko(symbol)
         if price:
             source = "coingecko"
-    
-    # 4. Capital.com last resort
+
+    # 5. Capital.com fallback
     if not price:
         price = _fetch_capital(capital_connector, symbol)
         if price:
             source = "capital"
-    
+
     if price:
         _price_cache[symbol] = {"price": price, "time": time.time()}
         if source:
             logger.info(f"[PRICE] {symbol} = {price} (via {source})")
     else:
         logger.warning(f"[PRICE] Could not fetch {symbol}")
-    
+
     return price
 
 

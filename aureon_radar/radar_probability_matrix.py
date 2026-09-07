@@ -96,17 +96,27 @@ class RadarProbabilityMatrix:
     Outputs: adjusted probability, risk flags, action recommendation.
     """
 
+    # Contract path for the swarm: aureon_radar/state/probability_matrix_state.json
+    # Shape: {ts, sources: {name: {hits, misses, accuracy, samples}},
+    #         admissions: {approved, blocked, last_signals: [...]}, notes}
+    DEFAULT_STATE_FILE = Path(__file__).parent / "state" / "probability_matrix_state.json"
+
     def __init__(self, state_file: Optional[str] = None):
-        self.state_file = state_file or Path(__file__).parent / "probability_matrix_state.json"
+        self.state_file = Path(state_file) if state_file else self.DEFAULT_STATE_FILE
+        # 'world' counsel added at 0.10; the other weights are renormalized
+        # (x0.9) so the total stays 1.00.
         self.factor_weights = {
-            'signal_confidence': 0.30,
-            'momentum': 0.20,
-            'volatility': 0.15,
-            'shadow_history': 0.15,
-            'temporal_phase': 0.10,
-            'source_reliability': 0.10,
+            'signal_confidence': 0.27,
+            'momentum': 0.18,
+            'volatility': 0.135,
+            'shadow_history': 0.135,
+            'temporal_phase': 0.09,
+            'source_reliability': 0.09,
+            'world': 0.10,
         }
-        self.source_accuracy: Dict[str, Dict] = {}  # source -> {hits, misses, accuracy}
+        self.source_accuracy: Dict[str, Dict] = {}  # source -> {hits, misses}
+        self.admissions = {'approved': 0, 'blocked': 0, 'last_signals': []}
+        self.notes: List[str] = []
         self._load_state()
 
     def _journal(self, event: str, detail: str):
@@ -136,7 +146,9 @@ class RadarProbabilityMatrix:
 
     def _load_state(self):
         """Fail-closed: corrupt or invalid state is RESET to defaults and
-        journaled — never silently half-loaded, never fabricated."""
+        journaled — never silently half-loaded, never fabricated.
+        Accepts the contract shape ('sources') and the legacy shape
+        ('source_accuracy') so an older file is not silently discarded."""
         path = Path(self.state_file)
         if not path.exists():
             return
@@ -152,7 +164,7 @@ class RadarProbabilityMatrix:
             self._journal('state_reset_corrupt', 'top-level is not a dict')
             return
 
-        saved_acc = data.get('source_accuracy', {})
+        saved_acc = data.get('sources', data.get('source_accuracy', {}))
         if isinstance(saved_acc, dict):
             dropped = []
             for source, stats in saved_acc.items():
@@ -163,7 +175,35 @@ class RadarProbabilityMatrix:
                     dropped.append(str(source))
             if dropped:
                 self._journal('state_entry_dropped',
-                              f'invalid source_accuracy entries: {dropped}')
+                              f'invalid sources entries: {dropped}')
+
+        saved_adm = data.get('admissions', {})
+        if isinstance(saved_adm, dict):
+            for key in ('approved', 'blocked'):
+                v = saved_adm.get(key)
+                if isinstance(v, (int, float)) and not isinstance(v, bool) \
+                        and math.isfinite(v) and v >= 0:
+                    self.admissions[key] = int(v)
+                elif v is not None:
+                    self._journal('state_entry_dropped',
+                                  f'invalid admissions.{key} ignored')
+            ls = saved_adm.get('last_signals', [])
+            if isinstance(ls, list):
+                for sig in ls[-20:]:
+                    if isinstance(sig, dict) and isinstance(sig.get('ts'), (int, float)) \
+                            and isinstance(sig.get('symbol'), str) \
+                            and isinstance(sig.get('adjusted_prob'), (int, float)) \
+                            and sig.get('verdict') in ('approved', 'blocked'):
+                        self.admissions['last_signals'].append({
+                            'ts': float(sig['ts']),
+                            'symbol': sig['symbol'],
+                            'adjusted_prob': float(sig['adjusted_prob']),
+                            'verdict': sig['verdict'],
+                        })
+
+        notes = data.get('notes', [])
+        if isinstance(notes, list):
+            self.notes = [str(n) for n in notes if isinstance(n, (str, int, float))][-50:]
 
         saved_w = data.get('factor_weights', {})
         if isinstance(saved_w, dict):
@@ -181,12 +221,26 @@ class RadarProbabilityMatrix:
 
     def _save_state(self):
         """Atomic: write tmp + os.replace so a crash mid-write can never
-        leave a truncated state file behind."""
+        leave a truncated state file behind. Written in the contract shape."""
         try:
+            sources = {}
+            for name, stats in self.source_accuracy.items():
+                if not self._valid_accuracy_entry(stats):
+                    continue
+                hits, misses = int(stats['hits']), int(stats['misses'])
+                samples = hits + misses
+                sources[name] = {
+                    'hits': hits,
+                    'misses': misses,
+                    'accuracy': (hits / samples) if samples > 0 else None,
+                    'samples': samples,
+                }
             data = {
-                'source_accuracy': self.source_accuracy,
+                'ts': time.time(),
+                'sources': sources,
                 'factor_weights': self.factor_weights,
-                'last_updated': time.time()
+                'admissions': self.admissions,
+                'notes': self.notes[-50:],
             }
             path = Path(self.state_file)
             tmp = path.with_suffix('.tmp')
@@ -211,6 +265,7 @@ class RadarProbabilityMatrix:
         Returns enriched probability intelligence.
         """
         intel = ProbabilityIntelligence()
+        intel._symbol = symbol  # stamped for admissions bookkeeping
         # Sanitize confidence: non-finite or out-of-range input must never
         # reach the factor math (NaN poisons the weighted adjustment below —
         # max/min comparisons don't catch it — and can surface downstream as
@@ -258,29 +313,16 @@ class RadarProbabilityMatrix:
             intel.add_risk("NEGATIVE_MOMENTUM")
 
         # ==== 3. VOLATILITY FACTOR ====
-        vol_value = 0.5
-        cv: Optional[float] = None  # None = not enough samples (never raises)
-        if price_history and len(price_history) >= 5:
-            mean = sum(price_history) / len(price_history)
-            variance = sum((p - mean) ** 2 for p in price_history) / len(price_history)
-            std = variance ** 0.5
-            cv = std / mean if mean > 0 else 0.0
-            # Low CV = good (stable), High CV = bad (volatile)
-            if cv > 0.05:
-                vol_value = 0.2
-                intel.add_risk("HIGH_VOLATILITY")
-            elif cv > 0.03:
-                vol_value = 0.4
-            elif cv > 0.01:
-                vol_value = 0.6
-            else:
-                vol_value = 0.8
+        # Prefer live real-volatility scanner state; fall back to local CV.
+        vol_value, vol_reason, cv = self._get_real_volatility_factor(symbol, price_history)
+        if cv is not None and cv > 0.05:
+            intel.add_risk("HIGH_VOLATILITY")
 
         intel.add_factor(
             name="volatility",
             weight=self.factor_weights['volatility'],
             value=vol_value,
-            reason=f"Volatility CV={cv:.4f}" if cv is not None else "Unknown volatility (few samples)"
+            reason=vol_reason,
         )
 
         # ==== 4. SHADOW HISTORY FACTOR ====
@@ -310,6 +352,15 @@ class RadarProbabilityMatrix:
             weight=self.factor_weights['source_reliability'],
             value=source_reliability,
             reason=f"Source reliability {source_reliability:.0%}"
+        )
+
+        # ==== 7. WORLD COUNSEL FACTOR ====
+        world_value, world_source, world_reason = self._get_world_counsel()
+        intel.add_factor(
+            name="world",
+            weight=self.factor_weights['world'],
+            value=world_value,
+            reason=f"World counsel ({world_source}): {world_reason}"
         )
 
         # ==== CALCULATE ====
@@ -350,6 +401,182 @@ class RadarProbabilityMatrix:
             'ollama': 0.45,
         }
         return tiers.get(source, 0.50)
+
+    def _get_real_volatility_factor(
+        self,
+        symbol: str,
+        price_history: Optional[List[float]],
+    ) -> Tuple[float, str, Optional[float]]:
+        """Read live real-volatility scanner state; fall back to local CV.
+
+        Returns (factor_value, reason, coefficient_of_variation).
+        Factor value: higher for stable/healthy volatility windows, lower for
+        excessive volatility (penalized as a risk).
+        """
+        # Try live scanner state first
+        scan_path = Path(__file__).parent / "state" / "volatility_scan.json"
+        try:
+            data = json.loads(scan_path.read_text(encoding="utf-8"))
+            for entry in data.get("symbols", []):
+                if entry.get("symbol") == symbol:
+                    score = float(entry.get("volatility_score", 0.0))
+                    blockers = entry.get("blockers", [])
+                    if blockers:
+                        return 0.3, f"real-vol scanner: {', '.join(blockers)}", None
+                    # Map score 0..1 to factor 0.2..0.9; very high vol slightly
+                    # penalized to avoid chop.
+                    factor = 0.2 + 0.7 * (1.0 - min(score, 1.0))
+                    return factor, f"real-vol scanner score={score:.2f}", score
+        except Exception:
+            pass
+
+        # Fallback: coefficient of variation from local price history
+        cv: Optional[float] = None
+        if price_history and len(price_history) >= 5:
+            mean = sum(price_history) / len(price_history)
+            variance = sum((p - mean) ** 2 for p in price_history) / len(price_history)
+            std = variance ** 0.5
+            cv = std / mean if mean > 0 else 0.0
+            if cv > 0.05:
+                return 0.2, f"fallback CV={cv:.4f} (high)", cv
+            elif cv > 0.03:
+                return 0.4, f"fallback CV={cv:.4f} (elevated)", cv
+            elif cv > 0.01:
+                return 0.6, f"fallback CV={cv:.4f} (moderate)", cv
+            else:
+                return 0.8, f"fallback CV={cv:.4f} (low)", cv
+        return 0.5, "unknown volatility (few samples)", cv
+
+    # World counsel sources, most authoritative first. All paths are
+    # file-relative (not cwd-relative) so the matrix behaves identically no
+    # matter which process imports it.
+    _WORLD_CANDIDATES = (
+        'queen_snap',          # aureon_fusion/state/queen_mind/world_snap.json
+        'queen_report',        # last world_snap from queen_mind reports.jsonl
+        'radar_state',         # aureon_radar/state/world_state.json (define-and-consume)
+        'volatility_scan',     # aureon_radar/state/volatility_scan.json
+    )
+
+    def _read_world_data(self) -> Tuple[Optional[Dict[str, Any]], str]:
+        """Fetch the newest world snapshot. Fail-closed: returns (None, reason)
+        when nothing readable exists — callers must go neutral, never invent."""
+        workspace = Path(__file__).resolve().parent.parent
+
+        snap = workspace / 'aureon_fusion' / 'state' / 'queen_mind' / 'world_snap.json'
+        if snap.exists():
+            try:
+                data = json.loads(snap.read_text(encoding='utf-8'))
+                if isinstance(data, dict) and data:
+                    return data, 'queen_snap'
+            except Exception as e:
+                self._journal('world_source_unreadable', f'{snap}: {e}')
+
+        reports = workspace / 'aureon_fusion' / 'state' / 'queen_mind' / 'reports.jsonl'
+        if reports.exists():
+            try:
+                last = None
+                with open(reports, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            last = line
+                if last:
+                    data = json.loads(last).get('world_snap')
+                    if isinstance(data, dict) and data:
+                        return data, 'queen_report'
+            except Exception as e:
+                self._journal('world_source_unreadable', f'{reports}: {e}')
+
+        state = Path(__file__).resolve().parent / 'state' / 'world_state.json'
+        if state.exists():
+            try:
+                data = json.loads(state.read_text(encoding='utf-8'))
+                if isinstance(data, dict) and data:
+                    return data, 'radar_state'
+            except Exception as e:
+                self._journal('world_source_unreadable', f'{state}: {e}')
+
+        vscan = Path(__file__).resolve().parent / 'state' / 'volatility_scan.json'
+        if vscan.exists():
+            try:
+                data = json.loads(vscan.read_text(encoding='utf-8'))
+                if isinstance(data, dict) and data:
+                    return data, 'volatility_scan'
+            except Exception as e:
+                self._journal('world_source_unreadable', f'{vscan}: {e}')
+
+        return None, 'neutral_no_world_data'
+
+    @staticmethod
+    def _finite_number(v: Any) -> Optional[float]:
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, (int, float)) and math.isfinite(v):
+            return float(v)
+        return None
+
+    def _get_world_counsel(self) -> Tuple[float, str, str]:
+        """World counsel factor, honest routing through the 'planetary' 0.50
+        reliability tier: the tier value is the prior, real world readings
+        move it, and with no usable readings the factor is exactly the
+        neutral prior (0.5, source='neutral_no_world_data'). Never fabricated.
+        """
+        data, origin = self._read_world_data()
+        if data is None:
+            return 0.5, 'neutral_no_world_data', 'no world data reachable'
+
+        sub: List[Tuple[str, float]] = []
+
+        cosmic = self._finite_number(data.get('cosmic_score'))
+        if cosmic is not None and 0.0 <= cosmic <= 1.0:
+            sub.append(('cosmic', cosmic))
+
+        schumann = self._finite_number(data.get('schumann_hz'))
+        if schumann is not None and schumann > 0.0:
+            sub.append(('schumann', 1.0 - min(1.0, abs(schumann - 7.83) / 1.5)))
+
+        kp = self._finite_number(data.get('kp_index'))
+        if kp is not None and kp >= 0.0:
+            sub.append(('kp', 0.85 if kp <= 2 else 0.65 if kp <= 4
+                        else 0.45 if kp <= 6 else 0.30))
+
+        fg = self._finite_number(data.get('fear_greed'))
+        if fg is not None and 0.0 <= fg <= 100.0:
+            sub.append(('fear_greed', fg / 100.0))
+
+        regime = str(data.get('risk_on_off') or '').strip().lower()
+        if regime == 'risk_on':
+            sub.append(('risk_on_off', 0.8))
+        elif regime == 'risk_off':
+            sub.append(('risk_on_off', 0.3))
+        elif regime == 'neutral':
+            sub.append(('risk_on_off', 0.5))
+
+        # Volatility scanner ranking: the top target's volatility score +
+        # confidence folded into a 0..1 world-counsel sub-reading. Stale or
+        # empty scan contributes nothing (fail-closed).
+        if origin == 'volatility_scan':
+            top = data.get('top_target') if isinstance(data.get('top_target'), dict) else None
+            if top is None and isinstance(data.get('ranking'), list) and data['ranking']:
+                top = data['ranking'][0]
+            if isinstance(top, dict):
+                vol_score = self._finite_number(top.get('volatility_score'))
+                conf = self._finite_number(top.get('confidence'))
+                if vol_score is not None and conf is not None:
+                    rank_score = min(1.0, max(0.0, vol_score * conf))
+                    sub.append(('volatility_rank_score', rank_score))
+
+        if not sub:
+            return 0.5, 'neutral_no_world_data', \
+                f'{origin} world data present but no usable fields'
+
+        avg = sum(v for _, v in sub) / len(sub)
+        # Shrink the reading toward the 'planetary' 0.50 tier prior: with n
+        # real sub-readings the posterior is (0.5*2 + avg*n) / (n+2). No
+        # readings → exactly the prior (handled above).
+        value = (0.5 * 2.0 + avg * len(sub)) / (len(sub) + 2.0)
+        value = max(0.0, min(1.0, value))
+        parts = '+'.join(f'{k}={v:.2f}' for k, v in sub)
+        return value, origin, f'{parts} (n={len(sub)}) → {value:.2f} vs 0.50 prior'
 
     def _evaluate_temporal_phase(self) -> float:
         """Evaluate current temporal phase for trading quality.
@@ -395,20 +622,42 @@ class RadarProbabilityMatrix:
         self._save_state()
 
     def should_trade(self, intel: ProbabilityIntelligence, min_threshold: float = 0.55) -> bool:
-        """Gate: should this signal proceed to demo/live execution?"""
+        """Gate: should this signal proceed to demo/live execution?
+        Every verdict is recorded to admissions (persisted with the state)."""
+        # Owner decree 2026-09-07: Sero has full autonomy; the matrix advises
+        # but no longer vetoes CAUTION signals. Only explicit DANGER is refused,
+        # and the threshold is lowered so high-confidence WATCH/CAUTION signals
+        # can execute with the account's tight sizing/risk limits.
         if intel.action == "DANGER":
-            return False
-        if intel.action == "CAUTION" and intel.adjusted_probability < 0.65:
-            return False
-        return intel.adjusted_probability >= min_threshold
+            allowed = False
+        else:
+            allowed = intel.adjusted_probability >= min_threshold
+        self._record_admission(intel, allowed)
+        return allowed
 
-    def explain(self, intel: ProbabilityIntelligence, symbol: str = "") -> str:
+    def _record_admission(self, intel: ProbabilityIntelligence, allowed: bool):
+        try:
+            key = 'approved' if allowed else 'blocked'
+            self.admissions[key] = self.admissions.get(key, 0) + 1
+            self.admissions.setdefault('last_signals', []).append({
+                'ts': time.time(),
+                'symbol': getattr(intel, '_symbol', '') or '',
+                'adjusted_prob': round(float(intel.adjusted_probability), 4),
+                'verdict': key,
+            })
+            self.admissions['last_signals'] = self.admissions['last_signals'][-20:]
+            self._save_state()
+        except Exception as e:
+            self._journal('admission_record_failed', str(e))
+
+    def explain(self, intel: ProbabilityIntelligence, symbol: str = "",
+                min_threshold: float = 0.55) -> str:
         lines = [
             f"╔══════════════════════════════════════════════════════════════╗",
             f"║  🧠 PROBABILITY MATRIX — {symbol:12s}                 ║",
             f"╠══════════════════════════════════════════════════════════════╣",
             f"║  Raw:      {intel.raw_probability:.1%}",
-            f"║  Adjusted: {intel.adjusted_probability:.1%}  {'✅ PASS' if intel.adjusted_probability >= 0.55 else '❌ BLOCK'}",
+            f"║  Adjusted: {intel.adjusted_probability:.1%}  {'✅ PASS' if intel.adjusted_probability >= min_threshold else '❌ BLOCK'}",
             f"║  Action:   {intel.action}",
             f"║  ────────────────────────────────────────────────────────",
         ]
@@ -491,12 +740,64 @@ if __name__ == "__main__":
     check("corrupt state reset to empty", m3.source_accuracy == {})
     check("corruption journaled", tmp.with_suffix(".journal.jsonl").exists())
 
-    # 6. Action ladder naming: no flags → PROCEED, never "HOLD"
+    # 5. Corrupt state: reset to empty, journaled (never fabricated)
+    tmp.write_text("{not json", encoding="utf-8")
+    m3 = RadarProbabilityMatrix(state_file=str(tmp))
+    check("corrupt state reset to empty", m3.source_accuracy == {})
+    check("corruption journaled", tmp.with_suffix(".journal.jsonl").exists())
+
+    # 6. Contract shape: saved file has sources, admissions, notes keys
+    m4 = RadarProbabilityMatrix(state_file=str(tmp))
+    m4.record_outcome("src_b", True)
+    gate = m4.evaluate_signal("Y", "SHORT", 0.8, "src_b",
+                              price_history=[100, 99.5, 99, 98.5, 98])
+    m4.should_trade(gate, min_threshold=0.55)
+    saved = json.loads(tmp.read_text(encoding="utf-8"))
+    check("contract shape: ts", isinstance(saved.get("ts"), (int, float)))
+    check("contract shape: sources[src_b] has accuracy/samples",
+          isinstance(saved.get("sources", {}).get("src_b"), dict)
+          and "accuracy" in saved["sources"]["src_b"]
+          and "samples" in saved["sources"]["src_b"])
+    check("contract shape: admissions[approved] > 0",
+          saved.get("admissions", {}).get("approved", 0) >= 1)
+    check("contract shape: last_signals has entry",
+          len(saved.get("admissions", {}).get("last_signals", [])) >= 1)
+    check("contract shape: notes is list",
+          isinstance(saved.get("notes"), list))
+
+    # 7. World factor present and neutral fallback when reader returns nothing
+    m5 = RadarProbabilityMatrix(state_file=str(tmp))
+    m5._read_world_data = lambda: (None, 'neutral_no_world_data')  # type: ignore
+    neutral_intel = m5.evaluate_signal("Z", "LONG", 0.7, "scanner",
+                                       price_history=[100, 100.5, 101, 101.5, 102])
+    w_factor = next(f for f in neutral_intel.factors if f.name == "world")
+    check("world factor present", "world" in [f.name for f in neutral_intel.factors])
+    check("world factor weight 0.10", m5.factor_weights["world"] == 0.10)
+    check("no world data → neutral 0.5",
+          w_factor.value == 0.5 and "neutral_no_world_data" in w_factor.reason)
+
+    # 8. Live world counsel from queen report stays in [0,1] and names its source
+    live_val, live_src, live_reason = m4._get_world_counsel()
+    check("live world counsel in [0,1]", 0.0 <= live_val <= 1.0)
+    check("live world counsel source is honest", live_src in {
+        "queen_snap", "queen_report", "radar_state", "neutral_no_world_data"})
+
+    # 9. World counsel from a define-and-consume radar world_state file works
+    import tempfile as _tf
+    ws_tmp = Path(_tf.mkdtemp()) / "world_state.json"
+    ws_tmp.write_text(json.dumps({"cosmic_score": 0.8, "kp_index": 1.0}),
+                      encoding="utf-8")
+    m6 = RadarProbabilityMatrix(state_file=str(tmp))
+    m6._read_world_data = lambda: (json.loads(ws_tmp.read_text(encoding="utf-8")), 'radar_state')  # type: ignore
+    v6, s6, r6 = m6._get_world_counsel()
+    check("radar world_state counsel > 0.5", v6 > 0.5 and s6 == 'radar_state')
+
+    # 10. Action ladder naming: no flags → PROCEED, never "HOLD"
     good = m.evaluate_signal("X", "LONG", 0.9, "src_a",
                              price_history=[100, 100.05, 100.10, 100.15, 100.20])
     check("clean signal → PROCEED", good.action == "PROCEED")
 
-    # 7. Adjusted probability stays a calibrated 0..1 quantity
+    # 11. Adjusted probability stays a calibrated 0..1 quantity
     check("adjusted in [0,1]",
           all(0.0 <= i.adjusted_probability <= 1.0
               for i in (intel, nan_intel, good)))

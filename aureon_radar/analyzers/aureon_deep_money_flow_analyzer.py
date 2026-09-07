@@ -14,9 +14,23 @@ THE COMPLETE PICTURE: Follow the money through time.
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+import sys
+from pathlib import Path
 
-ensure_utf8_stdout()
+# UTF-8 fix — aureon.utils.console_utf8 is absent from the upstream package;
+# fall back to the repo shim, then to an inline no-op reconfigure.
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # pragma: no cover - environment dependent
+    try:
+        from _console_utf8_shim import ensure_utf8_stdout  # noqa: E402
+    except ImportError:
+        def ensure_utf8_stdout(*_a, **_k):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
 import json
 import math
@@ -29,6 +43,19 @@ from enum import Enum
 PHI = (1 + math.sqrt(5)) / 2  # 1.618 Golden ratio
 LOVE_FREQUENCY = 528  # Hz
 SCHUMANN_BASE = 7.83  # Hz
+
+# All artifacts live under aureon_radar/state/ regardless of cwd
+_RADAR_ROOT = Path(__file__).resolve().parent.parent
+_STATE_DIR = _RADAR_ROOT / "state"
+
+
+def _resolve_path(filename: str) -> Path:
+    """Resolve an evidence/output file: analyzer dir, then radar root, then cwd."""
+    for base in (Path.cwd(), _RADAR_ROOT, Path(__file__).resolve().parent):
+        candidate = base / filename
+        if candidate.exists():
+            return candidate
+    return _RADAR_ROOT / filename
 
 
 class FlowDirection(Enum):
@@ -60,46 +87,47 @@ class MoneyFlowEvent:
     event_id: str
     date: str
     event_name: str
-    
+
     # Who
     perpetrators: List[str]
     beneficiaries: List[str]
     victims: List[str]
-    
+
     # Attributed Bots (Link to Census)
-    attributed_bots: List[str] # List of BotUUIDs from Registry
-    manipulation_vector: str   # "SPOOFING", "WASH_TRADING", "CHURNING"
-    
+    attributed_bots: List[str] = field(default_factory=list) # List of BotUUIDs from Registry
+    manipulation_vector: str = ""   # "SPOOFING", "WASH_TRADING", "CHURNING"
+
     # What
-    amount_extracted_usd: float
-    extraction_method: str
-    flow_direction: str
-    
+    amount_extracted_usd: float = 0.0
+    extraction_method: str = ""
+    flow_direction: str = ""
+
     # Where
-    source_location: str
-    destination_location: str
-    intermediaries: List[str]
-    
+    source_location: str = ""
+    destination_location: str = ""
+    intermediaries: List[str] = field(default_factory=list)
+
     # Why
-    stated_reason: str
-    actual_reason: str
-    
+    stated_reason: str = ""
+    actual_reason: str = ""
+
     # Effects
-    short_term_effects: List[str]
-    long_term_effects: List[str]
-    planetary_effects: List[str]
-    
+    short_term_effects: List[str] = field(default_factory=list)
+    long_term_effects: List[str] = field(default_factory=list)
+    planetary_effects: List[str] = field(default_factory=list)
+
     # Evidence
-    evidence_sources: List[str]
-    confidence: float
+    evidence_sources: List[str] = field(default_factory=list)
+    confidence: float = 0.0
+    correlated_bot_activity: List[str] = field(default_factory=list)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 📜 HISTORICAL MANIPULATION EVIDENCE VAULT 📜
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class DeepMoneyFlowVault:
-    def __init__(self, vault_path="deep_money_flow_vault.json"):
-        self.vault_path = vault_path
+    def __init__(self, vault_path=None):
+        self.vault_path = str(vault_path) if vault_path else str(_STATE_DIR / "deep_money_flow_vault.json")
         self.events: List[MoneyFlowEvent] = []
         self.load()
         
@@ -110,8 +138,9 @@ class DeepMoneyFlowVault:
     def find_by_perpetrator(self, name: str) -> List[MoneyFlowEvent]:
         return [e for e in self.events if name in e.perpetrators]
         
-    def save(self): 
+    def save(self):
         # Convert dataclasses to dicts for JSON serialization
+        Path(self.vault_path).parent.mkdir(parents=True, exist_ok=True)
         data = [asdict(e) for e in self.events]
         with open(self.vault_path, 'w') as f:
             json.dump(data, f, indent=2)
@@ -179,14 +208,15 @@ class DeepMoneyFlowAnalyzer:
         }
         
         for filename, attr in evidence_files.items():
-            if os.path.exists(filename):
+            path = _resolve_path(filename)
+            if path.exists():
                 try:
-                    with open(filename, 'r') as f:
+                    with open(path, 'r') as f:
                         data = json.load(f)
                         setattr(self, attr, data)
-                        print(f"  ✅ Loaded {filename}")
+                        print(f"  ✅ Loaded {path}")
                 except Exception as e:
-                    print(f"  ⚠️ Error loading {filename}: {e}")
+                    print(f"  ⚠️ Error loading {path}: {e}")
     
     def _build_comprehensive_timeline(self):
         """Build the master timeline of money extraction events"""
@@ -676,29 +706,57 @@ class DeepMoneyFlowAnalyzer:
             print(f"   🔥 Planetary: {', '.join(event.planetary_effects)}")
     
     def save_results(self, result: DeepAnalysisResult):
-        """Save analysis results to file"""
-        output_file = "deep_money_flow_analysis.json"
-        
+        """Save analysis results under aureon_radar/state/ (cwd-independent)."""
+        _STATE_DIR.mkdir(parents=True, exist_ok=True)
+        output_file = _STATE_DIR / "deep_money_flow_analysis.json"
+
         with open(output_file, 'w') as f:
             json.dump(asdict(result), f, indent=2, default=str)
-        
+
         print(f"\n✅ Results saved to {output_file}")
-        
+
         # Also save timeline separately
-        timeline_file = "money_flow_timeline.json"
+        timeline_file = _STATE_DIR / "money_flow_timeline.json"
         with open(timeline_file, 'w') as f:
             json.dump([asdict(e) for e in self.events], f, indent=2, default=str)
-        
+
         print(f"✅ Timeline saved to {timeline_file}")
+
+    def run_analysis(self) -> Dict:
+        """Headless summary for the global energy aggregator.
+
+        IMPORTANT DATA-FRESHNESS CONTRACT: this analyzer's event vault is a
+        HISTORICAL STATIC REFERENCE corpus (curated archival events, 1913-2024),
+        not live telemetry. The result is therefore always labeled
+        ``live: False`` / ``data_freshness: historical_static_reference`` so no
+        consumer can mistake it for fresh market data.
+        """
+        result = self.run_full_analysis()
+        return {
+            "ok": True,
+            "live": False,
+            "data_freshness": "historical_static_reference",
+            "ts": datetime.now().isoformat(),
+            "total_events": result.total_events,
+            "total_extraction_usd": result.total_extraction_usd,
+            "planetary_damage_score": result.planetary_damage_score,
+            "money_flow_map": result.money_flow_map,
+            "top_perpetrators": sorted(
+                result.perpetrator_network.keys()
+            )[:20],
+            "error": None,
+        }
 
 
 def main():
     """Main execution"""
+    ensure_utf8_stdout()
     print("="*80)
     print("🔥 AUREON DEEP MONEY FLOW ANALYZER 🔥")
     print("="*80)
     print("Wiring ALL systems together...")
     print("Queen + Enigma + Mycelium + Elephant + Ghost Dance")
+    print("NOTE: historical static reference corpus (1913-2024) — NOT live telemetry.")
     print("="*80)
     
     analyzer = DeepMoneyFlowAnalyzer()

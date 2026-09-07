@@ -1,4 +1,4 @@
-"""Live market momentum scanner — REAL market data (Binance public REST).
+"""Live market momentum scanner — REAL market data via PriceCache freshness gate.
 
 Reference implementation for the real-signal layer. Every other real-signal
 module must follow these binding conventions:
@@ -10,19 +10,27 @@ module must follow these binding conventions:
     A NEUTRAL/low-conviction result returns None upstream and is omitted
     from fusion — never force a direction to fake participation.
   * map hub symbols via SYMBOL_MAP; anything unmapped returns None.
-  * REAL data only. On any network failure, rate limit, stale (>60s) or
-    unprovable timestamp: return None. Never synthesise a price or score.
-  * cache responses ~45s per symbol; hard timeout <=5s per call. A scanner
-    must never stall the hub's 5s extraction deadline.
+  * REAL data only. All reads route through ``exchange_adapters.price_cache``
+    so freshness is enforced centrally. If the cache reports
+    ``trade_allowed=False`` (stale, simulated, error, or rate-limited) this
+    scanner returns None instead of fabricating a signal.
+  * hard timeout <=5s per call. A scanner must never stall the hub's 5s
+    extraction deadline.
 """
 
 from __future__ import annotations
 
 import math
-import time
+import sys
+from pathlib import Path
 from typing import Optional
 
-import requests
+# Allow running this scanner directly as a module.
+_RADAR_ROOT = Path(__file__).resolve().parents[1]
+if str(_RADAR_ROOT) not in sys.path:
+    sys.path.insert(0, str(_RADAR_ROOT))
+
+from exchange_adapters import price_cache
 
 # ── symbol mapping (hub symbol -> Binance public symbol) ────────────────────
 SYMBOL_MAP = {
@@ -30,39 +38,7 @@ SYMBOL_MAP = {
     "ETHUSD": "ETHUSDT", "ETHUSDT": "ETHUSDT", "ETH": "ETHUSDT",
 }
 
-_BASE = "https://api.binance.com/api/v3"
 _TIMEOUT = 4.0
-_CACHE_TTL = 45.0
-_cache: dict = {}
-
-
-def _fetch(symbol: str) -> Optional[dict]:
-    now = time.time()
-    hit = _cache.get(symbol)
-    if hit and now - hit[0] < _CACHE_TTL:
-        return hit[1]
-    try:
-        r = requests.get(f"{_BASE}/ticker/24hr", params={"symbol": symbol},
-                         timeout=_TIMEOUT)
-        if r.status_code != 200:
-            return None
-        t = r.json()
-        k = requests.get(f"{_BASE}/klines", params={"symbol": symbol,
-                         "interval": "15m", "limit": 48}, timeout=_TIMEOUT)
-        klines = k.json() if k.status_code == 200 else []
-        close = [float(c[4]) for c in klines] if isinstance(klines, list) else []
-        vol = [float(c[5]) for c in klines] if isinstance(klines, list) else []
-        data = {
-            "change_pct": float(t.get("priceChangePercent", 0.0)),
-            "quote_vol": float(t.get("quoteVolume", 0.0)),
-            "last": float(t.get("lastPrice", 0.0)),
-            "closes": close,
-            "vols": vol,
-        }
-        _cache[symbol] = (now, data)
-        return data
-    except Exception:
-        return None
 
 
 def _ema(values, period: int) -> float:
@@ -80,9 +56,17 @@ def scan(symbol: str, price: float = 0.0):
     bsym = SYMBOL_MAP.get(str(symbol).upper())
     if bsym is None:
         return None
-    d = _fetch(bsym)
-    if not d or not d["closes"]:
+
+    # Fetch the extended summary through the freshness-gated cache.
+    summary = price_cache.get_summary(bsym, source="binance")
+
+    # Fail closed if the data is not trade-grade fresh.
+    if not summary.get("trade_allowed"):
         return None
+    if not summary.get("closes"):
+        return None
+
+    d = summary
 
     # 1) 24h momentum, saturating: ±3% -> ±0.55
     m_mom = math.tanh(d["change_pct"] / 3.0) * 0.55
@@ -112,6 +96,10 @@ def scan(symbol: str, price: float = 0.0):
         "direction": "LONG" if score > 0 else "SHORT",
         "confidence": round(conf, 4),
         "source": "binance_public_24h+15m",
+        "data_source": "price_cache",
+        "fresh": bool(summary.get("fresh")),
+        "source_kind": summary.get("source_kind"),
+        "trade_allowed": True,
     }
 
 

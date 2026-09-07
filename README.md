@@ -1,4 +1,4 @@
-# Aureon Trading — Project Sero
+# Aureon Trading Fusion-Project Sero
 
 Enhanced Aureon/Sero workspace import, captured on 6 September 2026.
 
@@ -19,6 +19,11 @@ The encrypted backup occupies 1,486,182,143 bytes across six release assets.
 Its recovery key is held separately by the owner, outside this repository.
 The entire archive was authenticated and all 42,114 captured file hashes were
 verified before upload. This is a live file snapshot, not an atomic disk image.
+
+## Branding
+
+Product name: **Aureon Trading Fusion-Project Sero** (also Project Sero / `aureon_fusion` / `aureon_radar`).
+Legacy local folder names on an operator machine are intentionally left unchanged so running workspaces are not disrupted.
 
 ## Main components
 

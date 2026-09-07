@@ -217,7 +217,10 @@ def live_place(symbol: str, side: str, qty: float,
             "reason": result["reason"],
             "detail": (f"expectancy gate: expected={verdict.get('expected_move_pct')} "
                        f"cost={verdict.get('round_trip_cost_pct')} "
-                       f"margin={verdict.get('margin_pct')}")[:300],
+                       f"margin={verdict.get('margin_pct')} "
+                       f"floor={verdict.get('capture_floor_pct')} "
+                       f"required={verdict.get('required_move_pct')} "
+                       f"{verdict.get('detail') or ''}")[:300],
         })
         logger.info("binance live_place REFUSED (%s): %s",
                     result["reason"], symbol)
@@ -231,7 +234,24 @@ def live_place(symbol: str, side: str, qty: float,
 
 
 if __name__ == "__main__":
+    import tempfile
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+    # Self-test hygiene (2026-09-07): throwaway journal/ledger/book in
+    # tempdir — these open/immediate-close round-trips used to write "manual"
+    # closes <3 s after open into the REAL shadow ledger (the 3-second-exit
+    # poison in time-to-capture stats). min_hold is zeroed: self-test closes
+    # by design.
+    _tmpdir = Path(tempfile.mkdtemp(prefix="shadow_binance_selftest_"))
+    _ENGINE = ShadowEngine(
+        VENUE,
+        journal_path=_tmpdir / "shadow_trades.jsonl",
+        ledger_path=_tmpdir / "shadow_ledger_summary.json",
+        book_path=_tmpdir / f"shadow_book_{VENUE}.json",
+    )
+    _ENGINE.min_hold_seconds = 0.0
+    print(f"self-test state dir (throwaway): {_tmpdir}")
 
     print("== live_place gate check (keys absent -> must refuse) ==")
     gate = live_place("BTCUSDT", "buy", 0.001)
@@ -266,9 +286,10 @@ if __name__ == "__main__":
     print("== MTM pass ==")
     print(json.dumps(mark_all(), indent=2, sort_keys=True, default=str))
 
-    print("== close position (reason=manual) ==")
-    close = close_position("BTCUSDT", "manual")
+    print("== close position (reason=selftest_close) ==")
+    close = close_position("BTCUSDT", "selftest_close")
     print(json.dumps(close, indent=2, sort_keys=True, default=str))
     assert close["status"] == "closed", close
-    print(f"CLOSED at {close['price']}  net_pnl={close['net_pnl']}")
-    print("SELF-TEST PASSED")
+    print(f"CLOSED at {close['price']}  net_pnl={close['net_pnl']}  "
+          f"fees={close.get('fees')}  fee_basis={close.get('fee_basis')}")
+    print(f"SELF-TEST PASSED (throwaway state in {_tmpdir}; real ledger untouched)")

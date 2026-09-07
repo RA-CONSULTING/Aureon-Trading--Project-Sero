@@ -1,4 +1,4 @@
-# Aureon full workspace backup recovery
+# Aureon Trading Fusion-Project Sero full workspace backup recovery
 
 The [GitHub workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-06)
 contains a complete encrypted file backup, including original source, credentials, private

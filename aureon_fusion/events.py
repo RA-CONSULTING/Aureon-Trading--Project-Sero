@@ -22,7 +22,9 @@ Import-safe: no side effects at import time.
 
 import json
 import sys
+import uuid
 from collections import deque
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .paths import WORKSPACE, SERO_THOUGHTBUS, SERO_CHIRP
@@ -118,6 +120,24 @@ def publish(source: str, topic: str, payload: dict, priority=5):
         return None
     to_dict = getattr(env, "to_dict", None)
     return to_dict() if callable(to_dict) else env
+
+
+def emit_radar_signal(source: str, topic: str, symbol: str, score: float,
+                      extra: dict = None, priority: int = 5) -> dict:
+    """Emit a radar event that includes the source_id and timestamp the
+    flight recorder needs.
+
+    Returns the envelope dict, or None if the bus is degraded.
+    """
+    payload = {
+        "symbol": symbol,
+        "score": float(score),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "source_id": f"{source}-{symbol}-{uuid.uuid4().hex[:8]}",
+    }
+    if extra:
+        payload.update(extra)
+    return publish(source, topic, payload, priority=priority)
 
 
 # ───────────────────────────── tail CLI ────────────────────────────────────

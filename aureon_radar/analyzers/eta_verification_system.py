@@ -20,11 +20,12 @@ Gary Leckey | December 2025
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
+import sys
 import json
 import time
 import math
 from dataclasses import dataclass, field, asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple, Optional, Any
 from collections import deque
 from enum import Enum
@@ -897,6 +898,572 @@ class ETAVerificationEngine:
 
 
 # =============================================================================
+# TIME-TO-CAPTURE JOURNAL MINER (LINEAR TIME LAYER)
+# =============================================================================
+# Owner decree 2026-09-06: the organism must know the QUICKEST ways to capture
+# energy — real time-to-target statistics mined from the REAL journals, not
+# vibes. Fail-closed: a record without journaled prices is SKIPPED and never
+# estimated; medians with no valid samples are None (never 0).
+
+TIME_TO_CAPTURE_THRESHOLDS_PCT = (1.0, 2.0, 3.0)
+
+# ── Exit-detection hygiene (owner fix 2026-09-07) ──
+# A journaled 'closed' record only counts as an EXIT when the price move
+# clears the venue round-trip cost (fee-aware threshold). A close that is
+# NOT corroborated as a real position close (mark-derived) must additionally
+# survive a minimum-hold window — otherwise mark-to-mark spread noise
+# (observed at 1–3 second "holds") poisons the win/negative exit medians.
+# Filtered records are counted transparently, never silently dropped.
+MIN_EXIT_HOLD_MINUTES = 20.0
+DEFAULT_ROUND_TRIP_COST_PCT = 0.2   # fallback when no venue cost row exists;
+                                      # MUST be flagged as a default in output
+
+_QUOTE_SUFFIXES = ("USDT", "USDC", "USD", "GBP", "EUR", "BUSD")
+_SYMBOL_ALIAS = {"XBT": "BTC", "XXBT": "BTC", "XETH": "ETH", "XDG": "DOGE"}
+
+
+def canonical_symbol(symbol: Any) -> str:
+    """Normalize symbol variants (XBTUSD, BTC/USD, BTCUSDT) to a base asset."""
+    if not symbol or not isinstance(symbol, str):
+        return "UNKNOWN"
+    s = symbol.upper().replace("/", "").replace("-", "").strip()
+    for q in _QUOTE_SUFFIXES:
+        if s.endswith(q) and len(s) > len(q):
+            s = s[:-len(q)]
+            break
+    return _SYMBOL_ALIAS.get(s, s)
+
+
+def _parse_ts_utc(value: Any) -> Optional[float]:
+    """Parse an ISO-8601 UTC timestamp to epoch seconds. None on failure."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
+
+
+def _median(values: List[float]) -> Optional[float]:
+    """Median of a list, or None when empty (fail-closed — never 0)."""
+    if not values:
+        return None
+    vals = sorted(values)
+    n = len(vals)
+    mid = n // 2
+    if n % 2:
+        return float(vals[mid])
+    return float((vals[mid - 1] + vals[mid]) / 2.0)
+
+
+def _prices_match(a: Optional[float], b: Optional[float]) -> bool:
+    """Entry-price attribution between open and mark events (float-tolerant)."""
+    if a is None or b is None or a <= 0 or b <= 0:
+        return False
+    return abs(a - b) <= max(1e-9, abs(a) * 1e-9)
+
+
+def _pct_move(open_price: float, side: str, mark_price: float) -> float:
+    """Side-aware percent move from open price to mark price."""
+    if open_price <= 0:
+        return 0.0
+    if side == "sell":
+        return (open_price - mark_price) / open_price * 100.0
+    return (mark_price - open_price) / open_price * 100.0
+
+
+def _pos_key(canonical: str, venue: str, entry_price: Optional[float]) -> tuple:
+    """Hashable position identity used for open/close attribution.
+
+    Entry price is rounded to 3 decimals to absorb float jitter between
+    journal events and shadow-book state (same source prices, different
+    serialization paths)."""
+    ep = round(entry_price, 3) if isinstance(entry_price, (int, float)) else None
+    return (canonical, (venue or "").lower(), ep)
+
+
+def load_venue_round_trip_costs(state_dir: Optional[str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Round-trip cost models from state/hunting_grounds.json
+    (grounds[].exchange + grounds[].round_trip_cost_pct).
+
+    Two lookup granularities, both from real rows only:
+      "<venue>"              -> median round_trip_cost_pct of that venue's grounds
+      "<venue>:<canonical>"  -> that exact ground's cost (e.g. "alpaca:BTC")
+    Fail-closed: a venue/symbol with no real row is NOT guessed here — it is
+    given the DEFAULT_ROUND_TRIP_COST_PCT fallback at the point of use,
+    explicitly flagged {"source": "default_fallback..."}. A missing/unreadable
+    file yields an empty dict (everything then falls back, each flagged).
+    """
+    raw: Dict[str, list] = {}
+    exact: Dict[str, Dict[str, Any]] = {}
+    if not state_dir:
+        return {}
+    path = os.path.join(state_dir, "hunting_grounds.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        return {}
+    grounds = data.get("grounds")
+    if not isinstance(grounds, list):
+        return {}
+    for g in grounds:
+        if not isinstance(g, dict):
+            continue
+        venue = str(g.get("exchange") or "").strip().lower()
+        pct = g.get("round_trip_cost_pct")
+        if not venue or not isinstance(pct, (int, float)) or isinstance(pct, bool) or pct <= 0:
+            continue
+        raw.setdefault(venue, []).append(float(pct))
+        symbol = g.get("symbol")
+        if symbol:
+            exact[f"{venue}:{canonical_symbol(str(symbol))}"] = {
+                "pct": float(pct), "source": "hunting_grounds"}
+    costs: Dict[str, Dict[str, Any]] = dict(exact)
+    for venue, pcts in raw.items():
+        costs[venue] = {"pct": float(_median(pcts) or 0.0), "source": "hunting_grounds"}
+    return costs
+
+
+def _close_gross_move_pct(close: "JournalEvent", open_ev: Optional["JournalEvent"]) -> Optional[float]:
+    """
+    Gross side-aware percent move of a close, from JOURNALED PRICES ONLY.
+
+    The position side comes from the matching open (a 'closed' record's own
+    side is the closing trade's side, not the position's). Never uses the
+    journaled pnl_pct field: the journal mixes percent and fraction units
+    across batches (observed 2026-09-06), so pnl_pct is unreliable for
+    cross-batch stats. Missing entry/close price -> None (fail-closed).
+    """
+    entry = close.entry_price
+    if (entry is None or entry <= 0) and open_ev is not None:
+        entry = open_ev.price
+    if entry is None or entry <= 0 or close.price is None or close.price <= 0:
+        return None
+    side = (open_ev.side if open_ev is not None else close.side) or "buy"
+    return _pct_move(entry, side, close.price)
+
+
+@dataclass
+class JournalEvent:
+    """Normalized event pulled from a journaled trade record."""
+    source: str
+    event: str
+    symbol: str
+    canonical: str
+    venue: str
+    side: str
+    ts: Optional[float]
+    price: Optional[float]
+    entry_price: Optional[float]
+    pnl_pct: Optional[float]
+    hold_seconds: Optional[float]
+
+
+def load_journal_events(paths: List[str]) -> Tuple[List[JournalEvent], int, List[str]]:
+    """
+    Load and normalize trade events from journal files.
+
+    Returns (events, skipped_records, errors). Records that fail to parse or
+    lack journaled prices are skipped (counted, never estimated).
+    """
+    events: List[JournalEvent] = []
+    skipped = 0
+    errors: List[str] = []
+
+    for path in paths:
+        if not os.path.exists(path):
+            errors.append(f"journal_missing: {path}")
+            continue
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except Exception as e:
+            errors.append(f"journal_unreadable: {path}: {e}")
+            continue
+
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                skipped += 1
+                continue
+            try:
+                r = json.loads(line)
+            except Exception:
+                skipped += 1
+                continue
+
+            event = r.get('event')
+            symbol = r.get('symbol')
+            # Only trade-lifecycle events participate. Records without an
+            # event tag (e.g. dry-run intents) carry no lifecycle signal.
+            if event not in ("opened", "filled", "mark", "closed") or not symbol:
+                skipped += 1
+                continue
+
+            price = r.get('price')
+            price = float(price) if isinstance(price, (int, float)) and price > 0 else None
+            entry = r.get('entry_price')
+            entry = float(entry) if isinstance(entry, (int, float)) and entry > 0 else None
+            pnl_pct = r.get('pnl_pct')
+            pnl_pct = float(pnl_pct) if isinstance(pnl_pct, (int, float)) else None
+            hold = r.get('hold_seconds')
+            hold = float(hold) if isinstance(hold, (int, float)) and hold > 0 else None
+            ts = _parse_ts_utc(r.get('ts_utc') or r.get('ts'))
+
+            if event in ("opened", "filled", "mark", "closed") and price is None:
+                # Journaled record without a price: skip, never estimate.
+                skipped += 1
+                continue
+
+            events.append(JournalEvent(
+                source=os.path.basename(path),
+                event=event,
+                symbol=str(symbol),
+                canonical=canonical_symbol(symbol),
+                venue=str(r.get('venue') or r.get('exchange') or ''),
+                side=str(r.get('side') or 'buy'),
+                ts=ts,
+                price=price,
+                entry_price=entry,
+                pnl_pct=pnl_pct,
+                hold_seconds=hold,
+            ))
+
+    events.sort(key=lambda e: (e.ts if e.ts is not None else 0.0))
+    return events, skipped, errors
+
+
+def mine_time_to_capture(
+    journal_paths: List[str],
+    round_trip_costs: Optional[Dict[str, Dict[str, Any]]] = None,
+    currently_open: Optional[List[tuple]] = None,
+) -> Dict[str, Any]:
+    """
+    ⏱️ Mine real time-to-capture statistics from journaled trades.
+
+    Per canonical symbol:
+      - opens / closes / marks counts
+      - median minutes from open to first journaled mark crossing +1/+2/+3%
+        (side-aware, journaled prices only)
+      - median minutes of winning closes vs negative exits
+      - currently open positions (opened/filled with no matching close)
+
+    EXIT DETECTION (fail-closed, fee-aware — owner fix 2026-09-07):
+      A journaled 'closed' record counts as an exit only when BOTH hold:
+        (b) FEE THRESHOLD — |gross move| (journaled prices) exceeds the
+            venue round-trip cost (round_trip_costs; a venue without real
+            cost data uses DEFAULT_ROUND_TRIP_COST_PCT, flagged as a
+            DEFAULT in the output — never silently).
+        (a) HOLD WINDOW — a mark-derived close (one not corroborated as a
+            real position close against `currently_open` position keys)
+            must also have held >= MIN_EXIT_HOLD_MINUTES. Real closes
+            count even when quick.
+      Sub-threshold / sub-window records are counted transparently under
+      exits_filtered — never estimated, never silently dropped.
+
+    `currently_open`: list of (canonical, venue_lower, entry_price) keys
+    from shadow_book_*.json / trading_progress_state.json. None means
+    position state was unavailable -> every close fails corroboration ->
+    the hold window applies to all (conservative, fail-closed).
+
+    Fail-closed throughout: None means "no valid samples", never zero.
+    """
+    result: Dict[str, Any] = {
+        "symbols": {},
+        "open_positions": [],
+        "skipped_records": 0,
+        "errors": [],
+    }
+
+    try:
+        events, skipped, errors = load_journal_events(journal_paths)
+        result["skipped_records"] = skipped
+        result["errors"].extend(errors)
+    except Exception as e:
+        result["errors"].append(f"miner_failed: {e}")
+        return result
+
+    costs = round_trip_costs if isinstance(round_trip_costs, dict) else {}
+    open_set = set(currently_open) if currently_open is not None else None
+
+    def _cost_for(venue: str, canonical: str) -> Dict[str, Any]:
+        v = (venue or "").lower()
+        exact = costs.get(f"{v}:{canonical}")
+        if exact:
+            return exact
+        if v in costs:
+            return costs[v]
+        return {"pct": DEFAULT_ROUND_TRIP_COST_PCT,
+                "source": f"default_fallback_{DEFAULT_ROUND_TRIP_COST_PCT:g}pct_no_hunting_grounds_row"}
+
+    by_symbol: Dict[str, List[JournalEvent]] = {}
+    for ev in events:
+        by_symbol.setdefault(ev.canonical, []).append(ev)
+
+    for sym, evs in sorted(by_symbol.items()):
+        opens = [e for e in evs if e.event in ("opened", "filled") and e.price]
+        closes = [e for e in evs if e.event == "closed"]
+        marks = [e for e in evs if e.event == "mark" and e.price and e.entry_price]
+        sym_errors: List[str] = []
+        sym_costs: Dict[str, Dict[str, Any]] = {}
+        exits_filtered = {"below_cost": 0, "below_min_hold": 0,
+                          "no_price_move": 0, "no_duration": 0}
+
+        # Open lookup for close attribution: first open per position key.
+        open_map: Dict[tuple, JournalEvent] = {}
+        for op in opens:
+            open_map.setdefault(_pos_key(op.canonical, op.venue, op.price), op)
+
+        # ── Time-to-threshold: open → first mark crossing +1/+2/+3% ──
+        threshold_minutes: Dict[float, List[float]] = {t: [] for t in TIME_TO_CAPTURE_THRESHOLDS_PCT}
+        paths_evaluated = 0
+        for op in opens:
+            if op.ts is None:
+                sym_errors.append(f"open_no_ts:{op.symbol}")
+                continue
+            attributed = [m for m in marks
+                          if m.canonical == op.canonical
+                          and m.ts is not None and m.ts >= op.ts
+                          and _prices_match(m.entry_price, op.price)]
+            if not attributed:
+                continue
+            paths_evaluated += 1
+            first_cross: Dict[float, float] = {}
+            for m in attributed:
+                move = _pct_move(op.price, op.side, m.price)
+                elapsed_min = (m.ts - op.ts) / 60.0
+                if elapsed_min < 0:
+                    continue
+                for t in TIME_TO_CAPTURE_THRESHOLDS_PCT:
+                    if move >= t and t not in first_cross:
+                        first_cross[t] = elapsed_min
+            for t, mins in first_cross.items():
+                threshold_minutes[t].append(mins)
+
+        # ── Win path vs negative-exit durations (fee-aware, hold-gated) ──
+        win_minutes: List[float] = []
+        neg_minutes: List[float] = []
+        closes_counted = 0
+        for c in closes:
+            venue_cost = _cost_for(c.venue, c.canonical)
+            sym_costs[(c.venue or "").lower() or "unknown"] = venue_cost
+            open_ev = open_map.get(_pos_key(c.canonical, c.venue, c.entry_price))
+            # Corroborated real close: a matching journaled open exists AND
+            # the position is not still open in shadow-book/position state.
+            if open_set is None:
+                is_real = False   # no position state -> fail closed
+            else:
+                is_real = (open_ev is not None
+                           and _pos_key(c.canonical, c.venue, c.entry_price) not in open_set)
+
+            move = _close_gross_move_pct(c, open_ev)
+            if move is None:
+                exits_filtered["no_price_move"] += 1
+                sym_errors.append(f"closed_no_price_move:{c.symbol}")
+                continue
+
+            # (b) fee-aware threshold: below round-trip cost = spread noise.
+            if abs(move) <= venue_cost["pct"]:
+                exits_filtered["below_cost"] += 1
+                continue
+
+            # (a) minimum-hold window for mark-derived closes only.
+            if not is_real:
+                hold_min = (c.hold_seconds / 60.0) if c.hold_seconds is not None else None
+                if hold_min is None and c.ts is not None and open_ev is not None and open_ev.ts is not None:
+                    hold_min = (c.ts - open_ev.ts) / 60.0
+                if hold_min is None or hold_min < MIN_EXIT_HOLD_MINUTES:
+                    exits_filtered["below_min_hold"] += 1
+                    continue
+
+            duration_min = None
+            if c.hold_seconds is not None:
+                duration_min = c.hold_seconds / 60.0
+            elif c.ts is not None and open_ev is not None and open_ev.ts is not None:
+                duration_min = (c.ts - open_ev.ts) / 60.0
+            if duration_min is None:
+                exits_filtered["no_duration"] += 1   # counted as exit, no median sample
+            closes_counted += 1
+            # |move| > cost here, so gross-move sign == net-of-fee sign.
+            if duration_min is not None:
+                (win_minutes if move > 0 else neg_minutes).append(duration_min)
+
+        medians = {t: _median(v) for t, v in threshold_minutes.items()}
+        fastest = None
+        for t in TIME_TO_CAPTURE_THRESHOLDS_PCT:
+            if medians[t] is not None and (fastest is None or medians[t] < medians[fastest]):
+                fastest = t
+        if fastest is not None:
+            hint = f"+{fastest:g}% fastest: median {medians[fastest]:.2f} min (n={len(threshold_minutes[fastest])})"
+        else:
+            hint = "no +1/+2/+3% crossing observed in journaled marks"
+
+        result["symbols"][sym] = {
+            "samples": paths_evaluated,
+            "opens": len(opens),
+            "closes": len(closes),
+            "closes_counted": closes_counted,
+            "marks": len(marks),
+            "median_min_to_1pct": medians[1.0],
+            "median_min_to_2pct": medians[2.0],
+            "median_min_to_3pct": medians[3.0],
+            "median_min_win_exit": _median(win_minutes),
+            "win_exits": len(win_minutes),
+            "median_min_negative_exit": _median(neg_minutes),
+            "negative_exits": len(neg_minutes),
+            "exit_hold_window_min": MIN_EXIT_HOLD_MINUTES,
+            "exit_threshold_basis": "gross_move_pct_vs_venue_round_trip_cost",
+            "round_trip_cost_pct": sym_costs or None,
+            "exits_filtered": exits_filtered,
+            "fastest_path_hint": hint,
+            "aliases": sorted({e.symbol for e in evs}),
+            "error": "; ".join(sym_errors) if sym_errors else None,
+        }
+
+        # ── Open positions: dedupe opens by (canonical, venue, entry_price) ──
+        # An 'opened' followed by 'filled' updates share one key; a journaled
+        # close with the same key settles the position. Closes stop being
+        # journaled after 18:00 in the current journal, so unclosed orphans
+        # are cross-checked against trading_progress_state by the caller.
+        position_map: Dict[tuple, JournalEvent] = {}
+        for op in opens:
+            position_map[(op.canonical, op.venue, op.price)] = op
+        for (canon_key, venue_key, entry_key), op in sorted(position_map.items()):
+            settled = any(
+                c.canonical == canon_key and c.venue == venue_key
+                and _prices_match(c.entry_price, entry_key)
+                for c in closes
+            )
+            if settled:
+                continue
+            attributed = [m for m in marks
+                          if m.canonical == op.canonical
+                          and m.ts is not None and op.ts is not None and m.ts >= op.ts
+                          and _prices_match(m.entry_price, op.price)]
+            last_mark = attributed[-1] if attributed else None
+            result["open_positions"].append({
+                "key": f"{op.venue or op.source}:{op.symbol}@{op.price}",
+                "symbol": op.symbol,
+                "canonical": op.canonical,
+                "venue": op.venue,
+                "side": op.side,
+                "entry_price": op.price,
+                "opened_ts": op.ts,
+                "opened_ts_utc": datetime.fromtimestamp(op.ts, tz=timezone.utc).isoformat() if op.ts else None,
+                "marks": [(_pct_move(op.price, op.side, m.price), m.ts) for m in attributed],
+                "last_pct_move": _pct_move(op.price, op.side, last_mark.price) if last_mark else None,
+                "last_mark_ts": last_mark.ts if last_mark else None,
+            })
+
+    return result
+
+
+# =============================================================================
+# SYNTHETIC SELFTEST — exit-detection gates (never live, never written to state)
+# =============================================================================
+
+def selftest_exit_detection() -> int:
+    """
+    Prove the fee-aware / hold-window exit gates with SYNTHETIC journal data
+    in a temp dir. Nothing here touches real state or real journals.
+    """
+    import tempfile
+    base = datetime(2026, 9, 7, 0, 0, 0, tzinfo=timezone.utc)
+
+    def _iso(minutes: float) -> str:
+        return (base + timedelta(minutes=minutes)).isoformat()
+
+    # main journal: SYNTH on demoexchange (round-trip cost 0.5% synthetic)
+    rows = [
+        # case 1: REAL quick close above cost -> counts (win, 5 min)
+        {"event": "opened", "symbol": "SYNTH", "venue": "demoexchange", "side": "buy",
+         "price": 100.0, "ts_utc": _iso(0)},
+        {"event": "closed", "symbol": "SYNTH", "venue": "demoexchange", "side": "sell",
+         "price": 100.8, "entry_price": 100.0, "hold_seconds": 300.0, "ts_utc": _iso(5)},
+        # case 2: mark-derived (still open) quick close above cost -> hold window filters it
+        {"event": "opened", "symbol": "SYNTH", "venue": "demoexchange", "side": "buy",
+         "price": 101.0, "ts_utc": _iso(10)},
+        {"event": "closed", "symbol": "SYNTH", "venue": "demoexchange", "side": "sell",
+         "price": 101.9, "entry_price": 101.0, "hold_seconds": 300.0, "ts_utc": _iso(15)},
+        # case 3: mark-derived SLOW close above cost -> counts (win, 30 min)
+        {"event": "opened", "symbol": "SYNTH", "venue": "demoexchange", "side": "buy",
+         "price": 102.0, "ts_utc": _iso(20)},
+        {"event": "closed", "symbol": "SYNTH", "venue": "demoexchange", "side": "sell",
+         "price": 103.0, "entry_price": 102.0, "hold_seconds": 1800.0, "ts_utc": _iso(50)},
+        # case 4: slow close but move below cost -> fee threshold filters it
+        {"event": "opened", "symbol": "SYNTH", "venue": "demoexchange", "side": "buy",
+         "price": 104.0, "ts_utc": _iso(60)},
+        {"event": "closed", "symbol": "SYNTH", "venue": "demoexchange", "side": "sell",
+         "price": 104.1, "entry_price": 104.0, "hold_seconds": 2400.0, "ts_utc": _iso(100)},
+        # case 6: venue with NO cost row -> DEFAULT fallback, flagged; slow + above default
+        {"event": "opened", "symbol": "SYNTH", "venue": "nocost", "side": "buy",
+         "price": 105.0, "ts_utc": _iso(0)},
+        {"event": "closed", "symbol": "SYNTH", "venue": "nocost", "side": "sell",
+         "price": 105.7, "entry_price": 105.0, "hold_seconds": 2700.0, "ts_utc": _iso(45)},
+        # crossing check: +1.05% mark 10 min after open
+        {"event": "opened", "symbol": "SYNTH", "venue": "demoexchange", "side": "buy",
+         "price": 200.0, "ts_utc": _iso(200)},
+        {"event": "mark", "symbol": "SYNTH", "venue": "demoexchange", "side": "buy",
+         "price": 202.1, "entry_price": 200.0, "ts_utc": _iso(210)},
+    ]
+    # case 5 journal: no position state at all (currently_open=None) ->
+    # every close fails corroboration -> hold window applies even to quick
+    # above-cost closes (fail-closed).
+    rows_nostate = [
+        {"event": "opened", "symbol": "NOSTATE", "venue": "demoexchange", "side": "buy",
+         "price": 300.0, "ts_utc": _iso(0)},
+        {"event": "closed", "symbol": "NOSTATE", "venue": "demoexchange", "side": "sell",
+         "price": 301.7, "entry_price": 300.0, "hold_seconds": 120.0, "ts_utc": _iso(2)},
+    ]
+
+    print("=== SYNTHETIC SELFTEST: exit-detection gates (NOT live, NOT written to state) ===")
+    ok = True
+    with tempfile.TemporaryDirectory() as tmp:
+        main = os.path.join(tmp, "main.jsonl")
+        with open(main, "w", encoding="utf-8") as fh:
+            for r in rows:
+                fh.write(json.dumps(r) + "\n")
+        costs = {"demoexchange": {"pct": 0.5, "source": "synthetic_test"}}
+        still_open = [("SYNTH", "demoexchange", 101.0), ("SYNTH", "demoexchange", 102.0)]
+        mined = mine_time_to_capture([main], round_trip_costs=costs, currently_open=still_open)
+        s = mined["symbols"]["SYNTH"]
+        checks = [
+            ("win_exits == 3 (real quick + slow mark-derived + default-cost venue)",
+             s["win_exits"] == 3, s["win_exits"]),
+            ("negative_exits == 0", s["negative_exits"] == 0, s["negative_exits"]),
+            ("median_min_win_exit == 30.0", s["median_min_win_exit"] == 30.0, s["median_min_win_exit"]),
+            ("filtered below_min_hold == 1 (case 2)", s["exits_filtered"]["below_min_hold"] == 1,
+             s["exits_filtered"]["below_min_hold"]),
+            ("filtered below_cost == 1 (case 4)", s["exits_filtered"]["below_cost"] == 1,
+             s["exits_filtered"]["below_cost"]),
+            ("+1pct crossing median == 10.0 min", s["median_min_to_1pct"] == 10.0,
+             s["median_min_to_1pct"]),
+            ("nocost venue flagged as default fallback",
+             "default_fallback" in (s["round_trip_cost_pct"].get("nocost") or {}).get("source", ""),
+             (s["round_trip_cost_pct"].get("nocost") or {}).get("source")),
+        ]
+        for name, passed, got in checks:
+            print(f"  [{'PASS' if passed else 'FAIL'}] {name} | got={got}")
+            ok = ok and passed
+
+        ns = os.path.join(tmp, "nostate.jsonl")
+        with open(ns, "w", encoding="utf-8") as fh:
+            for r in rows_nostate:
+                fh.write(json.dumps(r) + "\n")
+        mined2 = mine_time_to_capture([ns], round_trip_costs=costs, currently_open=None)
+        s2 = mined2["symbols"]["NOSTATE"]
+        passed2 = (s2["win_exits"] == 0 and s2["exits_filtered"]["below_min_hold"] == 1)
+        print(f"  [{'PASS' if passed2 else 'FAIL'}] no position state -> hold window applies to all "
+              f"(win_exits={s2['win_exits']}, below_min_hold={s2['exits_filtered']['below_min_hold']})")
+        ok = ok and passed2
+
+    print("selftest_exit_detection:", "PASS" if ok else "FAIL")
+    return 0 if ok else 1
+
+
+# =============================================================================
 # GLOBAL INSTANCE
 # =============================================================================
 
@@ -958,6 +1525,8 @@ def get_corrected_eta(
 # =============================================================================
 
 if __name__ == "__main__":
+    if "--selftest" in sys.argv:
+        sys.exit(selftest_exit_detection())
     print("🎯⏱️ ETA VERIFICATION SYSTEM - DEMO ⏱️🎯")
     print("=" * 60)
     

@@ -4,7 +4,7 @@
 ║     🦙 ALPACA SSE STREAMING CLIENT 🦙                                                ║
 ║     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━                                ║
 ║                                                                                      ║
-║     Real-time market data streaming via Server-Sent Events (SSE)                     ║
+║     Real-time market data streaming via WebSocket push (no polling)                  ║
 ║                                                                                      ║
 ║     STREAMS:                                                                         ║
 ║       • Crypto Trades       - Real-time trade executions                             ║
@@ -32,13 +32,16 @@ from dataclasses import dataclass, field
 from collections import deque
 
 try:
-    import sseclient
-    SSE_AVAILABLE = True
+    import websockets
+    WS_AVAILABLE = True
 except ImportError:
-    SSE_AVAILABLE = False
-    sseclient = None
+    WS_AVAILABLE = False
+    websockets = None
 
-import requests
+# Backward-compat alias: the transport is now WebSocket, but callers that
+# gate on SSE_AVAILABLE (e.g. bots/orca_command_center.py dynamic imports)
+# keep working.
+SSE_AVAILABLE = WS_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -110,26 +113,7 @@ class AlpacaSSEClient:
     def __init__(self):
         self.api_key = os.getenv('ALPACA_API_KEY')
         self.secret_key = os.getenv('ALPACA_SECRET_KEY')
-        
-        # API endpoints
-        self.stream_url = "https://stream.data.alpaca.markets"
-        self.news_url = "https://stream.data.alpaca.markets/v1beta1/news"
-        
-        # Crypto streaming endpoints
-        self.crypto_stream_url = "https://stream.data.alpaca.markets/v1beta3/crypto/us"
-        
-        # Stock streaming endpoints  
-        self.stock_stream_url = "https://stream.data.alpaca.markets/v2"
-        
-        # Headers for authentication
-        self.headers = {}
-        if self.api_key and self.secret_key:
-            self.headers = {
-                "APCA-API-KEY-ID": self.api_key,
-                "APCA-API-SECRET-KEY": self.secret_key,
-                "Accept": "text/event-stream"
-            }
-        
+
         # Stream state
         self.running = False
         self.threads: Dict[str, threading.Thread] = {}
@@ -167,25 +151,6 @@ class AlpacaSSEClient:
         }
         
         logger.info("🦙 Alpaca SSE Client initialized")
-    
-    def _get_sse_url(self, stream_type: str, symbols: List[str]) -> str:
-        """Build SSE URL for streaming endpoint."""
-        symbols_param = ",".join(symbols)
-        
-        if stream_type == "crypto_trades":
-            return f"{self.crypto_stream_url}/trades?symbols={symbols_param}"
-        elif stream_type == "crypto_quotes":
-            return f"{self.crypto_stream_url}/quotes?symbols={symbols_param}"
-        elif stream_type == "crypto_bars":
-            return f"{self.crypto_stream_url}/bars?symbols={symbols_param}"
-        elif stream_type == "stock_trades":
-            return f"{self.stock_stream_url}/sip/trades?symbols={symbols_param}"
-        elif stream_type == "stock_quotes":
-            return f"{self.stock_stream_url}/sip/quotes?symbols={symbols_param}"
-        elif stream_type == "news":
-            return f"{self.news_url}?symbols={symbols_param}"
-        else:
-            raise ValueError(f"Unknown stream type: {stream_type}")
     
     def _parse_timestamp(self, ts_str: str) -> datetime:
         """Parse ISO timestamp from Alpaca."""
@@ -333,92 +298,163 @@ class AlpacaSSEClient:
         # Sentiment from -1 (bearish) to +1 (bullish)
         return (pos_count - neg_count) / total
     
-    def _stream_worker(self, stream_type: str, symbols: List[str]):
-        """Worker thread for SSE streaming."""
-        if not SSE_AVAILABLE:
-            logger.error("sseclient-py not installed. Run: pip install sseclient-py")
-            return
-        
-        url = self._get_sse_url(stream_type, symbols)
-        logger.info(f"Starting SSE stream: {stream_type} for {len(symbols)} symbols")
-        
-        while self.running:
-            try:
-                response = requests.get(url, headers=self.headers, stream=True, timeout=60)
-                client = sseclient.SSEClient(response)
-                
-                for event in client.events():
-                    if not self.running:
+    # WebSocket endpoints (Alpaca streaming is WebSocket-only; the old
+    # GET-based "SSE" URLs return 404 / "bad Upgrade header").
+    WS_BASE = "wss://stream.data.alpaca.markets"
+    # Free market-data tier carries IEX stock feeds; SIP needs a paid
+    # subscription and would 403 on free keys.
+    STOCK_WS_PATH = "/v2/iex"
+    CRYPTO_WS_PATH = "/v1beta3/crypto/us"
+    NEWS_WS_PATH = "/v1beta1/news"
+
+    # One connection per group — Alpaca caps concurrent connections per
+    # account (error 406 connection limit exceeded), so channels share.
+    GROUP_URLS = {
+        'crypto': CRYPTO_WS_PATH,
+        'stocks': STOCK_WS_PATH,
+        'news': NEWS_WS_PATH,
+    }
+
+    def _handle_event(self, data: Dict):
+        """Dispatch one decoded Alpaca event by its own type field."""
+        kind = data.get('T')
+        if kind == 't':
+            trade = self._process_trade(data)
+            if trade:
+                try:
+                    self.trade_queue.put_nowait(trade)
+                except queue.Full:
+                    pass
+                if self.on_trade:
+                    self.on_trade(trade)
+        elif kind == 'q':
+            quote = self._process_quote(data)
+            if quote:
+                try:
+                    self.quote_queue.put_nowait(quote)
+                except queue.Full:
+                    pass
+                if self.on_quote:
+                    self.on_quote(quote)
+        elif kind == 'b':
+            bar = self._process_bar(data)
+            if bar:
+                try:
+                    self.bar_queue.put_nowait(bar)
+                except queue.Full:
+                    pass
+                if self.on_bar:
+                    self.on_bar(bar)
+        elif kind == 'n':
+            news = self._process_news(data)
+            if news:
+                try:
+                    self.news_queue.put_nowait(news)
+                except queue.Full:
+                    pass
+                if self.on_news:
+                    self.on_news(news)
+
+    async def _ws_stream(self, group: str, symbols: List[str], channels: List[str]):
+        """One WebSocket connection attempt: auth -> subscribe -> pump events."""
+        import asyncio
+        url = f"{self.WS_BASE}{self.GROUP_URLS[group]}"
+        async with websockets.connect(url, ping_interval=20, ping_timeout=20,
+                                      max_queue=1000) as ws:
+            # Auth handshake
+            await ws.send(json.dumps({
+                "action": "auth",
+                "key": self.api_key,
+                "secret": self.secret_key,
+            }))
+            # Wait for auth result before subscribing
+            while True:
+                raw = await asyncio.wait_for(ws.recv(), timeout=30)
+                for msg in json.loads(raw):
+                    t = msg.get('T')
+                    if t == 'success' and msg.get('msg') == 'authenticated':
                         break
-                    
-                    try:
-                        data = json.loads(event.data)
-                        
-                        # Handle different event types
-                        if stream_type.endswith('trades'):
-                            trade = self._process_trade(data)
-                            if trade:
-                                try:
-                                    self.trade_queue.put_nowait(trade)
-                                except queue.Full:
-                                    pass
-                                if self.on_trade:
-                                    self.on_trade(trade)
-                                    
-                        elif stream_type.endswith('quotes'):
-                            quote = self._process_quote(data)
-                            if quote:
-                                try:
-                                    self.quote_queue.put_nowait(quote)
-                                except queue.Full:
-                                    pass
-                                if self.on_quote:
-                                    self.on_quote(quote)
-                                    
-                        elif stream_type.endswith('bars'):
-                            bar = self._process_bar(data)
-                            if bar:
-                                try:
-                                    self.bar_queue.put_nowait(bar)
-                                except queue.Full:
-                                    pass
-                                if self.on_bar:
-                                    self.on_bar(bar)
-                                    
-                        elif stream_type == 'news':
-                            news = self._process_news(data)
-                            if news:
-                                try:
-                                    self.news_queue.put_nowait(news)
-                                except queue.Full:
-                                    pass
-                                if self.on_news:
-                                    self.on_news(news)
-                                    
-                    except json.JSONDecodeError:
-                        continue
-                    except Exception as e:
-                        logger.error(f"Error processing SSE event: {e}")
-                        self.stats['errors'] += 1
-                        
-            except Exception as e:
-                if self.running:
-                    logger.warning(f"SSE stream disconnected: {e}. Reconnecting...")
-                    self.stats['reconnects'] += 1
-                    time.sleep(1)
-    
-    def start_crypto_stream(self, symbols: List[str], 
-                           trades: bool = True, 
-                           quotes: bool = True, 
-                           bars: bool = False):
-        """Start streaming crypto data."""
+                    if t == 'error':
+                        raise RuntimeError(
+                            f"Alpaca stream auth error {msg.get('code')}: {msg.get('msg')}")
+                else:
+                    continue
+                break
+
+            sub = {"action": "subscribe"}
+            for ch in channels:
+                sub[ch] = symbols
+            await ws.send(json.dumps(sub))
+
+            # Event pump
+            async for raw in ws:
+                if not self.running:
+                    break
+                try:
+                    for msg in json.loads(raw):
+                        t = msg.get('T')
+                        if t in ('success', 'subscription'):
+                            logger.info(f"🦙 {group}: {msg.get('msg') or msg}")
+                        elif t == 'error':
+                            logger.error(f"🦙 {group} stream error: {msg}")
+                            self.stats['errors'] += 1
+                        else:
+                            self._handle_event(msg)
+                except json.JSONDecodeError:
+                    continue
+
+    def _start_group_stream(self, group: str, symbols: List[str],
+                            channels: List[str]) -> bool:
+        """Launch (once) a worker thread holding one WS connection for a group."""
         if not self.api_key:
             logger.error("Alpaca API key not configured")
             return False
-        
+        if group in self.threads and self.threads[group].is_alive():
+            logger.info(f"🦙 {group} stream already running")
+            return True
+
         self.running = True
-        self.stats['start_time'] = datetime.now()
-        
+        if not self.stats['start_time']:
+            self.stats['start_time'] = datetime.now()
+
+        t = threading.Thread(target=self._stream_worker,
+                             args=(group, symbols, channels),
+                             daemon=True)
+        t.start()
+        self.threads[group] = t
+        logger.info(f"🦙 {group} streaming started "
+                    f"({','.join(channels)}) for {len(symbols)} symbols")
+        return True
+
+    def _stream_worker(self, group: str, symbols: List[str], channels: List[str]):
+        """Worker thread for WebSocket streaming (with reconnect)."""
+        if not WS_AVAILABLE:
+            logger.error("websockets not installed; cannot stream from Alpaca")
+            return
+
+        import asyncio
+        logger.info(f"Starting WS stream: {group} [{','.join(channels)}] "
+                    f"for {len(symbols)} symbols")
+
+        while self.running:
+            try:
+                asyncio.run(self._ws_stream(group, symbols, channels))
+            except RuntimeError as e:
+                # Auth/config errors are fatal — reconnecting would just spin.
+                logger.error(f"🦙 {group} stream failed permanently: {e}")
+                self.stats['errors'] += 1
+                break
+            except Exception as e:
+                if self.running:
+                    logger.warning(f"WS stream disconnected: {e}. Reconnecting...")
+                    self.stats['reconnects'] += 1
+                    time.sleep(1)
+    
+    def start_crypto_stream(self, symbols: List[str],
+                           trades: bool = True,
+                           quotes: bool = True,
+                           bars: bool = False):
+        """Start streaming crypto data (one shared WS connection)."""
         # Format symbols for crypto (e.g., BTC/USD)
         formatted_symbols = []
         for s in symbols:
@@ -430,80 +466,39 @@ class AlpacaSSEClient:
                     formatted_symbols.append(s)
             else:
                 formatted_symbols.append(s)
-        
+
+        channels = []
         if trades:
-            t = threading.Thread(target=self._stream_worker, 
-                               args=('crypto_trades', formatted_symbols),
-                               daemon=True)
-            t.start()
-            self.threads['crypto_trades'] = t
-            
+            channels.append('trades')
         if quotes:
-            t = threading.Thread(target=self._stream_worker,
-                               args=('crypto_quotes', formatted_symbols),
-                               daemon=True)
-            t.start()
-            self.threads['crypto_quotes'] = t
-            
+            channels.append('quotes')
         if bars:
-            t = threading.Thread(target=self._stream_worker,
-                               args=('crypto_bars', formatted_symbols),
-                               daemon=True)
-            t.start()
-            self.threads['crypto_bars'] = t
-        
-        logger.info(f"🦙 Crypto streaming started for {len(symbols)} symbols")
-        return True
+            channels.append('bars')
+        if not channels:
+            logger.error("No crypto channels selected")
+            return False
+
+        return self._start_group_stream('crypto', formatted_symbols, channels)
     
     def start_stock_stream(self, symbols: List[str],
                           trades: bool = True,
                           quotes: bool = True):
-        """Start streaming stock data."""
-        if not self.api_key:
-            logger.error("Alpaca API key not configured")
-            return False
-        
-        self.running = True
-        if not self.stats['start_time']:
-            self.stats['start_time'] = datetime.now()
-        
+        """Start streaming stock data (one shared WS connection, IEX feed)."""
+        channels = []
         if trades:
-            t = threading.Thread(target=self._stream_worker,
-                               args=('stock_trades', symbols),
-                               daemon=True)
-            t.start()
-            self.threads['stock_trades'] = t
-            
+            channels.append('trades')
         if quotes:
-            t = threading.Thread(target=self._stream_worker,
-                               args=('stock_quotes', symbols),
-                               daemon=True)
-            t.start()
-            self.threads['stock_quotes'] = t
-        
-        logger.info(f"🦙 Stock streaming started for {len(symbols)} symbols")
-        return True
-    
+            channels.append('quotes')
+        if not channels:
+            logger.error("No stock channels selected")
+            return False
+
+        return self._start_group_stream('stocks', symbols, channels)
+
     def start_news_stream(self, symbols: List[str] = None):
         """Start streaming news."""
-        if not self.api_key:
-            logger.error("Alpaca API key not configured")
-            return False
-        
-        self.running = True
-        if not self.stats['start_time']:
-            self.stats['start_time'] = datetime.now()
-        
         symbols = symbols or ['*']  # All news if no symbols specified
-        
-        t = threading.Thread(target=self._stream_worker,
-                           args=('news', symbols),
-                           daemon=True)
-        t.start()
-        self.threads['news'] = t
-        
-        logger.info(f"🦙 News streaming started")
-        return True
+        return self._start_group_stream('news', symbols, ['news'])
     
     def stop(self):
         """Stop all streams."""

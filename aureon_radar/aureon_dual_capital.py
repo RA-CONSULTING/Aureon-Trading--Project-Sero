@@ -23,7 +23,51 @@ from typing import Dict, Optional
 # Import the CapitalClient
 from capital_client import CapitalClient
 
+# Normalized <-> Capital-native price scaling (e.g. NATURALGAS 2975 ↔ 2.975)
+try:
+    from aureon_price_feed import CAPITAL_SCALE
+except Exception:
+    CAPITAL_SCALE = {
+        "USDJPY": 0.01,
+        "EURUSD": 0.0001,
+        "GBPUSD": 0.0001,
+        "NATURALGAS": 0.001,
+        "AAPL": 0.01,
+        "TSLA": 0.01,
+        "NVDA": 0.01,
+    }
+
 logger = logging.getLogger(__name__)
+
+
+def _scaled_to_native(symbol: str, value: float) -> float:
+    """Convert a normalized (Yahoo-consistent) price/level to Capital.com native units."""
+    if value is None:
+        return None
+    scale = CAPITAL_SCALE.get(symbol.upper(), 1.0)
+    if scale == 0:
+        return float(value)
+    return float(value) / scale
+
+
+def _native_to_scaled(symbol: str, value: float) -> float:
+    """Convert a Capital.com native price/level to normalized (Yahoo-consistent) units."""
+    if value is None:
+        return None
+    scale = CAPITAL_SCALE.get(symbol.upper(), 1.0)
+    return float(value) * scale
+
+
+def _round_native_level(symbol: str, value: float) -> float:
+    """Round an absolute native price level to Capital.com's expected precision."""
+    if value is None:
+        return None
+    symbol = symbol.upper()
+    if symbol in ("EURUSD", "GBPUSD"):
+        return round(float(value), 0)
+    if symbol == "USDJPY":
+        return round(float(value), 0)
+    return round(float(value), 1)
 
 
 class DualCapitalConnector:
@@ -192,19 +236,20 @@ class DualCapitalConnector:
             # Determine category for sizing
             category = self._get_symbol_category(symbol)
             
-            # Minimum sizes for Capital.com CFDs
-            # Forex: 1000 (1K units = 0.01 lot)
-            # Stocks: 1 share
-            # Commodities: 1 unit
-            # Indices: 1 unit
-            min_sizes = {
-                "forex": 1000.0,
-                "stock": 1.0,
-                "commodity": 1.0,
-                "index": 1.0,
-                "crypto": 0.1,
-            }
-            min_size = min_sizes.get(category, 1.0)
+            # Capital.com `size` is in lots. The minimum lot size comes from
+            # the instrument's dealingRules when available; otherwise fall back
+            # to conservative defaults.
+            rules = self._get_dealing_rules(symbol)
+            min_deal_size = float(rules.get('minDealSize')) if rules and rules.get('minDealSize') else None
+            min_size = min_deal_size if min_deal_size else {
+                "forex": 0.01,
+                "stock": 0.01,
+                "commodity": 0.01,
+                "index": 0.001,
+                "crypto": 0.01,
+            }.get(category, 0.01)
+            # Per-symbol overrides from observed API data
+            min_size = max(min_size, {"US100": 0.001}.get(symbol.upper(), 0.0))
             
             # Ensure size meets minimum
             actual_size = max(float(size), min_size)
@@ -215,14 +260,26 @@ class DualCapitalConnector:
                 "direction": direction.upper(),  # BUY or SELL
                 "size": actual_size,
                 "orderType": "MARKET",
+                "forceOpen": True,
+                "currencyCode": "GBP",
             }
             
-            # Capital.com requires minimum distance for TP/SL
-            # For most CFDs this is ~0.5% or a few pips
-            if stop_level:
-                payload["stopLevel"] = float(stop_level)
-            if profit_level:
-                payload["profitLevel"] = float(profit_level)
+            # Capital.com order API expects absolute levels in NATIVE units.
+            # The caller passes Yahoo-consistent normalized levels, so convert
+            # them back to Capital's native quote units before transmitting.
+            native_stop = _round_native_level(symbol, _scaled_to_native(symbol, stop_level))
+            native_profit = _round_native_level(symbol, _scaled_to_native(symbol, profit_level))
+            if native_stop is not None:
+                payload["stopLevel"] = float(native_stop)
+            if native_profit is not None:
+                payload["profitLevel"] = float(native_profit)
+
+            logger.info(
+                "[DUAL CAPITAL] %s order payload: %s %s size=%s TP=%s (native %s) SL=%s (native %s)",
+                "live" if not client.demo_mode else "demo",
+                symbol, direction.upper(), actual_size,
+                profit_level, native_profit, stop_level, native_stop,
+            )
             
             # Place order — routed through the hardened request layer
             # (automatic re-auth on 401/session expiry; bug-hunt MEDIUM)
@@ -332,79 +389,194 @@ class DualCapitalConnector:
                     return True
         return False
     
-    def get_minimum_tp_distance(self, symbol: str, entry_price: float) -> float:
-        """Calculate minimum take-profit distance for Capital.com.
+    def _get_dealing_rules(self, symbol: str) -> Optional[Dict]:
+        """Fetch Capital.com dealing rules for a symbol (native units).
 
-        Capital.com enforces percentage-based minimum distances per instrument.
-        Derived from actual API rejection data (2026-09-04):
-          NVDA $228.45 → min $2.06  (0.9%)
-          US100 29482  → min 118    (0.4%)
-          GOLD $4525   → min $50    (1.1%)
+        Returns a dict with min/max stop/take-profit distances, or None on any
+        failure. Cached in-memory per symbol for 60s to avoid repeated API calls.
         """
-        # Minimum distance as percentage of entry price
-        min_pct = {
-            "USDJPY": 0.001,    # 0.1%
-            "EURUSD": 0.0003,   # 0.03%
-            "GBPUSD": 0.0003,   # 0.03%
-            "AAPL": 0.006,      # 0.6%
-            "TSLA": 0.006,      # 0.6%
-            "NVDA": 0.009,      # 0.9%
-            "US100": 0.004,     # 0.4%
-            "GOLD": 0.012,      # 1.2% (was 1.1% — still hitting limit)
-            "SILVER": 0.012,    # 1.2% (was 0.6% — hitting limit at 67.435)
-            "OIL_CRUDE": 0.005, # 0.5%
-            "NATURALGAS": 0.010,# 1.0%
-            "BTCUSD": 0.005,    # 0.5%
-            "ETHUSD": 0.005,    # 0.5%
-        }
-        pct = min_pct.get(symbol, 0.005)  # default 0.5%
-        distance = entry_price * pct
+        if not hasattr(self, "_dealing_rules_cache"):
+            self._dealing_rules_cache: Dict[str, Dict] = {}
+            self._dealing_rules_cache_time: Dict[str, float] = {}
 
-        # Absolute minimum floor (never go below this)
-        # Increased 2026-09-04 with 5% safety margin over observed API limits
+        now = time.time()
+        cached = self._dealing_rules_cache.get(symbol)
+        if cached is not None and (now - self._dealing_rules_cache_time.get(symbol, 0.0)) < 60.0:
+            return cached
+
+        client = self.live if self.is_live_ready() else (self.demo if self.is_demo_ready() else None)
+        if client is None:
+            return None
+
+        epic = self._symbol_to_epic(client, symbol)
+        if not epic:
+            return None
+
+        try:
+            resp = client._request('GET', f'/markets/{epic}')
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            rules = data.get('dealingRules', {})
+            snap = data.get('snapshot', {})
+
+            def _num(key):
+                v = rules.get(key, {}).get('value')
+                try:
+                    return float(v) if v is not None else None
+                except Exception:
+                    return None
+
+            inst = data.get('instrument', {})
+            result = {
+                'minStopLossDistance': _num('minStopLossDistance'),
+                'maxStopLossDistance': _num('maxStopLossDistance'),
+                'minTakeProfitDistance': _num('minTakeProfitDistance'),
+                'maxTakeProfitDistance': _num('maxTakeProfitDistance'),
+                'minStepStopLossDistance': _num('minStepStopLossDistance'),
+                'minStopOrProfitDistance': _num('minStopOrProfitDistance'),
+                'maxStopOrProfitDistance': _num('maxStopOrProfitDistance'),
+                'minGuaranteedStopDistance': _num('minGuaranteedStopDistance'),
+                'minDealSize': _num('minDealSize'),
+                'marginFactor': float(inst.get('marginFactor')) if inst.get('marginFactor') is not None else None,
+                'marginFactorUnit': inst.get('marginFactorUnit'),
+                'lotSize': float(inst.get('lotSize')) if inst.get('lotSize') is not None else 1.0,
+                'currency': inst.get('currency'),
+                'scalingFactor': float(snap.get('scalingFactor')) if snap.get('scalingFactor') is not None else 1.0,
+                'bid': snap.get('bid'),
+                'ask': snap.get('offer'),
+                'epic': epic,
+            }
+            self._dealing_rules_cache[symbol] = result
+            self._dealing_rules_cache_time[symbol] = now
+            return result
+        except Exception as e:
+            logger.debug(f"[DUAL CAPITAL] dealing rules fetch failed for {symbol}: {e}")
+            return None
+
+    def get_minimum_tp_distance(self, symbol: str, entry_price: float) -> float:
+        """Minimum take-profit distance in NORMALIZED (Yahoo-consistent) units.
+
+        First tries Capital.com's live dealingRules. Falls back to conservative
+        hardcoded floors derived from actual API rejections (2026-09-07).
+        """
+        symbol = symbol.upper()
+
+        # Try live dealing rules: native distance → scaled distance
+        rules = self._get_dealing_rules(symbol)
+        native_dist = None
+        if rules and rules.get('minTakeProfitDistance'):
+            native_dist = float(rules['minTakeProfitDistance']) * 1.05  # 5% safety margin
+        if native_dist and native_dist > 0:
+            return max(_native_to_scaled(symbol, native_dist), entry_price * 0.0001)
+
+        # Conservative hardcoded floors (in normalized units).
+        # Derived from observed error.invalid.takeprofit.min/maxvalue rejections.
+        min_pct = {
+            "USDJPY": 0.001,
+            "EURUSD": 0.0003,
+            "GBPUSD": 0.0003,
+            "AAPL": 0.009,
+            "TSLA": 0.009,
+            "NVDA": 0.012,
+            "US100": 0.0035,
+            "GOLD": 0.012,
+            "SILVER": 0.009,
+            "OIL_CRUDE": 0.022,
+            "NATURALGAS": 0.026,
+            "BTCUSD": 0.005,
+            "ETHUSD": 0.005,
+        }
         abs_floor = {
             "USDJPY": 0.03,
             "EURUSD": 0.0003,
             "GBPUSD": 0.0003,
-            "AAPL": 1.50,
-            "TSLA": 2.00,
-            "NVDA": 4.00,       # $4.00 min (was $2.50, API needs ~$3.65)
-            "US100": 125.0,     # was 120 — 5% margin over observed 118.28
-            "GOLD": 52.0,       # was 50 — margin over observed 50.07
-            "SILVER": 0.50,
-            "OIL_CRUDE": 0.50,
-            "NATURALGAS": 0.05,
+            "AAPL": 2.00,
+            "TSLA": 2.50,
+            "NVDA": 5.00,
+            "US100": 100.0,
+            "GOLD": 50.0,
+            "SILVER": 0.60,
+            "OIL_CRUDE": 2.00,
+            "NATURALGAS": 0.075,
+            "BTCUSD": 100.0,
+            "ETHUSD": 5.0,
         }
-        return max(distance, abs_floor.get(symbol, 1.0))
+        pct = min_pct.get(symbol, 0.005)
+        return max(entry_price * pct, abs_floor.get(symbol, 1.0))
 
     def get_minimum_tick(self, symbol: str) -> float:
         """DEPRECATED — use get_minimum_tp_distance instead.
         Kept for backward compatibility.
         """
-        return self.get_minimum_tp_distance(symbol, 100.0)  # fallback at $100 reference
+        return self.get_minimum_tp_distance(symbol, 100.0)
 
     def calculate_micro_tp(self, symbol: str, direction: str, entry_price: float) -> float:
-        """Calculate take-profit at Capital.com's minimum allowed distance.
+        """Calculate take-profit in NORMALIZED units at Capital.com's minimum distance.
 
-        Uses percentage-based distance scaled to entry price.
-        Ensures orders pass Capital.com validation.
+        Adds a 10% buffer and rounds away from entry so rounding never pushes the
+        level back inside Capital's minimum-distance envelope.
         """
-        distance = self.get_minimum_tp_distance(symbol, entry_price)
+        distance = self.get_minimum_tp_distance(symbol, entry_price) * 1.10
 
-        if direction.upper() in ["LONG", "BUY"]:
-            tp = entry_price + distance
-        else:
-            tp = entry_price - distance
+        is_long = direction.upper() in ["LONG", "BUY"]
+        raw_tp = entry_price + distance if is_long else entry_price - distance
 
-        # Round to appropriate precision
+        # Round away from entry (up for LONG, down for SHORT)
+        import math
         if distance >= 100:
-            return round(tp, 0)
+            prec = 0
         elif distance >= 1:
-            return round(tp, 1)
+            prec = 1
         elif distance >= 0.01:
-            return round(tp, 2)
+            prec = 2
         else:
-            return round(tp, 4)
+            prec = 4
+        factor = 10 ** prec
+        if is_long:
+            return math.ceil(raw_tp * factor) / factor
+        return math.floor(raw_tp * factor) / factor
+
+    def get_minimum_stop_distance(self, symbol: str, entry_price: float) -> float:
+        """Minimum broker-side stop-loss distance in NORMALIZED units.
+
+        Capital's minimum stop distance is typically larger than its minimum
+        take-profit distance. Values are conservative floors derived from live
+        API rejections (error.invalid.stoploss.maxvalue / minvalue).
+        """
+        symbol = symbol.upper()
+        min_pct = {
+            "USDJPY": 0.0015,
+            "EURUSD": 0.0005,
+            "GBPUSD": 0.0005,
+            "AAPL": 0.020,
+            "TSLA": 0.025,
+            "NVDA": 0.030,
+            "US100": 0.005,
+            "GOLD": 0.030,
+            "SILVER": 0.030,
+            "OIL_CRUDE": 0.030,
+            "NATURALGAS": 0.005,
+            "BTCUSD": 0.010,
+            "ETHUSD": 0.010,
+        }
+        abs_floor = {
+            "USDJPY": 0.20,
+            "EURUSD": 0.0005,
+            "GBPUSD": 0.0005,
+            "AAPL": 3.0,
+            "TSLA": 4.0,
+            "NVDA": 7.0,
+            "US100": 150.0,
+            "GOLD": 130.0,
+            "SILVER": 2.0,
+            "OIL_CRUDE": 2.5,
+            "NATURALGAS": 0.015,
+            "BTCUSD": 200.0,
+            "ETHUSD": 10.0,
+        }
+        pct = min_pct.get(symbol, 0.010)
+        return max(entry_price * pct, abs_floor.get(symbol, 1.0))
     
     def get_status(self) -> dict:
         """Get full status of both accounts."""

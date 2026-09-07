@@ -131,6 +131,63 @@ class KrakenAdapter:
         self.min_notional = float(os.getenv("KRAKEN_MIN_NOTIONAL", str(DEFAULT_MIN_NOTIONAL)) or DEFAULT_MIN_NOTIONAL)
         self._nonce_lock = threading.Lock()
         self._last_nonce = 0
+        # Host rate budget (per-host GlobalRateBudget; graceful absence keeps
+        # the adapter usable but unbudgeted — logged once).
+        self._rate_budget = None
+        self._RequestPriority = None
+        self._budget_wait = None
+        try:
+            from aureon.core.global_rate_budget import (
+                RequestPriority,
+                get_host_rate_budget,
+                wait_for_slot_deferred,
+            )
+            self._rate_budget = get_host_rate_budget("api.kraken.com")
+            self._RequestPriority = RequestPriority
+            self._budget_wait = wait_for_slot_deferred
+        except Exception as exc:
+            logger.debug("kraken GlobalRateBudget unavailable (%s) - running unbudgeted", type(exc).__name__)
+
+    # ── rate budget discipline (defer reads, fail-closed writes) ──────────
+    def _budget_acquire(self, priority, *, is_trading: bool = False,
+                        write: bool = False, max_wait_s: float = 15.0) -> bool:
+        """Queue for a host budget slot. Reads defer and never crash; writes
+        raise (fail-closed) if the slot stays deferred past max_wait_s."""
+        if self._rate_budget is None:
+            return True
+        granted = self._budget_wait(
+            self._rate_budget, priority, is_trading=is_trading, max_wait_s=max_wait_s
+        )
+        if not granted:
+            if write:
+                raise RuntimeError(
+                    f"kraken rate budget deferred {priority.name} call beyond "
+                    f"{max_wait_s}s - NOT sent (fail-closed)"
+                )
+            logger.warning(
+                "kraken rate budget deferred %s read beyond %ss - proceeding anyway",
+                priority.name, max_wait_s,
+            )
+        return granted
+
+    def _budget_on_429(self, priority) -> None:
+        if self._rate_budget is not None:
+            try:
+                self._rate_budget.on_429_error(priority)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _path_priority(path: str):
+        """EXECUTION for order placement, POSITIONS for account reads,
+        QUOTES for public market data. Returns the RequestPriority enum."""
+        from aureon.core.global_rate_budget import RequestPriority
+        lowered = str(path or "").lower()
+        if "addorder" in lowered or "cancelorder" in lowered or "trade" in lowered:
+            return RequestPriority.EXECUTION
+        if "private" in lowered:
+            return RequestPriority.POSITIONS
+        return RequestPriority.QUOTES
 
     # ── key handling: read at CALL time, names only, never values ─────────
     def _keys(self) -> tuple:
@@ -154,13 +211,22 @@ class KrakenAdapter:
 
     # ── public REST (real market data, no auth) ───────────────────────────
     def _public_get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        self._budget_acquire(self._RequestPriority.QUOTES, max_wait_s=10.0)
         url = f"{KRAKEN_PUBLIC}/{endpoint}"
         if params:
             url += "?" + urllib.parse.urlencode(params)
         req = urllib.request.Request(url, headers={"User-Agent": "AureonKrakenAdapter/1.0"})
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310 - public market-data endpoint
-            payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310 - public market-data endpoint
+                payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and self._rate_budget is not None:
+                self._budget_on_429(self._RequestPriority.QUOTES)
+            raise
         if isinstance(payload, dict) and payload.get("error"):
+            errors = payload["error"]
+            if self._rate_budget is not None and any("limit" in str(e).lower() or "throttle" in str(e).lower() for e in (errors if isinstance(errors, list) else [errors])):
+                self._budget_on_429(self._RequestPriority.QUOTES)
             raise RuntimeError(f"kraken public {endpoint} error: {payload['error']}")
         result = payload.get("result", {}) if isinstance(payload, dict) else {}
         return result if isinstance(result, dict) else {}
@@ -233,6 +299,16 @@ class KrakenAdapter:
             raise RuntimeError("kraken private call without KRAKEN_API_KEY/KRAKEN_API_SECRET")
         import urllib.request as _ur
 
+        priority = self._path_priority(path)
+        # Writes (order placement) are fail-closed: if the budget keeps
+        # deferring, the order is NOT sent. Account reads defer but proceed.
+        self._budget_acquire(
+            priority,
+            is_trading=priority.name == "EXECUTION",
+            write=priority.name == "EXECUTION",
+            max_wait_s=15.0,
+        )
+
         body = dict(data or {})
         body["nonce"] = self._next_nonce()
         postdata = urllib.parse.urlencode(body)
@@ -246,9 +322,17 @@ class KrakenAdapter:
                 "User-Agent": "AureonKrakenAdapter/1.0",
             },
         )
-        with _ur.urlopen(req, timeout=self.timeout) as resp:  # nosec B310 - signed exchange endpoint
-            payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+        try:
+            with _ur.urlopen(req, timeout=self.timeout) as resp:  # nosec B310 - signed exchange endpoint
+                payload = json.loads(resp.read().decode("utf-8", errors="replace"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                self._budget_on_429(priority)
+            raise
         if isinstance(payload, dict) and payload.get("error"):
+            errors = payload["error"]
+            if any("nonce" not in str(e).lower() and ("limit" in str(e).lower() or "throttle" in str(e).lower()) for e in (errors if isinstance(errors, list) else [errors])):
+                self._budget_on_429(priority)
             raise RuntimeError(f"kraken private {path} error: {payload['error']}")
         result = payload.get("result", {}) if isinstance(payload, dict) else {}
         return result if isinstance(result, dict) else {}
@@ -272,6 +356,22 @@ class KrakenAdapter:
             return {"authenticated": False, "mode": "live_keyed", "reason": msg[:200]}
         except Exception as exc:  # network etc.
             return {"authenticated": False, "mode": "live_keyed", "reason": f"{type(exc).__name__}: {exc}"[:200]}
+
+    # ── account read (real balance, keyed only) ──────────────────────────
+    def get_balance(self) -> Dict[str, float]:
+        """Return non-zero balances from /0/private/Balance."""
+        if not self.has_keys:
+            return {}
+        try:
+            balance = self._private("/0/private/Balance", {})
+            return {
+                _canonical_asset(asset): float(amount)
+                for asset, amount in balance.items()
+                if float(amount) > 0
+            }
+        except Exception as exc:
+            logger.warning("kraken balance fetch failed: %s", exc)
+            return {}
 
     # ── order construction (real prices, both modes) ─────────────────────
     def build_order(self, pair: str, side: str, volume: float,

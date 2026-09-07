@@ -5,6 +5,7 @@ import requests
 import time
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Dict, Any, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -65,6 +66,10 @@ CAPITAL_TICKER_WORKERS = int(os.getenv('CAPITAL_TICKER_WORKERS', '4'))
 CAPITAL_TICKER_MEM_TTL = float(os.getenv('CAPITAL_TICKER_MEM_TTL', '25.0'))  # In-memory per-symbol ticker cache TTL
 CAPITAL_MONITOR_CACHE_PATH = os.getenv("CAPITAL_MONITOR_CACHE_PATH", os.path.join("ws_cache", "capital_monitor.json"))
 CAPITAL_MONITOR_CACHE_MAX_AGE_S = float(os.getenv("CAPITAL_MONITOR_CACHE_MAX_AGE_S", "20"))
+# Safety cap for how old a cached snapshot/account list may be before we stop
+# serving it as fresh.  Stale data is still returned during graceful degradation
+# but is loudly logged as STALE so callers can reject it for live trading.
+CAPITAL_MAX_STALE_SNAPSHOT_AGE_S = float(os.getenv("CAPITAL_MAX_STALE_SNAPSHOT_AGE_S", "300"))
 # Disk cache for market catalogue — survives process restarts, avoids re-downloading 6799 markets
 CAPITAL_MARKET_DISK_CACHE_PATH = os.getenv(
     "CAPITAL_MARKET_DISK_CACHE_PATH",
@@ -120,6 +125,25 @@ class CapitalClient:
         self._snapshot_cache: Dict[str, Any] = {}               # In-memory market snapshot cache {epic: data}
         self._snapshot_cache_times: Dict[str, float] = {}       # Snapshot cache fetch timestamps
 
+        # Global host rate budget: reserves POSITIONS slots for account reads
+        # and EXECUTION slots for session/order writes, so analytics can't starve
+        # the portfolio writer / progress monitor.
+        self._rate_budget = None
+        self._RequestPriority = None
+        self._budget_wait = None
+        try:
+            from aureon.core.global_rate_budget import (
+                RequestPriority,
+                get_host_rate_budget,
+                wait_for_slot_deferred,
+            )
+            host = urlparse(self.base_url).netloc
+            self._rate_budget = get_host_rate_budget(host)
+            self._RequestPriority = RequestPriority
+            self._budget_wait = wait_for_slot_deferred
+        except Exception as exc:
+            logger.debug("capital GlobalRateBudget unavailable (%s) - running unbudgeted", type(exc).__name__)
+
         if not self.api_key or not self.identifier or not self.password:
             logger.warning("Capital.com credentials not fully set. Client will be disabled.")
             self.enabled = False
@@ -137,6 +161,54 @@ class CapitalClient:
             return False
         # Session expires after ~55 minutes; refresh proactively at 50 min.
         return (time.time() - self.session_start_time) < (55 * 60)
+
+    # ── rate budget helpers ───────────────────────────────────────────────
+    def _budget_priority(self, method: str, path: str):
+        """EXECUTION for session/auth/order mutations, POSITIONS for account/
+        position/history reads, QUOTES for market data."""
+        from aureon.core.global_rate_budget import RequestPriority
+        method = str(method or "").upper()
+        lowered = str(path or "").lower()
+        if method == "POST" and lowered == "/session":
+            return RequestPriority.EXECUTION
+        if method in ("POST", "PUT", "DELETE"):
+            return RequestPriority.EXECUTION
+        if lowered.startswith(("/accounts", "/positions", "/confirms", "/history", "/workingorders")):
+            return RequestPriority.POSITIONS
+        if lowered.startswith(("/markets", "/marketnavigation")):
+            return RequestPriority.QUOTES
+        return RequestPriority.POSITIONS
+
+    def _budget_acquire(self, method: str, path: str, *, write: bool = False,
+                        max_wait_s: float = 10.0) -> bool:
+        if self._rate_budget is None or self._RequestPriority is None:
+            return True
+        priority = self._budget_priority(method, path)
+        granted = self._budget_wait(
+            self._rate_budget, priority,
+            is_trading=priority.name == "EXECUTION",
+            max_wait_s=max_wait_s,
+        )
+        if not granted:
+            if write:
+                raise RuntimeError(
+                    f"capital rate budget deferred {priority.name} {method} {path} "
+                    f"beyond {max_wait_s}s - NOT sent (fail-closed)"
+                )
+            logger.warning(
+                "capital rate budget deferred %s %s %s beyond %ss - proceeding anyway",
+                priority.name, method, path, max_wait_s,
+            )
+        return granted
+
+    def _budget_on_429(self, method: str, path: str) -> None:
+        if self._rate_budget is None:
+            return
+        try:
+            priority = self._budget_priority(method, path)
+            self._rate_budget.on_429_error(priority)
+        except Exception:
+            pass
 
     @staticmethod
     def _error_response(status_code: int, error_code: str, detail: str = ""):
@@ -214,6 +286,7 @@ class CapitalClient:
         }
 
         try:
+            self._budget_acquire("POST", "/session", write=True, max_wait_s=15.0)
             response = requests.post(url, json=payload, headers=headers, timeout=CAPITAL_HTTP_TIMEOUT)
             if response.status_code == 200:
                 self.cst = response.headers.get('CST')
@@ -234,6 +307,7 @@ class CapitalClient:
                 self._rate_limit_until = time.time() + 600
                 _SHARED_SESSION["rate_limit_until"] = self._rate_limit_until
                 self.init_error = "rate_limited"
+                self._budget_on_429("POST", "/session")
                 if not self._session_error_logged:
                     logger.warning("Capital.com rate limited - backing off for 5 minutes")
                     self._session_error_logged = True
@@ -246,6 +320,13 @@ class CapitalClient:
                     self.enabled = False
                 else:
                     self._next_session_retry_at = time.time() + CAPITAL_SESSION_RETRY_BACKOFF_SECS
+        except RuntimeError as exc:
+            # Budget fail-closed: session NOT created, retry later.
+            self.init_error = f"rate_budget_deferred: {exc}"
+            self._next_session_retry_at = time.time() + CAPITAL_SESSION_RETRY_BACKOFF_SECS
+            if not self._session_error_logged:
+                logger.warning("Capital.com session blocked by rate budget: %s", exc)
+                self._session_error_logged = True
         except Exception as e:
             self.init_error = str(e)
             self._next_session_retry_at = time.time() + CAPITAL_SESSION_RETRY_BACKOFF_SECS
@@ -283,8 +364,16 @@ class CapitalClient:
         headers = self._get_headers()
         if not headers:
             return self._error_response(503, "session_unavailable", self.init_error or "session_unavailable")
+
+        is_write = method.upper() != "GET"
         try:
+            self._budget_acquire(method, path, write=is_write, max_wait_s=15.0)
             resp = requests.request(method.upper(), url, headers=headers, params=params, json=json_body, timeout=CAPITAL_HTTP_TIMEOUT)
+        except RuntimeError as exc:
+            # Budget fail-closed for writes; for reads we never pass this way
+            # because _budget_acquire logs and proceeds. Only writes raise.
+            logger.warning("Capital.com %s %s blocked by rate budget: %s", method, path, exc)
+            return self._error_response(503, "rate_budget_deferred", str(exc)[:200])
         except Exception as e:
             logger.error(f"Capital.com request error ({method} {path}): {e}")
             return self._error_response(503, "request_error", str(e))
@@ -293,6 +382,7 @@ class CapitalClient:
         rate_limit_hit = resp.status_code == 429 or ('too-many.requests' in (resp.text or '').lower())
         if rate_limit_hit:
             self._rate_limit_until = time.time() + 600
+            self._budget_on_429(method, path)
             if not self._rate_limit_logged:
                 logger.warning("Capital.com rate limited - backing off for 5 minutes")
                 self._rate_limit_logged = True
@@ -311,12 +401,21 @@ class CapitalClient:
             self.session_start_time = 0.0
             self.enabled = True
             self._session_error_logged = False
+            # Also clear the shared cache so other instances don't reuse stale tokens
+            global _SHARED_SESSION
+            _SHARED_SESSION["cst"] = None
+            _SHARED_SESSION["x_security_token"] = None
+            _SHARED_SESSION["session_start_time"] = 0.0
             self._create_session()
             headers = self._get_headers()
             if not headers:
                 return self._error_response(503, "session_unavailable", self.init_error or "session_unavailable")
             try:
+                self._budget_acquire(method, path, write=is_write, max_wait_s=15.0)
                 resp = requests.request(method.upper(), url, headers=headers, params=params, json=json_body, timeout=CAPITAL_HTTP_TIMEOUT)
+            except RuntimeError as exc:
+                logger.warning("Capital.com retry %s %s blocked by rate budget: %s", method, path, exc)
+                return self._error_response(503, "rate_budget_deferred", str(exc)[:200])
             except Exception as e:
                 logger.error(f"Capital.com retry request error ({method} {path}): {e}")
                 return self._error_response(503, "request_error", str(e))
@@ -469,23 +568,57 @@ class CapitalClient:
 
         return markets
 
+    @staticmethod
+    def _is_dated_future(epic: Optional[str]) -> bool:
+        """Dated futures/contracts carry month-year codes (e.g. EURUSDU2026)."""
+        if not epic:
+            return False
+        import re
+        return bool(re.search(r"[A-Z]\d{4}$", str(epic).upper()))
+
+    @staticmethod
+    def _market_score(m: Dict[str, Any], canonical: str) -> int:
+        """Higher score = better match. Prefer exact, tradeable, non-dated."""
+        score = 0
+        epic = str(m.get('epic') or '').upper()
+        name = str(m.get('instrumentName') or '').upper()
+        if epic == canonical or name == canonical:
+            score += 1000
+        if canonical in epic or canonical in name:
+            score += 100
+        if str(m.get('marketStatus', '')).upper() == 'TRADEABLE':
+            score += 50
+        if not CapitalClient._is_dated_future(m.get('epic')):
+            score += 200
+        if str(m.get('expiry', '')).upper() in ('', 'NONE', 'NA', 'N/A'):
+            score += 25
+        return score
+
     def _resolve_market(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
         Map a user-facing symbol (e.g., BTCUSD, TSLA) to the corresponding Capital.com market entry.
         Falls back to the search endpoint if the market isn't in cache yet.
+        Prefers tradeable, non-dated (spot/rolling) instruments over futures.
         """
         if not symbol:
             return None
 
         canonical = self._canonicalize(symbol)
         markets = self.get_all_markets()
-        if canonical in self.market_index:
-            return self.market_index[canonical]
 
-        # Partial match on epic or instrument name
-        for m in markets:
-            if canonical in self._canonicalize(m.get('epic')) or canonical in self._canonicalize(m.get('instrumentName')):
-                return m
+        # Exact canonical lookup first
+        if canonical in self.market_index:
+            candidate = self.market_index[canonical]
+            if not self._is_dated_future(candidate.get('epic')):
+                return candidate
+
+        # Score and pick best cached match
+        scored = [(self._market_score(m, canonical), m) for m in markets
+                  if canonical in self._canonicalize(m.get('epic', ''))
+                  or canonical in self._canonicalize(m.get('instrumentName', ''))]
+        if scored:
+            scored.sort(key=lambda x: x[0], reverse=True)
+            return scored[0][1]
 
         # Fallback: use search endpoint to pull the market and refresh cache
         try:
@@ -494,11 +627,19 @@ class CapitalClient:
                 data = search_resp.json() or {}
                 found = data.get('markets', [])
                 if found:
+                    scored = [(self._market_score(m, canonical), m) for m in found
+                              if canonical in self._canonicalize(m.get('epic', ''))
+                              or canonical in self._canonicalize(m.get('instrumentName', ''))]
+                    if scored:
+                        scored.sort(key=lambda x: x[0], reverse=True)
+                        best = scored[0][1]
+                    else:
+                        best = found[0]
                     markets.extend(found)
                     self._update_market_index(markets)
                     self.market_cache = markets
                     self.market_cache_time = time.time()
-                    return found[0]
+                    return best
         except Exception as e:
             logger.error(f"Capital.com search failed for {symbol}: {e}")
 
@@ -524,11 +665,22 @@ class CapitalClient:
                 self._snapshot_cache_times[epic] = time.time()
                 return result
             if response.status_code == 429 or 'too-many.requests' in (response.text or '').lower():
-                return cached_snap  # Return stale on rate limit
+                stale_age = now - self._snapshot_cache_times.get(epic, 0.0)
+                if cached_snap is not None and stale_age <= CAPITAL_MAX_STALE_SNAPSHOT_AGE_S:
+                    logger.warning(f"Capital.com rate-limited for {epic}; returning cached snapshot (age={stale_age:.0f}s)")
+                    return cached_snap
+                logger.error(f"Capital.com rate-limited for {epic}; cached snapshot too old (age={stale_age:.0f}s) — refusing stale data")
+                return None
             logger.error(f"Capital.com market snapshot failed for {epic}: {response.text}")
         except Exception as e:
             logger.error(f"Capital.com market snapshot error for {epic}: {e}")
-        return cached_snap  # Return stale on error
+        if cached_snap is not None:
+            stale_age = now - self._snapshot_cache_times.get(epic, 0.0)
+            if stale_age <= CAPITAL_MAX_STALE_SNAPSHOT_AGE_S:
+                logger.warning(f"Capital.com snapshot error for {epic}; returning cached snapshot (age={stale_age:.0f}s)")
+                return cached_snap
+            logger.error(f"Capital.com snapshot error for {epic}; cached snapshot too old (age={stale_age:.0f}s) — refusing stale data")
+        return None
 
     def _read_monitor_cache(self) -> Dict[str, Any]:
         path = CAPITAL_MONITOR_CACHE_PATH
@@ -624,10 +776,15 @@ class CapitalClient:
                 return accounts
             else:
                 logger.error(f"Failed to get Capital.com accounts: {response.text}")
-                return self._accounts_cache  # Return stale cache on error
         except Exception as e:
             logger.error(f"Error fetching Capital.com accounts: {e}")
-            return self._accounts_cache  # Return stale cache on error
+        if self._accounts_cache:
+            stale_age = now - self._accounts_cache_time
+            if stale_age <= CAPITAL_MAX_STALE_SNAPSHOT_AGE_S:
+                logger.warning(f"Capital.com accounts unavailable; returning cached accounts (age={stale_age:.0f}s)")
+                return self._accounts_cache
+            logger.error(f"Capital.com accounts unavailable; cached accounts too old (age={stale_age:.0f}s) — refusing stale data")
+        return []
 
     def get_ticker(self, symbol: str) -> Dict[str, float]:
         """Get current price for a symbol."""
@@ -888,10 +1045,40 @@ class CapitalClient:
         try:
             response = self._request('POST', path, json_body=payload)
             if response.status_code == 200:
-                return response.json()
+                data = response.json() if isinstance(response.json(), dict) else {}
+                deal_reference = data.get('dealReference')
+                # Confirm the order via positions polling so callers always get
+                # a stable dealId. This fixes the "dealId not found in positions"
+                # race where /confirms is queried before the position propagates.
+                if deal_reference:
+                    confirmation = self.confirm_order_by_positions(deal_reference)
+                    return {
+                        'submitted': True,
+                        'dealReference': deal_reference,
+                        'dealId': confirmation.get('dealId'),
+                        'confirmed': confirmation.get('confirmed', False),
+                        'status': confirmation.get('status', data.get('status', 'UNKNOWN')),
+                        'epic': epic,
+                        'direction': direction,
+                        'size': quantity,
+                        'confirmation': confirmation,
+                        'raw': data,
+                    }
+                return {
+                    'submitted': True,
+                    'dealReference': deal_reference,
+                    'dealId': data.get('dealId'),
+                    'confirmed': bool(data.get('dealId')),
+                    'status': data.get('status', 'UNKNOWN'),
+                    'epic': epic,
+                    'direction': direction,
+                    'size': quantity,
+                    'raw': data,
+                }
             else:
                 logger.error(f"Capital.com order failed: {response.text}")
                 return {
+                    'submitted': False,
                     'rejected': True,
                     'error': 'http_error',
                     'status_code': response.status_code,
@@ -903,6 +1090,7 @@ class CapitalClient:
         except Exception as e:
             logger.error(f"Capital.com order error: {e}")
             return {
+                'submitted': False,
                 'rejected': True,
                 'error': 'exception',
                 'reason': str(e),
@@ -1073,10 +1261,85 @@ class CapitalClient:
                 return response.json()
             else:
                 logger.error(f"Capital.com confirm failed: {response.text}")
-                return {'error': response.text}
+                return {'error': response.text, 'status_code': response.status_code}
         except Exception as e:
             logger.error(f"Capital.com confirm error: {e}")
             return {'error': str(e)}
+
+    def confirm_order_by_positions(
+        self,
+        deal_reference: str,
+        max_attempts: int = 6,
+        delay_sec: float = 2.0,
+    ) -> Dict[str, Any]:
+        """Confirm an order by polling the positions endpoint.
+
+        Capital.com's `/confirms/{dealReference}` endpoint can return
+        ORDER_FAILED / "dealId not found" immediately after submission because
+        the position takes a moment to propagate. This method refreshes the
+        session, tries `/confirms`, and falls back to polling `/positions`
+        until the matching dealReference appears or the timeout is reached.
+        """
+        if not self.enabled:
+            return {'confirmed': False, 'error': 'Client disabled'}
+        if not deal_reference:
+            return {'confirmed': False, 'error': 'Missing deal reference'}
+
+        # Ensure session is fresh before we start polling
+        self.authenticate()
+
+        # First try the confirms endpoint
+        confirm = self.confirm_order(deal_reference)
+        if isinstance(confirm, dict) and confirm.get('dealId'):
+            return {
+                'confirmed': True,
+                'dealReference': deal_reference,
+                'dealId': confirm['dealId'],
+                'status': confirm.get('status', 'UNKNOWN'),
+                'source': 'confirms',
+                'data': confirm,
+            }
+
+        # Fall back to polling /positions for the newly-opened position
+        for attempt in range(1, max_attempts + 1):
+            try:
+                positions = self.get_positions()
+                for pos in positions:
+                    pos_meta = pos.get('position', {})
+                    if pos_meta.get('dealReference') == deal_reference:
+                        return {
+                            'confirmed': True,
+                            'dealReference': deal_reference,
+                            'dealId': pos_meta.get('dealId'),
+                            'status': pos_meta.get('status', 'OPEN'),
+                            'source': 'positions_poll',
+                            'attempt': attempt,
+                            'data': pos,
+                        }
+                    # Some responses nest dealReference under the top-level position
+                    if pos.get('dealReference') == deal_reference:
+                        return {
+                            'confirmed': True,
+                            'dealReference': deal_reference,
+                            'dealId': pos.get('dealId') or pos_meta.get('dealId'),
+                            'status': pos_meta.get('status', 'OPEN'),
+                            'source': 'positions_poll',
+                            'attempt': attempt,
+                            'data': pos,
+                        }
+            except Exception as e:
+                logger.warning(f"Capital.com positions poll attempt {attempt} error: {e}")
+
+            if attempt < max_attempts:
+                time.sleep(delay_sec)
+
+        return {
+            'confirmed': False,
+            'dealReference': deal_reference,
+            'error': 'dealId not found in Capital.com positions after polling',
+            'confirms_response': confirm if isinstance(confirm, dict) else {'error': str(confirm)},
+            'attempts': max_attempts,
+        }
 
     def get_positions(self) -> List[Dict[str, Any]]:
         """Get all open positions."""

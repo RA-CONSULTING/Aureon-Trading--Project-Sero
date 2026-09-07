@@ -389,3 +389,113 @@ class CrossAssetCorrelator:
             ex, sym = _EXCHANGE_FALLBACK[canonical]
             return ex, sym
         return None, None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  LIVE ANALYSIS ENTRY POINT (real public data only, fail-closed)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_analysis(
+    crypto_changes: Optional[Dict[str, Dict[str, float]]] = None,
+    yahoo_changes: Optional[Dict[str, Optional[Dict[str, float]]]] = None,
+) -> Dict:
+    """Run the correlator on REAL market data.
+
+    Fetches (throttled, via aureon_fusion.api_communion):
+      - Binance public 24h tickers  -> crypto change_pct per liquid base asset
+      - Yahoo Finance chart         -> forex / index / commodity / stock change_pct
+
+    Args:
+        crypto_changes: optional pre-fetched ``binance_tickers_to_changes``
+            result (the aggregator passes its own batch to avoid duplicate calls).
+        yahoo_changes: optional pre-fetched {symbol: {change_pct, price}|None}.
+
+    Returns a JSON-safe dict. On total data failure returns
+    ``{"ok": False, "regime": None, ..., "error": "..."}`` — never fabricated.
+    Pre-signals are model inference from measured leader moves + static
+    correlation priors, and are labeled as such.
+    """
+    import time as _time
+
+    try:
+        from analyzers import global_energy_data as ged
+    except ImportError:  # standalone: run from inside analyzers/
+        import global_energy_data as ged
+
+    if crypto_changes is None:
+        tickers = ged.fetch_binance_24h_tickers()
+        crypto_changes = ged.binance_tickers_to_changes(tickers) if tickers else None
+
+    if yahoo_changes is None:
+        yahoo_changes = {}
+        for sym in list(ged.YAHOO_MAP):
+            yahoo_changes[sym] = ged.fetch_yahoo_change_pct(sym)
+
+    symbol_to_change: Dict[str, float] = {}
+    symbol_to_price: Dict[str, float] = {}
+    symbol_to_exchange: Dict[str, str] = {}
+    source_counts = {"crypto": 0, "yahoo": 0, "yahoo_failed": 0}
+
+    if crypto_changes:
+        for base, d in crypto_changes.items():
+            symbol_to_change[base] = float(d["change_pct"])
+            symbol_to_price[base] = float(d["price"])
+            symbol_to_exchange[base] = "binance"
+            source_counts["crypto"] += 1
+
+    for sym, snap in (yahoo_changes or {}).items():
+        if snap is None:
+            source_counts["yahoo_failed"] += 1
+            continue
+        symbol_to_change[sym] = float(snap["change_pct"])
+        symbol_to_price[sym] = float(snap["price"])
+        symbol_to_exchange[sym] = "yahoo"
+        source_counts["yahoo"] += 1
+
+    if not symbol_to_change:
+        return {
+            "ok": False,
+            "ts": _time.time(),
+            "regime": None,
+            "category_moves": None,
+            "pre_signals": None,
+            "symbol_count": 0,
+            "source_counts": source_counts,
+            "error": "no_live_market_data",
+        }
+
+    corr = CrossAssetCorrelator()
+    corr.update_batch(symbol_to_change)
+    regime = corr.get_regime(symbol_to_change)
+    category_moves = corr.get_category_moves(symbol_to_change)
+    pre_signals = corr.get_pre_signals(
+        symbol_to_change, symbol_to_price, symbol_to_exchange, existing_symbols=set()
+    )
+
+    return {
+        "ok": True,
+        "ts": _time.time(),
+        "regime": regime,
+        "category_moves": category_moves,
+        "pre_signals": [
+            {
+                "leader": s.leader,
+                "follower": s.follower,
+                "follower_exchange": s.follower_exchange,
+                "follower_symbol": s.follower_symbol,
+                "leader_move_pct": round(s.leader_move_pct, 4),
+                "expected_move_pct": round(s.expected_move_pct, 4),
+                "already_moved_pct": round(s.already_moved_pct, 4),
+                "remaining_pct": round(s.remaining_pct, 4),
+                "correlation": round(s.correlation, 4),
+                "lag_seconds": s.lag_seconds,
+                "category": s.category,
+                "regime": s.regime,
+                "inference": "correlation_prior",  # model inference, not measurement
+            }
+            for s in pre_signals
+        ],
+        "symbol_count": len(symbol_to_change),
+        "source_counts": source_counts,
+        "error": None,
+    }

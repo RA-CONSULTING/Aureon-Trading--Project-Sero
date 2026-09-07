@@ -32,8 +32,15 @@ if hasattr(sys.stdout, "reconfigure"):
 # ===============================================================================
 # PATHS -- UPDATED to use latest aureon-os-upstream
 # ===============================================================================
-from aureon_fusion.paths import AUREON_UPSTREAM as AUREON_DIR, AUREON_RADAR as RADAR_DIR
-AUREON_VENV = AUREON_DIR / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+AUREON_DIR = Path("C:/Users/user/.kimi_openclaw/workspace/aureon-os-upstream")
+RADAR_DIR = Path("C:/Users/user/.kimi_openclaw/workspace/aureon_radar")
+WORKSPACE_DIR = Path("C:/Users/user/.kimi_openclaw/workspace")
+
+# Allow imports of the workspace aureon_fusion package when this script is run
+# directly from the radar directory.
+if str(WORKSPACE_DIR) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE_DIR))
+AUREON_VENV = AUREON_DIR / ".venv" / "Scripts" / "python.exe"
 
 # Aureon OS state files
 TRACE_FILE = AUREON_DIR / "state" / "capital_cfd_last_exchange_trace.json"
@@ -87,14 +94,6 @@ class AureonRadarBridge:
         
     def start_aureon_dry_run(self):
         """Start Aureon OS in dry-run signal generation mode."""
-        if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
-            # A deployment request does not release an exchange execution path.
-            # Start at the current file offsets so restored history is not
-            # republished as a new market signal.
-            self.last_trace_mtime = TRACE_FILE.stat().st_mtime if TRACE_FILE.exists() else 0
-            self._promotion_offset = PROMOTION_LOG.stat().st_size if PROMOTION_LOG.exists() else 0
-            print("Deployment HOLD: monitor new recorded signals; upstream execution stopped.")
-            return None
         print("? Starting Aureon OS in DRY-RUN signal mode...")
         
         # Use Aureon's own venv Python
@@ -239,10 +238,29 @@ class AureonRadarBridge:
         # Write to bridge log
         with open(AUREON_BRIDGE_LOG, 'a') as f:
             f.write(json.dumps(signal) + '\n')
-        
+
         # Also write to fused signals so Phi-Radar picks it up
         with open(FUSED_SIGNALS, 'a') as f:
             f.write(json.dumps(signal) + '\n')
+
+        # Emit a flight-recorder event on the organism's shared event spine.
+        try:
+            from aureon_fusion import events as _events
+            _events.emit_radar_signal(
+                source="aureon_bridge",
+                topic="radar.bridge_signal",
+                symbol=signal.get("symbol") or "UNKNOWN",
+                score=signal.get("confidence") or signal.get("fusion_score") or 0.0,
+                extra={
+                    "direction": signal.get("direction"),
+                    "bridge_source": signal.get("source"),
+                    "signal_timestamp": signal.get("timestamp"),
+                    "approved": signal.get("approved"),
+                },
+                priority=5,
+            )
+        except Exception:
+            pass
     
     def run(self):
         """Main bridge loop."""

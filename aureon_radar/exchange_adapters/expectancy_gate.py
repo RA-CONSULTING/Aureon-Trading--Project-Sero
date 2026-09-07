@@ -22,10 +22,15 @@ convention as VENUE_FEES / STOP_PCT in shadow_executor.py):
   than the stop. Any signal that cannot clear costs under this pessimistic
   estimate has no business firing.
 
-- check(...) requires expected_move >= MARGIN_SAFETY_MULTIPLIER * cost:
-  she must expect 25% profit above round-trip costs, not mere breakeven.
+- check(...) requires expected_move >= max(MARGIN_SAFETY_MULTIPLIER * cost,
+  capture_floor): she must expect 25% profit above round-trip costs AND, per
+  the owner decree of 2026-09-06 (state/capture_floor.json), at least a 1.0%
+  expected move. The floor is read at call time; a missing/corrupt file
+  means the floor is absent and only the cost check applies (prior math).
   At the promotion threshold (conf 0.55, stop 2%): kraken refuses
-  (1.10% < 1.25*0.90%), binance allows (1.10% > 1.25*0.20%), alpaca allows.
+  (1.10% < 1.25*0.90%), binance allows (1.10% > 1.25*0.20%), alpaca allows —
+  but with the floor in force, conf 0.55 credits only 1.10% expected, and
+  any venue refuses an expected move below 1.0%.
 
 - kelly_fraction_size(...) is a careful port of the upstream Kelly criterion
   from aureon-os-upstream/aureon/trading/aureon_compound_kelly_trader.py
@@ -56,6 +61,14 @@ try:
     from .shadow_executor import VENUE_FEES
 except ImportError:  # pragma: no cover - direct-script / path-loaded fallback
     from shadow_executor import VENUE_FEES
+
+# Owner capture floor (Gary Leckey, 2026-09-06): minimum profit target per
+# trade is 1.0% — see state/capture_floor.json and capture_floor.py. Read at
+# call time; an absent/corrupt file means the floor is not in force.
+try:
+    from .capture_floor import load_capture_floor
+except ImportError:  # pragma: no cover - direct-script / path-loaded fallback
+    from capture_floor import load_capture_floor
 
 # Adverse slippage per side — same value as shadow_executor.SLIPPAGE, restated
 # here so the gate's cost model is self-contained (fee table stays imported).
@@ -111,10 +124,18 @@ def check(venue: str, symbol: Any, side: Any, qty: Any, price: Any,
     Returns dict with:
       allowed            : bool
       reason             : "allow" | "refused_edge_below_cost" |
+                           "refused_below_capture_floor" |
                            "refused_unknown_venue"
       expected_move_pct  : confidence * stop_pct (fraction)
       round_trip_cost_pct: 2*fee + 2*slippage (fraction); None if venue unknown
       margin_pct         : expected - cost (fraction); None if venue unknown
+
+    Owner decree (2026-09-06): the expected move must ALSO clear the capture
+    floor from state/capture_floor.json (default 1.0%) — the binding minimum
+    is max(1.25 * round_trip_cost, floor). Floor refusals are reported as
+    reason="refused_below_capture_floor" with a "below capture floor X%"
+    detail so the watch can tell decree refusals from cost/bug refusals.
+    A missing/corrupt floor file means the floor is absent (prior behavior).
     """
     key = str(venue or "").strip().lower()
     if key not in VENUE_FEES:
@@ -131,10 +152,24 @@ def check(venue: str, symbol: Any, side: Any, qty: Any, price: Any,
     expected = expected_move_pct(conf if conf is not None else 0.0)
     cost = round_trip_cost(key)
     margin = expected - cost
-    allowed = expected >= MARGIN_SAFETY_MULTIPLIER * cost
+    cost_required = MARGIN_SAFETY_MULTIPLIER * cost
+    floor = load_capture_floor()          # None => decree absent, prior math
+    required = max(cost_required, floor) if floor is not None else cost_required
+    allowed = expected >= required
+    if allowed:
+        reason = "allow"
+        detail = ""
+    elif floor is not None and floor >= cost_required and expected < floor:
+        reason = "refused_below_capture_floor"
+        detail = (f"below capture floor {floor * 100:.1f}% "
+                  f"(expected {expected * 100:.2f}% < floor {floor * 100:.2f}%)")
+    else:
+        reason = "refused_edge_below_cost"
+        detail = ""
     return {
         "allowed": allowed,
-        "reason": "allow" if allowed else "refused_edge_below_cost",
+        "reason": reason,
+        "detail": detail,
         "venue": key,
         "symbol": str(symbol),
         "side": str(side),
@@ -144,6 +179,8 @@ def check(venue: str, symbol: Any, side: Any, qty: Any, price: Any,
         "round_trip_cost_pct": cost,
         "margin_pct": margin,
         "margin_safety_multiplier": MARGIN_SAFETY_MULTIPLIER,
+        "capture_floor_pct": floor,
+        "required_move_pct": required,
     }
 
 

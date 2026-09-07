@@ -44,7 +44,10 @@ logger = logging.getLogger(__name__)
 
 def _load_sibling(mod_name: str, file_name: str):
     """Load a sibling module by file path; share it via sys.modules so all
-    shadow venue wrappers use ONE shadow_executor / adapter instance."""
+    shadow venue wrappers use ONE shadow_executor / adapter instance.
+    A failed exec must NOT leave a partial module in sys.modules — a poisoned
+    'shadow_executor' entry made binance/alpaca fail with misleading
+    "cannot import name 'ShadowEngine'" errors (2026-09-07 incident)."""
     for name, mod in list(sys.modules.items()):
         if name == mod_name or name.endswith("." + mod_name):
             return mod
@@ -52,7 +55,11 @@ def _load_sibling(mod_name: str, file_name: str):
     spec = importlib.util.spec_from_file_location(mod_name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[mod_name] = mod
-    spec.loader.exec_module(mod)
+    try:
+        spec.loader.exec_module(mod)
+    except BaseException:
+        sys.modules.pop(mod_name, None)
+        raise
     return mod
 
 
@@ -217,7 +224,10 @@ def live_place(symbol: Any, side: str, qty: float, ordertype: str = "market",
             "reason": result["reason"],
             "detail": (f"expectancy gate: expected={verdict.get('expected_move_pct')} "
                        f"cost={verdict.get('round_trip_cost_pct')} "
-                       f"margin={verdict.get('margin_pct')}")[:300],
+                       f"margin={verdict.get('margin_pct')} "
+                       f"floor={verdict.get('capture_floor_pct')} "
+                       f"required={verdict.get('required_move_pct')} "
+                       f"{verdict.get('detail') or ''}")[:300],
         })
         logger.info("kraken live_place REFUSED (%s): %s",
                     result["reason"], result["symbol"])
@@ -248,8 +258,25 @@ def live_place(symbol: Any, side: str, qty: float, ordertype: str = "market",
 
 if __name__ == "__main__":
     import json
+    import tempfile
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+    # Self-test hygiene (2026-09-07): throwaway journal/ledger/book in
+    # tempdir — this open/immediate-close round-trip used to write a
+    # "selftest_close" close seconds after open into the REAL shadow ledger
+    # (the 3-second-exit poison in time-to-capture stats). min_hold is
+    # zeroed: the self-test closes by design.
+    _tmpdir = Path(tempfile.mkdtemp(prefix="shadow_kraken_selftest_"))
+    _ENGINE = ShadowEngine(
+        VENUE,
+        journal_path=_tmpdir / "shadow_trades.jsonl",
+        ledger_path=_tmpdir / "shadow_ledger_summary.json",
+        book_path=_tmpdir / f"shadow_book_{VENUE}.json",
+    )
+    _ENGINE.min_hold_seconds = 0.0
+    print(f"self-test state dir (throwaway): {_tmpdir}")
+
     engine = get_engine()
     journal_path = engine.journal_path
     before = 0

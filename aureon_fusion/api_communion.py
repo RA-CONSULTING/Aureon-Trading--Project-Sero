@@ -9,11 +9,10 @@ Per-URL disk+memory cache with TTL · conditional GETs (ETag / Last-Modified,
 host interval) · exponential backoff with jitter (Retry-After honored) ·
 circuit breaker (5 consecutive failures => 10 min open; stale cache served
 while open; closes on next success) · timeouts · per-host stats · per-host
-daily live-call budget counter (concepts merged from upstream
-core/rate_limiter_v2 + core/global_rate_budget — STATS ONLY: it counts
-live calls per host per UTC day and tracks over-budget occurrences when
-AUREON_COMMUNION_DAILY_BUDGET is set; it never refuses, delays, or changes
-fetch behavior).
+daily live-call budget counter with a default ceiling of 3000 live calls per
+UTC day per host (AUREON_COMMUNION_DAILY_BUDGET). When the ceiling is hit the
+host is served cache-only (stale-if-present) with reason
+'daily_budget_exhausted' and no network traffic is generated.
 
 Stdlib-first (urllib). Windows-safe (atomic tmp+replace writes, utf-8).
 Import-time side effects are limited to ensuring the cache directory exists —
@@ -72,7 +71,8 @@ def _new_host_state():
             "cache_hits": 0,
             "not_modified": 0,
             "refused_by_breaker": 0,
-            # Daily budget accounting (UTC-day scoped, stats only):
+            "daily_budget_refusals": 0,
+            # Daily budget accounting (UTC-day scoped, enforced below):
             "daily_date": "",          # YYYY-MM-DD the counters belong to
             "daily_live_calls": 0,     # live calls counted against the budget
             "daily_over_budget": 0,    # live calls beyond the daily budget
@@ -81,11 +81,11 @@ def _new_host_state():
 
 
 def _daily_budget():
-    """Optional per-host daily live-call budget from
-    AUREON_COMMUNION_DAILY_BUDGET. None = unlimited (default). Statistics
-    only — the budget is never enforced against fetches."""
-    raw = os.environ.get("AUREON_COMMUNION_DAILY_BUDGET", "").strip()
-    if not raw:
+    """Per-host daily live-call budget from AUREON_COMMUNION_DAILY_BUDGET.
+    Default 3000 (conservative ceiling). Explicit 0/off/none disables the
+    ceiling and allows unlimited live calls."""
+    raw = os.environ.get("AUREON_COMMUNION_DAILY_BUDGET", "3000").strip()
+    if raw.lower() in {"", "0", "off", "none"}:
         return None
     try:
         return max(1, int(raw))
@@ -109,10 +109,36 @@ def _bump_daily(st: dict):
             s["daily_over_budget"] = int(s.get("daily_over_budget", 0)) + 1
 
 
+# Aggregate counters are accumulated into the persisted stats file and then
+# zeroed in memory. Daily counters are authoritative in memory (they are
+# date-scoped and must survive per-call flushes so the daily ceiling is
+# enforced correctly).
+_AGGREGATE_STAT_KEYS = {
+    "live_calls",
+    "cache_hits",
+    "not_modified",
+    "refused_by_breaker",
+    "daily_budget_refusals",
+}
+_DAILY_COUNT_KEYS = {"daily_live_calls", "daily_over_budget"}
+
+
 def _host_state(host: str) -> dict:
     st = _hosts.get(host)
     if st is None:
         st = _new_host_state()
+        # Seed today's daily counters from the persisted file so a process
+        # restart does not reset the daily budget to zero.
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        try:
+            data = _load_stats_file()
+            persisted = data.get(host, {})
+            if persisted.get("daily_date") == today:
+                st["stats"]["daily_date"] = today
+                for key in _DAILY_COUNT_KEYS:
+                    st["stats"][key] = int(persisted.get(key, 0))
+        except Exception:
+            pass
         _hosts[host] = st
     return st
 
@@ -178,29 +204,26 @@ def _save_stats_file():
             merged = dict(data.get(host, {}))
             for k, v in st["stats"].items():
                 if k == "daily_date":
-                    continue  # handled by the date-scoped merge below
-                if isinstance(v, int):
-                    merged[k] = int(merged.get(k, 0)) + int(v)
+                    continue
+                if k in _AGGREGATE_STAT_KEYS:
+                    if isinstance(v, int):
+                        merged[k] = int(merged.get(k, 0)) + int(v)
+                elif k in _DAILY_COUNT_KEYS:
+                    merged[k] = int(v)
             # Daily accounting is UTC-day scoped: a date change starts a
             # fresh counter in the persisted file.
             day = st["stats"].get("daily_date")
             if day:
                 if merged.get("daily_date") != day:
                     merged["daily_date"] = day
-                    merged["daily_live_calls"] = 0
-                    merged["daily_over_budget"] = 0
-                merged["daily_live_calls"] = (
-                    int(merged.get("daily_live_calls", 0))
-                    + int(st["stats"].get("daily_live_calls", 0))
-                )
-                merged["daily_over_budget"] = (
-                    int(merged.get("daily_over_budget", 0))
-                    + int(st["stats"].get("daily_over_budget", 0))
-                )
+                    for key in _DAILY_COUNT_KEYS:
+                        merged[key] = 0
             data[host] = merged
         for st in _hosts.values():
-            st["stats"] = {k: ("" if k == "daily_date" else 0)
-                           for k in st["stats"]}  # reset after flushing
+            # Zero only aggregate counters; keep daily counters in memory so
+            # the budget ceiling remains accurate between flushes.
+            for k in _AGGREGATE_STAT_KEYS:
+                st["stats"][k] = 0
     tmp = STATS_FILE.with_suffix(".tmp")
     try:
         with open(tmp, "w", encoding="utf-8") as f:
@@ -257,16 +280,18 @@ def _backoff_delay(fails: int, retry_after=None) -> float:
     return delay
 
 
-def _serve_stale(url: str, st: dict):
+def _serve_stale(url: str, st: dict, reason: str = None):
     """Best-effort stale serving; counts as a cache hit.
 
     FAIL-CLOSED marker: a stale body is never returned bare — it always
     carries ``stale: true`` and ``stale_age_s`` so no consumer can mistake
     it for live telemetry. Dict bodies get the markers merged in (any
-    existing ``source`` tag is preserved); other body shapes are wrapped
-    as ``{"stale": …, "stale_age_s": …, "body": …}``. Display/last-known
+    existing ``source`` tag is preserved); other body shapes are wrapped as
+    ``{"stale": …, "stale_age_s": …, "body": …}``. Display/last-known
     consumers may use the value; live-telemetry consumers must treat
-    ``stale: true`` as unusable for real-valued fields (None / skip).
+    ``stale: true`` as unusable for real-valued fields. If ``reason`` is
+    supplied it is emitted as ``budget_reason`` so callers know why the
+    live call was skipped.
     """
     cached = _read_disk(url)
     if cached is not None:
@@ -281,9 +306,14 @@ def _serve_stale(url: str, st: dict):
             marked.setdefault("source", "stale_cache")
             marked["stale"] = True
             marked["stale_age_s"] = round(age_s, 3)
+            if reason:
+                marked["budget_reason"] = reason
             return marked
-        return {"stale": True, "stale_age_s": round(age_s, 3),
-                "source": "stale_cache", "body": body}
+        wrapped = {"stale": True, "stale_age_s": round(age_s, 3),
+                   "source": "stale_cache", "body": body}
+        if reason:
+            wrapped["budget_reason"] = reason
+        return wrapped
     return None
 
 
@@ -368,6 +398,20 @@ def _commune(url: str, ttl_s: float, timeout: float, headers: dict,
     if not bypass_backoff and now < st["next_allowed"]:
         return _serve_stale(url, st)
 
+    # 4.5) daily live-call budget ceiling
+    budget = _daily_budget()
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    s = st["stats"]
+    if s.get("daily_date") != today:
+        s["daily_date"] = today
+        s["daily_live_calls"] = 0
+        s["daily_over_budget"] = 0
+        s["daily_budget_refusals"] = 0
+    if budget is not None and int(s.get("daily_live_calls", 0)) >= budget:
+        s["daily_budget_refusals"] = int(s.get("daily_budget_refusals", 0)) + 1
+        _touch_stats()
+        return _serve_stale(url, st, reason="daily_budget_exhausted")
+
     # 5) rate limit: FIFO ticket — wait for our slot, never exceed interval
     with _lock:
         slot = max(st["ticket"], time.time())
@@ -449,20 +493,21 @@ def _print_stats():
         return
     budget = _daily_budget()
     budget_hdr = f"{'daily':>7}" + (f"/{budget}" if budget else "")
-    print(f"  {'host':<30} {'live':>6} {'hits':>7} {'304s':>6} {'breaker':>8} {budget_hdr:>9}")
+    print(f"  {'host':<30} {'live':>6} {'hits':>7} {'304s':>6} {'breaker':>8} {'budget':>8} {budget_hdr:>9}")
     for host, s in sorted(snap.items(),
                           key=lambda kv: -kv[1].get("live_calls", 0)):
         over = s.get("daily_over_budget", 0)
+        refusals = s.get("daily_budget_refusals", 0)
         daily = f"{s.get('daily_live_calls', 0)}"
         if budget:
             daily += f"/{budget}" + (f" (+{over} over)" if over else "")
         print(f"  {host:<30} {s.get('live_calls', 0):>6} "
               f"{s.get('cache_hits', 0):>7} {s.get('not_modified', 0):>6} "
-              f"{s.get('refused_by_breaker', 0):>8} {daily:>12}")
+              f"{s.get('refused_by_breaker', 0):>8} {refusals:>8} {daily:>12}")
     print("═" * 72)
     if budget:
-        print(f"  daily budget: {budget} live calls/host/day (statistics only — "
-              "never enforced)")
+        print(f"  daily budget: {budget} live calls/host/day (enforced; "
+              "excess served as stale cache-only)")
 
 
 def main(argv=None):

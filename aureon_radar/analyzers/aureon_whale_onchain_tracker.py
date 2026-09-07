@@ -152,10 +152,10 @@ class WhaleExchangeTracker:
                 delta = current_amount - prev_amount
                 
                 if abs(delta) > 0:  # Any change
-                    # Estimate USD value (simplified - would need price oracle)
+                    # Estimate USD value — None when unpriced; skip (fail-closed)
                     usd_value = self._estimate_usd_value(asset, abs(delta), client)
-                    
-                    if usd_value >= self.threshold_usd:
+
+                    if usd_value is not None and usd_value >= self.threshold_usd:
                         direction = 'deposit' if delta > 0 else 'withdrawal'
                         self._emit_whale_event(
                             exchange=exchange_name,
@@ -172,77 +172,128 @@ class WhaleExchangeTracker:
         except Exception as e:
             logger.debug(f"Balance check error on {exchange_name}: {e}")
     
-    def _check_large_trades(self, exchange_name: str, client):
-        """Check for large recent trades on the exchange"""
+    def _check_large_trades(self, exchange_name: str, client) -> int:
+        """Check for large recent trades using real public trade data.
+
+        Exchange client objects do not expose ``get_recent_trades``, so this
+        uses the throttled public REST endpoints (no auth, rate-limit friendly)
+        via aureon_fusion.api_communion. Zero detections is a valid, honest
+        result — alerts are only ever emitted for real trades.
+        """
+        detected = 0
         try:
-            # For Kraken: check recent trades
-            if exchange_name == 'kraken' and hasattr(client, 'get_recent_trades'):
-                pairs = ['XXBTZUSD', 'XETHZUSD']  # BTC/USD, ETH/USD
-                for pair in pairs:
-                    try:
-                        trades = client.get_recent_trades(pair, count=50)
-                        for trade in trades:
-                            trade_id = f"{exchange_name}:{pair}:{trade.get('time', 0)}"
-                            if trade_id in self._seen_trades:
-                                continue
-                            self._seen_trades.append(trade_id)
-                            
-                            # Check trade size
-                            volume = float(trade.get('volume', 0))
-                            price = float(trade.get('price', 0))
-                            usd_value = volume * price
-                            
-                            if usd_value >= self.threshold_usd:
-                                self._emit_whale_event(
-                                    exchange=exchange_name,
-                                    asset=pair,
-                                    amount=volume,
-                                    amount_usd=usd_value,
-                                    direction='trade',
-                                    event_type='large_trade',
-                                    extra={'price': price, 'side': trade.get('type', 'unknown')}
-                                )
-                    except Exception as e:
-                        logger.debug(f"Trade check error for {pair}: {e}")
-            
-            # For Binance: check recent trades
-            elif exchange_name == 'binance' and hasattr(client, 'get_recent_trades'):
-                symbols = ['BTCUSDT', 'ETHUSDT']
-                for symbol in symbols:
-                    try:
-                        trades = client.get_recent_trades(symbol, limit=50)
-                        for trade in trades.get('data', []):
-                            trade_id = f"{exchange_name}:{symbol}:{trade.get('id', 0)}"
-                            if trade_id in self._seen_trades:
-                                continue
-                            self._seen_trades.append(trade_id)
-                            
-                            qty = float(trade.get('qty', 0))
-                            price = float(trade.get('price', 0))
-                            usd_value = qty * price
-                            
-                            if usd_value >= self.threshold_usd:
-                                self._emit_whale_event(
-                                    exchange=exchange_name,
-                                    asset=symbol,
-                                    amount=qty,
-                                    amount_usd=usd_value,
-                                    direction='trade',
-                                    event_type='large_trade',
-                                    extra={'price': price}
-                                )
-                    except Exception as e:
-                        logger.debug(f"Trade check error for {symbol}: {e}")
-        
+            if exchange_name == 'kraken':
+                for pair in ('XBTUSD', 'ETHUSD'):
+                    detected += self._scan_public_trades(
+                        exchange_name, pair,
+                        url=f"https://api.kraken.com/0/public/Trades?pair={pair}",
+                        parse=lambda t, p=pair: {
+                            "price": float(t[0]), "qty": float(t[1]),
+                            "side": "buy" if t[3] == "b" else "sell",
+                            "ts": float(t[2]),
+                        },
+                    )
+            elif exchange_name == 'binance':
+                for symbol in ('BTCUSDT', 'ETHUSDT'):
+                    detected += self._scan_public_trades(
+                        exchange_name, symbol,
+                        url=f"https://api.binance.com/api/v3/trades?symbol={symbol}&limit=100",
+                        parse=lambda t, s=symbol: {
+                            "price": float(t.get("price", 0)),
+                            "qty": float(t.get("qty", 0)),
+                            "side": "buy" if t.get("isBuyerMaker") is False else "sell",
+                            "ts": float(t.get("time", 0)) / 1000.0,
+                            "trade_id": t.get("id"),
+                        },
+                    )
         except Exception as e:
             logger.debug(f"Large trade check error on {exchange_name}: {e}")
+        return detected
+
+    def _scan_public_trades(self, exchange_name: str, asset: str, url: str, parse) -> int:
+        """Fetch recent public trades, emit events for those >= threshold_usd."""
+        try:
+            from analyzers import global_energy_data as ged
+        except ImportError:  # standalone: run from inside analyzers/
+            import global_energy_data as ged
+
+        body = ged.fetch_json_live(url, ttl_s=ged.BINANCE_TTL_S, timeout=8.0)
+        if body is None:
+            return 0
+
+        raw_trades: List[Any] = []
+        if exchange_name == 'kraken':
+            # Kraken wraps payloads as {result: {<pair>: [...]}}
+            result = body.get("result", {}) if isinstance(body, dict) else {}
+            for v in result.values():
+                if isinstance(v, list):
+                    raw_trades.extend(v)
+                    break
+        elif isinstance(body, list):
+            raw_trades = body
+
+        detected = 0
+        for t in raw_trades:
+            try:
+                p = parse(t)
+            except (TypeError, ValueError, IndexError, KeyError):
+                continue
+            usd_value = p["price"] * p["qty"]
+            if usd_value < self.threshold_usd:
+                continue
+            dedup = f"{exchange_name}:{asset}:{p.get('trade_id', p['ts'])}"
+            if dedup in self._seen_trades:
+                continue
+            self._seen_trades.append(dedup)
+            self._emit_whale_event(
+                exchange=exchange_name,
+                asset=asset,
+                amount=p["qty"],
+                amount_usd=usd_value,
+                direction=p["side"],
+                event_type='large_trade',
+                extra={'price': p["price"], 'source': 'public_rest'},
+            )
+            detected += 1
+        return detected
+
+    def run_analysis(self, symbols: Optional[List[str]] = None) -> Dict[str, Any]:
+        """One throttled whale-analysis pass over real public trade data.
+
+        Returns {"ok", "alerts_emitted", "threshold_usd", "exchanges", "error"}.
+        Fail-closed: a venue fetch failure never fabricates an alert; the
+        alert list is simply empty for that venue.
+        """
+        symbols = symbols or ['BTCUSDT', 'ETHUSDT']
+        total = 0
+        venues = []
+        if 'BTCUSDT' in symbols or 'ETHUSDT' in symbols:
+            total += self._check_large_trades('binance', self.exchanges.get('binance'))
+            venues.append('binance')
+        if any(s in ('XBTUSD', 'XXBTZUSD', 'ETHUSD') for s in symbols):
+            total += self._check_large_trades('kraken', self.exchanges.get('kraken'))
+            venues.append('kraken')
+
+        return {
+            "ok": True,
+            "ts": time.time(),
+            "alerts_emitted": total,
+            "threshold_usd": self.threshold_usd,
+            "exchanges_scanned": venues,
+            "symbols": symbols,
+            "error": None,
+        }
     
-    def _estimate_usd_value(self, asset: str, amount: float, client) -> float:
-        """Estimate USD value of an asset amount"""
-        # Simplified USD estimation
+    def _estimate_usd_value(self, asset: str, amount: float, client) -> Optional[float]:
+        """Estimate USD value of an asset amount.
+
+        Uses a live ticker price when available. Returns None when no real
+        price can be established — the caller MUST NOT emit a whale event for
+        an unpriced amount (fail-closed; no fabricated valuation).
+        """
         if asset in ['USD', 'USDT', 'USDC', 'ZUSD']:
             return amount
-        
+
         # Try to get ticker price
         try:
             if hasattr(client, 'get_ticker'):
@@ -257,18 +308,12 @@ class WhaleExchangeTracker:
                 if pair:
                     ticker = client.get_ticker(pair)
                     price = float(ticker.get('c', [0])[0] if isinstance(ticker.get('c'), list) else ticker.get('last', 0))
-                    return amount * price
+                    if price > 0:
+                        return amount * price
         except Exception:
             pass
-        
-        # Fallback estimates
-        usd_estimates = {
-            'BTC': 45000, 'XBT': 45000, 'XBTC': 45000,
-            'ETH': 2500, 'XETH': 2500,
-            'BNB': 300,
-            'SOL': 100,
-        }
-        return amount * usd_estimates.get(asset.upper(), 0.0)
+
+        return None
     
     def _emit_whale_event(self, exchange: str, asset: str, amount: float, amount_usd: float, 
                           direction: str, event_type: str, extra: Optional[Dict] = None):
@@ -313,16 +358,19 @@ class WhaleExchangeTracker:
             logger.info('Simulated large transfer detected: %s %s', symbol, amount_usd)
 
 
-# Default instance
+# Default instance — created lazily, NEVER auto-started at import time.
+# Background polling only begins on an explicit start() call (opt-in), so
+# importing this module never spawns threads or touches exchange APIs.
 _default_tracker: Optional[WhaleExchangeTracker] = None
-try:
-    _default_tracker = WhaleExchangeTracker()
-    _default_tracker.start()  # Auto-start background polling
-except Exception as e:
-    logger.debug(f"Failed to initialize default WhaleExchangeTracker: {e}")
-    _default_tracker = None
 
 
 def get_exchange_tracker() -> Optional[WhaleExchangeTracker]:
-    """Get singleton instance"""
+    """Get (or lazily create) the singleton instance. Polling is NOT started."""
+    global _default_tracker
+    if _default_tracker is None:
+        try:
+            _default_tracker = WhaleExchangeTracker()
+        except Exception as e:
+            logger.debug(f"Failed to initialize WhaleExchangeTracker: {e}")
+            _default_tracker = None
     return _default_tracker

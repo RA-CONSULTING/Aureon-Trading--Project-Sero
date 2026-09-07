@@ -15,7 +15,13 @@ Gary Leckey | January 2026 | STOCK MOMENTUM MODE
 """
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:
+    # Upstream lib ships no console_utf8 module; run with PYTHONUTF8=1
+    # instead. Degraded glyphs beat an ImportError.
+    def ensure_utf8_stdout(*_a, **_k):
+        return False
 
 ensure_utf8_stdout()
 

@@ -70,18 +70,30 @@ Gary Leckey | January 2026 | "Call me Ishmael"
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import math
+import sys
 import time
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
 from collections import deque, defaultdict
 
-# UTF-8 fix
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
-
-ensure_utf8_stdout()
+# UTF-8 fix — aureon.utils.console_utf8 is absent from the upstream package;
+# fall back to the repo shim, then to an inline no-op reconfigure.
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # pragma: no cover - environment dependent
+    try:
+        from _console_utf8_shim import ensure_utf8_stdout  # noqa: E402
+    except ImportError:
+        def ensure_utf8_stdout(*_a, **_k):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
 logger = logging.getLogger(__name__)
 
@@ -333,10 +345,10 @@ class MobyDickWhaleHunter:
     def claim_doubloon(self, symbol: str, profit_usd: float) -> Dict:
         """
         💰 CLAIM THE DOUBLOON 💰
-        
+
         "Whosoever of ye raises me a white-headed whale with a wrinkled brow
         and a crooked jaw... he shall have this gold ounce, my boys!"
-        
+
         Award the doubloon to the system that successfully predicted and profited.
         """
         return {
@@ -345,6 +357,182 @@ class MobyDickWhaleHunter:
             'timestamp': time.time(),
             'captain': 'Ahab',
             'message': f"💰 DOUBLOON CLAIMED! ${profit_usd:.2f} profit on {symbol}"
+        }
+
+    # ── Persistence (real cross-run tracking state) ─────────────────────
+
+    @staticmethod
+    def _state_path() -> Path:
+        # aureon_radar/state/moby_dick_whale_tracking.json
+        return Path(__file__).resolve().parent.parent / "state" / "moby_dick_whale_tracking.json"
+
+    def save_state(self) -> None:
+        """Persist sightings + predictions so tracking survives restarts."""
+        path = self._state_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "ts": time.time(),
+                "tracking_state": {
+                    sym: {
+                        "last_sightings": [asdict(s) for s in st.last_sightings],
+                        "harpoon_hits": st.harpoon_hits,
+                        "predicted_next_appearance": (
+                            asdict(st.predicted_next_appearance)
+                            if st.predicted_next_appearance else None
+                        ),
+                    }
+                    for sym, st in self.tracking_state.items()
+                },
+                "gam_log_tail": [asdict(g) for g in self.gam_log[-200:]],
+            }
+            path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception as e:
+            logger.debug(f"Moby Dick state save failed: {e}")
+
+    def load_state(self) -> bool:
+        """Load persisted tracking state. Returns True when state was restored."""
+        path = self._state_path()
+        if not path.exists():
+            return False
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            for sym, st_data in (data.get("tracking_state") or {}).items():
+                st = WhaleTrackingState(symbol=sym)
+                st.last_sightings = [
+                    GamEncounter(**s) for s in st_data.get("last_sightings", [])
+                ]
+                st.harpoon_hits = int(st_data.get("harpoon_hits", 0))
+                pred = st_data.get("predicted_next_appearance")
+                st.predicted_next_appearance = WhalePrediction(**pred) if pred else None
+                self.tracking_state[sym] = st
+            self.gam_log = [GamEncounter(**g) for g in data.get("gam_log_tail", [])]
+            return True
+        except Exception as e:
+            logger.debug(f"Moby Dick state load failed: {e}")
+            return False
+
+    # ── Real-data analysis entry point ──────────────────────────────────
+
+    def ingest_sighting(self, exchange: str, symbol: str, whale_class: str,
+                        frequency: float, activities: int, confidence: float,
+                        timestamp: Optional[float] = None) -> None:
+        """Ingest ONE real whale sighting (from scanner state / signal logs)."""
+        self.log_gam_encounter(GamEncounter(
+            exchange=exchange,
+            timestamp=timestamp if timestamp is not None else time.time(),
+            symbol=symbol,
+            whale_class=whale_class,
+            frequency=float(frequency),
+            activities=int(activities),
+            confidence=float(confidence),
+        ))
+
+    def run_analysis(self, max_predictions: int = 10) -> Dict[str, Any]:
+        """One analysis pass over REAL sightings only.
+
+        Sightings come from:
+          - persisted tracking state (state/moby_dick_whale_tracking.json)
+          - bot_shape_scanner_state.json (Bot Shape Scanner output, if present)
+          - crypto_signals.jsonl scanner output (if present)
+
+        No sightings -> fail-closed: ok=False, predictions=None, error set.
+        Predictions are only ever derived from logged real sightings.
+        """
+        loaded = self.load_state()
+        ingested = 0
+
+        radar_root = Path(__file__).resolve().parent.parent
+
+        # 1) Bot Shape Scanner state (another organ writes this)
+        scanner_state_path = radar_root / "bot_shape_scanner_state.json"
+        if scanner_state_path.exists():
+            try:
+                state = json.loads(scanner_state_path.read_text(encoding="utf-8"))
+                for symbol, symbol_data in state.items():
+                    if not isinstance(symbol_data, dict):
+                        continue
+                    advanced = symbol_data.get("advanced_classification", {})
+                    bot_class = advanced.get("class", "UNKNOWN")
+                    frequency = float(advanced.get("frequency", 0.0) or 0.0)
+                    if bot_class == "UNKNOWN":
+                        continue
+                    self.ingest_sighting(
+                        "binance", symbol, bot_class, frequency,
+                        int(symbol_data.get("activity_count", 0) or 0),
+                        float(symbol_data.get("confidence", 0.0) or 0.0),
+                    )
+                    ingested += 1
+            except Exception as e:
+                logger.debug(f"bot scanner state ingest failed: {e}")
+
+        # 2) crypto_signals.jsonl — real correlation signals from the radar
+        signals_path = radar_root / "crypto_signals.jsonl"
+        if signals_path.exists():
+            try:
+                lines = signals_path.read_text(encoding="utf-8", errors="replace").splitlines()
+                cutoff = time.time() - 86400  # last 24h only
+                for line in lines[-500:]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    try:
+                        ts = datetime.fromisoformat(
+                            str(rec.get("timestamp", "")).replace("Z", "+00:00")
+                        ).timestamp()
+                    except ValueError:
+                        continue
+                    if ts < cutoff:
+                        continue
+                    direction = str(rec.get("direction", "")).upper()
+                    whale_class = "ACCUMULATION_SIGNAL" if direction == "LONG" else "DISTRIBUTION_SIGNAL"
+                    self.ingest_sighting(
+                        str(rec.get("source", "radar")),
+                        str(rec.get("symbol", "UNKNOWN")),
+                        whale_class,
+                        0.0,
+                        1,
+                        float(rec.get("confidence", 0.0) or 0.0),
+                        timestamp=ts,
+                    )
+                    ingested += 1
+            except Exception as e:
+                logger.debug(f"crypto_signals ingest failed: {e}")
+
+        if not self.tracking_state and not loaded and ingested == 0:
+            return {
+                "ok": False,
+                "ts": time.time(),
+                "sightings_ingested": 0,
+                "predictions": None,
+                "execution_ready": None,
+                "error": "no_real_sightings_available",
+            }
+
+        predictions = []
+        for symbol in list(self.tracking_state):
+            pred = self.predict_next_whale_appearance(symbol)
+            if pred:
+                predictions.append(asdict(pred))
+
+        predictions.sort(key=lambda p: p["confidence"], reverse=True)
+        predictions = predictions[:max_predictions]
+        ready = self.get_execution_ready_predictions()
+
+        self.save_state()
+
+        return {
+            "ok": True,
+            "ts": time.time(),
+            "sightings_ingested": ingested,
+            "tracked_symbols": len(self.tracking_state),
+            "predictions": predictions,
+            "execution_ready": len(ready),
+            "error": None,
         }
 
 
@@ -360,34 +548,28 @@ def get_moby_dick_hunter() -> MobyDickWhaleHunter:
 
 
 if __name__ == '__main__':
-    print("🐋⚔️ MOBY DICK WHALE HUNTER - Test Mode ⚔️🐋")
+    ensure_utf8_stdout()
+    print("🐋⚔️ MOBY DICK WHALE HUNTER - Real-Data Analysis ⚔️🐋")
     print("=" * 60)
-    
+
     hunter = get_moby_dick_hunter()
-    
-    # Simulate gam encounters (whale sightings)
-    encounters = [
-        GamEncounter("binance", time.time() - 3600, "BTCUSDT", "ACCUMULATION_BOT", 0.0, 8500, 0.85),
-        GamEncounter("binance", time.time() - 1800, "BTCUSDT", "ACCUMULATION_BOT", 0.0, 8520, 0.87),
-        GamEncounter("binance", time.time() - 900, "BTCUSDT", "ACCUMULATION_BOT", 0.0, 8542, 0.89),
-        GamEncounter("binance", time.time() - 450, "ETHUSDT", "MM_SPOOF", 0.60, 6084, 0.82),
-        GamEncounter("binance", time.time() - 225, "ETHUSDT", "MM_SPOOF", 0.65, 6090, 0.84),
-    ]
-    
-    for enc in encounters:
-        hunter.log_gam_encounter(enc)
-        
-    print("\n📊 GAM LOG:")
-    print(f"Total encounters: {len(hunter.gam_log)}")
-    
-    # Make predictions
-    print("\n🔮 GENERATING PROPHECIES...")
-    for symbol in ["BTCUSDT", "ETHUSDT"]:
-        pred = hunter.predict_next_whale_appearance(symbol)
-        if pred:
-            print(f"\n{symbol}: {pred.reasoning}")
-            print(f"  Predicted time: {datetime.fromtimestamp(pred.predicted_time)}")
-            print(f"  Confidence: {pred.confidence:.0%}")
-            print(f"  Harpoons: {pred.validation_count}/3")
-            
+    result = hunter.run_analysis()
+
+    if not result.get("ok"):
+        print(f"⛔ FAIL-CLOSED: {result.get('error')} — no fabricated sightings substituted.")
+        sys.exit(2)
+
+    print(f"📊 Sightings ingested this pass: {result['sightings_ingested']}")
+    print(f"📊 Tracked symbols: {result['tracked_symbols']}")
+    print(f"📊 Execution-ready predictions: {result['execution_ready']}")
+
+    if result["predictions"]:
+        print("\n🔮 PROPHECIES (from real sightings):")
+        for pred in result["predictions"]:
+            print(f"\n  {pred['symbol']}: {pred['reasoning']}")
+            print(f"    Predicted time: {datetime.fromtimestamp(pred['predicted_time'])}")
+            print(f"    Confidence: {pred['confidence']:.0%} | Harpoons: {pred['validation_count']}/3")
+    else:
+        print("\n🔮 No prophecies yet — not enough real sightings to predict.")
+
     print("\n⚔️ AWAITING THE FINAL CHASE...")

@@ -30,19 +30,43 @@ BINDING SCHEMA (decided here; venue agents and the hub must conform):
   fallbacks: last, then mid=(bid+ask)/2. Adverse slippage SLIPPAGE (0.05 %)
   is applied against the direction: buy_fill = ref*(1+SLIPPAGE),
   sell_fill = ref*(1-SLIPPAGE). Taker fee is charged on fill notional:
-  kraken 0.26 %, binance 0.10 %, alpaca 0.0 % (VENUE_FEES below).
+  kraken 0.40 %, binance 0.10 %, alpaca 0.0 % (VENUE_FEES below).
+
+- FEE JOURNALING (2026-09-07): a close's journaled `fees` is the
+  CONSERVATIVE MAX of the modeled entry+exit taker fees and the venue cost
+  model's round-trip floor: notional * round_trip_cost_pct, venue+symbol
+  specific from state/hunting_grounds.json when the schedule is fresh
+  (< 24 h), else a labeled 0.2 % estimate (matches dreamt_plays cost_model).
+  This closes the old hole where e.g. alpaca closes journaled fees 0.0 while
+  the cost model says 0.2-0.54 % round trip. net_pnl = gross - fees. The
+  close entry carries fee_basis / fee_is_estimate / round_trip_cost_pct /
+  round_trip_fee_floor / taker_fees for audit; the ledger adds
+  total_estimated_fees per pair and in totals.
+
+- MINIMUM HOLD (2026-09-07): no close of any kind (stop, TP, reversal, or
+  manual) within MIN_HOLD_SECONDS (default 60 s, env SHADOW_MIN_HOLD_SECS)
+  of the open. The journal had 14/25 closes exiting <3 s after open — mark
+  noise and open/close self-test round-trips, not signal outcomes. A blocked
+  close returns {"status": "held_min_hold"} and journals a throttled
+  event="held_min_hold" line; the position stays open and is re-evaluated on
+  the next mark cycle. Same pattern as CAPITAL_FAST_PROFIT_MIN_HOLD_SECS in
+  capital_cfd_trader.py.
 
 - POSITIONS: one open position per (venue, symbol). An opposite-side propose
   on an open position closes it first (reason="reversal"), then opens the new
   one. Same-side propose on an open position adds to it at a volume-weighted
   average entry and journals event="filled". Protective levels from entry:
-  stop-loss -2 %, take-profit +3 % (STOP_PCT / TAKE_PROFIT_PCT).
+  stop-loss -2 %, take-profit +3 % (STOP_PCT / TAKE_PROFIT_PCT) — the TP is
+  clamped UPWARD to the owner capture floor at call time (see
+  effective_take_profit_pct; owner decree 2026-09-06, ≥ 1.0%).
 
 - JOURNAL: aureon_radar/state/shadow_trades.jsonl — one JSON line per event:
   event in {"opened","filled","closed","refused","mark"} with fields
   ts_utc, event, venue, symbol, side, qty, price, fee, signal_source,
   signal_confidence, provenance (omitted when unavailable); closes add
-  entry_price, exit_reason, gross_pnl, fees, net_pnl, pnl_pct, hold_seconds.
+  entry_price, exit_reason, gross_pnl, fees, net_pnl, pnl_pct, hold_seconds,
+  plus the fee-audit fields above; blocked min-hold closes add
+  event="held_min_hold" with exit_reason, hold_seconds, min_hold_seconds.
   `mark` events (MTM heartbeat) are throttled to one per position per
   MARK_JOURNAL_THROTTLE_SEC (default 300 s) to keep the journal honest but
   bounded; MTM itself updates in memory every call.
@@ -50,6 +74,15 @@ BINDING SCHEMA (decided here; venue agents and the hub must conform):
 - LEDGER: aureon_radar/state/shadow_ledger_summary.json — rewritten after
   every close, keyed "<venue>:<symbol>", with closed_trades, wins, losses,
   win_rate, total gross/net pnl, total fees, plus a "totals" block.
+
+- BOOK: state/shadow_book_<venue>.json (next to the journal) — the open
+  position book is persisted atomically after every open/fill/close and
+  reloaded at engine construction. Gap fix 2026-09-07: the book used to be
+  in-memory only, so any hub restart orphaned every open position — the
+  journal said "opened" but no live process would ever mark or close it
+  again (shadow_trades.jsonl closes/marks stopped ~18:49Z on 2026-09-06,
+  one minute after the hub restarted). A missing/corrupt book file fails
+  closed to an empty book, never to fabricated positions.
 
 - LIVE GATE: live_place() in the venue wrappers is FAIL-CLOSED. It re-reads
   aureon_radar/.env AND os.environ at CALL TIME (values are never logged,
@@ -70,7 +103,7 @@ import os
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -103,7 +136,54 @@ VENUE_FEES: Dict[str, float] = {
 }
 DEFAULT_FEE = 0.0
 
+# ── round-trip cost model (fee journaling, 2026-09-07) ────────────────────
+HUNTING_GROUNDS_PATH = RADAR_ROOT / "state" / "hunting_grounds.json"
+# A cost SCHEDULE (not a tick quote) is "fresh" within a day. Older, missing,
+# or unparseable => we cannot trust the venue mapping and fall back.
+HG_FRESH_MAX_AGE_SEC = 24.0 * 3600.0
+# Conservative labeled fallback; matches state/dreamt_plays.json cost_model
+# (round_trip_pct 0.2, source venue_cost_fallback, label "estimate").
+ROUND_TRIP_FALLBACK_PCT = 0.002
+ROUND_TRIP_FALLBACK_LABEL = "estimate_0.2pct_fallback"
+# Minimum hold before ANY close (protective, reversal, manual). The shadow
+# journal showed 14/25 closes exiting <3 s after open (mark noise plus
+# open/close self-test round-trips), poisoning time-to-capture stats. Same
+# pattern as CAPITAL_FAST_PROFIT_MIN_HOLD_SECS in capital_cfd_trader.py.
+MIN_HOLD_SECONDS = float(os.environ.get("SHADOW_MIN_HOLD_SECS", "60"))
+HELD_JOURNAL_THROTTLE_SEC = 300.0
+
 QuoteFn = Callable[[str], Optional[Dict[str, Any]]]
+
+# Owner capture floor (Gary Leckey, 2026-09-06): TP targets never sit below
+# the floor (state/capture_floor.json, default 1.0%). Read at call time; an
+# absent/corrupt file means the floor is absent (TAKE_PROFIT_PCT stands) —
+# that is capture_floor's own fail-closed contract and we preserve it exactly
+# even when the capture_floor MODULE itself cannot be imported: unified_hub
+# loads this module by file path with exchange_adapters/ NOT on sys.path
+# (2026-09-07 incident: "No module named 'capture_floor'" made every shadow
+# venue inert in the live hub), so this import must never be load-bearing.
+try:
+    from .capture_floor import load_capture_floor, apply_floor_to_tp_pct
+except ImportError:  # pragma: no cover - direct-script / path-loaded fallback
+    try:
+        from capture_floor import load_capture_floor, apply_floor_to_tp_pct
+    except ImportError:  # pragma: no cover - capture_floor module unavailable
+        load_capture_floor = None  # type: ignore[assignment]
+
+        def apply_floor_to_tp_pct(tp_pct: float, floor: Optional[float]) -> float:
+            return tp_pct if floor is None else max(tp_pct, floor)
+
+
+def effective_take_profit_pct() -> float:
+    """TP pct from entry, clamped UPWARD to the owner capture floor.
+
+    TAKE_PROFIT_PCT is +3%; the floor (1.0% by decree) only binds when it
+    exceeds that, and never pulls a higher target down. Absent/corrupt
+    decree file — or an unavailable capture_floor module — means the floor
+    is absent: plain TAKE_PROFIT_PCT (prior behavior), never weakened.
+    """
+    floor = load_capture_floor() if load_capture_floor is not None else None
+    return apply_floor_to_tp_pct(TAKE_PROFIT_PCT, floor)
 
 
 def utc_now_iso() -> str:
@@ -159,6 +239,7 @@ class ShadowPosition:
     last_mark: float = 0.0
     last_mark_ts_utc: str = ""
     last_mark_journal_ts: float = 0.0
+    last_held_journal_ts: float = 0.0
 
     @property
     def direction_sign(self) -> int:
@@ -231,6 +312,61 @@ def apply_fill(price: float, side: str, fee_rate: float, qty: float) -> Dict[str
     return {"fill_price": slipped, "notional": notional, "fee": fee}
 
 
+def _norm_cost_symbol(symbol: Any) -> str:
+    """Cost-schedule symbol key: uppercase, separators stripped, venue
+    aliases unified (XBT->BTC, USDT->USD) so engine symbols (XBTUSD,
+    BTCUSDT, BTC/USD) match hunting-grounds rows (BTC/USD)."""
+    s = str(symbol or "").upper().replace("/", "").replace("-", "").replace("_", "")
+    if s.startswith("XBT"):
+        s = "BTC" + s[3:]
+    if s.endswith("USDT"):
+        s = s[:-4] + "USD"
+    return s
+
+
+def round_trip_cost_pct(venue: str, symbol: str,
+                        now: Optional[float] = None) -> Tuple[float, bool, str]:
+    """(pct, is_estimate, source) for a venue+symbol round trip. Fail-closed:
+    any doubt (missing/stale schedule, no symbol match) yields the
+    conservative labeled 0.2% estimate — never zero, never fabricated.
+    Fresh hunting-grounds rows win, real observations over journaled
+    estimates. Mirrors juice_gate.spread_for conventions."""
+    fallback = (ROUND_TRIP_FALLBACK_PCT, True, ROUND_TRIP_FALLBACK_LABEL)
+    try:
+        raw = json.loads(HUNTING_GROUNDS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return fallback
+    if not isinstance(raw, dict):
+        return fallback
+    ts_epoch = _parse_ts_epoch(raw.get("timestamp"))
+    now = time.time() if now is None else now
+    if ts_epoch is None or now - ts_epoch > HG_FRESH_MAX_AGE_SEC:
+        return fallback  # stale or freshness unprovable: cannot trust mapping
+    grounds = raw.get("grounds")
+    if not isinstance(grounds, list):
+        return fallback
+    key = str(venue or "").lower()
+    sym = _norm_cost_symbol(symbol)
+    best_est: Optional[float] = None
+    for g in grounds:
+        if not isinstance(g, dict):
+            continue
+        if str(g.get("exchange", "")).lower() != key:
+            continue
+        if _norm_cost_symbol(g.get("symbol")) != sym:
+            continue
+        pct = _finite(g.get("round_trip_cost_pct"))
+        if pct is None or pct <= 0:
+            continue
+        if not g.get("spread_is_estimate", True):
+            return pct, False, "hunting_grounds_real"
+        if best_est is None:
+            best_est = pct
+    if best_est is not None:
+        return best_est, True, "hunting_grounds_estimate"
+    return fallback
+
+
 def env_has_keys(key_names: Tuple[str, ...], env_path: Path = ENV_PATH) -> Tuple[bool, Dict[str, bool]]:
     """CALL-TIME, fail-closed key presence check. Never reads values into
     logs: returns (all_present, {name: present_bool}) only."""
@@ -287,8 +423,10 @@ class ShadowLedger:
                 "venue": close["venue"], "symbol": close["symbol"],
                 "closed_trades": 0, "wins": 0, "losses": 0, "win_rate": 0.0,
                 "total_gross_pnl": 0.0, "total_net_pnl": 0.0, "total_fees": 0.0,
+                "total_estimated_fees": 0.0,
                 "last_close_ts_utc": "", "updated_ts_utc": "",
             })
+            entry.setdefault("total_estimated_fees", 0.0)
             net = float(close.get("net_pnl", 0.0))
             gross = float(close.get("gross_pnl", 0.0))
             fees = float(close.get("fees", 0.0))
@@ -300,6 +438,8 @@ class ShadowLedger:
             entry["total_gross_pnl"] += gross
             entry["total_net_pnl"] += net
             entry["total_fees"] += fees
+            if close.get("fee_is_estimate"):
+                entry["total_estimated_fees"] += fees
             decided = entry["wins"] + entry["losses"]
             entry["win_rate"] = round(entry["wins"] / decided, 4) if decided else 0.0
             entry["last_close_ts_utc"] = close.get("ts_utc", "")
@@ -307,7 +447,8 @@ class ShadowLedger:
             totals = summary.setdefault("totals", {})
             for k, v in (("closed_trades", 0), ("wins", 0), ("losses", 0),
                          ("win_rate", 0.0), ("total_gross_pnl", 0.0),
-                         ("total_net_pnl", 0.0), ("total_fees", 0.0)):
+                         ("total_net_pnl", 0.0), ("total_fees", 0.0),
+                         ("total_estimated_fees", 0.0)):
                 totals.setdefault(k, v)
             totals["closed_trades"] += 1
             if net > 0:
@@ -317,6 +458,8 @@ class ShadowLedger:
             totals["total_gross_pnl"] += gross
             totals["total_net_pnl"] += net
             totals["total_fees"] += fees
+            if close.get("fee_is_estimate"):
+                totals["total_estimated_fees"] += fees
             t_decided = totals["wins"] + totals["losses"]
             totals["win_rate"] = round(totals["wins"] / t_decided, 4) if t_decided else 0.0
             summary["ts_utc"] = utc_now_iso()
@@ -332,13 +475,18 @@ class ShadowEngine:
 
     def __init__(self, venue: str,
                  journal_path: Path = DEFAULT_JOURNAL_PATH,
-                 ledger_path: Path = DEFAULT_LEDGER_PATH):
+                 ledger_path: Path = DEFAULT_LEDGER_PATH,
+                 book_path: Optional[Path] = None):
         self.venue = venue.lower().strip()
         self.journal_path = Path(journal_path)
         self.ledger = ShadowLedger(ledger_path)
         self.fee_rate = VENUE_FEES.get(self.venue, DEFAULT_FEE)
+        self.min_hold_seconds = MIN_HOLD_SECONDS
+        self.book_path = Path(book_path) if book_path is not None else \
+            self.journal_path.with_name(f"shadow_book_{self.venue}.json")
         self.positions: Dict[str, ShadowPosition] = {}
         self._lock = threading.Lock()
+        self._load_book()
 
     # ── journal ──────────────────────────────────────────────────────────
     def _journal(self, entry: Dict[str, Any]) -> None:
@@ -362,6 +510,68 @@ class ShadowEngine:
         self._journal(entry)
         return {"status": "refused", "reason": reason, "detail": detail,
                 "journal": str(self.journal_path)}
+
+    # ── open-book persistence (survives process restart) ─────────────────
+    def _save_book(self) -> None:
+        """Atomically persist the open position book. Callers hold _lock."""
+        try:
+            payload = {
+                "venue": self.venue,
+                "saved_ts_utc": utc_now_iso(),
+                "positions": {sym: asdict(pos) for sym, pos in self.positions.items()},
+            }
+            _atomic_write_json(self.book_path, payload)
+        except Exception as exc:  # persistence must never break the trade path
+            logger.warning("shadow book save failed (%s): %s", self.venue, exc)
+
+    def _load_book(self) -> None:
+        """Reload open positions written by a previous process. Fail-closed:
+        a missing or corrupt book yields an empty book, never fabricated
+        positions."""
+        try:
+            if not self.book_path.exists():
+                return
+            raw = json.loads(self.book_path.read_text(encoding="utf-8"))
+            rows = raw.get("positions")
+            if not isinstance(rows, dict):
+                raise ValueError("book has no positions mapping")
+            loaded: Dict[str, ShadowPosition] = {}
+            for sym, row in rows.items():
+                if not isinstance(row, dict):
+                    raise ValueError(f"book row for {sym!r} is not a mapping")
+                pos = ShadowPosition(
+                    venue=str(row.get("venue") or self.venue),
+                    symbol=str(row.get("symbol") or sym),
+                    side=str(row.get("side") or ""),
+                    qty=float(row["qty"]),
+                    entry_price=float(row["entry_price"]),
+                    entry_fee=float(row.get("entry_fee") or 0.0),
+                    entry_ts_utc=str(row.get("entry_ts_utc") or utc_now_iso()),
+                    signal_source=str(row.get("signal_source") or "unknown"),
+                    signal_confidence=float(row.get("signal_confidence") or 0.0),
+                    fees_paid=float(row.get("fees_paid") or 0.0),
+                    last_mark=float(row.get("last_mark") or 0.0),
+                    last_mark_ts_utc=str(row.get("last_mark_ts_utc") or ""),
+                    last_mark_journal_ts=0.0,  # re-arm the mark journal throttle
+                )
+                if pos.side not in {"buy", "sell"}:
+                    raise ValueError(f"book row for {sym!r} has invalid side")
+                if not (math.isfinite(pos.qty) and pos.qty > 0):
+                    raise ValueError(f"book row for {sym!r} has invalid qty")
+                if not (math.isfinite(pos.entry_price) and pos.entry_price > 0):
+                    raise ValueError(f"book row for {sym!r} has invalid entry_price")
+                loaded[pos.symbol] = pos
+            self.positions = loaded
+            if loaded:
+                logger.info("shadow book restored: %s %d open position(s) from %s",
+                            self.venue, len(loaded), self.book_path)
+        except FileNotFoundError:
+            pass
+        except Exception as exc:
+            # Fail closed: start empty rather than trust a corrupt book.
+            logger.warning("shadow book load failed (%s), starting empty: %s",
+                           self.venue, exc)
+            self.positions = {}
 
     # ── quote acquisition (absolute freshness doctrine) ──────────────────
     def _fresh_quote(self, symbol: str, quote_fn: QuoteFn) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
@@ -439,22 +649,64 @@ class ShadowEngine:
             "position_entry_price": position.entry_price,
         }
         self._journal(entry)
+        self._save_book()
         return {"status": event, "fill_price": fill["fill_price"],
                 "fee": fill["fee"], "position": position,
                 "provenance": quote["provenance"], "journal": str(self.journal_path)}
 
     # ── close path ───────────────────────────────────────────────────────
+    def _journal_held_locked(self, pos: "ShadowPosition", reason: str,
+                             hold: float) -> None:
+        """Throttled journal of a min-hold-blocked close (one line per
+        HELD_JOURNAL_THROTTLE_SEC per position; mark noise must not spam)."""
+        now = time.time()
+        if now - pos.last_held_journal_ts < HELD_JOURNAL_THROTTLE_SEC:
+            return
+        pos.last_held_journal_ts = now
+        self._journal({
+            "event": "held_min_hold", "venue": self.venue, "symbol": pos.symbol,
+            "side": pos.side, "qty": pos.qty, "price": None, "fee": None,
+            "signal_source": pos.signal_source,
+            "signal_confidence": pos.signal_confidence,
+            "exit_reason": reason, "hold_seconds": round(hold, 3),
+            "min_hold_seconds": self.min_hold_seconds,
+        })
+
     def _close_locked(self, pos: ShadowPosition, quote: Dict[str, Any],
                       reason: str) -> Dict[str, Any]:
         exit_side = "sell" if pos.side == "buy" else "buy"
+        entry_epoch = _parse_ts_epoch(pos.entry_ts_utc)
+        hold = max(0.0, time.time() - entry_epoch) if entry_epoch else 0.0
+        if hold < self.min_hold_seconds:
+            # Minimum-hold doctrine: no close (protective, reversal, or
+            # manual) within min_hold_seconds of open — sub-minute exits are
+            # mark noise / test round-trips, not signal outcomes.
+            self._journal_held_locked(pos, reason, hold)
+            return {"status": "held_min_hold", "venue": self.venue,
+                    "symbol": pos.symbol, "exit_reason": reason,
+                    "hold_seconds": round(hold, 3),
+                    "min_hold_seconds": self.min_hold_seconds}
         ref = reference_price(quote, exit_side)
         fill = apply_fill(ref, exit_side, self.fee_rate, pos.qty)
         gross = (fill["fill_price"] - pos.entry_price) * pos.qty * pos.direction_sign
-        fees = pos.fees_paid + fill["fee"]
-        net = gross - fees                  # gross minus entry+exit taker fees
-        entry_epoch = _parse_ts_epoch(pos.entry_ts_utc) or time.time()
-        hold = max(0.0, time.time() - entry_epoch)
-        pnl_pct = (net / (pos.entry_price * pos.qty)) if pos.entry_price * pos.qty else 0.0
+        # Fee journaling (2026-09-07): the journaled fee is the CONSERVATIVE
+        # MAX of the modeled entry+exit taker fees and the venue cost model's
+        # round-trip floor (notional * round_trip_cost_pct from fresh
+        # hunting_grounds, else labeled 0.2% estimate). Never zero, never
+        # double-counted. net = gross - fees.
+        taker_fees = pos.fees_paid + fill["fee"]
+        notional = pos.entry_price * pos.qty
+        rt_pct, rt_is_estimate, rt_source = round_trip_cost_pct(self.venue, pos.symbol)
+        rt_floor = notional * rt_pct
+        if rt_floor > taker_fees:
+            fees = rt_floor
+            fee_basis = rt_source
+        else:
+            fees = taker_fees
+            fee_basis = "venue_taker"
+        fee_is_estimate = bool(fee_basis != "venue_taker" and rt_is_estimate)
+        net = gross - fees                  # gross minus journaled round-trip cost
+        pnl_pct = (net / notional) if notional else 0.0
         entry = {
             "event": "closed", "venue": self.venue, "symbol": pos.symbol,
             "side": exit_side, "qty": pos.qty, "price": fill["fill_price"],
@@ -466,10 +718,15 @@ class ShadowEngine:
             "gross_pnl": round(gross, 10), "fees": round(fees, 10),
             "net_pnl": round(net, 10), "pnl_pct": round(pnl_pct, 8),
             "hold_seconds": round(hold, 3),
+            "taker_fees": round(taker_fees, 10),
+            "round_trip_cost_pct": rt_pct,
+            "round_trip_fee_floor": round(rt_floor, 10),
+            "fee_basis": fee_basis, "fee_is_estimate": fee_is_estimate,
         }
         self._journal(entry)
         self.ledger.record_close(entry)
         del self.positions[pos.symbol]
+        self._save_book()
         result = dict(entry)
         result.update({"status": "closed", "journal": str(self.journal_path)})
         return result
@@ -489,22 +746,25 @@ class ShadowEngine:
 
     # ── mark-to-market + protective levels ───────────────────────────────
     def _check_protective(self, pos: ShadowPosition, mark_price: float) -> Optional[str]:
+        # TP distance honors the owner capture floor (max with TAKE_PROFIT_PCT,
+        # read at call time); the stop-loss is untouched by the decree.
+        tp_pct = effective_take_profit_pct()
         if pos.side == "buy":
             if mark_price <= pos.entry_price * (1 + STOP_PCT):
                 return "stop_loss"
-            if mark_price >= pos.entry_price * (1 + TAKE_PROFIT_PCT):
+            if mark_price >= pos.entry_price * (1 + tp_pct):
                 return "take_profit"
         else:
             if mark_price >= pos.entry_price * (1 - STOP_PCT):
                 return "stop_loss"
-            if mark_price <= pos.entry_price * (1 - TAKE_PROFIT_PCT):
+            if mark_price <= pos.entry_price * (1 - tp_pct):
                 return "take_profit"
         return None
 
     def mark_all(self, quote_fn: QuoteFn, journal_marks: bool = True,
                  throttle_sec: float = MARK_JOURNAL_THROTTLE_SEC) -> Dict[str, Any]:
         """MTM every open position; close any that hit stop (-2%) or TP (+3%)."""
-        results = {"marked": [], "closed": [], "refused": []}
+        results = {"marked": [], "closed": [], "refused": [], "held": []}
         with self._lock:
             symbols = list(self.positions.keys())
         for symbol in symbols:
@@ -525,7 +785,11 @@ class ShadowEngine:
                 pos.last_mark_ts_utc = utc_now_iso()
                 hit = self._check_protective(pos, mark)
                 if hit:
-                    results["closed"].append(self._close_locked(pos, quote, hit))
+                    close_res = self._close_locked(pos, quote, hit)
+                    if close_res.get("status") == "closed":
+                        results["closed"].append(close_res)
+                    else:  # held_min_hold: position stays open, retried next cycle
+                        results["held"].append(close_res)
                     continue
             unreal = pos.unrealized(mark)
             results["marked"].append({
@@ -580,7 +844,7 @@ if __name__ == "__main__":
     def stub_quote(symbol: str) -> Dict[str, Any]:
         return {
             "symbol": symbol, "bid": _price - 0.1, "ask": _price + 0.1,
-            "last": _price, "source": "stub_feed",
+            "last": _price, "source": "stub_feed_SIMULATED_SELFTEST",
             "fetched_at": time.time(),
         }
 
@@ -591,8 +855,17 @@ if __name__ == "__main__":
     assert res["status"] == "opened", res
     fill = res["fill_price"]
     assert abs(fill - 100.1 * 1.0005) < 1e-9, fill          # ask + slippage
-    assert abs(res["fee"] - fill * 2.0 * 0.0026) < 1e-9, res["fee"]
+    kraken_fee_rate = VENUE_FEES["kraken"]  # tracks the fee table (0.40% taker)
+    assert abs(res["fee"] - fill * 2.0 * kraken_fee_rate) < 1e-9, res["fee"]
     print(f"OK opened: fill={fill} fee={res['fee']:.6f} provenance={res['provenance']}")
+
+    # minimum-hold: an immediate close of any kind must be HELD, not closed
+    held = engine.close_position("TESTUSD", "manual", stub_quote)
+    assert held["status"] == "held_min_hold" and held["hold_seconds"] < MIN_HOLD_SECONDS, held
+    assert "TESTUSD" in engine.positions, "held close must keep the position open"
+    print(f"OK min-hold: immediate close held ({held['hold_seconds']:.3f}s < "
+          f"{held['min_hold_seconds']:.0f}s), position kept")
+    engine.min_hold_seconds = 0.0  # self-test closes by design
 
     # stale feed must refuse
     def stale_quote(symbol: str) -> Dict[str, Any]:
@@ -618,15 +891,57 @@ if __name__ == "__main__":
     closed = marks["closed"][0]
     print(f"OK TP close: exit={closed['price']} gross={closed['gross_pnl']:.4f} "
           f"net={closed['net_pnl']:.4f} pnl_pct={closed['pnl_pct']:.5f}")
+    # fee audit fields: kraken taker model (0.40% x 2 legs = 0.80%) must win
+    # over the cost-model floor (0.2% fallback for unknown TESTUSD; even the
+    # 0.72% kraken BTC/USD estimate would lose to 0.80% taker).
+    assert closed["fee_basis"] == "venue_taker" and not closed["fee_is_estimate"], closed
+    assert closed["round_trip_cost_pct"] == ROUND_TRIP_FALLBACK_PCT or \
+           closed["round_trip_cost_pct"] >= ROUND_TRIP_FALLBACK_PCT, closed
+    assert abs(closed["fees"] - closed["taker_fees"]) < 1e-9, closed
+    assert abs(closed["net_pnl"] - (closed["gross_pnl"] - closed["fees"])) < 1e-9, closed
+    print(f"OK fee audit: basis={closed['fee_basis']} fees={closed['fees']:.4f} "
+          f"rt_floor={closed['round_trip_fee_floor']:.4f} "
+          f"rt_pct={closed['round_trip_cost_pct']}")
+
+    # cost-model lookup: venue+symbol matching with aliases, freshness, fallback
+    rt = round_trip_cost_pct("kraken", "XBTUSD")   # aliases to kraken BTC/USD row
+    assert rt[0] > 0, rt
+    print(f"OK rt lookup kraken XBTUSD: pct={rt[0]} estimate={rt[1]} src={rt[2]}")
+    rt2 = round_trip_cost_pct("alpaca", "AAPL")    # no grounds row -> fallback
+    assert rt2 == (ROUND_TRIP_FALLBACK_PCT, True, ROUND_TRIP_FALLBACK_LABEL), rt2
+    print("OK rt lookup alpaca AAPL -> labeled 0.2% fallback:", rt2)
+    rt3 = round_trip_cost_pct("alpaca", "BTC/USD", now=time.time() + 10 * 24 * 3600)
+    assert rt3 == (ROUND_TRIP_FALLBACK_PCT, True, ROUND_TRIP_FALLBACK_LABEL), rt3
+    print("OK rt lookup stale schedule -> labeled 0.2% fallback:", rt3)
+
+    # zero-taker venue: alpaca close must journal the cost-model floor as fees
+    engine2 = ShadowEngine("alpaca", journal_path=journal, ledger_path=ledger_path)
+    engine2.min_hold_seconds = 0.0
+    res_a = engine2.propose(ShadowOrder("alpaca", "TESTUSD2", "buy", 1.0, "selftest", 0.9),
+                            stub_quote)
+    assert res_a["status"] == "opened" and res_a["fee"] == 0.0, res_a
+    close_a = engine2.close_position("TESTUSD2", "selftest_close", stub_quote)
+    assert close_a["status"] == "closed", close_a
+    notional = close_a["entry_price"] * 1.0
+    expect_floor = notional * ROUND_TRIP_FALLBACK_PCT
+    assert close_a["fee_basis"] == ROUND_TRIP_FALLBACK_LABEL and close_a["fee_is_estimate"], close_a
+    assert abs(close_a["fees"] - expect_floor) < 1e-6, close_a
+    assert abs(close_a["net_pnl"] - (close_a["gross_pnl"] - expect_floor)) < 1e-9, close_a
+    print(f"OK alpaca fee floor: fees={close_a['fees']:.6f} (0.2% of notional, "
+          f"labeled estimate) net={close_a['net_pnl']:.6f}")
 
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
     pair = ledger["by_pair"]["kraken:TESTUSD"]
     assert pair["closed_trades"] == 1 and pair["wins"] == 1 and pair["win_rate"] == 1.0, pair
+    assert pair["total_fees"] > 0 and pair["total_estimated_fees"] == 0.0, pair
+    pair_a = ledger["by_pair"]["alpaca:TESTUSD2"]
+    assert pair_a["total_fees"] > 0 and pair_a["total_estimated_fees"] == pair_a["total_fees"], pair_a
     print("OK ledger:", json.dumps(pair, sort_keys=True))
+    print("OK ledger (alpaca fee floor):", json.dumps(pair_a, sort_keys=True))
 
     lines = [json.loads(l) for l in journal.read_text(encoding="utf-8").splitlines()]
     events = [l["event"] for l in lines]
     print("OK journal events:", events)
-    assert events == ["opened", "refused", "refused", "closed", "mark"] or \
-           events == ["opened", "refused", "refused", "closed"], events
+    assert events[0] == "opened" and events.count("held_min_hold") == 1, events
+    assert "closed" in events, events
     print(f"SELF-TEST PASSED — journal at {journal}")

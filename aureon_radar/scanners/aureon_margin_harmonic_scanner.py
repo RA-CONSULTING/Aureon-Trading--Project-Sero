@@ -48,7 +48,13 @@ from collections import deque
 from enum import Enum
 
 # UTF-8 fix
-from aureon.utils.console_utf8 import ensure_utf8_stdout
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:
+    # Upstream lib ships no console_utf8 module; run with PYTHONUTF8=1
+    # instead. Degraded glyphs beat an ImportError.
+    def ensure_utf8_stdout(*_a, **_k):
+        return False
 
 ensure_utf8_stdout()
 

@@ -4,8 +4,8 @@ import json
 # Auth
 resp = requests.post(
     "https://api-capital.backend-capital.com/api/v1/session",
-    json={"identifier": "gary@raconsultingandbrokerageservices.com", "password": "REDACTED_USE_CLOUD_SECRET"},
-    headers={"X-CAP-API-KEY": "REDACTED_USE_CLOUD_SECRET", "Content-Type": "application/json"}
+    json={"identifier": "gary@raconsultingandbrokerageservices.com", "password": "Trekkers1@"},
+    headers={"X-CAP-API-KEY": "N46xjejM9lhRmOyP", "Content-Type": "application/json"}
 )
 cst = resp.headers.get("CST")
 xsec = resp.headers.get("X-SECURITY-TOKEN")
@@ -24,7 +24,7 @@ payload = {
 order = requests.post(
     "https://api-capital.backend-capital.com/api/v1/positions",
     json=payload,
-    headers={"X-CAP-API-KEY": "REDACTED_USE_CLOUD_SECRET", "CST": cst, "X-SECURITY-TOKEN": xsec, "Content-Type": "application/json"}
+    headers={"X-CAP-API-KEY": "N46xjejM9lhRmOyP", "CST": cst, "X-SECURITY-TOKEN": xsec, "Content-Type": "application/json"}
 )
 print("Order status:", order.status_code)
 print(order.text[:500])

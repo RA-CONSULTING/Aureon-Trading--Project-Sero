@@ -47,10 +47,20 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from datetime import datetime
 
-# UTF-8 fix
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
-
-ensure_utf8_stdout()
+# UTF-8 fix — aureon.utils.console_utf8 is absent from the upstream package;
+# fall back to the repo shim, then to an inline no-op reconfigure.
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # pragma: no cover - environment dependent
+    try:
+        from _console_utf8_shim import ensure_utf8_stdout  # noqa: E402
+    except ImportError:
+        def ensure_utf8_stdout(*_a, **_k):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -77,7 +87,11 @@ class LiveWhaleProfiler:
         bot_scanner_state_file: str = "bot_shape_scanner_state.json",
         update_interval: int = 10  # seconds
     ):
-        self.bot_scanner_state_file = Path(bot_scanner_state_file)
+        # Resolve the scanner state relative to the radar root (cwd-independent)
+        state_path = Path(bot_scanner_state_file)
+        if not state_path.is_absolute():
+            state_path = Path(__file__).resolve().parent.parent / state_path
+        self.bot_scanner_state_file = state_path
         self.update_interval = update_interval
         self.profiler = get_complete_profiler()
         
@@ -276,12 +290,72 @@ class LiveWhaleProfiler:
             
         with open(output_file, 'w') as f:
             json.dump(summary, f, indent=2)
-            
+
         logger.info(f"📊 Exported {len(reports)} profiles to {output_file}")
+
+    def run_analysis(self, scanner_state_path: Optional[str] = None) -> Dict:
+        """One fail-closed analysis pass over REAL bot scanner output.
+
+        Reads the Bot Shape Scanner state file (real detections written by the
+        scanner organ). When the file is absent or has no usable detections,
+        returns ok=False with predictions=None and an error — never fabricated
+        profiles.
+        """
+        state_file = Path(scanner_state_path) if scanner_state_path else \
+            Path(__file__).resolve().parent.parent / "bot_shape_scanner_state.json"
+
+        if not state_file.exists():
+            return {
+                "ok": False,
+                "ts": time.time(),
+                "scanner_state": str(state_file),
+                "profiles": None,
+                "active_whales": None,
+                "error": "bot_scanner_state_missing",
+            }
+
+        updated = self.process_new_detections()
+        reports = self.profiler.get_all_active_reports(min_confidence=0.5)
+
+        if not reports:
+            return {
+                "ok": False,
+                "ts": time.time(),
+                "scanner_state": str(state_file),
+                "profiles": [],
+                "active_whales": 0,
+                "error": "no_active_whales_detected",
+            }
+
+        profiles = []
+        for report in sorted(reports, key=lambda r: r.net_pnl, reverse=True):
+            profiles.append({
+                "profile_id": report.profile_id,
+                "nickname": report.nickname,
+                "firm": report.firm,
+                "whale_class": report.whale_class,
+                "strategy": report.bot_type,
+                "primary_target": report.primary_target,
+                "net_pnl_24h": report.net_pnl,
+                "status": report.status,
+                "confidence": report.primary_confidence,
+                "last_seen_seconds": report.last_seen_seconds,
+            })
+
+        return {
+            "ok": True,
+            "ts": time.time(),
+            "scanner_state": str(state_file),
+            "profiles_updated": updated,
+            "active_whales": len(profiles),
+            "profiles": profiles,
+            "error": None,
+        }
 
 
 def main():
     """Main entry point."""
+    ensure_utf8_stdout()
     import argparse
     
     parser = argparse.ArgumentParser(description='Live Whale Profiler')

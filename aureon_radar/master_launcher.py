@@ -153,10 +153,30 @@ def _assign_to_job(proc):
 
 
 def _child_env():
-    """UTF-8 I/O for children: cp1252 pipes crash children on emoji output (UnicodeEncodeError)."""
+    """UTF-8 I/O for children: cp1252 pipes crash children on emoji output (UnicodeEncodeError).
+
+    Owner decree 2026-09-07 (Gary Leckey): live trading enabled. Children see
+    LIVE=1 and Capital.com LIVE account (CAPITAL_DEMO=0) so every downstream
+    path treats orders as real money unless it explicitly opts back to demo.
+    """
     env = dict(os.environ)
     env["PYTHONUTF8"] = "1"
     env["PYTHONIOENCODING"] = "utf-8:replace"
+    env["LIVE"] = "1"
+    env["CAPITAL_DEMO"] = "0"
+    # Homing / concentrated fire configuration
+    env["HOMING_ENABLED"] = "1"
+    env["HOMING_THRESHOLD"] = "0.55"
+    env["HOMING_TTL_SEC"] = "120"
+    env["HOMING_SIZE_MULTIPLIER"] = "2.0"
+    # Owner decree 2026-09-07: auto-open in-process queen cognition engines
+    # so the cortex/sentience substrate wakes even when queen_mind is a
+    # separate OS process (cross-process weakref discovery otherwise fails).
+    env["AUREON_AUTO_OPEN_INPROC"] = "1"
+    # Rate-budget / freshness conservation
+    env["RADAR_PRICE_STALE_SEC"] = "90"
+    env["RADAR_FUSED_SIGNAL_TTL_SEC"] = "300"
+    env["RADAR_MAX_LIVE_TRADES_PER_DAY"] = "20"
     return env
 
 
@@ -200,6 +220,33 @@ def start_phi_radar():
     threading.Thread(
         target=_stream_child_output, args=("Phi-Radar", proc),
         daemon=True, name="radar-pipe-drain").start()
+    return proc
+
+
+def start_orca_live_monitor():
+    """Start the ORCA live position monitor in LIVE mode.
+
+    The monitor evaluates fee-aware exit conditions and submits real close
+    orders when --live is passed. Without --live it logs shadow events only,
+    which is why the prior suite logs showed SHADOW MODE.
+    """
+    print("🐋 Starting ORCA Live Monitor (LIVE exits)...")
+    proc = subprocess.Popen(
+        [sys.executable, f"{RADAR_DIR}/bots/orca_live_monitor.py", "--live"],
+        cwd=RADAR_DIR,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=_child_env(),
+        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0
+    )
+    _assign_to_job(proc)
+    processes.append(("ORCA Live Monitor", proc))
+    threading.Thread(
+        target=_stream_child_output, args=("ORCA Live Monitor", proc),
+        daemon=True, name="orca-pipe-drain").start()
     return proc
 
 def shutdown():
@@ -247,16 +294,17 @@ def _handle_sigint(signum, frame):
 
 
 def monitor():
-    """Monitor both processes and stream output.
+    """Monitor all child processes and stream output.
 
     Any child exit tears down the whole suite (no orphans, no duplicate
     fleets when the registry restarts the launcher).
     """
     print("\n╔══════════════════════════════════════════════════════════════╗")
-    print("║     🐝 AUREON MASTER LAUNCHER — BOTH SYSTEMS ACTIVE 🐝       ║")
+    print("║     🐝 AUREON MASTER LAUNCHER — ALL SYSTEMS ACTIVE 🐝        ║")
     print("║                                                              ║")
-    print("║  Unified Hub: 135 systems scanning + fusing                  ║")
-    print("║  Phi-Radar:   Auto-hive live trading on Capital.com          ║")
+    print("║  Unified Hub:      135 systems scanning + fusing             ║")
+    print("║  Phi-Radar:        Auto-hive live trading on Capital.com     ║")
+    print("║  ORCA Monitor:     Live position exits enabled               ║")
     print("║                                                              ║")
     print("║  Press Ctrl+C to stop everything                             ║")
     print("╚══════════════════════════════════════════════════════════════╝\n")
@@ -295,6 +343,8 @@ def main():
     start_unified_hub()
     time.sleep(2)  # Let hub initialize first
     start_phi_radar()
+    time.sleep(1)
+    start_orca_live_monitor()
 
     # Monitor — finally-block inside guarantees teardown on any exit
     monitor()

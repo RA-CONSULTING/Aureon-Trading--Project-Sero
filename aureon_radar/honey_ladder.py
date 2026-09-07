@@ -33,6 +33,19 @@ from collections import deque, defaultdict
 
 logger = logging.getLogger(__name__)
 
+# Owner capture floor (Gary Leckey, 2026-09-06): every shadow/ladder TP
+# target is clamped UPWARD to the floor (state/capture_floor.json, 1.0%).
+# Read at call time; an absent/corrupt file or import failure means the
+# floor is absent and targets keep their prior values. Upward-only.
+try:
+    _EX_ADAPTERS_DIR = str(Path(__file__).resolve().parent / "exchange_adapters")
+    if _EX_ADAPTERS_DIR not in sys.path:
+        sys.path.insert(0, _EX_ADAPTERS_DIR)
+    from capture_floor import load_capture_floor, apply_floor_to_target
+except Exception:  # pragma: no cover - floor module unavailable => floor absent
+    load_capture_floor = None
+    apply_floor_to_target = None
+
 def _chirp_close_failed(payload: dict):
     """Urgency-9 chirp when a broker-side close fails. Never raises."""
     try:
@@ -130,7 +143,7 @@ class HoneyLadder:
             5: 0.70,     # PHI - 70% win rate (highest priority)
         }
         
-        self.penny_target_pct = 0.0005  # 0.05% = default, overridden per shadow
+        self.penny_target_pct = 0.00001  # 0.001% = ~1p/1c net target, overridden per shadow
         self.max_shadows_per_sector = 5
         self.max_hold_seconds = 600  # 10 minutes max hold
         # Bounded growth (bug-hunt MEDIUM): never keep more than this many
@@ -232,6 +245,20 @@ class HoneyLadder:
             target = target_price
         else:
             target = entry_price * (1 + self.penny_target_pct) if direction == 'LONG' else entry_price * (1 - self.penny_target_pct)
+
+        # Owner decree 2026-09-06: TP target = max(computed, capture floor).
+        # Upward-only clamp at call time; a floor above the target raises it,
+        # a target already beyond the floor is untouched. Missing/corrupt
+        # decree file => floor absent, target unchanged (prior behavior).
+        if load_capture_floor is not None and apply_floor_to_target is not None:
+            _floor = load_capture_floor()
+            if _floor is not None:
+                _floored = apply_floor_to_target(direction, entry_price, target, _floor)
+                if _floored != target:
+                    logger.info(f"[FLOOR] shadow target raised to capture floor "
+                                f"{_floor * 100:.1f}%: {symbol} {direction} "
+                                f"{target} -> {_floored} (owner decree 2026-09-06)")
+                    target = _floored
         
         run = ShadowLadderRun(
             signal_id=f"shadow_{int(time.time() * 1000)}",
@@ -328,17 +355,18 @@ class HoneyLadder:
     
     def get_graduation_candidate(self) -> Optional[ShadowLadderRun]:
         """Find the highest PHI shadow ready to graduate to live.
-        
+
         GRADUATION RULE: Any shadow that has HIT its target can graduate.
         No minimum rung. No minimum win rate. Hit = proven = live.
+
+        Owner decree 2026-09-07: the single honey-pot gate is relaxed so the
+        radar can hold multiple concurrent live positions. This method no
+        longer returns None just because a honey pot is active.
         """
-        if self.honey_pot and self.honey_pot.active:
-            return None  # Honey pot is full
-        
         # Find shadows that have HIT (status=HIT) and are ready to graduate
-        candidates = [r for r in self.shadow_runs 
+        candidates = [r for r in self.shadow_runs
                      if r.status == 'HIT']
-        
+
         if not candidates:
             return None
         
@@ -578,15 +606,15 @@ class HoneyLadder:
         }
 
 
-# ─── EXAMPLE USAGE / TEST ─────────────────────────────────────────────────────
+# ─── EXAMPLE USAGE / TEST (SIMULATED PRICES — NOT LIVE DATA) ──────────────────
 if __name__ == "__main__":
     ladder = HoneyLadder()
     
     print("=" * 60)
-    print("HONEY LADDER SYSTEM TEST")
+    print("HONEY LADDER SYSTEM TEST — SIMULATED PRICES ONLY")
     print("=" * 60)
     
-    # Simulate some shadow trades
+    # Simulate some shadow trades with fabricated prices for unit testing.
     sources = ['scanner', 'ollama', 'planetary', 'crypto_corr', 'stock_corr']
     sectors = ['commodity', 'tech', 'crypto', 'forex']
     
@@ -595,7 +623,7 @@ if __name__ == "__main__":
         sector = sectors[i % len(sectors)]
         symbol = f"SYM{i}"
         direction = 'LONG' if i % 2 == 0 else 'SHORT'
-        price = 100.0 + i
+        price = 100.0 + i  # SIMULATED test price, not a market quote
         
         run = ladder.add_shadow(symbol, sector, direction, price, source)
 

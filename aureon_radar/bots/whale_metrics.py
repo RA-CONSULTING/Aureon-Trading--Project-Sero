@@ -13,12 +13,23 @@ Uses the lightweight metrics.py infrastructure with Prometheus integration.
 """
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # aureon.utils.console_utf8 not present in this environment
+    def ensure_utf8_stdout():
+        import sys as _sys
+        if _sys.platform == "win32":
+            for _s in (_sys.stdout, _sys.stderr):
+                try:
+                    _s.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
 
 ensure_utf8_stdout()
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+from aureon.core import metrics as _metrics_impl
 from aureon.core.metrics import MetricCounter, MetricGauge
 
 logger = logging.getLogger(__name__)
@@ -270,40 +281,56 @@ def log_alert(alert_msg: str):
     # TODO: Hook to external alerting system (PagerDuty, Slack, etc.)
 
 
+def _matching_total(metric, **filters) -> float:
+    """Sum all internal counter values whose labelset matches ``filters``.
+
+    MetricCounter/MetricGauge.get() is exact-labelset only — a partial-label
+    lookup such as get(subtype='grid') silently returns 0 after an increment
+    recorded under ('grid', 'BTC/USD', 'kraken'). This helper matches on the
+    subset instead so summaries aggregate correctly.
+    """
+    total = 0.0
+    for (name, items), value in _metrics_impl._internal_counters.items():
+        if name != metric.name:
+            continue
+        labels = dict(items)
+        if all(labels.get(k) == str(v) for k, v in filters.items()):
+            total += value
+    return total
+
+
 # ═══════════════════════════════════════════════════════════════
 # 📈 METRICS REPORTING
 # ═══════════════════════════════════════════════════════════════
 
-def get_whale_system_summary() -> Dict[str, any]:
+def get_whale_system_summary() -> Dict[str, Any]:
     """
     Get summary of whale system health and performance.
-    
+
     Returns:
         Dict with key metrics aggregated
     """
-    # This would query the metrics infrastructure
-    # For now, return a stub structure
     return {
         'shapes_detected': {
-            'grid': whale_shape_detected_total.get(subtype='grid'),
-            'oscillator': whale_shape_detected_total.get(subtype='oscillator'),
-            'spiral': whale_shape_detected_total.get(subtype='spiral'),
-            'accumulation': whale_shape_detected_total.get(subtype='accumulation'),
-            'distribution': whale_shape_detected_total.get(subtype='distribution'),
-            'manipulation': whale_shape_detected_total.get(subtype='manipulation'),
+            'grid': _matching_total(whale_shape_detected_total, subtype='grid'),
+            'oscillator': _matching_total(whale_shape_detected_total, subtype='oscillator'),
+            'spiral': _matching_total(whale_shape_detected_total, subtype='spiral'),
+            'accumulation': _matching_total(whale_shape_detected_total, subtype='accumulation'),
+            'distribution': _matching_total(whale_shape_detected_total, subtype='distribution'),
+            'manipulation': _matching_total(whale_shape_detected_total, subtype='manipulation'),
         },
         'onchain_transfers': {
-            'deposits': whale_onchain_transfer_total.get(direction='deposit'),
-            'withdrawals': whale_onchain_transfer_total.get(direction='withdrawal'),
-            'whale': whale_onchain_transfer_total.get(direction='whale'),
+            'deposits': _matching_total(whale_onchain_transfer_total, direction='deposit'),
+            'withdrawals': _matching_total(whale_onchain_transfer_total, direction='withdrawal'),
+            'whale': _matching_total(whale_onchain_transfer_total, direction='whale'),
         },
         'predictions': {
-            'buy': whale_prediction_emitted_total.get(action='buy'),
-            'sell': whale_prediction_emitted_total.get(action='sell'),
-            'wait': whale_prediction_emitted_total.get(action='wait'),
+            'buy': _matching_total(whale_prediction_emitted_total, action='buy'),
+            'sell': _matching_total(whale_prediction_emitted_total, action='sell'),
+            'wait': _matching_total(whale_prediction_emitted_total, action='wait'),
         },
-        'stargate_correlations': whale_stargate_correlation_total.get(),
-        'cache_size': whale_integration_cache_size.get(),
+        'stargate_correlations': _matching_total(whale_stargate_correlation_total),
+        'cache_size': _matching_total(whale_integration_cache_size),
     }
 
 

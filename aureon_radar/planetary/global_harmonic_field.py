@@ -224,6 +224,22 @@ class GlobalHarmonicField:
           - Fear & Greed Index
           - BTC Price/Change
         """
+        # Bug-hunt 2026-09-07: callers have passed non-numeric fear_greed
+        # (the hub probe calls module-level compute_global_omega(symbol,
+        # price), so fear_greed arrives as "BTCUSD"); the wisdom engine then
+        # dies on `fear_greed <= 15` ('str' vs 'int') every cycle. Coerce
+        # here — the entry choke point — and fail closed to neutral defaults.
+        def _num(value, default):
+            try:
+                if isinstance(value, bool):
+                    return default
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+        fear_greed = _num(fear_greed, 50.0)
+        btc_price = _num(btc_price, 100000.0)
+        btc_change = _num(btc_change, 0.0)
+
         layer = self.state.layer_wisdom
         
         if self._wisdom_engine:

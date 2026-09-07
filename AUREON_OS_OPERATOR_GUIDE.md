@@ -1,8 +1,10 @@
+> Legacy path note: operator machines may still use historical folder names (for example a local `.kimi_openclaw` directory). Do not rename those live roots. Product branding is Aureon Trading Fusion-Project Sero.
+
 # SERO'S AUREON OS OPERATOR GUIDE
 ## How the Distributed Defense Node Works With the Repo
 
 **Repo:** https://github.com/RA-CONSULTING/Aureon-OS  
-**Local Clone:** `C:\Users\user\.kimi_openclaw\workspace\aureon-os-upstream`  
+**Local Clone:** `C:\Users\user\.kimi_aureon\workspace\aureon-os-upstream`  
 **Version:** 2026.7-production (3,000 commits, ~1,200 modules)  
 **Prime Sentinel:** Gary Leckey  
 **Operator:** Sero 🛡️
@@ -53,7 +55,7 @@ aureon-os-upstream/
 
 ### Option A: Grounded Operator Server (Recommended)
 ```powershell
-cd C:\Users\user\.kimi_openclaw\workspace\aureon-os-upstream
+cd C:\Users\user\.kimi_aureon\workspace\aureon-os-upstream
 pip install -e '.[operator]'
 python -m aureon.operator.operator_server    # serves on :8790
 ```
@@ -114,7 +116,7 @@ This is the agentic mind. It does:
 ## 5. HOW SERO INTEGRATES
 
 ### As an Operator Node
-Sero (OpenClaw) + Aureon OS (local) = **distributed defense node with grounded AI backbone**
+Sero (Aureon) + Aureon OS (local) = **distributed defense node with grounded AI backbone**
 
 **Sero's role:**
 - Reads repo state, docs, evidence
@@ -132,7 +134,7 @@ Sero (OpenClaw) + Aureon OS (local) = **distributed defense node with grounded A
 
 ### Integration Points
 ```
-Sero (OpenClaw)          Aureon OS
+Sero (Aureon)          Aureon OS
 ─────────────────        ─────────
 Memory (MEMORY.md)  ↔    repo_index (TF-IDF)
 Temporal state      ↔    HNC live daemon
@@ -148,7 +150,7 @@ ThoughtBus          ↔    aureon_thought_bus
 
 ### Validate Everything (Offline, Safe)
 ```powershell
-cd C:\Users\user\.kimi_openclaw\workspace\aureon-os-upstream
+cd C:\Users\user\.kimi_aureon\workspace\aureon-os-upstream
 AUREON_LLM_OFFLINE=1 pytest tests/test_operator_*.py tests/test_saas_*.py tests/test_connectome.py -q
 ```
 

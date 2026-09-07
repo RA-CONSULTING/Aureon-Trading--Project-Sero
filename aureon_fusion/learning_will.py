@@ -50,6 +50,7 @@ NEAR_DUP_THRESHOLD = 0.7         # token overlap above this → near-duplicate
 JOURNAL_DIR = FUSION_STATE / "learning_will"
 JOURNAL_FILE = JOURNAL_DIR / "journal.jsonl"
 INTENTS_FILE = JOURNAL_DIR / "intents.json"
+SATURATED_FILE = JOURNAL_DIR / "saturated_sources.json"
 BUILD_LOG = FUSION_STATE / "build_learning_will.log"
 HNC_STATE_FILE = FUSION_STATE / "hnc_core_state.json"
 OPEN_SEARCH_SEEDS_FILE = FUSION_STATE / "open_search_seeds.json"
@@ -264,6 +265,18 @@ def _journal(record: dict) -> None:
             _record_refusal(record["intent"])
         except Exception:
             pass
+        # The specific starvation refusal (fetch succeeded, discernment
+        # emptied the page) also strikes the source url: generation rotates
+        # away from it and, when everything local is saturated, re-rolls
+        # to breadth. Only REAL fetches count — a dry-run refusal never
+        # touched the source.
+        if not record.get("dry_run") and \
+                record.get("detail") == _NEAR_DUP_REFUSAL_DETAIL:
+            try:
+                _record_saturated_strike(
+                    (record["intent"] or {}).get("url"))
+            except Exception:
+                pass
 
 
 # ── Veto permanence ─────────────────────────────────────────────────────────
@@ -392,6 +405,128 @@ def _record_refusal(intent: dict) -> None:
                 refused.pop(k, None)
         _write_json_atomic(REFUSED_FILE, {"refused": refused,
                                           "updated_at": _utc_now()})
+    except Exception:
+        pass
+
+
+# ── Saturated-source registry (strikes + decay) ─────────────────────────────
+# The refusal-TTL above rotates a dead question away for 6h, but the deeper
+# failure observed live: the intent generator derives target URLs from her
+# own knowledge_dataset fragments, so the same SOURCE pages keep coming back
+# (Ethics fetched at max_similarity 1.0 — already absorbed verbatim; ~160 of
+# 300 considerations refused "all near-duplicates or empty" while the gate
+# trio passed every time). This registry remembers which source urls
+# discernment has emptied: each all-near-dups refusal adds a strike; strikes
+# halve per 24h idle so a source is rested, never banned forever. Generation
+# excludes urls at >= _SATURATED_STRIKE_FLOOR current strikes and falls back
+# to breadth (SeekAct.resolve_fresh_target) when every local candidate is
+# saturated. Fail-closed: missing/corrupt registry -> no exclusions, never
+# a crash. Discernment itself is untouched — near-dups are still refused.
+
+_SATURATED_CAP = 500
+_SATURATED_STRIKE_FLOOR = 2
+_SATURATED_DECAY_S = 24 * 3600.0
+_NEAR_DUP_REFUSAL_DETAIL = (
+    "discernment found nothing worth absorbing (all near-duplicates or empty)")
+
+
+def _saturation_key(url) -> str:
+    """One registry key per source, so the two Wikipedia surface forms of
+    the same page (/wiki/X and /api/rest_v1/page/summary/X) share strikes.
+    Non-Wikipedia urls key verbatim (fetched url is the honest identity)."""
+    u = str(url or "").strip()
+    if not u:
+        return ""
+    try:
+        from urllib.parse import unquote, urlparse
+        p = urlparse(u)
+        host = (p.netloc or "").lower()
+        if host in ("en.wikipedia.org", "wikipedia.org"):
+            path = unquote(p.path or "")
+            m = re.match(r"^/wiki/([^/?]+)$", path)
+            if m:
+                return "wikipedia:" + m.group(1).lower()
+            m = re.match(
+                r"^/api/rest_v1/page/(?:summary|html|related)/([^/?]+)$",
+                path)
+            if m:
+                return "wikipedia:" + m.group(1).lower()
+    except Exception:
+        pass
+    return u
+
+
+def _load_saturated() -> dict:
+    """url -> {'strikes', 'last_ts'}; missing/corrupt -> {} (fail-closed:
+    no exclusions, never a crash)."""
+    try:
+        data = json.loads(SATURATED_FILE.read_text(encoding="utf-8"))
+        sources = data.get("sources") if isinstance(data, dict) else None
+        out = {}
+        for url, entry in (sources or {}).items():
+            if isinstance(entry, dict):
+                out[str(url)] = entry
+        return out
+    except Exception:
+        return {}
+
+
+def _saturated_effective_strikes(entry: dict, now: float) -> float:
+    """Current strike weight: halved once per full 24h since last_ts, so a
+    rested source decays back into circulation."""
+    try:
+        strikes = float(entry.get("strikes") or 0.0)
+        last = float(entry.get("last_ts") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    if strikes <= 0.0:
+        return 0.0
+    halvings = int((now - last) // _SATURATED_DECAY_S) if last else 0
+    return strikes * (0.5 ** halvings) if halvings > 0 else strikes
+
+
+def _saturated_keys_at(floor: float, now: float) -> set:
+    try:
+        return {k for k, e in _load_saturated().items()
+                if _saturated_effective_strikes(e, now) >= floor}
+    except Exception:
+        return set()
+
+
+def _is_saturated_url(url, now: float | None = None) -> bool:
+    """Fail-open on any doubt: a unreadable registry never blocks learning."""
+    try:
+        key = _saturation_key(url)
+        if not key:
+            return False
+        now = now if now is not None else time.time()
+        entry = _load_saturated().get(key)
+        return entry is not None and \
+            _saturated_effective_strikes(entry, now) >= _SATURATED_STRIKE_FLOOR
+    except Exception:
+        return False
+
+
+def _record_saturated_strike(url, now: float | None = None) -> None:
+    """A real fetch of this url yielded nothing absorbable — add a strike
+    (decayed count + 1). Fail-closed: any error changes nothing."""
+    key = _saturation_key(url)
+    if not key:
+        return
+    try:
+        now = now if now is not None else time.time()
+        sources = _load_saturated()
+        effective = _saturated_effective_strikes(sources.get(key) or {}, now)
+        sources[key] = {"strikes": round(effective + 1.0, 4), "last_ts": now}
+        if len(sources) > _SATURATED_CAP:
+            oldest = sorted(
+                sources.items(),
+                key=lambda kv: float(kv[1].get("last_ts") or 0))[
+                len(sources) - _SATURATED_CAP:]
+            for k, _ in oldest:
+                sources.pop(k, None)
+        _write_json_atomic(SATURATED_FILE, {"sources": sources,
+                                            "updated_at": _utc_now()})
     except Exception:
         pass
 
@@ -555,6 +690,7 @@ class CuriosityEngine:
     MIN_DESIRE = 0.25  # below this, the organism simply is not asking
 
     def _candidates(self) -> list:
+        self._saturated_candidates: list = []
         candidates = []
         candidates.extend(self._from_unanswered_questions())
         candidates.extend(self._from_mycelium_curiosity())
@@ -565,8 +701,27 @@ class CuriosityEngine:
                       if c.get("desire_score", 0) >= self.MIN_DESIRE]
         # Conscience VETO is permanent: a vetoed desire is never re-asked.
         # A TTL-bound refusal is temporary: not asked again within its TTL.
-        return [c for c in candidates
-                if not _is_vetoed(c) and not _is_refused(c)]
+        candidates = [c for c in candidates
+                      if not _is_vetoed(c) and not _is_refused(c)]
+        # Saturated-source registry: a url discernment has emptied (>= floor
+        # current strikes) is dead ground for now — excluded so the will
+        # rotates to unsaturated sources. The excluded candidates are kept
+        # for a breadth re-roll in propose() when nothing fresh remains.
+        try:
+            now = time.time()
+            dead = _saturated_keys_at(_SATURATED_STRIKE_FLOOR, now)
+            if dead:
+                fresh = []
+                for c in candidates:
+                    u = c.get("url")
+                    if u and _saturation_key(u) in dead:
+                        self._saturated_candidates.append(c)
+                    else:
+                        fresh.append(c)
+                candidates = fresh
+        except Exception:
+            pass
+        return candidates
 
     def _resolve_url(self, tags) -> str | None:
         """An organism-chosen target URL may only come from internal state
@@ -837,9 +992,42 @@ class CuriosityEngine:
                 best, best_hits = domain, hits
         return best or "memory"
 
+    def _breadth_reroll(self, saturated: list) -> list:
+        """Every local candidate points at a saturated source — derive a
+        fresh target for the strongest desires through the module's own
+        resolution mechanisms (fresh seeds -> open_sources adjacent
+        candidates -> canonical encyclopedic endpoint), skipping anything
+        saturated. The desire is unchanged; only the source diversifies.
+        Returns [] when the will can derive nothing unsaturated (silence
+        is valid)."""
+        out = []
+        for cand in saturated[:3]:
+            try:
+                url = SeekAct.resolve_fresh_target(cand, _is_saturated_url)
+            except Exception:
+                url = None
+            if not url or url == cand.get("url"):
+                continue
+            new = dict(cand)
+            origin = dict(cand.get("origin") or {})
+            origin["saturation_reroll_from"] = str(cand.get("url") or "")[:200]
+            new["origin"] = origin
+            new["url"] = url
+            out.append(new)
+            _blog("saturation_reroll", kind=cand.get("kind"),
+                  from_url=str(cand.get("url"))[:120], to_url=url[:120],
+                  question=str(cand.get("question"))[:120])
+        return out
+
     def propose(self) -> dict | None:
         """Pick the single strongest learning desire, or None (silence)."""
         candidates = self._candidates()
+        if not candidates:
+            # All local candidates target saturated sources — the will
+            # falls back to breadth: same desire, a different source path.
+            rerolled = self._breadth_reroll(self._saturated_candidates)
+            if rerolled:
+                candidates = rerolled
         if not candidates:
             _blog("propose", result="silence")
             return None
@@ -1040,13 +1228,54 @@ class SeekAct:
         return best_url
 
     @classmethod
+    def _candidate_to_url(cls, cand: str) -> str | None:
+        """The module's single candidate→URL conversion: a URL candidate is
+        taken directly; a title candidate becomes the canonical Wikipedia
+        page-summary endpoint."""
+        from urllib.parse import quote
+        cand = str(cand or "").strip()
+        if not cand:
+            return None
+        if cls._looks_like_url(cand):
+            return cand
+        title = cand.replace(" ", "_")
+        if title:
+            return ("https://en.wikipedia.org/api/rest_v1/page/summary/"
+                    + quote(title))
+        return None
+
+    @classmethod
+    def _wikipedia_search_titles(cls, concept: str) -> list:
+        """Ask Wikipedia for related article titles for a concept.
+        Returns a list of candidate titles (with spaces). Uses the courteous
+        api_communion layer. Failures degrade to an empty list."""
+        from urllib.parse import quote
+        concept = str(concept or "").strip().replace("_", " ")
+        if not concept:
+            return []
+        url = ("https://en.wikipedia.org/w/api.php?action=opensearch&search="
+               + quote(concept) + "&limit=5&format=json")
+        try:
+            from aureon_fusion import api_communion
+            data = api_communion.get_json(url, ttl_s=3600.0, timeout=15.0)
+            if not isinstance(data, list) or len(data) < 2:
+                return []
+            titles = data[1]
+            if not isinstance(titles, list):
+                return []
+            return [str(t).strip() for t in titles if str(t).strip()]
+        except Exception as exc:
+            _blog("wikipedia_search_error", concept=concept[:80],
+                  error=type(exc).__name__)
+            return []
+
+    @classmethod
     def _resolve_from_open_sources(cls, concept: str) -> str | None:
         """Courteous candidate lookup through the organism's own open_sources
         organ (public search, all traffic via api_communion). Guarded: a
         missing or failing organ degrades to None, never a crash. The first
         usable candidate is taken directly when it is already a URL, else
         built into a canonical Wikipedia page-summary endpoint."""
-        from urllib.parse import quote
         try:
             from aureon_fusion import open_sources
             candidates = open_sources.search_candidates(concept) or []
@@ -1054,37 +1283,22 @@ class SeekAct:
             _blog("open_sources_unavailable", error=type(exc).__name__)
             return None
         for cand in list(candidates)[:3]:
-            cand = str(cand or "").strip()
-            if not cand:
-                continue
-            if cls._looks_like_url(cand):
-                return cand
-            title = cand.replace(" ", "_")
-            if title:
-                return ("https://en.wikipedia.org/api/rest_v1/page/summary/"
-                        + quote(title))
+            url = cls._candidate_to_url(cand)
+            if url:
+                return url
         return None
 
     @classmethod
-    def resolve_canonical_target(cls, intent: dict) -> str | None:
-        """Sovereign canonical resolution. The gates have passed; the will
-        picks its OWN destination from the desire's key concept. Resolution
-        order, all organism-initiated (no external system suggests anything,
-        no trend feed is consulted):
-          (i)   a fresh organism-primed open-search seed whose topic agrees
-                with the concept — the will already chose it once;
-          (ii)  a courteous candidate from the open_sources organ;
-          (iii) the canonical encyclopedic endpoint guessed from the
-                organism's own question tokens (the long-standing fallback).
-        Returns a URL or None (caller then refuses — no fabrication)."""
-        import re
-        from urllib.parse import quote
-        question = (intent or {}).get("question") or ""
-        if not question.strip():
+    def _concept_from_question(cls, question: str) -> str | None:
+        """The desire's key concept, from the organism's own words: the
+        quoted theme preferred, else the longest content-bearing token.
+        Shared by both resolution paths so a saturation re-roll anchors on
+        the same sovereign concept."""
+        import re as _re
+        question = (question or "").strip()
+        if not question:
             return None
-        # Prefer the quoted theme — the organism's own words, in its own
-        # insight stream, are the most sovereign concept anchor available.
-        quoted = re.findall(r"'([^']{3,60})'|\"([^\"]{3,60})\"", question)
+        quoted = _re.findall(r"'([^']{3,60})'|\"([^\"]{3,60})\"", question)
         concept = None
         for a, b in quoted:
             cand = (a or b).strip()
@@ -1105,6 +1319,21 @@ class SeekAct:
             if not keep:
                 return None
             concept = max(keep, key=len)
+        return concept or None
+
+    @classmethod
+    def resolve_canonical_target(cls, intent: dict) -> str | None:
+        """Sovereign canonical resolution. The gates have passed; the will
+        picks its OWN destination from the desire's key concept. Resolution
+        order, all organism-initiated (no external system suggests anything,
+        no trend feed is consulted):
+          (i)   a fresh organism-primed open-search seed whose topic agrees
+                with the concept — the will already chose it once;
+          (ii)  a courteous candidate from the open_sources organ;
+          (iii) the canonical encyclopedic endpoint guessed from the
+                organism's own question tokens (the long-standing fallback).
+        Returns a URL or None (caller then refuses — no fabrication)."""
+        concept = cls._concept_from_question((intent or {}).get("question"))
         if not concept:
             return None
         url = cls._resolve_from_seeds(concept)
@@ -1113,11 +1342,70 @@ class SeekAct:
         url = cls._resolve_from_open_sources(concept)
         if url:
             return url
+        from urllib.parse import quote
         slug = concept.replace(" ", "_")
         if not slug:
             return None
         return ("https://en.wikipedia.org/api/rest_v1/page/summary/"
                 + quote(slug))
+
+    @classmethod
+    def resolve_fresh_target(cls, intent: dict, is_blocked) -> str | None:
+        """Saturation re-roll: the SAME sovereign resolution mechanisms as
+        resolve_canonical_target (fresh seeds -> open_sources adjacent
+        candidates -> canonical encyclopedic endpoint), but any candidate
+        failing is_blocked(url) is skipped — a saturated source never
+        receives a repeat fetch. Returns None when every derivable target
+        is blocked (the caller refuses; nothing is fabricated)."""
+        from urllib.parse import quote
+        concept = cls._concept_from_question((intent or {}).get("question"))
+        if not concept:
+            return None
+        # (i) fresh organism-primed seeds whose topic agrees — unless blocked
+        tokens = set(_content_tokens(concept.replace("_", " ")))
+        for seed in _fresh_open_search_seeds():
+            try:
+                topic = str(seed.get("topic") or "")
+                url = str(seed.get("url") or "")
+                if not topic or not cls._looks_like_url(url):
+                    continue
+                if (tokens & set(_content_tokens(topic))) \
+                        and not is_blocked(url):
+                    return url
+            except Exception:
+                continue
+        # (ii) courteous open_sources candidates — first NON-saturated one,
+        # so an adjacent title (breadth) wins over the exhausted page
+        try:
+            from aureon_fusion import open_sources
+            candidates = open_sources.search_candidates(concept) or []
+        except Exception as exc:
+            _blog("open_sources_unavailable", error=type(exc).__name__)
+            candidates = []
+        for cand in list(candidates)[:5]:
+            try:
+                url = cls._candidate_to_url(cand)
+            except Exception:
+                url = None
+            if url and not is_blocked(url):
+                return url
+        # (iii-b) Wikipedia search breadth: if the direct slug is saturated
+        # or the concept is broad, ask Wikipedia for related titles and pick
+        # the first non-saturated summary endpoint. Keeps learning moving
+        # without fabricating URLs.
+        for title in cls._wikipedia_search_titles(concept):
+            url = cls._candidate_to_url(title)
+            if url and not is_blocked(url):
+                return url
+
+        # (iii) canonical encyclopedic endpoint — only if not saturated
+        slug = concept.replace(" ", "_")
+        if slug:
+            url = ("https://en.wikipedia.org/api/rest_v1/page/summary/"
+                   + quote(slug))
+            if not is_blocked(url):
+                return url
+        return None
 
     @staticmethod
     def _html_to_text(raw: str) -> str:
@@ -1596,8 +1884,10 @@ class LearningWill:
                 # the organism chooses to seek. When no internal tag carries
                 # a target, the will derives its OWN destination from the
                 # desire's key concept (canonical encyclopedic endpoint) —
-                # organism-initiated, never externally steered.
-                url = SeekAct.resolve_canonical_target(intent)
+                # organism-initiated, never externally steered. Saturated
+                # sources are skipped so a resolved desire never re-fetches
+                # ground discernment has already emptied.
+                url = SeekAct.resolve_fresh_target(intent, _is_saturated_url)
                 resolved = bool(url)
             if not url:
                 result.update(outcome="refused",
@@ -1636,8 +1926,7 @@ class LearningWill:
         judged = [c for c in candidates if c.get("verdict") != "near_dup_rejected"]
         if not judged:
             result.update(outcome="refused",
-                          detail="discernment found nothing worth absorbing "
-                                 "(all near-duplicates or empty)")
+                          detail=_NEAR_DUP_REFUSAL_DETAIL)
             record.update(outcome="refused", detail=result["detail"],
                           candidates=candidates[:8])
             _journal(record)

@@ -1,6 +1,7 @@
 import os, time, hmac, hashlib, requests, json, logging, math, threading
 from pathlib import Path
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
+from urllib.parse import urlparse
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 try:
@@ -129,6 +130,25 @@ class BinanceClient:
         self._rate_limiter = TokenBucket(rate=rate, capacity=burst) if TokenBucket else None
         self._request_cache = TTLCache(default_ttl=float(os.getenv('BINANCE_EXCHANGE_CACHE_TTL', '1.0'))) if TTLCache else None
         self.max_retries = int(os.getenv('BINANCE_RETRY_COUNT', '2'))
+
+        # Global host rate budget: reserves POSITIONS slots for signed/account
+        # reads and EXECUTION slots for mutations, so analytics (QUOTES) can't
+        # starve account operations. Operates alongside the TokenBucket above.
+        self._global_rate_budget = None
+        self._RequestPriority = None
+        self._budget_wait = None
+        try:
+            from aureon.core.global_rate_budget import (
+                RequestPriority,
+                get_host_rate_budget,
+                wait_for_slot_deferred,
+            )
+            self._global_rate_budget = get_host_rate_budget(urlparse(self.base).netloc)
+            self._RequestPriority = RequestPriority
+            self._budget_wait = wait_for_slot_deferred
+        except Exception as exc:
+            logger.debug("binance GlobalRateBudget unavailable (%s) - running unbudgeted", type(exc).__name__)
+
         # Submission acknowledgements that have not been proven by a complete
         # terminal provider fill block duplicate submissions in this process.
         self._pending_orders: Dict[tuple[str, str, bool], Dict[str, Any]] = {}
@@ -999,6 +1019,50 @@ class BinanceClient:
                 "exact_binance_mutation_query_and_body_required"
             )
 
+    # ── global host rate budget helpers ───────────────────────────────────
+    def _budget_priority(self, method: str, path: str):
+        """EXECUTION for mutations, POSITIONS for signed account/order reads,
+        QUOTES for public market data."""
+        from aureon.core.global_rate_budget import RequestPriority
+        method = str(method or "").upper()
+        lowered = str(path or "").lower()
+        if method != "GET":
+            return RequestPriority.EXECUTION
+        if "/sapi/" in lowered or any(tok in lowered for tok in ("account", "order", "mytrades", "trade")):
+            return RequestPriority.POSITIONS
+        return RequestPriority.QUOTES
+
+    def _budget_acquire(self, method: str, path: str, *, write: bool = False,
+                        max_wait_s: float = 10.0) -> bool:
+        if self._global_rate_budget is None or self._RequestPriority is None:
+            return True
+        priority = self._budget_priority(method, path)
+        granted = self._budget_wait(
+            self._global_rate_budget, priority,
+            is_trading=priority.name == "EXECUTION",
+            max_wait_s=max_wait_s,
+        )
+        if not granted:
+            if write:
+                raise RuntimeError(
+                    f"binance rate budget deferred {priority.name} {method} {path} "
+                    f"beyond {max_wait_s}s - NOT sent (fail-closed)"
+                )
+            logger.warning(
+                "binance rate budget deferred %s %s %s beyond %ss - proceeding anyway",
+                priority.name, method, path, max_wait_s,
+            )
+        return granted
+
+    def _budget_on_429(self, method: str, path: str) -> None:
+        if self._global_rate_budget is None:
+            return
+        try:
+            priority = self._budget_priority(method, path)
+            self._global_rate_budget.on_429_error(priority)
+        except Exception:
+            pass
+
     def _do_request(
         self,
         method: str,
@@ -1020,12 +1084,16 @@ class BinanceClient:
                 data=data,
             )
         url = f"{self.base}{path}"
-        # Respect rate limiter
+        # Respect token-bucket rate limiter
         if getattr(self, '_rate_limiter', None):
             try:
                 self._rate_limiter.wait()
             except Exception:
                 pass
+
+        # Global host rate budget: queue reads, fail-closed on writes.
+        is_write = normalized_method != "GET"
+        self._budget_acquire(normalized_method, path, write=is_write, max_wait_s=15.0)
 
         for attempt in range(self.max_retries + 1):
             # For signed POST requests, params go in query string, not body
@@ -1050,6 +1118,7 @@ class BinanceClient:
                 except Exception:
                     pass
 
+                self._budget_on_429(normalized_method, path)
                 retry_after = resp.headers.get('Retry-After')
                 try:
                     wait_time = float(retry_after) if retry_after else 2 ** attempt
@@ -1138,6 +1207,7 @@ class BinanceClient:
 
     def ping(self) -> bool:
         try:
+            self._budget_acquire("GET", "/api/v3/ping", write=False, max_wait_s=5.0)
             r = self.session.get(f"{self.base}/api/v3/ping", timeout=5)
             if r.status_code != 200:
                 self.last_error = f"ping_failed_http_{r.status_code}"
@@ -1178,6 +1248,7 @@ class BinanceClient:
         }
 
     def server_time(self) -> Dict[str, Any]:
+        self._budget_acquire("GET", "/api/v3/time", write=False, max_wait_s=5.0)
         r = self.session.get(f"{self.base}/api/v3/time")
         return r.json()
 
@@ -2057,6 +2128,7 @@ class BinanceClient:
 
     def best_price(self, symbol: str, timeout: float = 3.0) -> Dict[str, Any]:
         try:
+            self._budget_acquire("GET", "/api/v3/ticker/price", write=False, max_wait_s=5.0)
             r = self.session.get(f"{self.base}/api/v3/ticker/price", params={"symbol": symbol}, timeout=timeout)
             return r.json()
         except Exception:
@@ -2202,6 +2274,7 @@ class BinanceClient:
         """
         # Try configured endpoint first
         try:
+            self._budget_acquire("GET", "/api/v3/ticker/24hr", write=False, max_wait_s=5.0)
             r = self.session.get(f"{self.base}/api/v3/ticker/24hr", timeout=10)
             if r.status_code == 200:
                 return r.json()
@@ -2211,6 +2284,7 @@ class BinanceClient:
         # In dry-run mode, fallback to mainnet public API (no auth needed)
         if self.dry_run:
             try:
+                self._budget_acquire("GET", "/api/v3/ticker/24hr", write=False, max_wait_s=5.0)
                 import requests as req
                 r = req.get(f"{BINANCE_MAINNET}/api/v3/ticker/24hr", timeout=10)
                 if r.status_code == 200:
@@ -2228,6 +2302,7 @@ class BinanceClient:
         symbol = self._norm(symbol)
         # Try configured endpoint first
         try:
+            self._budget_acquire("GET", "/api/v3/ticker/24hr", write=False, max_wait_s=5.0)
             r = self.session.get(f"{self.base}/api/v3/ticker/24hr", params={"symbol": symbol}, timeout=10)
             if r.status_code == 200:
                 return r.json()
@@ -2237,6 +2312,7 @@ class BinanceClient:
         # In dry-run mode, fallback to mainnet public API
         if self.dry_run:
             try:
+                self._budget_acquire("GET", "/api/v3/ticker/24hr", write=False, max_wait_s=5.0)
                 import requests as req
                 r = req.get(f"{BINANCE_MAINNET}/api/v3/ticker/24hr", params={"symbol": symbol}, timeout=10)
                 if r.status_code == 200:
@@ -2262,6 +2338,7 @@ class BinanceClient:
         """
         try:
             params = {"symbol": symbol, "interval": interval, "limit": min(limit, 1000)}
+            self._budget_acquire("GET", "/api/v3/klines", write=False, max_wait_s=5.0)
             r = self.session.get(f"{self.base}/api/v3/klines", params=params, timeout=10)
             if r.status_code == 200:
                 raw = r.json()
@@ -2286,6 +2363,7 @@ class BinanceClient:
         if self.dry_run:
             try:
                 params = {"symbol": symbol, "interval": interval, "limit": min(limit, 1000)}
+                self._budget_acquire("GET", "/api/v3/klines", write=False, max_wait_s=5.0)
                 r = requests.get(f"{BINANCE_MAINNET}/api/v3/klines", params=params, timeout=10)
                 if r.status_code == 200:
                     raw = r.json()

@@ -1,10 +1,10 @@
 """Alpaca shadow-trading wiring — thin wrapper over shadow_executor.
 
 Quotes come from alpaca_adapter.py's get_quote(): without keys it uses
-labeled public feeds (Binance public for BTC/USD, Yahoo Finance public for
-AAPL); with keys it uses the Alpaca data API. Every quote is source-labeled
-by the adapter and freshness-checked by the engine. Fee 0.0 % taker,
-slippage 0.05 % (binding constants in shadow_executor).
+labeled public feeds (Binance public for BTC/USD and ETH/USD, Yahoo Finance
+public for AAPL); with keys it uses the Alpaca data API. Every quote is
+source-labeled by the adapter and freshness-checked by the engine. Fee 0.0 %
+taker, slippage 0.05 % (binding constants in shadow_executor).
 
 Public API (used by the hub and by Gary):
     propose_signal(symbol, side, qty, signal_source, signal_confidence) -> dict
@@ -65,7 +65,12 @@ except ImportError:  # pragma: no cover - direct-script fallback
 logger = logging.getLogger(__name__)
 
 VENUE = "alpaca"
-SUPPORTED_SYMBOLS = ("BTC/USD", "AAPL")
+# ETH/USD added 2026-09-06 (bug-hunt): the hub routes ETH signals here
+# (ShadowArm._ASSET_MAP) and both quote paths support it — with keys the
+# Alpaca data API lists ETH/USD; without keys the Binance public feed quotes
+# it (ETH->ETHUSDT). The old BTC-only whitelist refused every ETH dispatch
+# with an identical reason every cycle (16x in state/shadow_trades.jsonl).
+SUPPORTED_SYMBOLS = ("BTC/USD", "ETH/USD", "AAPL")
 _LIVE_KEY_NAMES = ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY")
 
 _ADAPTER: Optional[AlpacaAdapter] = None
@@ -90,6 +95,8 @@ def _canonical_symbol(symbol: str) -> str:
     cleaned = str(symbol).strip().upper().replace("-", "/").replace(" ", "")
     if cleaned in ("BTC", "BTCUSD", "BTC/USD", "XBTUSD", "XBT/USD"):
         return "BTC/USD"
+    if cleaned in ("ETH", "ETHUSD", "ETH/USD", "XETHUSD"):
+        return "ETH/USD"
     if cleaned in ("AAPL",):
         return "AAPL"
     return cleaned
@@ -190,7 +197,10 @@ def live_place(symbol: str, side: str, qty: float,
             "reason": result["reason"],
             "detail": (f"expectancy gate: expected={verdict.get('expected_move_pct')} "
                        f"cost={verdict.get('round_trip_cost_pct')} "
-                       f"margin={verdict.get('margin_pct')}")[:300],
+                       f"margin={verdict.get('margin_pct')} "
+                       f"floor={verdict.get('capture_floor_pct')} "
+                       f"required={verdict.get('required_move_pct')} "
+                       f"{verdict.get('detail') or ''}")[:300],
         })
         logger.info("alpaca live_place REFUSED (%s): %s",
                     result["reason"], symbol)
@@ -204,7 +214,24 @@ def live_place(symbol: str, side: str, qty: float,
 
 
 if __name__ == "__main__":
+    import tempfile
+
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+
+    # Self-test hygiene (2026-09-07): run against a THROWAWAY journal/ledger/
+    # book in tempdir. These open/immediate-close round-trips used to write
+    # "manual" closes <3 s after open into the REAL shadow ledger — that was
+    # the 3-second-exit poison in time-to-capture stats. min_hold is zeroed
+    # because the self-test closes by design.
+    _tmpdir = _Path(tempfile.mkdtemp(prefix="shadow_alpaca_selftest_"))
+    _ENGINE = ShadowEngine(
+        VENUE,
+        journal_path=_tmpdir / "shadow_trades.jsonl",
+        ledger_path=_tmpdir / "shadow_ledger_summary.json",
+        book_path=_tmpdir / f"shadow_book_{VENUE}.json",
+    )
+    _ENGINE.min_hold_seconds = 0.0
+    print(f"self-test state dir (throwaway): {_tmpdir}")
 
     print("== live_place gate check (keys absent -> must refuse) ==")
     gate = live_place("BTC/USD", "buy", 0.001)
@@ -228,13 +255,15 @@ if __name__ == "__main__":
     print("== MTM pass ==")
     print(json.dumps(mark_all(), indent=2, sort_keys=True, default=str))
 
-    print("== close both (reason=manual) ==")
-    close_btc = close_position("BTC/USD", "manual")
+    print("== close both (reason=selftest_close) ==")
+    close_btc = close_position("BTC/USD", "selftest_close")
     print(json.dumps(close_btc, indent=2, sort_keys=True, default=str))
     assert close_btc["status"] == "closed", close_btc
-    close_aapl = close_position("AAPL", "manual")
+    close_aapl = close_position("AAPL", "selftest_close")
     print(json.dumps(close_aapl, indent=2, sort_keys=True, default=str))
     assert close_aapl["status"] == "closed", close_aapl
-    print(f"CLOSED BTC at {close_btc['price']}  net_pnl={close_btc['net_pnl']}")
-    print(f"CLOSED AAPL at {close_aapl['price']}  net_pnl={close_aapl['net_pnl']}")
-    print("SELF-TEST PASSED")
+    print(f"CLOSED BTC at {close_btc['price']}  net_pnl={close_btc['net_pnl']}  "
+          f"fees={close_btc.get('fees')}  fee_basis={close_btc.get('fee_basis')}")
+    print(f"CLOSED AAPL at {close_aapl['price']}  net_pnl={close_aapl['net_pnl']}  "
+          f"fees={close_aapl.get('fees')}  fee_basis={close_aapl.get('fee_basis')}")
+    print(f"SELF-TEST PASSED (throwaway state in {_tmpdir}; real ledger untouched)")

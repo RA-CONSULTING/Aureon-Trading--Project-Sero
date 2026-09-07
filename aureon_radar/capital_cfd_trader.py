@@ -84,10 +84,14 @@ except ImportError:
         HAS_CAPITAL = False
 
 # Seer + Lyra lightweight gates (used directly — no full orchestrator needed)
+# The old 'aureon_quadrumvirate' wrapper module no longer exists; the gates
+# live in the upstream aureon package. If aureon is not on PYTHONPATH we keep
+# the same fail-closed HAS_QUAD_GATES=False as before.
 try:
-    from aureon_quadrumvirate import seer_should_trade, lyra_should_trade
+    from aureon.intelligence.aureon_seer_integration import seer_should_trade
+    from aureon.trading.aureon_lyra_integration import lyra_should_trade
     HAS_QUAD_GATES = True
-except ImportError:
+except Exception:
     HAS_QUAD_GATES = False
     seer_should_trade = None      # type: ignore
     lyra_should_trade = None      # type: ignore
@@ -276,7 +280,13 @@ def _env_text(name: str, default: str) -> str:
 
 
 CFD_CONFIG: Dict[str, float] = {
-    "max_positions":      _env_float("CAPITAL_MAX_POSITIONS", 4.0),   # Up to 4 concurrent positions
+    # Owner decree 2026-09-06 (Gary Leckey): "she can open and close how many
+    # positions she requires" — the old hard default of 4 concurrent positions
+    # is raised to a generous 25 so the position count is not artificially
+    # throttled. This is NOT a risk-limit removal: per-trade sizing, stops,
+    # circuit breakers, and the expectancy/capture-floor gates are untouched.
+    # CAPITAL_MAX_POSITIONS env still overrides.
+    "max_positions":      _env_float("CAPITAL_MAX_POSITIONS", 25.0),  # owner decree 2026-09-06: raised 4 -> 25
     "price_ttl_secs":    _env_float("CAPITAL_PRICE_TTL_SECS", 10.0),  # Price cache lifetime
     "position_ttl_secs": _env_float("CAPITAL_POSITION_TTL_SECS", 3600.0), # Selection benchmark only; not a forced close
     "scan_interval_secs": _env_float("CAPITAL_SCAN_INTERVAL_SECS", 8.0),  # Opportunity scan interval
@@ -6522,7 +6532,28 @@ class CapitalCFDTrader:
 
         stage_started = time.time()
         self._update_shadows()
-        promoted_this_tick = False
+        # ── Per-tick promotion budget (owner decree 2026-09-06) ───────────────
+        # Serial one-promotion-per-tick gate removed: each tick may promote as
+        # many qualified setups as deployable cash allows, up to max_positions.
+        # Deployable cash = free cash − survival reserve − existing stress loss
+        # (the risk envelope's stress_buffer_before figure, built lazily so we
+        # don't add an extra accounts call on ticks with nothing to promote).
+        # Every promotion decrements the budget by the margin the new position
+        # actually ties up; the 1% capture-floor gate and all preflight checks
+        # still run per promotion inside _promote_shadow/_open_position.
+        _max_positions = int(CFD_CONFIG["max_positions"])
+        promotion_budget_gbp: Optional[float] = None
+        promoted_this_tick = 0
+
+        def _remaining_promotion_budget() -> float:
+            nonlocal promotion_budget_gbp
+            if promotion_budget_gbp is None:
+                env = self._build_capital_risk_envelope()
+                promotion_budget_gbp = max(
+                    0.0, float(env.get("stress_buffer_before_gbp", 0.0) or 0.0)
+                )
+            return promotion_budget_gbp
+
         validated_shadows = sorted(
             [
                 shadow for shadow in self.shadow_trades
@@ -6531,6 +6562,10 @@ class CapitalCFDTrader:
             key=lambda item: (float(item.validation_time or item.created_at or 0.0), -float(item.score or 0.0)),
         )
         for shadow in list(validated_shadows):
+            if len(self.positions) >= _max_positions:
+                break
+            if _remaining_promotion_budget() <= 0:
+                break
             if not shadow.validated:
                 continue
             gate_preview = self._build_shadow_promotion_gate(shadow, self._get_price(shadow.symbol))
@@ -6539,9 +6574,12 @@ class CapitalCFDTrader:
                 continue
             promoted = self._promote_shadow(shadow)
             if promoted is not None:
-                promoted_this_tick = True
+                promoted_this_tick += 1
+                promotion_budget_gbp = _remaining_promotion_budget() - (
+                    self._position_margin_estimate(promoted) or self._position_notional(promoted)
+                )
                 self.shadow_trades.remove(shadow)
-                break
+                continue
             if self._cooldown_info(shadow.symbol, str(shadow.direction or "").upper()) is not None:
                 self.shadow_trades.remove(shadow)
         shadow_elapsed = time.time() - stage_started
@@ -6554,15 +6592,20 @@ class CapitalCFDTrader:
             self._quad_gate()  # refresh modifier (always proceeds)
             self._find_best_opportunity()
             self._queue_background_shadows()
-            if len(self.positions) < int(CFD_CONFIG["max_positions"]) and not promoted_this_tick:
-                slot_filled_this_tick = self._fill_live_monitoring_slots(now)
-                if slot_filled_this_tick:
-                    promoted_this_tick = True
-                opened_directions = {str(pos.direction or "").upper() for pos in self.positions}
+            if len(self.positions) < _max_positions:
+                # Live slot fills consume cash directly — gate them on the
+                # remaining per-tick deployable-cash budget (each fill still
+                # passes its own full preflight + risk envelope).
+                if _remaining_promotion_budget() > 0:
+                    self._fill_live_monitoring_slots(now)
+                # Shadow-first: queueing shadows is cash-free, so the
+                # opportunity loop runs regardless of budget; promotions from
+                # these shadows are budget-gated on later ticks. Same-direction
+                # setups are allowed (serial opened_directions skip removed).
                 for sym, cfg, ticker in self._ranked_opportunities():
+                    if len(self.positions) >= _max_positions:
+                        break
                     direction = str(cfg.get("direction", "BUY") or "BUY").upper()
-                    if direction in opened_directions:
-                        continue
                     if CAPITAL_FORCE_SLOT_FILL:
                         continue
                     preflight = self._capital_preflight(sym, float(cfg.get("size", 0.0) or 0.0), ticker, cfg)
@@ -6598,11 +6641,7 @@ class CapitalCFDTrader:
                         logger.warning("CFD candidate skipped for %s: %s", sym, preflight.get("reason") or "unknown")
                         continue
 
-                    if self._create_shadow(sym, working_cfg, ticker) is not None:
-                        opened_directions.add(direction)
-                        if opened_directions >= {"BUY", "SELL"} or len(self.positions) >= int(CFD_CONFIG["max_positions"]):
-                            break
-                    else:
+                    if self._create_shadow(sym, working_cfg, ticker) is None:
                         self._record_rejection(sym, direction, "shadow_blocked_or_duplicate")
 
         if should_scan:
@@ -6611,6 +6650,7 @@ class CapitalCFDTrader:
         self._latest_tick_line = (
             f"CAPITAL TICK sync={sync_elapsed:.2f}s prices={refresh_elapsed:.2f}s "
             f"monitor={monitor_elapsed:.2f}s shadows={shadow_elapsed:.2f}s scan={scan_elapsed:.2f}s "
+            f"promoted={promoted_this_tick} "
             f"positions={len(self.positions)} shadows_active={len(self.shadow_trades)}"
         )
         self._build_lane_snapshot()

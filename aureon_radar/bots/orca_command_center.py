@@ -33,7 +33,17 @@ Gary Leckey | January 2026 | THE ORCA HUNTS
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 
 # Windows UTF-8 fix (MANDATORY)
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # aureon.utils.console_utf8 not present in this environment
+    def ensure_utf8_stdout():
+        import sys as _sys
+        if _sys.platform == "win32":
+            for _s in (_sys.stdout, _sys.stderr):
+                try:
+                    _s.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
 
 ensure_utf8_stdout()
 
@@ -79,6 +89,23 @@ def safe_import(name: str, module: str, cls: str):
         logger.debug(f"⚠️  {name}: {e}")
         return None
 
+
+def safe_import_fallback(name: str, *candidates):
+    """Like safe_import but tries (module, cls) candidates in order.
+
+    Exchange clients exist both upstream (aureon.exchanges.*) and as legacy
+    top-level modules in this repo — try each until one imports.
+    """
+    for module, cls in candidates:
+        try:
+            mod = __import__(module, fromlist=[cls])
+            SYSTEMS_STATUS[name] = True
+            return getattr(mod, cls)
+        except Exception as e:
+            logger.debug(f"⚠️  {name} via {module}: {e}")
+    SYSTEMS_STATUS[name] = False
+    return None
+
 print("\n🦈 LOADING ORCA COMMAND CENTER SYSTEMS...")
 
 # Core Orca Systems
@@ -95,20 +122,32 @@ OrcaStealthExecution = safe_import('StealthExecution', 'orca_stealth_execution',
 
 # Exchange Clients
 print("  📊 Loading Exchange Clients...")
-AlpacaClient = safe_import('Alpaca', 'alpaca_client', 'AlpacaClient')
-KrakenClient = safe_import('Kraken', 'kraken_client', 'KrakenClient')
+AlpacaClient = safe_import_fallback('Alpaca',
+    ('aureon.exchanges.alpaca_client', 'AlpacaClient'),
+    ('alpaca_client', 'AlpacaClient'))
+KrakenClient = safe_import_fallback('Kraken',
+    ('aureon.exchanges.kraken_client', 'KrakenClient'),
+    ('kraken_client', 'KrakenClient'))
 
 # Intelligence Systems
 print("  🧠 Loading Intelligence Systems...")
 ProbabilityUltimateIntelligence = safe_import('UltimateIntel', 'probability_ultimate_intelligence', 'ProbabilityUltimateIntelligence')
-OrcaIntelligence = safe_import('OrcaIntelligence', 'aureon_orca_intelligence', 'OrcaKillerWhaleIntelligence')
-GlobalWaveScanner = safe_import('WaveScanner', 'aureon_global_wave_scanner', 'GlobalWaveScanner')
-MoversShakersScanner = safe_import('MoversShakers', 'aureon_movers_shakers_scanner', 'MoversShakersScanner')
+OrcaIntelligence = safe_import('OrcaIntelligence', 'aureon.bots_intelligence.aureon_orca_intelligence', 'OrcaKillerWhaleIntelligence')
+GlobalWaveScanner = safe_import_fallback('WaveScanner',
+    ('aureon.scanners.aureon_global_wave_scanner', 'GlobalWaveScanner'),
+    ('aureon_global_wave_scanner', 'GlobalWaveScanner'))
+MoversShakersScanner = safe_import_fallback('MoversShakers',
+    ('aureon.scanners.aureon_movers_shakers_scanner', 'MoversShakersScanner'),
+    ('aureon_movers_shakers_scanner', 'MoversShakersScanner'))
 
 # Whale & Bot Tracking
 print("  🐋 Loading Whale Intelligence...")
-WhaleProfiler = safe_import('WhaleProfiler', 'aureon_whale_profiler_system', 'WhaleProfilerSystem')
-BotShapeClassifier = safe_import('BotClassifier', 'aureon_bot_shape_classifier', 'BotShapeClassifier')
+WhaleProfiler = safe_import_fallback('WhaleProfiler',
+    ('aureon.analytics.aureon_whale_profiler_system', 'WhaleProfilerSystem'),
+    ('aureon_whale_profiler_system', 'WhaleProfilerSystem'))
+BotShapeClassifier = safe_import_fallback('BotClassifier',
+    ('aureon.bots_intelligence.aureon_bot_shape_classifier', 'BotShapeClassifier'),
+    ('aureon_bot_shape_classifier', 'BotShapeClassifier'))
 
 # ThoughtBus
 print("  💭 Loading ThoughtBus...")
@@ -117,12 +156,18 @@ get_thought_bus = safe_import('get_thought_bus', 'aureon_thought_bus', 'get_thou
 
 # Fee & Cost Tracking
 print("  💰 Loading Fee Trackers...")
-AlpacaFeeTracker = safe_import('FeeTracker', 'alpaca_fee_tracker', 'AlpacaFeeTracker')
-CostBasisTracker = safe_import('CostBasis', 'cost_basis_tracker', 'CostBasisTracker')
+AlpacaFeeTracker = safe_import_fallback('FeeTracker',
+    ('aureon.exchanges.alpaca_fee_tracker', 'AlpacaFeeTracker'),
+    ('alpaca_fee_tracker', 'AlpacaFeeTracker'))
+CostBasisTracker = safe_import_fallback('CostBasis',
+    ('aureon.portfolio.cost_basis_tracker', 'CostBasisTracker'),
+    ('cost_basis_tracker', 'CostBasisTracker'))
 
 # Streaming
 print("  📡 Loading SSE Client...")
-AlpacaSSEClient = safe_import('SSEClient', 'alpaca_sse_client', 'AlpacaSSEClient')
+AlpacaSSEClient = safe_import_fallback('SSEClient',
+    ('aureon.exchanges.alpaca_sse_client', 'AlpacaSSEClient'),
+    ('alpaca_sse_client', 'AlpacaSSEClient'))
 
 working = sum(1 for v in SYSTEMS_STATUS.values() if v)
 total = len(SYSTEMS_STATUS)
@@ -229,11 +274,14 @@ class OrcaCommandCenter:
                 logger.info("✅ Alpaca connected")
         except Exception as e:
             logger.warning(f"⚠️  Alpaca: {e}")
-        
+
         try:
             if KrakenClient:
-                from aureon.exchanges.kraken_client import get_kraken_client
-                self.kraken = get_kraken_client()
+                try:
+                    from aureon.exchanges.kraken_client import get_kraken_client
+                    self.kraken = get_kraken_client()
+                except ImportError:
+                    self.kraken = KrakenClient()
                 logger.info("✅ Kraken connected")
         except Exception as e:
             logger.warning(f"⚠️  Kraken: {e}")
@@ -440,14 +488,12 @@ class OrcaCommandCenter:
         """Return predator detection status."""
         if not self.predator_detector:
             return web.json_response({'error': 'Predator detection not available'})
-        
+
         report = self.predator_detector.generate_hunting_report()
-        # Get top predator from the list (top_predators is a list of PredatorProfile)
         top_predator_name = 'None'
         if report.top_predators:
-            p = report.top_predators[0]
-            top_predator_name = p.firm_name if hasattr(p, 'firm_name') else str(p)
-        
+            top_predator_name = report.top_predators[0].firm_id
+
         return web.json_response({
             'threat_level': report.threat_level,
             'front_run_rate': report.front_run_rate,
@@ -456,33 +502,35 @@ class OrcaCommandCenter:
             'recommendations': report.recommendations,
             'alerts': list(self.predator_alerts)
         })
+
+    def _apply_stealth_mode(self, mode: str):
+        """Set stealth mode on the executor config.
+
+        orca_stealth_execution.OrcaStealthExecution exposes a StealthConfig
+        dataclass but no set_paranoid_mode()/set_aggressive_mode() helpers —
+        mutate the config directly (monitor-side; no orders are submitted here).
+        """
+        if not self.stealth_executor:
+            return
+        cfg = self.stealth_executor.config
+        cfg.stealth_mode = mode
+        if mode == 'paranoid':
+            cfg.min_delay_ms, cfg.max_delay_ms, cfg.split_threshold_usd = 200, 1500, 15.0
+        elif mode == 'aggressive':
+            cfg.min_delay_ms, cfg.max_delay_ms, cfg.split_threshold_usd = 100, 800, 25.0
+        else:  # normal
+            cfg.min_delay_ms, cfg.max_delay_ms, cfg.split_threshold_usd = 50, 500, 50.0
+        self.stats.stealth_mode = mode
     
     async def _handle_api_stealth(self, request):
         """Set stealth mode."""
         if not self.stealth_executor:
             return web.json_response({'error': 'Stealth execution not available'})
-        
+
         data = await request.json()
         mode = data.get('mode', 'normal')
-        
-        # Update the config directly (stealth_mode is in config)
-        self.stealth_executor.config.stealth_mode = mode
-        
-        # Adjust settings based on mode
-        if mode == 'normal':
-            self.stealth_executor.config.min_delay_ms = 50
-            self.stealth_executor.config.max_delay_ms = 500
-            self.stealth_executor.config.split_threshold_usd = 50.0
-        elif mode == 'aggressive':
-            self.stealth_executor.config.min_delay_ms = 100
-            self.stealth_executor.config.max_delay_ms = 800
-            self.stealth_executor.config.split_threshold_usd = 25.0
-        elif mode == 'paranoid':
-            self.stealth_executor.config.min_delay_ms = 200
-            self.stealth_executor.config.max_delay_ms = 1500
-            self.stealth_executor.config.split_threshold_usd = 15.0
-        
-        self.stats.stealth_mode = mode
+
+        self._apply_stealth_mode(mode)
         return web.json_response({'mode': mode, 'status': 'ok'})
     
     # ═══════════════════════════════════════════════════════════════════════════
@@ -507,29 +555,34 @@ class OrcaCommandCenter:
     
     async def _update_loop(self):
         """Main update loop - refreshes data and broadcasts."""
+        threat_display = {
+            'green': '🟢 LOW',
+            'yellow': '🟡 GUARDED',
+            'orange': '🟠 HIGH',
+            'red': '🔴 CRITICAL',
+        }
         while True:
             try:
                 # Update positions from exchanges
                 await self._refresh_positions()
-                
+
                 # Update stats
                 self._calculate_stats()
-                
+
                 # Check predator detection
                 if self.predator_detector:
                     report = self.predator_detector.generate_hunting_report()
-                    self.stats.threat_level = report.threat_level
+                    # report.threat_level is a plain word ('green'..'red'), not emoji-laden
+                    self.stats.threat_level = threat_display.get(report.threat_level, f'🟢 {report.threat_level.upper()}')
                     self.stats.front_run_detections = int(report.front_run_rate * 100)
-                    
-                    # Auto-escalate stealth if needed
+
+                    # Auto-escalate stealth if needed (config-only; no orders here)
                     if self.stealth_executor:
-                        if '🔴' in report.threat_level:
-                            self.stealth_executor.set_paranoid_mode()
-                            self.stats.stealth_mode = 'paranoid'
-                        elif '🟠' in report.threat_level:
-                            self.stealth_executor.set_aggressive_mode()
-                            self.stats.stealth_mode = 'aggressive'
-                
+                        if report.threat_level == 'red':
+                            self._apply_stealth_mode('paranoid')
+                        elif report.threat_level == 'orange':
+                            self._apply_stealth_mode('aggressive')
+
                 # Broadcast update
                 await self.broadcast({
                     'type': 'update',
@@ -538,18 +591,21 @@ class OrcaCommandCenter:
                     'stats': asdict(self.stats),
                     'events': list(self.event_log)[-10:]
                 })
-                
+
             except Exception as e:
                 logger.error(f"Update error: {e}")
-            
+
             await asyncio.sleep(1)  # 1-second updates
-    
+
     async def _refresh_positions(self):
         """Refresh positions from exchanges."""
-        # Alpaca positions
+        # Alpaca positions (upstream client returns a list of plain dicts)
         if self.alpaca:
             try:
-                alpaca_positions = self.alpaca.get_all_positions()
+                get_positions = getattr(self.alpaca, 'get_positions', None) or getattr(self.alpaca, 'get_all_positions', None)
+                if not get_positions:
+                    raise AttributeError("Alpaca client has no positions method")
+                alpaca_positions = get_positions()
                 for pos in alpaca_positions:
                     symbol = pos.get('symbol', '')
                     if symbol:
@@ -566,11 +622,14 @@ class OrcaCommandCenter:
                         )
             except Exception as e:
                 logger.debug(f"Alpaca refresh: {e}")
-        
-        # Kraken positions (if available)
+
+        # Kraken positions (upstream client does not expose get_open_positions)
         if self.kraken:
             try:
-                kraken_positions = self.kraken.get_open_positions()
+                get_open = getattr(self.kraken, 'get_open_positions', None)
+                if not get_open:
+                    raise AttributeError("Kraken client has no get_open_positions method")
+                kraken_positions = get_open()
                 for pos_id, pos in kraken_positions.items():
                     symbol = pos.get('pair', '')
                     if symbol:
@@ -585,9 +644,11 @@ class OrcaCommandCenter:
                             unrealized_pnl=float(pos.get('net', 0)),
                             status='hunting'
                         )
+            except AttributeError as e:
+                logger.debug(f"Kraken refresh unsupported: {e}")
             except Exception as e:
                 logger.debug(f"Kraken refresh: {e}")
-        
+
         self.stats.active_positions = len(self.positions)
     
     def _calculate_stats(self):
@@ -633,7 +694,9 @@ class OrcaCommandCenter:
         # Start web server
         runner = web.AppRunner(self.app)
         await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', self.port)
+        # Local-only bind: this dashboard is for the organism/operator on this
+        # machine; never expose it on the network interface.
+        site = web.TCPSite(runner, '127.0.0.1', self.port)
         await site.start()
         
         print(f"""

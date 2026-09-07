@@ -43,7 +43,17 @@ from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 
 # Windows UTF-8 fix
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # aureon.utils.console_utf8 not present in this environment
+    def ensure_utf8_stdout():
+        import sys as _sys
+        if _sys.platform == "win32":
+            for _s in (_sys.stdout, _sys.stderr):
+                try:
+                    _s.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
 
 ensure_utf8_stdout()
 

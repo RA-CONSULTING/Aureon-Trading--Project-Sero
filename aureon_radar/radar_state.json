@@ -1,8 +1,40 @@
 {
   "state": "ARMED",
-  "timestamp": "2026-09-03T18:19:55.622894+00:00",
-  "psk": "REDACTED_USE_CLOUD_SECRET",
+  "timestamp": "2026-09-07T15:17:22.859089+00:00",
+  "psk": "PSK-b04fc8900c712ee4-812.83Hz-00P",
   "phi": 1.618033988749895,
   "live_trades_today": 0,
-  "profit_today": 0.0
+  "profit_today": 0.0,
+  "live_trades_date": "2026-09-07",
+  "honey_pot": null,
+  "live_positions": [
+    {
+      "deal_id": "006d8387-0001-54c4-0000-000082ae00a1",
+      "symbol": "NATURALGAS",
+      "sector": "commodity",
+      "direction": "LONG",
+      "entry_price": 3033.8,
+      "target_price": 4550.700000000001,
+      "size": 0.24,
+      "source": "broker_reconciled",
+      "opened_at": 1788794242.8590899,
+      "max_hold_seconds": 600,
+      "audit_id": null,
+      "venue": "capital"
+    },
+    {
+      "deal_id": "006d8387-0001-54c4-0000-000082ae00a3",
+      "symbol": "NATURALGAS",
+      "sector": "commodity",
+      "direction": "LONG",
+      "entry_price": 3033.8,
+      "target_price": 4550.700000000001,
+      "size": 0.14,
+      "source": "broker_reconciled",
+      "opened_at": 1788794242.8590899,
+      "max_hold_seconds": 600,
+      "audit_id": null,
+      "venue": "capital"
+    }
+  ]
 }

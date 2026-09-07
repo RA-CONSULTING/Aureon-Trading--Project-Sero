@@ -360,7 +360,9 @@ class OrcaStealthExecution:
                 # Note: In real implementation, you'd need to handle the alternative
                 # For now, we just warn and continue
         
-        # Calculate chunks if splitting
+        # Calculate chunks if splitting. price is only used for chunking math;
+        # actual orders use quantity, so a placeholder of 1.0 when price is
+        # unknown does not fabricate execution prices.
         chunks = self._calculate_chunks(quantity, value_usd, price or 1.0)
         
         # Pre-execution random delay
@@ -551,29 +553,29 @@ class MockClient:
 
 
 def test_stealth_execution():
-    """Test the stealth execution system."""
-    print("\n🧪 TESTING STEALTH EXECUTION SYSTEM\n")
+    """Test the stealth execution system with SIMULATED prices and MockClient."""
+    print("\n🧪 TESTING STEALTH EXECUTION SYSTEM (SIMULATED — NOT LIVE)\n")
     
     # Test normal mode
     print("=" * 50)
-    print("TEST 1: Normal Mode - Small Order")
+    print("TEST 1: Normal Mode - Small Order (SIMULATED)")
     print("=" * 50)
     stealth = OrcaStealthExecution(get_stealth_config("normal"))
-    client = MockClient()
+    client = MockClient()  # SIMULATED exchange client
     
     result = stealth.execute_stealth_order(
         client=client,
         symbol="BTC/USD",
         side="buy",
         quantity=0.001,
-        price=50000,
+        price=50000,  # SIMULATED demo price
         value_usd=50
     )
     print(f"Result: {result}\n")
     
     # Test aggressive mode with large order
     print("=" * 50)
-    print("TEST 2: Aggressive Mode - Large Order (should split)")
+    print("TEST 2: Aggressive Mode - Large Order (should split) (SIMULATED)")
     print("=" * 50)
     stealth_agg = OrcaStealthExecution(get_stealth_config("aggressive"))
     
@@ -582,14 +584,14 @@ def test_stealth_execution():
         symbol="ETH/USD",
         side="buy",
         quantity=1.0,
-        price=3000,
+        price=3000,  # SIMULATED demo price
         value_usd=3000
     )
     print(f"Result: {result}\n")
     
     # Test hunted symbol rotation
     print("=" * 50)
-    print("TEST 3: Symbol Rotation (mark symbol as hunted)")
+    print("TEST 3: Symbol Rotation (mark symbol as hunted) (SIMULATED)")
     print("=" * 50)
     stealth.mark_symbol_hunted("BTC/USD", firm="citadel", front_run_count=5)
     
@@ -598,7 +600,7 @@ def test_stealth_execution():
         symbol="BTC/USD",  # Should suggest rotation
         side="buy",
         quantity=0.001,
-        price=50000
+        price=50000  # SIMULATED demo price
     )
     print(f"Result: {result}\n")
     

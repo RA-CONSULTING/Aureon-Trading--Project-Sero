@@ -138,6 +138,11 @@ _NEVER_CALL = frozenset({
     'execute', 'fire', 'go', 'begin', 'boot', 'start_all', 'monitor',
     'watch', 'poll', 'spin', 'work', 'process',
     'ensure_sonar',  # per-call WhaleSonar thread spawn (thread-spam leak)
+    # ORCA live monitor: must never be probed as a signal extractor;
+    # calling any of these with (symbol, price) starts a position loop
+    # or submits orders inside the hub process.
+    'monitor_and_trade', 'run_all_test_orders', 'run_test_order',
+    'run_balance_price_check', 'submit_exit_order', 'get_all_positions',
 })
 
 _INIT_RISK_TOKENS = ('place_order', 'create_order', 'execute_order',

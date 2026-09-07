@@ -8152,7 +8152,11 @@ class OrcaKillCycle:
         
         #   Get LIVE prices from APIs (cached for this call)
         live_prices = self._get_live_crypto_prices()
-        gbp_usd_rate = live_prices.get('GBPUSD', 1.27)  # Live or fallback
+        if 'GBPUSD' in live_prices and live_prices['GBPUSD'] > 0:
+            gbp_usd_rate = live_prices['GBPUSD']
+        else:
+            gbp_usd_rate = 1.27  # Stale fallback for display only
+            logger.warning("get_available_cash: GBPUSD live price unavailable; using stale 1.27 fallback for display only")
         
         if 'alpaca' in self.clients:
             try:
@@ -8373,20 +8377,15 @@ class OrcaKillCycle:
         if 'kraken' in self.clients:
             try:
                 balances = self.clients['kraken'].get_balance()
-                # Get prices from cache first, then fallbacks
+                # Get prices from cache only — no hardcoded fallbacks.
+                # Stale/fake prices must not inflate the portfolio display.
                 crypto_prices = {}
                 for asset in ['ETH', 'XETH', 'SOL', 'TRX', 'ADA', 'DOT', 'ATOM', 'BTC', 'XXBT', 'SEI']:
                     cached_price = get_cached_price(asset, max_age=120.0) if UNIFIED_CACHE_AVAILABLE else None
                     if cached_price and cached_price > 0:
                         crypto_prices[asset] = cached_price
-                # Fallbacks for anything not in cache
-                fallback_prices = {
-                    'ETH': 3300.0, 'XETH': 3300.0, 'SOL': 250.0, 'TRX': 0.25,
-                    'ADA': 1.0, 'DOT': 7.0, 'ATOM': 10.0, 'BTC': 105000.0, 'XXBT': 105000.0, 'SEI': 0.30
-                }
-                for k, v in fallback_prices.items():
-                    if k not in crypto_prices:
-                        crypto_prices[k] = v
+                if not crypto_prices:
+                    logger.warning("get_all_positions(kraken): no cached crypto prices available; skipping balance valuation rather than using fabricated fallbacks")
                 
                 for asset, amount in balances.items():
                     amount = float(amount)
@@ -8411,7 +8410,7 @@ class OrcaKillCycle:
         if 'binance' in self.clients:
             try:
                 balances = self.clients['binance'].get_balance()
-                # Get prices from cache first, then fallbacks
+                # Get prices from cache only — no hardcoded fallbacks.
                 crypto_prices = {}
                 # Extended list to include ALL Binance assets you hold
                 binance_assets = [
@@ -8424,19 +8423,8 @@ class OrcaKillCycle:
                     cached_price = get_cached_price(asset, max_age=120.0) if UNIFIED_CACHE_AVAILABLE else None
                     if cached_price and cached_price > 0:
                         crypto_prices[asset] = cached_price
-                # Fallbacks - expanded with YOUR actual holdings
-                fallback_prices = {
-                    'ETH': 3300.0, 'SOL': 250.0, 'BTC': 105000.0, 'BNB': 700.0,
-                    'TRX': 0.25, 'ADA': 1.0, 'DOT': 7.0, 'AVAX': 40.0, 'LINK': 25.0,
-                    'SENT': 0.027, 'KAIA': 0.085, 'ENSO': 0.89, 'LPT': 3.60,
-                    'AVNT': 0.39, 'AXS': 4.50, 'BEAMX': 0.01, 'BREV': 0.005,
-                    'NOM': 0.008, 'PENGU': 0.011, 'RESOLV': 0.127, 'ROSE': 0.04,
-                    'SHELL': 0.066, 'SOMI': 0.24, 'SSV': 8.0, 'STO': 0.003,
-                    'TURTLE': 0.082, 'USDC': 1.0, 'ZEC': 50.0, 'ZRO': 2.31
-                }
-                for k, v in fallback_prices.items():
-                    if k not in crypto_prices:
-                        crypto_prices[k] = v
+                if not crypto_prices:
+                    logger.warning("get_all_positions(binance): no cached crypto prices available; skipping balance valuation rather than using fabricated fallbacks")
                 
                 for asset, amount in balances.items():
                     amount = float(amount or 0)
@@ -12888,16 +12876,20 @@ class OrcaKillCycle:
         except Exception:
             pass
             
-        # Fallbacks to ensure non-zero
-        if price == 0: price = 50000.0 # Default fallback
-        if volume == 0: volume = 1000000.0
+        # Honesty rule: never fabricate price/volume. If real data is missing,
+        # return zeros with real=False so callers can refuse to trade.
+        if price == 0:
+            logger.warning(f"_get_real_market_data({symbol}): price unavailable — returning 0 (no fabricated 50000 fallback)")
+        if volume == 0:
+            logger.warning(f"_get_real_market_data({symbol}): volume unavailable — returning 0 (no fabricated 1M fallback)")
         
         return {
             'symbol': symbol,
             'price': price,
             'change_pct': change_pct, # Now returning 1-hour change
             'volume': volume,
-            'momentum': momentum
+            'momentum': momentum,
+            'real': price > 0 and volume > 0
         }
     
     def hunt_and_kill(self, symbol: str, amount_usd: float, target_pct: float = 1.0,
@@ -12935,7 +12927,8 @@ class OrcaKillCycle:
                     continue
             
             if not exchange:
-                exchange = 'binance'  # Default fallback
+                exchange = 'binance'  # Venue fallback of last resort
+                logger.warning(f"hunt_and_kill({symbol}): no exchange reported a live ticker; falling back to 'binance' venue default")
         
         #                                                                    
         #   STEP 0: QUEEN VALIDATION - 100% ACCURACY CHECK
@@ -18883,9 +18876,10 @@ class OrcaKillCycle:
         except Exception as e:
             print(f"  Queen initialization failed: {e}")
             print("   War Room autonomous mode requires the Queen. Falling back to legacy autonomous mode.")
-            # Fallback to legacy autonomous mode with fixed amount_per_position
+            # Fallback to legacy autonomous mode — refuse fabricated sizing.
             if amount_per_position is None:
-                amount_per_position = 2.5
+                logger.warning("run_war_room_autonomous: Queen unavailable and amount_per_position not set; refusing to fabricate $2.5 default")
+                amount_per_position = 0.0
             return self.run_autonomous(max_positions, amount_per_position, target_pct, min_change_pct)
 
         # 2. Position sizing based on risk
@@ -18894,7 +18888,8 @@ class OrcaKillCycle:
             if hasattr(self, 'initial_capital') and self.initial_capital:
                 capital = self.initial_capital
             else:
-                capital = 1000  # Default fallback
+                logger.warning("run_war_room_autonomous: initial_capital not set; refusing to fabricate $1000 default capital")
+                capital = 0.0
             amount_per_position = capital * (risk_per_trade_pct / 100.0)  # Risk % of capital per trade
         else:
             # Use provided amount

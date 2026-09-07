@@ -20,6 +20,11 @@ Owner decree (absolute):
   • Risk grading routes through the upstream goal-capability map
     (aureon.autonomous.aureon_goal_capability_map.recommend_goal_routes)
     — descriptive only; it grades risk, it gates nothing.
+  • A goal refused for a persistent cause (held_incoherent / deferred)
+    RESTS for a TTL before being re-asked — the will rotates to other
+    internal candidates instead of re-proposing the same refused goal
+    every cycle. The gates are never weakened; only the re-asking rests.
+    A conscience VETO remains permanent, exactly as in learning_will.
   • Native reasoning only — NO external LLM calls. Silence is valid: if
     the organism seeks no goal, no goal is proposed.
 
@@ -53,11 +58,24 @@ MIN_DESIRE = 0.25                   # below this the organism is not asking
 GOALS_DIR = FUSION_STATE / "goals"
 JOURNAL_FILE = GOALS_DIR / "journal.jsonl"
 VETOED_FILE = GOALS_DIR / "vetoed_goals.json"
+REFUSED_FILE = GOALS_DIR / "refused_goals.json"
 BUILD_LOG = FUSION_STATE / "build_goals_will.log"
 HNC_STATE_FILE = FUSION_STATE / "hnc_core_state.json"
 AUTH_GATE = "system:activate_internal_door"
 JOURNAL_ROTATE_BYTES = 10 * 1024 * 1024
 _VETOED_CAP = 400
+# Refusal rest-memory (same doctrine as learning_will): a non-veto refusal
+# (held_incoherent / deferred) whose cause persists would otherwise be
+# re-proposed verbatim every cycle — the gates pass-or-hold the same way
+# forever and the will treadmills instead of rotating. Refused goal keys
+# rest for a TTL, then become askable again. The gates are untouched —
+# suppression only stops RE-ASKING; it never answers on the gate's behalf.
+# held_incoherent is environmental (HNC state) and usually transient, so it
+# rests briefly; deferred (authorization) rests longer. Only real (non-dry)
+# internal considerations record memory — a dry run touched nothing.
+_REFUSED_CAP = 400
+_REFUSED_TTL_S = 6 * 3600        # deferred — rest half a day, re-ask later
+_HELD_TTL_S = 30 * 60            # held_incoherent — retry soon after coherence
 
 # Goal-subsystem state files. The engine state has one contract-anchored
 # home (aureon_fusion/state/goals/) plus the upstream anchor convention
@@ -460,6 +478,64 @@ def _record_veto(goal_text: str) -> None:
         pass
 
 
+# ───────────────────── refusal rest-memory (time-bound) ────────────────────
+
+def _load_refused() -> dict:
+    """goal_key -> refuse-expiry (epoch s). Missing/corrupt -> {} (nothing
+    suppressed — the gates still answer every real proposal)."""
+    try:
+        data = json.loads(REFUSED_FILE.read_text(encoding="utf-8"))
+        out = {}
+        for k, ts in (data.get("refused") or {}).items():
+            try:
+                out[str(k)] = float(ts)
+            except (TypeError, ValueError):
+                continue
+        return out
+    except Exception:
+        return {}
+
+
+def _is_refused(goal_text: str, now: float | None = None) -> bool:
+    try:
+        now = now if now is not None else time.time()
+        expiry = _load_refused().get(_goal_key(goal_text))
+        return expiry is not None and now < expiry
+    except Exception:
+        return False  # fail-closed: any doubt means nothing is suppressed
+
+
+def _record_refusal(goal_text: str, ttl_s: float,
+                    now: float | None = None) -> None:
+    """Persist a non-veto refusal so the will rests the goal until
+    now+ttl_s. Fail-closed: any error means nothing is suppressed."""
+    try:
+        now = now if now is not None else time.time()
+        refused = _load_refused()
+        refused[_goal_key(goal_text)] = now + float(ttl_s)
+        if len(refused) > _REFUSED_CAP:
+            oldest = sorted(refused.items(), key=lambda kv: kv[1])[
+                len(refused) - _REFUSED_CAP:]
+            for k, _ in oldest:
+                refused.pop(k, None)
+        GOALS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = REFUSED_FILE.with_name(
+            f"{REFUSED_FILE.name}.tmp.{os.getpid()}.{time.time_ns()}")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"refused": refused, "updated_at": _utc_now()},
+                          f, indent=2, ensure_ascii=False)
+            os.replace(tmp, REFUSED_FILE)
+        finally:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
 # ───────────────────────── (A) GoalAspiration — internal candidates ───────
 
 class GoalAspiration:
@@ -472,9 +548,13 @@ class GoalAspiration:
         out.extend(self._from_proof_chain_gap())
         out.extend(self._from_capability_openings())
         out.extend(self._from_wheel_state())
+        # Conscience VETO is permanent; a TTL-bound refusal is temporary rest
+        # (see REFUSED_FILE above) — both rotate the will to new ground
+        # instead of re-asking the same refused goal every cycle.
         return [c for c in out
                 if c.get("desire_score", 0) >= MIN_DESIRE
-                and not _is_vetoed(c["goal_text"])]
+                and not _is_vetoed(c["goal_text"])
+                and not _is_refused(c["goal_text"])]
 
     def _from_proof_chain_gap(self) -> list:
         """A missing or thin margin proof chain is an internal gap the
@@ -584,6 +664,12 @@ class GoalsWill:
                 "gate": AUTH_GATE,
                 "matrix_row_present": self._auth_row_present(),
             },
+            "refused_memory": {
+                "file": str(REFUSED_FILE),
+                "resting": len(_load_refused()),
+                "held_ttl_s": _HELD_TTL_S,
+                "deferred_ttl_s": _REFUSED_TTL_S,
+            },
             "last_consideration": last,
             "journal": {
                 "file": str(JOURNAL_FILE),
@@ -652,6 +738,12 @@ class GoalsWill:
             result["reason"] = coherence.get("detail",
                                               "coherence gate failed")
             result["outcome"] = "held_incoherent"
+            if source == "organism_internal" and \
+                    not getattr(self, "_dry", False):
+                # Rest this goal briefly — the refusal is environmental
+                # (HNC state) and transient; re-ask once coherence has had
+                # time to return, not every 2-minute cycle.
+                _record_refusal(goal_text, _HELD_TTL_S)
             self._maybe_journal({"ts": result["ts"], "verb": "propose",
                       "goal": goal_text[:300], "source": source,
                       "gates": result["gates"], "risk": result["risk"],
@@ -665,6 +757,12 @@ class GoalsWill:
         if not auth.get("passed"):
             result["reason"] = auth.get("detail", "authorization failed")
             result["outcome"] = "deferred"
+            if source == "organism_internal" and \
+                    not getattr(self, "_dry", False):
+                # Rest this goal for the long TTL — authorization state
+                # changes on owner/matrix timescales, not cycle timescales;
+                # re-ask later instead of every cycle.
+                _record_refusal(goal_text, _REFUSED_TTL_S)
             self._maybe_journal({"ts": result["ts"], "verb": "propose",
                       "goal": goal_text[:300], "source": source,
                       "gates": result["gates"], "risk": result["risk"],

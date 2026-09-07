@@ -90,7 +90,19 @@ class WhaleOrderbookAnalyzer:
         self.thought_bus = get_thought_bus()
         self.fee_tracker = fee_tracker
         self.poll_interval = float(poll_interval)
-        self.poll_symbols = poll_symbols or []
+        # Bug-hunt 2026-09-07: callers have passed a bare symbol string or a
+        # float here (hub probe called the class with (symbol, price)); a
+        # float dies in `for s in self.poll_symbols` as 'float' object is not
+        # iterable. Normalize to a list of str, fail-closed.
+        if poll_symbols is None:
+            self.poll_symbols = []
+        elif isinstance(poll_symbols, str):
+            self.poll_symbols = [poll_symbols]
+        elif isinstance(poll_symbols, (list, tuple, set)):
+            self.poll_symbols = [str(s) for s in poll_symbols]
+        else:
+            logger.warning(f"poll_symbols has unexpected type {type(poll_symbols).__name__}; ignoring")
+            self.poll_symbols = []
         self.wall_threshold_usd = float(wall_threshold_usd)
 
         self._stop = threading.Event()

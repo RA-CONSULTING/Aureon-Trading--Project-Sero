@@ -913,6 +913,14 @@ def run() -> dict:
                           "started_at": results.get("started_at"),
                           "finished_at": results.get("finished_at")},
                          priority=5)
+
+    # Flight-recorder pass: every heartbeat also certifies faculty freshness.
+    try:
+        from . import flight_recorder
+        flight_recorder.record_cycle(silent=True)
+    except Exception as e:
+        print(f"  ! flight recorder pass failed: {e}")
+
     return results
 
 

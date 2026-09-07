@@ -20,6 +20,7 @@ import time
 import math
 import logging
 import importlib.util
+import inspect
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
@@ -251,6 +252,12 @@ class AureonModuleLoader:
         self.modules = {}
         self.scanner_instances = {}
         
+    # Hard deadline for the whole import phase. Tunable via env var so a
+    # resource-constrained host can be given more headroom without editing
+    # code; the default 180s safety bound is preserved.
+    _LOAD_DEADLINE_SEC = float(
+        os.environ.get("AUREON_HUB_LOAD_DEADLINE_SEC", 180))
+
     def load_all(self):
         """Load all modules with a hard deadline.
 
@@ -272,16 +279,25 @@ class AureonModuleLoader:
             finally:
                 done.set()
 
+        # Re-attach hub handlers before the loader thread starts: upstream
+        # modules reconfigure the root logger during import, so the load
+        # progress and final summary must be written to unified_hub.log.
+        _ensure_hub_logging()
         t = threading.Thread(target=_load, daemon=True, name="module-loader")
         t.start()
-        if not done.wait(timeout=180):
+        deadline = self._LOAD_DEADLINE_SEC
+        if not done.wait(timeout=deadline):
             logging.getLogger("AUREON_HUB").warning(
-                f"Module loading incomplete after 180s: {len(self.modules)} "
-                f"systems aboard; proceeding with the available hive")
+                f"Module loading incomplete after {deadline:.0f}s: "
+                f"{len(self.modules)} systems aboard; proceeding with the "
+                f"available hive")
         return self.modules
 
     def _load_all_inner(self):
         """Load all available scanner/analyzer modules."""
+        counts = {"harmonic": 0, "planetary": 0, "scanner": 0,
+                  "bot": 0, "analyzer": 0}
+
         # Load harmonic + planetary FIRST: the 180s deadline below used to
         # starve them every cycle (heavy scanner/bot imports consumed the
         # whole window, so harmonic:/planetary: always loaded zero modules).
@@ -289,66 +305,83 @@ class AureonModuleLoader:
             if f.name.startswith("__"):
                 continue
             try:
-                mod = self._load_module(f)
+                mod = self._load_module(f, category="harmonic")
                 self.modules[f"harmonic:{f.stem}"] = mod
+                counts["harmonic"] += 1
                 logger.info(f"Loaded harmonic: {f.stem}")
             except Exception as e:
-                logger.warning(f"Failed to load {f.stem}: {e}")
+                logger.warning(f"Failed to load harmonic:{f.stem}: {e}")
 
         for f in PLANETARY_DIR.glob("*.py"):
             if f.name.startswith("__"):
                 continue
             try:
-                mod = self._load_module(f)
+                mod = self._load_module(f, category="planetary")
                 self.modules[f"planetary:{f.stem}"] = mod
+                counts["planetary"] += 1
                 logger.info(f"Loaded planetary: {f.stem}")
             except Exception as e:
-                logger.warning(f"Failed to load {f.stem}: {e}")
+                logger.warning(f"Failed to load planetary:{f.stem}: {e}")
 
         # Load scanners
         for f in SCANNERS_DIR.glob("*.py"):
             if f.name.startswith("__"):
                 continue
             try:
-                mod = self._load_module(f)
+                mod = self._load_module(f, category="scanner")
                 self.modules[f"scanner:{f.stem}"] = mod
+                counts["scanner"] += 1
                 logger.info(f"Loaded scanner: {f.stem}")
             except Exception as e:
-                logger.warning(f"Failed to load {f.stem}: {e}")
-        
+                logger.warning(f"Failed to load scanner:{f.stem}: {e}")
+
         # Load bots (executors/traders) — BOTS_DIR was defined but never
         # globbed, leaving ~32 systems permanently off the hive.
+        # Skip the ORCA live monitor: it is a position-monitoring child
+        # process, not a signal source, and probing it submits real orders.
+        _SKIP_BOTS = {"orca_live_monitor"}
         for f in BOTS_DIR.glob("*.py"):
-            if f.name.startswith("__"):
+            if f.name.startswith("__") or f.stem in _SKIP_BOTS:
                 continue
             try:
-                mod = self._load_module(f)
+                mod = self._load_module(f, category="bot")
                 self.modules[f"bot:{f.stem}"] = mod
+                counts["bot"] += 1
                 logger.info(f"Loaded bot: {f.stem}")
             except Exception as e:
-                logger.warning(f"Failed to load {f.stem}: {e}")
+                logger.warning(f"Failed to load bot:{f.stem}: {e}")
 
         # Load analyzers
         for f in ANALYZERS_DIR.glob("*.py"):
             if f.name.startswith("__"):
                 continue
             try:
-                mod = self._load_module(f)
+                mod = self._load_module(f, category="analyzer")
                 self.modules[f"analyzer:{f.stem}"] = mod
+                counts["analyzer"] += 1
                 logger.info(f"Loaded analyzer: {f.stem}")
             except Exception as e:
-                logger.warning(f"Failed to load {f.stem}: {e}")
-        
+                logger.warning(f"Failed to load analyzer:{f.stem}: {e}")
+
         # Harmonic + planetary are loaded FIRST in this method (deadline-starve
         # fix) — the old tail loops were removed.
 
-        logger.info(f"Total modules loaded: {len(self.modules)}")
+        # Re-attach hub handlers one last time before the summary: the last
+        # analyzer imports may have wiped the root logger again.
+        _ensure_hub_logging()
+        summary = " | ".join(
+            f"{k}:{v}" for k, v in counts.items())
+        logger.info(f"Total modules loaded: {len(self.modules)} ({summary})")
         return self.modules
     
-    def _load_module(self, path: Path):
-        spec = importlib.util.spec_from_file_location(path.stem, path)
+    def _load_module(self, path: Path, category: str = "aureon_radar"):
+        # Use a unique sys.modules key so duplicate stems across categories
+        # (e.g. harmonic/aureon_market_energy_field.py and
+        # planetary/aureon_market_energy_field.py) do not overwrite each other.
+        unique_name = f"aureon_radar.{category}.{path.stem}"
+        spec = importlib.util.spec_from_file_location(unique_name, path)
         mod = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = mod
+        sys.modules[unique_name] = mod
         spec.loader.exec_module(mod)
         return mod
 
@@ -376,11 +409,11 @@ class SignalFusionEngine:
     def __init__(self, modules: Dict):
         self.modules = modules
         self.weights = {
-            "scanner": 0.24,
-            "analyzer": 0.20,
-            "harmonic": 0.20,
-            "planetary": 0.16,
-            "bot": 0.20
+            "scanner": 0.50,
+            "analyzer": 0.15,
+            "harmonic": 0.15,
+            "planetary": 0.10,
+            "bot": 0.10
         }
         self.history = []
         # Modules that exceeded the extraction deadline once are parked from
@@ -402,6 +435,11 @@ class SignalFusionEngine:
         'execute', 'fire', 'go', 'begin', 'boot', 'start_all', 'monitor',
         'watch', 'poll', 'spin', 'work', 'process',
         'ensure_sonar',  # per-call WhaleSonar thread spawn (thread-spam leak)
+        # ORCA live monitor: must never be probed as a signal extractor;
+        # calling any of these with (symbol, price) starts a position loop
+        # or submits orders inside the hub process.
+        'monitor_and_trade', 'run_all_test_orders', 'run_test_order',
+        'run_balance_price_check', 'submit_exit_order', 'get_all_positions',
     })
         
     def scan_all(self, symbol: str, price: float) -> UnifiedSignal:
@@ -439,7 +477,10 @@ class SignalFusionEngine:
         planetary_scores = [v for k, v in sources.items() if k.startswith("planetary:")]
         bot_scores = [v for k, v in sources.items() if k.startswith("bot:")]
 
-        avg_scanner = sum(scanner_scores) / len(scanner_scores) if scanner_scores else 0
+        # Owner decree 2026-09-07: use the strongest scanner signal rather than
+        # the average, so a high-confidence volatility target is not diluted by
+        # other scanners that have no view on the same symbol.
+        avg_scanner = max(scanner_scores, key=abs) if scanner_scores else 0
         avg_analyzer = sum(analyzer_scores) / len(analyzer_scores) if analyzer_scores else 0
         avg_harmonic = sum(harmonic_scores) / len(harmonic_scores) if harmonic_scores else 0
         avg_planetary = sum(planetary_scores) / len(planetary_scores) if planetary_scores else 0
@@ -518,6 +559,12 @@ class SignalFusionEngine:
                 method = getattr(mod, method_name)
                 try:
                     result = method(symbol, price)
+                    # Bug-hunt 2026-09-07: some modules expose async scan()
+                    # coroutines. Calling them without awaiting triggers a
+                    # RuntimeWarning and leaves the coroutine unawaited.
+                    if inspect.iscoroutine(result):
+                        result.close()
+                        continue
                     score = self._coerce_score(result)
                     if score is not None:
                         return score
@@ -538,9 +585,20 @@ class SignalFusionEngine:
             if attr_name.startswith('_') or attr_name in self._NEVER_CALL:
                 continue
             attr = getattr(mod, attr_name)
+            # Bug-hunt 2026-09-07: skip CLASSES — calling a class with
+            # (symbol, price) constructs it with garbage args (e.g.
+            # WhaleOrderbookAnalyzer("BTCUSD", 80165.17) → poll_symbols=float
+            # → 'float' object is not iterable every cycle, plus a fresh
+            # exchange-client leak per cycle). Classes are probed separately,
+            # guarded, in _probe_module_classes.
+            if inspect.isclass(attr):
+                continue
             if callable(attr) and attr_name not in ['scan_all', 'load_all']:
                 try:
                     result = attr(symbol, price)
+                    if inspect.iscoroutine(result):
+                        result.close()
+                        continue
                     if isinstance(result, (int, float)) \
                             and not isinstance(result, bool):
                         return float(result)
@@ -775,7 +833,9 @@ class ShadowArm:
                                 logger.debug(
                                     f"shadow arm: {venue} {venue_symbol} gated "
                                     f"({verdict.get('reason')}) "
-                                    f"margin={verdict.get('margin_pct')}")
+                                    f"margin={verdict.get('margin_pct')} "
+                                    f"floor={verdict.get('capture_floor_pct')} "
+                                    f"{verdict.get('detail') or ''}")
                                 continue
                         except Exception as e:
                             logger.debug(
@@ -840,7 +900,7 @@ class UnifiedTradingHub:
         self.shadow = ShadowArm()
         # BTC/ETH added 2026-09-06: the shadow arm trades these on the
         # kraken/alpaca/binance venues; FX/metals remain for the Capital path.
-        self.symbols = ["BTCUSD", "ETHUSD", "USDJPY", "US100", "EURUSD", "GBPUSD", "GOLD", "SILVER", "OIL_CRUDE"]
+        self.symbols = ["BTCUSD", "ETHUSD", "USDJPY", "US100", "EURUSD", "GBPUSD", "GOLD", "SILVER", "OIL_CRUDE", "AAPL", "TSLA", "NVDA", "NATURALGAS"]
         self.running = False
         
     def initialize(self):
@@ -887,7 +947,7 @@ class UnifiedTradingHub:
             cycle_signals.append(signal)
 
             # Log the fused signal
-            if signal.confidence > 0.3:
+            if signal.confidence > 0.2:
                 logger.info(
                     f"🎯 FUSED SIGNAL: {signal.symbol} {signal.direction} "
                     f"confidence={signal.confidence:.2f} fusion={signal.fusion_score:.3f} "
@@ -915,7 +975,7 @@ class UnifiedTradingHub:
             logger.info(
                 f"FUSION SUMMARY: {parts} | best: {best.symbol} "
                 f"{best.direction} conf={best.confidence:.2f} "
-                f"(promote threshold conf>0.3)")
+                f"(promote threshold conf>0.2)")
 
         # Shadow arm upkeep: stops/TPs + MTM for open shadow positions.
         # Runs once per cycle regardless of which symbols scanned; inert
@@ -944,6 +1004,24 @@ class UnifiedTradingHub:
         log_file = RADAR_DIR / "fused_signals.jsonl"
         with open(log_file, 'a') as f:
             f.write(json.dumps(signal.to_dict()) + '\n')
+
+        # Emit a flight-recorder event on the organism's shared event spine.
+        try:
+            from aureon_fusion import events as _events
+            _events.emit_radar_signal(
+                source="unified_hub",
+                topic="radar.fused_signal",
+                symbol=signal.symbol,
+                score=signal.confidence,
+                extra={
+                    "direction": signal.direction,
+                    "fusion_score": float(signal.fusion_score),
+                    "signal_timestamp": signal.timestamp,
+                },
+                priority=5,
+            )
+        except Exception as e:
+            logger.debug(f"radar.fused_signal event emit failed: {e}")
     
     def run_continuous(self, interval: int = 60):
         """Run continuous scanning."""

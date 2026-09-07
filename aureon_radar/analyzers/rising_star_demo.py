@@ -217,8 +217,9 @@ def demo_30_second_window():
     print("     Faster kills = more trades = more compound growth")
 
 
+# ─── INTERACTIVE DEMO (SIMULATED PRICES — NO LIVE TRADING) ───────────────────
 if __name__ == "__main__":
-    print("\n🌟 RISING STAR LOGIC - Interactive Demo\n")
+    print("\n🌟 RISING STAR LOGIC - Interactive Demo (SIMULATED — NOT LIVE)\n")
     
     # Run all demos
     demo_accumulation_math()

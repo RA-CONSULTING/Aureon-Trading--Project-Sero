@@ -29,9 +29,17 @@ Gary Leckey | What a day for humanity! | January 2026
 """
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
-from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
-
-ensure_utf8_stdout()
+try:
+    from aureon.utils.console_utf8 import ensure_utf8_stdout  # noqa: E402
+except ImportError:  # aureon.utils.console_utf8 not present in this environment
+    def ensure_utf8_stdout():
+        import sys as _sys
+        if _sys.platform == "win32":
+            for _s in (_sys.stdout, _sys.stderr):
+                try:
+                    _s.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
 
 import time
 import json
@@ -52,11 +60,21 @@ from aureon.exchanges.alpaca_client import AlpacaClient
 
 # Import Orca components (if available)
 try:
-    from aureon.bots_intelligence.aureon_orca_intelligence import OrcaKillerWhale, OrcaOpportunity
+    from aureon.bots_intelligence.aureon_orca_intelligence import (
+        OrcaKillerWhaleIntelligence, OrcaOpportunity
+    )
     ORCA_AVAILABLE = True
 except ImportError:
-    ORCA_AVAILABLE = False
-    print("⚠️  Orca Intelligence not available - using simplified mode")
+    try:
+        from aureon.bots_intelligence.aureon_orca_intelligence import (
+            OrcaKillerWhale as OrcaKillerWhaleIntelligence, OrcaOpportunity
+        )
+        ORCA_AVAILABLE = True
+    except ImportError:
+        ORCA_AVAILABLE = False
+        print("⚠️  Orca Intelligence not available - using simplified mode")
+
+RADAR_ROOT = Path(__file__).resolve().parent.parent
 
 PHI = 1.618033988749895  # Golden Ratio
 
@@ -131,7 +149,7 @@ class OrcaQuantumLiveStream:
         self.orca = None
         if ORCA_AVAILABLE:
             try:
-                self.orca = OrcaKillerWhale()
+                self.orca = OrcaKillerWhaleIntelligence()
                 print("   ✅ Orca Intelligence active")
             except Exception as e:
                 print(f"   ⚠️  Orca Intelligence failed: {e}")
@@ -147,6 +165,8 @@ class OrcaQuantumLiveStream:
         # Stream state
         self.running = False
         self.prediction_count = 0
+        self.predictions_error: Optional[str] = None  # fail-closed: null predictions + error, never fabricated
+        self.price_errors = 0
         
     def get_all_balances(self) -> Dict[str, Dict[str, float]]:
         """Get ALL cash balances from ALL exchanges"""
@@ -218,17 +238,20 @@ class OrcaQuantumLiveStream:
             client = self.exchanges.get(exchange)
             if not client:
                 return None
-            
+
             ticker = client.get_ticker(symbol)
-            if ticker:
-                if isinstance(ticker, dict):
-                    # Try different price fields
-                    price = ticker.get('last') or ticker.get('c', [None])[0] if isinstance(ticker.get('c'), list) else ticker.get('c')
-                    if price:
-                        return float(price)
-        except Exception as e:
+            if ticker and isinstance(ticker, dict):
+                price = ticker.get('price') or ticker.get('last') or ticker.get('lastPrice')
+                c = ticker.get('c')
+                if price is None and isinstance(c, list) and c:
+                    price = c[0]
+                elif price is None and c is not None:
+                    price = c
+                if price:
+                    return float(price)
+        except Exception:
             pass
-        
+
         return None
     
     def update_position_prices(self):
@@ -302,11 +325,11 @@ class OrcaQuantumLiveStream:
         print("🦈🔮 ORCA QUANTUM LIVE STREAM ACTIVATED 🔮🦈")
         print("=" * 80)
         print()
-        print(f"Mode: {'🔶 DRY RUN' if self.dry_run else '🔴 LIVE TRADING'}")
+        print(f"Mode: {'🔶 DRY RUN' if self.dry_run else '🔴 LIVE-PRICED'} (SHADOW — this stream never submits orders)")
         print(f"Max Concurrent Positions: {self.max_positions}")
         print(f"Stream Duration: {duration_seconds}s ({duration_seconds/60:.1f} minutes)")
         print()
-        print("Strategy: USE ALL CASH across ENTIRE MARKET predictions!")
+        print("Strategy: Monitor opportunities with live venue prices only.")
         print("Quantum Validation: Queen + Dr. Auris across 4 spaces")
         print()
         
@@ -350,42 +373,47 @@ class OrcaQuantumLiveStream:
                 
                 # Check if we have room for more positions
                 if len(self.active_positions) < self.max_positions:
-                    
-                    # Get quantum predictions
-                    predictions = self.prob_matrix.get_batch_predictions(count=5)
-                    
+
+                    # Get quantum predictions — fail-closed: the probability
+                    # matrix raises when no receipted model is connected, so
+                    # we record null + error instead of fabricating signals.
+                    try:
+                        predictions = self.prob_matrix.get_batch_predictions(count=5)
+                    except Exception as e:
+                        if self.predictions_error is None:
+                            self.predictions_error = str(e)
+                            print(f"\n⚠️  PREDICTIONS UNAVAILABLE (fail-closed): {e}")
+                            print("   Stream continues in monitor mode — no synthetic signals.")
+                        predictions = []
+
                     # Filter high-confidence with good sacred alignment
                     good_preds = [
                         p for p in predictions
                         if p.confidence > 0.85 and p.sacred_alignment > 0.50
                     ]
-                    
+
                     self.prediction_count += len(good_preds)
-                    
+
                     # Try to open new positions
                     for pred in good_preds[:self.max_positions - len(self.active_positions)]:
-                        
+
                         # Cycle through exchanges
                         exchange = list(self.exchanges.keys())[len(self.active_positions) % len(self.exchanges)]
-                        
+
                         # Ask Queen permission
                         approved = await self.ask_queen_permission(pred, exchange)
-                        
+
                         if approved:
-                            # Get live price
+                            # Get live price — NO fabricated fallback: if the
+                            # venue can't quote, the opportunity is skipped and
+                            # counted, never filled with a made-up price.
                             live_price = self.get_live_price(pred.symbol, exchange)
-                            
+
                             if not live_price:
-                                # Use simulated price
-                                simulated = {
-                                    "BTC/USD": 104500.0,
-                                    "ETH/USD": 3280.0,
-                                    "SOL/USD": 238.0,
-                                    "LINK/USD": 22.5,
-                                    "MATIC/USD": 1.15
-                                }
-                                live_price = simulated.get(pred.symbol, 100.0)
-                            
+                                self.price_errors += 1
+                                print(f"   ⚠️  No live price for {pred.symbol} on {exchange} — skipping (no synthetic fill)")
+                                continue
+
                             # Calculate quantity
                             qty = position_size / live_price
                             
@@ -505,9 +533,11 @@ class OrcaQuantumLiveStream:
             print("The quantum prediction system is UNSTOPPABLE!")
             print()
         
-        # Save results
+        # Save results — shadow journal only. This module never submits
+        # orders; positions are virtual and recorded here for the battle-view.
         results = {
             "timestamp": datetime.now().isoformat(),
+            "mode": "shadow_monitor" if self.dry_run else "shadow_monitor",
             "duration_seconds": self.metrics.stream_uptime_seconds,
             "total_positions": self.metrics.total_positions,
             "deployed_usd": self.metrics.total_deployed_usd,
@@ -519,6 +549,9 @@ class OrcaQuantumLiveStream:
             "quantum_coherence": self.metrics.quantum_coherence,
             "sacred_geometry_score": self.metrics.sacred_geometry_score,
             "predictions_total": self.prediction_count,
+            "predictions": None if self.predictions_error else self.prediction_count,
+            "predictions_error": self.predictions_error,
+            "price_errors": self.price_errors,
             "closed_positions": [
                 {
                     "symbol": p.symbol,
@@ -532,33 +565,36 @@ class OrcaQuantumLiveStream:
                 for p in self.closed_positions
             ]
         }
-        
-        output_file = Path("orca_quantum_live_stream_results.json")
+
+        output_file = RADAR_ROOT / "orca_quantum_live_stream_results.json"
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
-        
+
         print(f"💾 Results saved to: {output_file}")
         print()
 
 async def main():
     import argparse
-    
+
+    ensure_utf8_stdout()
+
     parser = argparse.ArgumentParser(description="Orca Quantum Live Stream")
     parser.add_argument('--live', action='store_true', help='Enable LIVE trading')
     parser.add_argument('--duration', type=int, default=300, help='Stream duration in seconds (default: 300 = 5min)')
     parser.add_argument('--positions', type=int, default=10, help='Max concurrent positions (default: 10)')
     args = parser.parse_args()
-    
+
     dry_run = not args.live
-    
+
     if not dry_run:
-        print("⚠️  WARNING: LIVE TRADING MODE!")
-        print("   ALL available cash will be deployed!")
+        print("⚠️  WARNING: --live requested.")
+        print("   This module is a SHADOW MONITOR: it prices against live venues")
+        print("   and journals virtual positions, but NEVER submits orders.")
         response = input("   Type 'RACE TO BILLION' to confirm: ")
         if response != 'RACE TO BILLION':
             print("   Aborting.")
             return
-    
+
     orca = OrcaQuantumLiveStream(dry_run=dry_run, max_positions=args.positions)
     await orca.stream_live_trades(duration_seconds=args.duration)
 

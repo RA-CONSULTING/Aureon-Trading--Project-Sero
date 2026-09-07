@@ -27,7 +27,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 ALPACA_LIVE_BASE = "https://api.alpaca.markets"
 ALPACA_PAPER_BASE = "https://paper-api.alpaca.markets"
@@ -354,6 +354,30 @@ class AlpacaAdapter:
         return entry
 
     # ------------------------------------------------------------------
+    # Positions
+    # ------------------------------------------------------------------
+    def get_positions(self) -> List[Dict[str, Any]]:
+        """Return open positions."""
+        clients = self._live_clients()
+        if clients is not None:
+            positions = clients[0].get_all_positions()
+            return [
+                {
+                    "symbol": str(p.symbol),
+                    "qty": float(p.qty),
+                    "qty_available": float(getattr(p, "qty_available", p.qty) or p.qty),
+                    "avg_entry_price": float(p.avg_entry_price),
+                    "current_price": float(getattr(p, "current_price", 0.0) or 0.0),
+                    "market_value": float(getattr(p, "market_value", 0.0) or 0.0),
+                    "unrealized_pl": float(getattr(p, "unrealized_pl", 0.0) or 0.0),
+                    "unrealized_plpc": float(getattr(p, "unrealized_plpc", 0.0) or 0.0),
+                    "side": "long" if float(p.qty) > 0 else "short",
+                }
+                for p in positions
+            ]
+        return []
+
+    # ------------------------------------------------------------------
     # Account
     # ------------------------------------------------------------------
     def get_account(self) -> Dict[str, Any]:
@@ -368,6 +392,7 @@ class AlpacaAdapter:
                 "buying_power": float(acct.buying_power),
                 "cash": float(acct.cash),
                 "equity": float(acct.equity),
+                "shorting_enabled": bool(getattr(acct, "shorting_enabled", False)),
                 "ts_utc": _utc_now(),
             }
         return {

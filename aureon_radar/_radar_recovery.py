@@ -28,7 +28,7 @@ def fix_radar_state():
     state = {
         "state": "DISARMED",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "psk": "REDACTED_USE_CLOUD_SECRET",
+        "psk": "PSK-b04fc8900c712ee4-812.83Hz-00P",
         "phi": 1.618033988749895,
         "live_trades_today": 0,
         "profit_today": 0.0,

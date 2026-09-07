@@ -19,6 +19,7 @@ import sys
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import logging
 
@@ -38,8 +39,9 @@ class HuntingGround:
     price: float
     spread_pct: float
     fee_pct: float  # One-way taker fee
-    volatility_1h: float  # 1-hour volatility estimate
+    volatility_1h: float  # 1-hour volatility estimate (declared assumption)
     liquidity_score: float  # 0-1 liquidity rating
+    change_24h_pct: float = None  # REAL 24h price change % when the venue provides it
     
     @property
     def round_trip_cost(self) -> float:
@@ -186,43 +188,43 @@ class OrcaHuntingGrounds:
     def scan_kraken(self) -> List[HuntingGround]:
         """Scan Kraken for hunting opportunities."""
         grounds = []
-        
+
         if not self.kraken:
             return grounds
-        
+
         # Major crypto pairs on Kraken
         pairs = [
             ('XBTUSD', 'BTC/USD'),
             ('ETHUSD', 'ETH/USD'),
             ('SOLUSD', 'SOL/USD'),
         ]
-        
+
         for kraken_pair, display in pairs:
             try:
                 ticker = self.kraken.get_24h_ticker(kraken_pair)
                 if not ticker:
                     continue
-                
-                # Kraken returns different format
-                price = float(ticker.get('c', [0])[0]) if isinstance(ticker.get('c'), list) else float(ticker.get('last', 0) or 0)
-                bid = float(ticker.get('b', [0])[0]) if isinstance(ticker.get('b'), list) else float(ticker.get('bid', 0) or 0)
-                ask = float(ticker.get('a', [0])[0]) if isinstance(ticker.get('a'), list) else float(ticker.get('ask', 0) or 0)
-                
+
+                # The upstream Kraken client returns a NORMALIZED ticker:
+                # {'price'|'lastPrice', 'priceChangePercent', 'quoteVolume', ...}
+                # — no raw 'c'/'b'/'a' arrays and no bid/ask fields.
+                price = float(ticker.get('price') or ticker.get('lastPrice') or 0)
+                change_24h_pct = float(ticker.get('priceChangePercent') or 0.0)
+
                 if price <= 0:
                     continue
-                
-                if bid > 0 and ask > 0:
-                    spread_pct = (ask - bid) / bid
-                else:
-                    spread_pct = 0.002  # Default estimate
-                
+
+                # Bid/ask are not provided by the normalized ticker — the
+                # spread below is a declared default estimate, not a reading.
+                spread_pct = 0.002
+
                 base = display.split('/')[0]
                 vol_estimates = {'BTC': 0.025, 'ETH': 0.030, 'SOL': 0.045}
                 vol = vol_estimates.get(base, 0.03)
-                
+
                 liq_scores = {'BTC': 0.90, 'ETH': 0.85, 'SOL': 0.70}
                 liq = liq_scores.get(base, 0.5)
-                
+
                 ground = HuntingGround(
                     exchange='kraken',
                     symbol=display,
@@ -232,11 +234,12 @@ class OrcaHuntingGrounds:
                     volatility_1h=vol,
                     liquidity_score=liq
                 )
+                ground.change_24h_pct = change_24h_pct
                 grounds.append(ground)
-                
+
             except Exception as e:
                 logger.debug(f"Error scanning {kraken_pair}: {e}")
-        
+
         return grounds
     
     def find_best_grounds(self, min_score: float = 1.0) -> List[HuntingGround]:
@@ -282,31 +285,89 @@ class OrcaHuntingGrounds:
         
         print()
         print(f"{'RANK':<5} {'EXCHANGE':<10} {'SYMBOL':<12} {'PRICE':>12} "
-              f"{'SPREAD':>8} {'RT COST':>8} {'VOL':>6} {'SCORE':>8}")
-        print("-" * 80)
-        
+              f"{'SPREAD':>8} {'RT COST':>8} {'24H CHG':>8} {'VOL*':>6} {'SCORE':>8}")
+        print("-" * 88)
+
         for i, g in enumerate(grounds[:10], 1):
             status = "✅" if g.hunt_score >= 1.5 else "⚠️" if g.hunt_score >= 0.5 else "❌"
+            chg = f"{g.change_24h_pct:>+7.2f}%" if g.change_24h_pct is not None else "    n/a"
             print(f"{status} {i:<3} {g.exchange:<10} {g.symbol:<12} ${g.price:>10.2f} "
                   f"{g.spread_pct*100:>7.3f}% {g.round_trip_cost*100:>7.3f}% "
-                  f"{g.volatility_1h*100:>5.1f}% {g.hunt_score:>7.1f}")
-        
+                  f"{chg} {g.volatility_1h*100:>5.1f}% {g.hunt_score:>7.1f}")
+
         print()
-        print("=" * 80)
-        
+        print("* VOL column is a declared per-asset estimate, not a live measurement.")
+        print("=" * 88)
+
         best = grounds[0]
         print(f"🎯 BEST HUNTING GROUND: {best.exchange.upper()} - {best.symbol}")
         print(f"   Round-trip cost: {best.round_trip_cost*100:.3f}%")
         print(f"   Min profit needed: {best.profit_threshold*100:.3f}%")
-        print(f"   Est. hourly volatility: {best.volatility_1h*100:.1f}%")
+        print(f"   Est. hourly volatility: {best.volatility_1h*100:.1f}% (estimate)")
+        if best.change_24h_pct is not None:
+            print(f"   Real 24h change: {best.change_24h_pct:+.2f}%")
         print(f"   HUNT SCORE: {best.hunt_score:.1f}")
-        print("=" * 80)
+        print("=" * 88)
+
+    def write_state(self, path=None):
+        """Journal the scan to a JSON state file for the battle-view/progress feed.
+
+        Fail-closed: venues that produced no grounds are recorded with an
+        explicit null/error field rather than silently omitted.
+        """
+        import json as _json
+        from datetime import datetime as _dt
+
+        if path is None:
+            path = Path(__file__).resolve().parent.parent / 'state' / 'hunting_grounds.json'
+
+        grounds = self.find_best_grounds(min_score=0)
+        alpaca_grounds = [g for g in grounds if g.exchange == 'alpaca']
+        kraken_grounds = [g for g in grounds if g.exchange == 'kraken']
+
+        state = {
+            'timestamp': _dt.now().isoformat(),
+            'best_ground': {
+                'exchange': grounds[0].exchange,
+                'symbol': grounds[0].symbol,
+                'price': grounds[0].price,
+                'hunt_score': grounds[0].hunt_score,
+                'round_trip_cost_pct': grounds[0].round_trip_cost * 100,
+            } if grounds else None,
+            'grounds': [
+                {
+                    'rank': i + 1,
+                    'exchange': g.exchange,
+                    'symbol': g.symbol,
+                    'price': g.price,
+                    'spread_pct': g.spread_pct,
+                    'spread_is_estimate': g.exchange == 'kraken',  # venue provides no bid/ask in normalized ticker
+                    'change_24h_pct': g.change_24h_pct,
+                    'round_trip_cost_pct': g.round_trip_cost * 100,
+                    'volatility_1h_estimate_pct': g.volatility_1h * 100,
+                    'hunt_score': g.hunt_score,
+                }
+                for i, g in enumerate(grounds[:10])
+            ],
+            'venues': {
+                'alpaca': {'grounds': len(alpaca_grounds)} if self.alpaca
+                           else {'grounds': 0, 'error': 'client unavailable'},
+                'kraken': {'grounds': len(kraken_grounds)} if self.kraken
+                           else {'grounds': 0, 'error': 'client unavailable'},
+            },
+        }
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_json.dumps(state, indent=2))
+        logger.info(f"State written to {path}")
+        return path
 
 
 def main():
     """Run hunting ground analysis."""
     hunter = OrcaHuntingGrounds()
     hunter.print_analysis()
+    hunter.write_state()
 
 
 if __name__ == "__main__":

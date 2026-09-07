@@ -542,6 +542,65 @@ def calculate_improved_eta(
 
 
 # =============================================================================
+# REAL-DATA TIME-TO-CAPTURE HELPERS (LINEAR TIME LAYER)
+# =============================================================================
+# Owner decree 2026-09-06: quickest energy-capture paths from REAL journaled
+# marks only. Fail-closed: insufficient samples or non-positive velocity
+# yield None (never 0, never estimated).
+
+def pct_velocity_per_min(samples: List[Tuple[float, float]]) -> Optional[float]:
+    """
+    Least-squares slope of (elapsed_minutes, pct_move) journaled marks.
+
+    Args:
+        samples: list of (elapsed_minutes_since_open, side_aware_pct_move)
+
+    Returns:
+        velocity in pct per minute, or None when the slope is undefined
+        (fewer than 2 samples, zero time span, or non-finite values).
+    """
+    pts = [(float(t), float(p)) for t, p in samples
+           if isinstance(t, (int, float)) and isinstance(p, (int, float))
+           and math.isfinite(t) and math.isfinite(p)]
+    if len(pts) < 2:
+        return None
+
+    n = len(pts)
+    sum_x = sum(p[0] for p in pts)
+    sum_y = sum(p[1] for p in pts)
+    sum_xy = sum(p[0] * p[1] for p in pts)
+    sum_x2 = sum(p[0] * p[0] for p in pts)
+    denom = n * sum_x2 - sum_x * sum_x
+    if denom == 0:
+        return None  # all marks at the same instant — slope undefined
+
+    slope = (n * sum_xy - sum_x * sum_y) / denom
+    return float(slope) if math.isfinite(slope) else None
+
+
+def implied_remaining_min(
+    current_pct: Optional[float],
+    target_pct: Optional[float],
+    velocity_pct_per_min: Optional[float],
+) -> Optional[float]:
+    """
+    Minutes until target at the measured velocity. Fail-closed:
+
+    - velocity missing or <= 0            -> None (cannot project)
+    - current/target missing              -> None
+    - current_pct already >= target_pct   -> 0.0 (target reached)
+    """
+    if current_pct is None or target_pct is None:
+        return None
+    if current_pct >= target_pct:
+        return 0.0
+    if velocity_pct_per_min is None or velocity_pct_per_min <= 0:
+        return None
+    remaining = (target_pct - current_pct) / velocity_pct_per_min
+    return float(remaining) if math.isfinite(remaining) else None
+
+
+# =============================================================================
 # MAIN - DEMO
 # =============================================================================
 

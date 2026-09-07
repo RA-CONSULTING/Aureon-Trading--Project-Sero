@@ -119,7 +119,19 @@ class BinanceAdapter:
     """
 
     def __init__(self, config: Optional[BinanceAdapterConfig] = None):
-        self.config = config or BinanceAdapterConfig()
+        # Explicit config (tests, probes) is pinned. Otherwise config resolves
+        # at CALL time (property below), so keys energized in .env mid-uptime
+        # are honored without a restart — the shadow wrappers check keys at
+        # call time (env_has_keys), and the adapter must not contradict that
+        # check with a config snapshot from process start (bug-hunt 2026-09-06:
+        # env_has_keys passed but the stale cached config still refused the
+        # live order as "live_order without keys").
+        self._explicit_config = config
+
+    @property
+    def config(self) -> BinanceAdapterConfig:
+        return self._explicit_config if self._explicit_config is not None \
+            else BinanceAdapterConfig()
 
     # ------------------------------------------------------------------ #
     # Connectivity — honest, bounded, no smoothing
@@ -181,6 +193,22 @@ class BinanceAdapter:
             }
         except (requests.RequestException, ValueError) as exc:
             return {"ok": False, "symbol": symbol, "error": f"{type(exc).__name__}: {exc}"}
+
+    # ------------------------------------------------------------------ #
+    # Account
+    # ------------------------------------------------------------------ #
+    def get_balance(self) -> Dict[str, float]:
+        """Return non-zero balances via the signed BinanceClient account."""
+        if not self.config.has_keys:
+            return {}
+        try:
+            from binance_client import BinanceClient  # lazy import
+
+            client = BinanceClient()
+            return client.get_balance()
+        except Exception as exc:
+            logger.warning("binance adapter balance fetch failed: %s", exc)
+            return {}
 
     # ------------------------------------------------------------------ #
     # Order path
@@ -255,6 +283,39 @@ class BinanceAdapter:
         client = BinanceClient()
         result = client.place_market_order(symbol=symbol, side=side, quantity=quantity)
         return {"mode": "LIVE", "dry_run": False, "result": result}
+
+    def place_order_by_notional(
+        self,
+        symbol: str,
+        side: str,
+        notional_usd: float,
+        order_type: str = "MARKET",
+        dry_run: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Place an order sized by notional USD value.
+
+        Computes quantity = notional / current price and delegates to
+        place_order. Quantity is rounded to 6 decimal places (safe for BTC
+        and most altcoins); callers should verify lot-size filters for
+        very low-priced tokens.
+        """
+        quote = self.get_price(symbol)
+        if not quote.get("ok"):
+            return {
+                "mode": "ERROR",
+                "error": "price_unavailable",
+                "symbol": symbol,
+                "reason": quote.get("error"),
+            }
+        price = float(quote["price"])
+        if price <= 0:
+            return {"mode": "ERROR", "error": "invalid_price", "symbol": symbol, "price": price}
+        quantity = round(notional_usd / price, 6)
+        receipt = self.place_order(symbol, side, quantity, order_type, dry_run=dry_run)
+        receipt["requested_notional"] = notional_usd
+        receipt["computed_quantity"] = quantity
+        receipt["reference_price"] = quote["price"]
+        return receipt
 
     # ------------------------------------------------------------------ #
     # Journaling

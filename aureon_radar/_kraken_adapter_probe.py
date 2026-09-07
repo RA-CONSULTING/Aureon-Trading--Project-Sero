@@ -79,16 +79,16 @@ import hashlib as _hl
 import hmac as _hm
 
 dummy_key = "PROBEDUMMYKEY1234567890"
-REDACTED_USE_CLOUD_SECRET = _b64.b64encode(b"probedummysecretbytes0123456789").decode()
+dummy_secret_b64 = _b64.b64encode(b"probedummysecretbytes0123456789").decode()
 path = "/0/private/Balance"
 data = {"nonce": "1788000000000000001"}
-sig_adapter = ad._sign(path, data, REDACTED_USE_CLOUD_SECRET)
+sig_adapter = ad._sign(path, data, dummy_secret_b64)
 
 # independent recomputation of the Kraken scheme
 postdata = "".join(f"{k}={data[k]}&" for k in data).rstrip("&")
 sha = _hm if False else _hl
 inner = _hl.sha256((data["nonce"] + postdata).encode()).digest()
-mac = _hm.new(_b64.b64decode(REDACTED_USE_CLOUD_SECRET), path.encode() + inner, _hl.sha512)
+mac = _hm.new(_b64.b64decode(dummy_secret_b64), path.encode() + inner, _hl.sha512)
 sig_independent = _b64.b64encode(mac.digest()).decode()
 check("sign_independent_match", sig_adapter == sig_independent,
       f"adapter==independent -> {sig_adapter == sig_independent}")
@@ -101,7 +101,7 @@ try:
     from aureon.exchanges.kraken_client import KrakenClient  # noqa: E402
 
     kc = KrakenClient.__new__(KrakenClient)
-    kc.api_secret = REDACTED_USE_CLOUD_SECRET
+    kc.api_secret = dummy_secret_b64
     sig_upstream = kc._kraken_sign(path, data)
     upstream_match = (sig_upstream == sig_adapter)
 except Exception as exc:  # upstream import guard, missing deps, etc.
@@ -112,7 +112,7 @@ check("sign_format", len(sig_adapter) == 88, f"base64 sig len={len(sig_adapter)}
 
 # transport proof: signed Balance request reaches Kraken; only key validity rejects
 os.environ["KRAKEN_API_KEY"] = dummy_key
-os.environ["KRAKEN_API_SECRET"] = REDACTED_USE_CLOUD_SECRET
+os.environ["KRAKEN_API_SECRET"] = dummy_secret_b64
 try:
     auth = ad.authenticate()
     reached = ("Invalid key" in auth.get("reason", "")) or ("invalid key" in auth.get("reason", "").lower())

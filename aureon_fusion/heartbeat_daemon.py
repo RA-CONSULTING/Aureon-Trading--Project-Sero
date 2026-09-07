@@ -235,9 +235,6 @@ def _watch_entry(entry: dict):
     """One watched door: adopt, respawn, or stand down. Logs only on action
     so the 300s cycle stays quiet while everything is alive."""
     name = entry["name"]
-    if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
-        log(f"watch/{name}: deployment HOLD — imported door approvals do not launch processes")
-        return
     if not _door_held_open(name):
         log(f"watch/{name}: door not held open (no open event in journal) — standing down")
         return

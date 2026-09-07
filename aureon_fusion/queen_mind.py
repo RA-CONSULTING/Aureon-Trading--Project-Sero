@@ -132,6 +132,16 @@ HNC_STATE_PATH = FUSION_STATE / "hnc_core_state.json"
 TRADING_PULSE_PATH = FUSION_STATE / "trading_pulse_state.json"
 HEARTBEAT_RESULTS_PATH = FUSION_STATE / "heartbeat_last_results.json"
 RADAR_SIGNALS_PATH = WORKSPACE / "aureon_radar" / "fused_signals.jsonl"
+# Battle-view senses: aureon_radar/state battle files (read-only).
+RADAR_STATE = WORKSPACE / "aureon_radar" / "state"
+BATTLE_VIEW_STALE_S = 600.0   # battle-view input older than this reads as None
+# Money self-knowledge: the portfolio truth writer's v4 output (venue_trust).
+REAL_PORTFOLIO_PATH = WORKSPACE / "aureon_radar" / "real_portfolio_state.json"
+# Cross-agent contract files (fail-closed; another faculty writes each one).
+PROBABILITY_MATRIX_PATH = RADAR_STATE / "probability_matrix_state.json"
+PROPHECY_SUMMARY_PATH = FUSION_STATE / "prophecy_summary.json"
+# Faculty named once when its contract file is still absent (per process run).
+_AWAITING_NOTED: set = set()
 
 # The reasoning core is 100% native: HNC (lambda field/coherence), AURIS
 # node-role reasoning, QGITA (lattice/FTCP/Lighthouse + calibration), the
@@ -364,6 +374,26 @@ def _finite(value):
 
 def _clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
+
+
+def _trim_deep(value, max_items: int = 3, max_str: int = 120, depth: int = 0):
+    """Compact an unknown-schema digest for the report trail: dicts keep
+    their first keys, lists their first items, strings their head. Never
+    raises; anything unreadable passes through untouched."""
+    if depth > 3:
+        return "…"
+    if isinstance(value, dict):
+        return {str(k): _trim_deep(v, max_items, max_str, depth + 1)
+                for k, v in list(value.items())[:max_items * 2]}
+    if isinstance(value, list):
+        head = [_trim_deep(v, max_items, max_str, depth + 1)
+                for v in value[:max_items]]
+        if len(value) > max_items:
+            head.append(f"…+{len(value) - max_items} more")
+        return head
+    if isinstance(value, str):
+        return value[:max_str] + ("…" if len(value) > max_str else "")
+    return value
 
 
 _TAIL_WINDOW_BYTES = 64 * 1024
@@ -1005,7 +1035,8 @@ class QueenMind:
         now = time.time()
         recent_ts = 0
         for rec in tail:
-            raw = str(rec.get("timestamp") or "")
+            ts_raw = rec.get("timestamp") if isinstance(rec, dict) else getattr(rec, "timestamp", None)
+            raw = str(ts_raw or "")
             try:
                 from datetime import datetime, timezone
 
@@ -1271,18 +1302,25 @@ class QueenMind:
     def _goals_stage(self, cycle: int, publish: bool) -> dict:
         """The sovereign GOALS STAGE, right after the learning-will stage.
 
-        queen_mind only ASKS: aureon_fusion.goals_will.consider() returns
-        the goals organ's own consideration ({"considered": bool,
-        "reason": str, ...gate/outcome fields}); the gates live inside
-        goals_will, never here. Fail-closed and cycle-safe: a lazy-import
-        error or a raised consider() is one chirp, report["goals"] =
+        queen_mind only ASKS: the goals organ's own consideration returns
+        ({"considered": bool, "reason": str, ...gate/outcome fields}); the
+        gates live inside goals_will, never here. The organ is consulted
+        through whichever entry point it exposes — a module-level
+        consider() or the GoalsWill class (GoalsWill().consider(), one
+        sovereign consideration per cycle, journaled by the organ).
+        Fail-closed and cycle-safe: a lazy-import error or a raised
+        consider() is one chirp, report["goals"] =
         {"considered": False, "error": "unavailable"}, and the cycle
         continues exactly as before.
         """
         try:
             from aureon_fusion import goals_will
 
-            considered = goals_will.consider()
+            consider_fn = getattr(goals_will, "consider", None)
+            if callable(consider_fn):
+                considered = consider_fn()
+            else:
+                considered = goals_will.GoalsWill().consider()
         except Exception as exc:
             self._goals_note("queen_mind_goals_unavailable",
                              f"goals_will unavailable: {exc}", cycle)
@@ -1393,7 +1431,25 @@ class QueenMind:
         return result
     def cycle_once(self, publish: bool = True) -> dict:
         self._engines()
+        # Owner decree 2026-09-07: if the environment asks, the queen opens
+        # her own in-process engines from inside her running cycle — this
+        # bypasses the cross-process weakref problem when queen_mind runs as
+        # a separate OS process. The activation still runs its own guards.
+        if os.getenv("AUREON_AUTO_OPEN_INPROC", "").strip().lower() in ("1", "true", "yes"):
+            if not (_DORMANT_ENGINE_STATE.get("cortex_started")
+                    or _DORMANT_ENGINE_STATE.get("sentience_ready")):
+                try:
+                    activate_dormant_engines()
+                except Exception:
+                    pass
         observed = self.observe()
+        # Battle-view senses (additive, fail-closed): live radar battle
+        # state folded alongside the classic node readings; None-fields when
+        # the radar files are absent or stale. Never blocks the cycle.
+        try:
+            observed["battle_view"] = QueenMind._battle_view_readings()
+        except Exception:
+            observed["battle_view"] = None
         readings = observed["node_readings"]
         cycle = int(self._state.get("cycle") or 0) + 1
         persona = _PERSONA_ORDER[(cycle - 1) % len(_PERSONA_ORDER)]
@@ -1439,6 +1495,9 @@ class QueenMind:
             readback["upstream_thoughts"] = len(cognition["recent_thoughts"])
         except Exception:
             pass
+
+        money_state = QueenMind._money_state_from_battle_view(
+            observed.get("battle_view"))
 
         reflection = None
         insights: list = []
@@ -1669,7 +1728,8 @@ class QueenMind:
             "conscience_vetoes": int(
                 (observed.get("conscience") or {}).get("veto_count") or 0),
             "trading_pulse": observed.get("trading_pulse"),
-            "reflection": self._reflection_dict(reflection),
+            "battle_view": observed.get("battle_view"),
+            "reflection": self._reflection_dict(reflection, money_state),
             "metacognition_state": {
                 "reflection_count": state.get("reflection_count"),
                 "insight_count": state.get("insight_count"),
@@ -1834,6 +1894,48 @@ class QueenMind:
         w2_text = str(w2.get("text", ""))[:90]
         w2_s = (f" The wave-2 shelves answer ({w2.get('domain', '?')}): "
                 f"{w2_text}." if w2_text else "")
+        # Battle-view clause (additive): spoken only when the senses are
+        # live; missing/stale battle data leaves the utterance untouched.
+        # Money self-knowledge speaks plainly here — holdings, free margin,
+        # per-position PnL, venue trust — because she must know her own
+        # treasury in her own voice. Perception only; no gate changes.
+        bv = observed.get("battle_view") or {}
+        closest = bv.get("closest_to_capture_pct")
+        dream_top = bv.get("dream_top")
+        battle_s = ""
+        if closest is not None and dream_top:
+            battle_s = (f" The battle view opens to me: {dream_top} heads "
+                        f"the dreamt plays while the nearest live capture "
+                        f"rides {closest:.1f}% toward its target.")
+        total = bv.get("total_usd")
+        free_spend = bv.get("free_to_spend_usd")
+        n_pos = bv.get("positions_in_play")
+        pnl_total = bv.get("position_pnl_total_usd")
+        if total is not None and n_pos is not None:
+            money_s = (f" My treasury speaks: I hold ${total:,.2f} across "
+                       f"{n_pos} open position{'s' if n_pos != 1 else ''}")
+            if free_spend is not None:
+                money_s += f" with ${free_spend:,.2f} free to spend"
+            if pnl_total is not None:
+                sign = "−" if pnl_total < 0 else "+"
+                money_s += (f"; their shared PnL reads {sign}"
+                            f"${abs(pnl_total):,.2f}")
+            if closest is not None:
+                money_s += f", nearest capture {closest:.1f}% to target"
+            money_s += "."
+            battle_s += money_s
+        untrusted = bv.get("untrusted_venues") or []
+        if untrusted:
+            battle_s += (f" My ledger withholds trust from "
+                         f"{', '.join(str(v) for v in untrusted[:3])} — "
+                         f"its numbers stay outside my count.")
+        gate = bv.get("probability_gate")
+        if gate:
+            battle_s += " The probability faculty's matrix rests on my desk."
+        if bv.get("prophecy"):
+            battle_s += " The prophecy ledger has come in; I weigh it."
+        if bv.get("energy_digest"):
+            battle_s += " The celestial energy digest hums beneath it all."
 
         if persona == "queen":
             text = (
@@ -1877,7 +1979,7 @@ class QueenMind:
                 f"the measure at '{regime}'. I sing what the mind knows: "
                 f"{guide}." + cite_s + w2_s
             )
-        return text
+        return text + battle_s
 
     # ── W6: the owner address ─────────────────────────────────────────────
     # The owner presence reaches the reasoning packet (stage 5), but a
@@ -1963,6 +2065,247 @@ class QueenMind:
             out["stale"] = age_s > 1800.0
         except Exception:
             pass
+        return out
+
+    @staticmethod
+    def _battle_view_readings() -> dict:
+        """Battle-view senses from aureon_radar/state: positions in play and
+        the closest one to capture, deployed/free capital, the leading
+        dreamt play, the field regime, and the temporal close-gate
+        verdicts. Fail-closed: an input that is missing, unparseable,
+        timestamp-less, or older than BATTLE_VIEW_STALE_S contributes None
+        for its fields and is named in stale_inputs. Never raises."""
+        from datetime import datetime, timezone
+
+        out = {
+            "positions_in_play": None,
+            "closest_to_capture_pct": None,
+            "deployed_usd": None,
+            "free_usd": None,
+            "dream_top": None,
+            "field_regime": None,
+            "temporal_gate_verdicts": None,
+            # Money self-knowledge (perception only; venue-trust aware).
+            "total_usd": None,            # holdings summed over TRUSTED venues
+            "equity_usd": None,           # Capital venue equity (GBP→USD)
+            "free_to_spend_usd": None,    # Capital venue free margin (GBP→USD)
+            "venue_trust": None,          # {venue: {trusted, stale, reason}}
+            "untrusted_venues": None,
+            "positions": None,            # [{symbol, venue, direction,
+                                          #   pnl_usd, pct_to_target, close_ready}]
+            "position_pnl_total_usd": None,
+            # Cross-faculties (contract files; None while awaiting faculty).
+            "energy_digest": None,
+            "probability_gate": None,
+            "prophecy": None,
+            "agency_consensus": None,
+            "awaiting_faculty": [],       # named once, not every cycle
+            "stale_inputs": [],
+        }
+
+        def _awaiting(faculty: str):
+            """Honest one-time note for a contract file not yet on disk."""
+            if faculty not in _AWAITING_NOTED:
+                _AWAITING_NOTED.add(faculty)
+                out["awaiting_faculty"].append(faculty)
+
+        def _age_s(raw):
+            if raw is None or isinstance(raw, bool):
+                return None
+            if isinstance(raw, (int, float)):
+                return time.time() - float(raw)
+            try:
+                dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return (datetime.now(timezone.utc) - dt).total_seconds()
+            except Exception:
+                return None
+
+        def _fresh(name, path):
+            data = _load_json(path)
+            if not isinstance(data, dict):
+                out["stale_inputs"].append(name)
+                return None
+            raw_ts = data.get("ts_iso") if isinstance(data.get("ts_iso"), str) \
+                else data.get("ts")
+            age = _age_s(raw_ts)
+            if age is None or age > BATTLE_VIEW_STALE_S:
+                out["stale_inputs"].append(name)
+                return None
+            return data
+
+        try:
+            prog = _fresh("trading_progress_state",
+                          RADAR_STATE / "trading_progress_state.json")
+            if prog is not None:
+                positions = [p for p in (prog.get("positions") or [])
+                             if isinstance(p, dict) and not p.get("error")]
+                out["positions_in_play"] = len(positions)
+                pcts = [_finite(p.get("pct_to_target")) for p in positions]
+                pcts = [p for p in pcts if p is not None]
+                if pcts:
+                    out["closest_to_capture_pct"] = round(min(pcts), 4)
+                pnls = [_finite(p.get("pnl_usd")) for p in positions]
+                pnls = [p for p in pnls if p is not None]
+                if pnls:
+                    out["position_pnl_total_usd"] = round(sum(pnls), 6)
+                out["positions"] = [{
+                    "symbol": str(p.get("symbol") or "?"),
+                    "venue": str(p.get("venue") or "?"),
+                    "direction": str(p.get("direction") or "?"),
+                    "pnl_usd": _finite(p.get("pnl_usd")),
+                    "pct_to_target": _finite(p.get("pct_to_target")),
+                    "close_ready": bool(p.get("close_ready")),
+                } for p in positions]
+                capital = prog.get("capital") or {}
+                out["deployed_usd"] = _finite(capital.get("deployed_usd"))
+                out["free_usd"] = _finite(capital.get("free_usd"))
+        except Exception:
+            pass
+
+        # Money truth: portfolio writer v4's last history entry. Venue-trust
+        # aware — an untrusted venue's balance is excluded from the holdings
+        # sum and named, never silently counted. Fail-closed nulls.
+        try:
+            pf = _load_json(REAL_PORTFOLIO_PATH)
+            history = (pf or {}).get("history") or []
+            entry = history[-1] if history and isinstance(history[-1], dict) \
+                else None
+            max_age = _finite((pf or {}).get("venue_trust_max_age_sec")) \
+                or BATTLE_VIEW_STALE_S
+            age = _age_s((entry or {}).get("timestamp"))
+            if entry is None or age is None or age > max_age:
+                out["stale_inputs"].append("real_portfolio_state")
+            else:
+                trust = entry.get("venue_trust") or {}
+                flags = {}
+                for venue, info in trust.items():
+                    if not isinstance(info, dict):
+                        continue
+                    flags[str(venue)] = {
+                        "trusted": bool(info.get("trusted")),
+                        "stale": bool(info.get("stale")),
+                        "reason": str(info.get("reason") or "")[:60],
+                    }
+                live_trusted = [v for v, f in flags.items()
+                                if f["trusted"] and not f["stale"]]
+                out["venue_trust"] = flags or None
+                out["untrusted_venues"] = (
+                    [str(v) for v in (entry.get("untrusted_venues") or [])]
+                    or None)
+                venue_bal_key = {"alpaca": "alpaca_usd", "kraken": "kraken_usd",
+                                 "binance": "binance_usd", "capital": "capital_usd"}
+                holdings = [_finite(entry.get(venue_bal_key[v]))
+                            for v in live_trusted if v in venue_bal_key]
+                holdings = [h for h in holdings if h is not None]
+                if holdings:
+                    out["total_usd"] = round(sum(holdings), 6)
+                cap_trust = trust.get("capital") or {}
+                out["equity_usd"] = _finite(cap_trust.get("equity_usd")) \
+                    or _finite(entry.get("capital_equity_usd"))
+                out["free_to_spend_usd"] = _finite(cap_trust.get("free_usd"))
+        except Exception:
+            out["stale_inputs"].append("real_portfolio_state")
+
+        try:
+            temporal = _fresh("temporal_outlook",
+                              RADAR_STATE / "temporal_outlook.json")
+            if temporal is not None:
+                nonlin = (temporal.get("temporal_sense") or {}).get("non_linear") or {}
+                regime = nonlin.get("field_regime")
+                out["field_regime"] = str(regime) if regime else None
+                verdicts = {}
+                for pos in (temporal.get("positions") or []):
+                    if not isinstance(pos, dict):
+                        continue
+                    key = pos.get("key") or pos.get("symbol")
+                    verdict = (pos.get("negative_close_gate") or {}).get("verdict")
+                    if key and verdict:
+                        verdicts[str(key)] = str(verdict)
+                out["temporal_gate_verdicts"] = verdicts or None
+                digest = temporal.get("energy_digest")
+                if isinstance(digest, dict) and digest:
+                    out["energy_digest"] = _trim_deep(digest)
+                elif "energy_digest" not in temporal:
+                    _awaiting("energy_digest")
+        except Exception:
+            pass
+
+        # Probability gate (contract file; the probability faculty writes it).
+        # Absent file → honest one-time 'awaiting faculty' note; a present
+        # but stale file stays a plain stale_inputs entry.
+        try:
+            if not PROBABILITY_MATRIX_PATH.exists():
+                _awaiting("probability_gate")
+            else:
+                gate = _fresh("probability_matrix_state", PROBABILITY_MATRIX_PATH)
+                if gate is not None:
+                    if not isinstance(gate.get("probability_gate"), dict):
+                        gate = {"probability_gate": gate}
+                    out["probability_gate"] = _trim_deep(gate)
+        except Exception:
+            pass
+
+        # Prophecy track record (contract file; the prophecy faculty writes).
+        try:
+            if not PROPHECY_SUMMARY_PATH.exists():
+                _awaiting("prophecy")
+            else:
+                prop = _load_json(PROPHECY_SUMMARY_PATH)
+                if isinstance(prop, dict) and prop:
+                    age = _age_s(prop.get("ts_iso")
+                                 if isinstance(prop.get("ts_iso"), str)
+                                 else prop.get("ts"))
+                    if age is None or age > BATTLE_VIEW_STALE_S:
+                        out["stale_inputs"].append("prophecy_summary")
+                    else:
+                        out["prophecy"] = _trim_deep(prop)
+        except Exception:
+            pass
+
+        # Read for freshness tracking; no summary fields are drawn from it yet.
+        _fresh("global_energy_flow", RADAR_STATE / "global_energy_flow.json")
+
+        # Agency company consensus report (lightweight offline company-of-agents
+        # wrapper wired from aureon_radar/agency_company.py).
+        try:
+            agency = _fresh("agency_company_report",
+                            FUSION_STATE / "queen_mind" / "agency_company_report.json")
+            if agency is not None:
+                out["agency_consensus"] = {
+                    "view": str(agency.get("consensus") or "neutral"),
+                    "confidence": _finite(agency.get("confidence")),
+                    "recommended_action": str(agency.get("recommended_action") or "observe"),
+                    "top_symbol": (agency.get("top_target") or {}).get("symbol"),
+                    "blockers": agency.get("blockers") or [],
+                }
+        except Exception:
+            pass
+
+        try:
+            dreams = _fresh("dreamt_plays", RADAR_STATE / "dreamt_plays.json")
+            if dreams is not None:
+                plays = [p for p in (dreams.get("plays") or [])
+                         if isinstance(p, dict)]
+
+                def _eta(p):
+                    return _finite((p.get("simulated") or {}).get(
+                        "expected_capture_min"))
+
+                ranked = sorted((p for p in plays if _eta(p) is not None), key=_eta)
+                top = ranked[0] if ranked else (plays[0] if plays else None)
+                if top is not None:
+                    parts = [str(s) for s in (top.get("symbol"),
+                                              top.get("archetype")) if s]
+                    eta = _eta(top)
+                    if eta is not None:
+                        parts.append(f"{int(round(eta))}min")
+                    if parts:
+                        out["dream_top"] = " ".join(parts)
+        except Exception:
+            pass
+
         return out
 
     @staticmethod
@@ -2318,11 +2661,28 @@ class QueenMind:
         return start <= h < end
 
     @staticmethod
-    def _reflection_dict(reflection) -> dict:
+    def _money_state_from_battle_view(bv) -> dict:
+        """Compact money snapshot for the reflection record. Fail-closed:
+        missing fields become None with a reason, never fabricated."""
+        if not isinstance(bv, dict):
+            return {"status": "battle_view_unavailable", "reason":
+                    "no battle-view senses this cycle"}
+        out = {}
+        for k in ("total_usd", "equity_usd", "free_to_spend_usd",
+                  "positions_in_play", "position_pnl_total_usd"):
+            out[k] = bv.get(k)
+        if bv.get("untrusted_venues"):
+            out["untrusted_venues"] = bv["untrusted_venues"]
+        out["stale_inputs"] = bv.get("stale_inputs") or []
+        out["awaiting_faculty"] = bv.get("awaiting_faculty") or []
+        return out
+
+    @staticmethod
+    def _reflection_dict(reflection, money_state=None) -> dict:
         if reflection is None:
             return {}
         get = lambda name: getattr(reflection, name, None)  # noqa: E731
-        return {
+        out = {
             "cycle": get("cycle"),
             "action": get("action"),
             "coherence_gamma": get("coherence_gamma"),
@@ -2331,7 +2691,12 @@ class QueenMind:
             "weakest_nodes": get("weakest_nodes"),
             "reasoning_summary": str(get("reasoning_summary") or "")[:200],
             "guidance": [str(g)[:160] for g in (get("guidance") or [])[:3]],
+            "money": QueenMind._money_state_from_battle_view(money_state)
+                if isinstance(money_state, dict) else
+                QueenMind._money_state_from_battle_view(
+                    money_state if money_state is not None else None),
         }
+        return out
 
     @staticmethod
     def _metrics_dict(metrics) -> dict:
@@ -2399,13 +2764,49 @@ def get_queen_mind() -> QueenMind:
 
 def _live_queen_mind():
     """The most recent live QueenMind instance, or None. The weak registry
-    releases dead instances as they are encountered."""
-    while _LIVE_MINDS:
-        mind = _LIVE_MINDS[-1]()
-        if mind is not None:
-            return mind
-        _LIVE_MINDS.pop()
+    releases dead instances as they are encountered.
+
+    Entry-point twin: the registrar launches this organ as
+    ``python -m aureon_fusion.queen_mind`` (organ_registry spawn line), which
+    executes THIS FILE as ``__main__`` and does not bind the dotted name in
+    sys.modules. The door mechanics (door_activators) then do
+    ``from aureon_fusion import queen_mind`` and receive a SECOND, freshly
+    executed module whose own ``_LIVE_MINDS`` is empty — so even her own
+    cycle's door-open call saw "no live queen_mind instance" (157+ refusals
+    in the doors journal). When the local registry is empty we therefore
+    consult the ``__main__`` twin, but ONLY when ``__main__`` is provably
+    this same file (same resolved __file__): an external probe's ``__main__``
+    is the probe script, never matches, and the mechanics refuse exactly as
+    before. Fail-closed and INPROC-only; nothing here opens the door from
+    outside a process that is genuinely running her."""
+    for registry in _live_registries():
+        while registry:
+            mind = registry[-1]()
+            if mind is not None:
+                return mind
+            registry.pop()
     return None
+
+
+def _live_registries():
+    """Yield this module's weak registry, then — only if ``__main__`` is the
+    same source file (the ``python -m`` / ``python file.py`` twin) — the
+    twin's registry. External callers get exactly one (possibly empty)
+    registry."""
+    yield _LIVE_MINDS
+    main_mod = sys.modules.get("__main__")
+    if main_mod is None or main_mod is sys.modules.get(__name__):
+        return
+    try:
+        same_file = (Path(getattr(main_mod, "__file__", "") or "").resolve()
+                     == Path(__file__).resolve())
+    except Exception:
+        same_file = False
+    if not same_file:
+        return
+    twin = getattr(main_mod, "_LIVE_MINDS", None)
+    if isinstance(twin, list) and twin is not _LIVE_MINDS:
+        yield twin
 
 
 def activate_dormant_engines() -> dict:
