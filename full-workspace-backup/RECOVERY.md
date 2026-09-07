@@ -1,15 +1,18 @@
 # Aureon Trading Fusion-Project Sero full workspace backup recovery
 
-The [GitHub workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-06)
+The [GitHub workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-07)
 contains a complete encrypted file backup, including original source, credentials, private
 records, state, logs, caches, and embedded Git history. The separate browsable
-source view has credential values removed. The original local workspace was
-not modified by this upload operation.
+source view has credential values removed / replaced with `REDACTED_USE_CLOUD_SECRET`.
+The original local workspace was not modified by this upload operation.
 
 Keep `Aureon-Sero-Recovery-Key.dpapi` with these recovery tools. It is protected
 by Windows for the current user account; it is never uploaded to GitHub.
 Losing access to that Windows account without first exporting a portable key
 can prevent recovery. Keep a separate secure backup of the recovery material.
+
+Product branding: **Aureon Trading Fusion-Project Sero**. Legacy local folder names
+on an operator machine must not be renamed while systems are running.
 
 ## Verify or restore on this Windows account
 
@@ -19,7 +22,7 @@ Install Python dependencies if required:
 python -m pip install cryptography pywin32
 ```
 
-Download all six `workspace.aes.part*` assets, `backup-manifest.json`,
+Download all `workspace.aes.part*` assets, `backup-manifest.json`,
 `restore_aureon_backup.py`, and `RECOVERY.md` from the workspace release into
 one directory. GitHub Release storage is used because the organisation's
 Git LFS budget was unavailable. A Git clone does not download release assets.
@@ -50,9 +53,10 @@ the portable file using `--key-file` to the same restoration script.
 For Google Cloud Run, transfer only the required current application credentials
 to Google Secret Manager and reference them from the service's Variables &
 Secrets settings. Do not restore the whole private workspace into a container
-build context. See `DEPLOYMENT_GOOGLE_CLOUD.md` in the repository.
+build context.
 
 This is a file-content backup captured while the local system was running,
 not an atomic disk image. Windows ACLs, alternate data streams, and process
-memory are not represented. The encrypted internal manifest records captured
-paths, bytes, hashes, times, and any files that changed while being read.
+memory are not represented. Captured inventory: 43872 files,
+8453746814 bytes, 7 encrypted parts.
+Unavailable during capture: 1.

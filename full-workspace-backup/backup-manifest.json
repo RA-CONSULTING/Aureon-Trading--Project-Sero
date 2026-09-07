@@ -2,47 +2,52 @@
   "format": "AUREON-SERO-WORKSPACE-V1",
   "cipher": "AES-256-GCM",
   "payload": "ZIP64 DEFLATE",
-  "nonce_hex": "c09c4a10c9820c17e30b36ea",
-  "tag_hex": "6f3ecb88627016292859ce13a0ce1bb9",
+  "nonce_hex": "79f01d7bd9f9320213042a14",
+  "tag_hex": "e9359f531545cab159fc29cd4ad0e862",
   "aad": "AUREON-SERO-WORKSPACE-V1",
   "parts": [
     {
       "file": "workspace.aes.part001",
       "bytes": 268435456,
-      "sha256": "a79b15ed2af580903815bfc94206ffb5bbff449622e9b0945707685da62e392c"
+      "sha256": "53f4e4f6a553f6c39379186c6a53e6398fbb7ee86d833ae0cbd6b1871799431b"
     },
     {
       "file": "workspace.aes.part002",
       "bytes": 268435456,
-      "sha256": "4cfabdfe33539b6f5624c9b6045eae9ae14cb79560407f2dbacddffa042930ed"
+      "sha256": "97a81a3663f13daad73445cb643a3250c0f22f0f947975a97f97b13a688f9ff1"
     },
     {
       "file": "workspace.aes.part003",
       "bytes": 268435456,
-      "sha256": "943bf032e0eb4a42a3f6f2426fd7bfe4c6ce8e26fb08f256fa78c576cc35c957"
+      "sha256": "e28d6e313c36d195b0a18420ad58ad0811825bc1cdac567673469c3b1f8024fc"
     },
     {
       "file": "workspace.aes.part004",
       "bytes": 268435456,
-      "sha256": "21264721665d221a30432039a722fdc5c797a320e6c5687c89fb655645d27ffd"
+      "sha256": "15a1a15040c5ef8410c6e1e41d132a9431fa7fd95e84d55db70e2c16fdb37466"
     },
     {
       "file": "workspace.aes.part005",
       "bytes": 268435456,
-      "sha256": "e8093b0519d6e89dc9ecd18ad77190cff4c3316feda1e16320e907169f9d088e"
+      "sha256": "4a3102f9a2cd08c0712ca80087daa352225594e264e09d86e45e24c961aebc65"
     },
     {
       "file": "workspace.aes.part006",
-      "bytes": 144004863,
-      "sha256": "ffb14892423765a4d66993d102ccb3608b4e62842ca470bce53a69793a35aadb"
+      "bytes": 268435456,
+      "sha256": "23839fe905356fb8f80c383748579e046f9fc0921c37a61674b102e381130a2f"
+    },
+    {
+      "file": "workspace.aes.part007",
+      "bytes": 176070145,
+      "sha256": "488ab3f5498fce5939d171a967311ca4be508a1ca69e676040370bd40bd008a8"
     }
   ],
-  "ciphertext_sha256": "ff5d04d4fdedfc6fd0ddb3a2b84434d0e49de8cafe4581eb0dd601ac8027201c",
-  "started_utc": "2026-09-06T21:34:44.532396+00:00",
-  "completed_utc": "2026-09-06T21:40:59.330821+00:00",
-  "captured_files": 42114,
-  "captured_bytes": 5137430459,
-  "unavailable_files": 0,
-  "live_files_changed_during_read": 0,
+  "ciphertext_sha256": "cbbfcbce218fc5bd1070b258f3058bbf1e0a5f595aaff9180c5fb5bf95fbfcbb",
+  "started_utc": "2026-09-07T17:13:42.655100+00:00",
+  "completed_utc": "2026-09-07T17:26:47.399063+00:00",
+  "captured_files": 43872,
+  "captured_bytes": 8453746814,
+  "unavailable_files": 1,
+  "live_files_changed_during_read": 2,
   "recovery_key": "Stored locally; never uploaded to GitHub"
 }
