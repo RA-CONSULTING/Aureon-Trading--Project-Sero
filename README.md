@@ -8,9 +8,9 @@ This repository preserves the supplied workspace in two forms:
   engines, the upstream Aureon packages, frontend code, tests, deployment
   material, and supporting projects. Credential values are replaced by
   `REDACTED_USE_CLOUD_SECRET` in this view.
-- **Complete original workspace:** all **42,114 inventoried files**, containing
-  **5,137,430,459 bytes**, in the authenticated encrypted
-  [complete workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-06). This includes the
+- **Complete original workspace:** all **43,872 inventoried files**, containing
+  **8,453,746,814 bytes**, in the authenticated encrypted
+  [complete workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-07). This includes the
   original credentials, private records, runtime state, logs, caches, binary
   assets, historical imports, and embedded Git history. No inventoried file
   was excluded from the encrypted backup.
@@ -43,7 +43,7 @@ material; this import does not independently validate those claims.
 
 Download the six `workspace.aes.part*` files plus `backup-manifest.json`,
 `restore_aureon_backup.py`, and `RECOVERY.md` from the
-[workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-06)
+[workspace release](https://github.com/RA-CONSULTING/Aureon-Trading--Project-Sero/releases/tag/workspace-2026-09-07)
 into one directory. A normal Git clone contains the source and restoration
 instructions; it does not automatically download the encrypted release assets.
 
