@@ -90,7 +90,7 @@ class Config:
             raise BoundaryError("bridge_destination_invalid")
         # Empty origin is the explicit all-denied bootstrap state. Wildcards and
         # guessed host suffix trust are never accepted once it is commissioned.
-        if self.origin and not re.fullmatch(r"https://[a-z0-9][a-z0-9-]+(?:\.[a-z0-9][a-z0-9-]+)?\.run\.app", self.origin):
+        if self.origin and not re.fullmatch(r"https://[a-z0-9][a-z0-9-]+(?:\.[a-z0-9][a-z0-9-]*)?\.run\.app", self.origin):
             raise BoundaryError("public_origin_invalid")
 
 
