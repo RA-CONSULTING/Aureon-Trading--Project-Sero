@@ -46,6 +46,15 @@ VAULT_FEED_AUDIT_RELEASE_HOLD = (
     "vault_feed_audit_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("vault_feed_audit"):
+        raise RuntimeError(VAULT_FEED_AUDIT_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Audit
@@ -218,7 +227,7 @@ class VaultFeedAudit:
         topics. If ``rewire=True`` and the vault has a thought bus
         attached, also subscribe the vault's handler to the new topics
         live."""
-        raise RuntimeError(VAULT_FEED_AUDIT_RELEASE_HOLD)
+        _require_release()
         patch = self.subscription_patch()
         new_topics = patch.get("missing_topics", [])
         if not new_topics:

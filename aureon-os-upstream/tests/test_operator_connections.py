@@ -111,10 +111,10 @@ def test_connections_list_categorized_and_masked(temp_store):
 
 def test_set_data_source_persists_to_keystore(temp_store):
     c = _client()
-    r = c.post("/api/connections/firms", json={"api_key": "REDACTED_USE_CLOUD_SECRET", "enabled": True})
+    r = c.post("/api/connections/firms", json={"api_key": "firms-abc1234", "enabled": True})
     assert r.status_code == 200 and r.get_json()["ok"] is True
-    assert "REDACTED_USE_CLOUD_SECRET" not in r.get_data(as_text=True)
-    assert keystore.load().get("firms", {}).get("api_key") == "REDACTED_USE_CLOUD_SECRET"
+    assert "firms-abc1234" not in r.get_data(as_text=True)
+    assert keystore.load().get("firms", {}).get("api_key") == "firms-abc1234"
 
 
 def test_exchange_write_is_delegated_not_keystored(temp_store, monkeypatch):

@@ -13,6 +13,10 @@ Goal: Find WHERE the $0.71 loss came from and FIX the cost model.
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
+import logging
+
+from aureon.core.no_external_calls import no_external_api_calls
+
 if sys.platform == 'win32':
     os.environ['PYTHONIOENCODING'] = 'utf-8'
     try:
@@ -97,10 +101,14 @@ class ConversionAnalysis:
 
 def analyze_trade_fills():
     """Retrieve and analyze recent trade fills from Alpaca."""
+    if no_external_api_calls():
+        logging.info("analyze_trade_fills blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print("=" * 80)
     print("🔍 TRADE FILL ANALYSIS - Finding the $0.71 Loss")
     print("=" * 80)
-    
+
     client = AlpacaClient()
     
     # Get account info

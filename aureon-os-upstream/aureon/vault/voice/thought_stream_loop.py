@@ -33,6 +33,15 @@ THOUGHT_STREAM_RELEASE_HOLD = (
     "thought_stream_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("thought_stream_loop"):
+        raise RuntimeError(THOUGHT_STREAM_RELEASE_HOLD)
+
 
 @dataclass
 class ThoughtStreamStatus:
@@ -73,7 +82,7 @@ class ThoughtStreamLoop:
         self.on_utterance = on_utterance
 
         if auto_wire:
-            raise RuntimeError(THOUGHT_STREAM_RELEASE_HOLD)
+            _require_release()
         self.clock = clock
         self.base_interval_s = float(base_interval_s)
 
@@ -89,7 +98,7 @@ class ThoughtStreamLoop:
     # ─────────────────────────────────────────────────────────────────────
 
     def start(self) -> None:
-        raise RuntimeError(THOUGHT_STREAM_RELEASE_HOLD)
+        _require_release()
         if self._running:
             return
         self._running = True
@@ -104,7 +113,7 @@ class ThoughtStreamLoop:
             self._thread.join(timeout=5.0)
 
     def _loop(self) -> None:
-        raise RuntimeError(THOUGHT_STREAM_RELEASE_HOLD)
+        _require_release()
         while self._running:
             try:
                 self._tick_once()
@@ -120,7 +129,7 @@ class ThoughtStreamLoop:
                 time.sleep(self.base_interval_s)
 
     def _tick_once(self) -> Optional[Utterance]:
-        raise RuntimeError(THOUGHT_STREAM_RELEASE_HOLD)
+        _require_release()
         self._cycles += 1
         utterance = self.engine.converse()
         if utterance is None:
@@ -141,7 +150,7 @@ class ThoughtStreamLoop:
 
     def run_n_cycles(self, n: int, sleep_between: bool = False) -> List[Utterance]:
         """Run `n` cycles synchronously and return all utterances produced."""
-        raise RuntimeError(THOUGHT_STREAM_RELEASE_HOLD)
+        _require_release()
         out: List[Utterance] = []
         self._running = True
         try:

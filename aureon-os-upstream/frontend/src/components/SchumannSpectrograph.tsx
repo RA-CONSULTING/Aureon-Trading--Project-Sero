@@ -76,6 +76,9 @@ export function SchumannSpectrograph() {
     );
   }
 
+  const frequencyReported = schumannData.frequencyReported;
+  const activityScore = schumannData.activityScore ?? schumannData.amplitude * 100;
+
   // Prepare spectrograph data
   const spectrographData = schumannData.spectrumHistory.map((spectrum, idx) => ({
     time: idx,
@@ -103,7 +106,7 @@ export function SchumannSpectrograph() {
               Schumann Resonance Spectrograph
             </CardTitle>
             <CardDescription>
-              Live Harmonic Analysis & Emotional Frequency Mapping
+              {frequencyReported ? 'Live harmonic analysis from measured frequency data' : 'Live station activity; measured harmonics unavailable from this source'}
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -115,7 +118,7 @@ export function SchumannSpectrograph() {
             </Badge>
             <Badge variant="outline" className="flex items-center gap-1">
               <Waves className="w-3 h-3" />
-              {schumannData.fundamentalHz.toFixed(2)} Hz
+              {frequencyReported ? `${schumannData.fundamentalHz.toFixed(2)} Hz` : `${activityScore.toFixed(0)}/100`}
             </Badge>
           </div>
         </div>
@@ -126,9 +129,24 @@ export function SchumannSpectrograph() {
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-chart-1" />
-            <h3 className="text-sm font-semibold">Live Spectrograph</h3>
+            <h3 className="text-sm font-semibold">{frequencyReported ? 'Live Spectrograph' : 'Station Activity Feed'}</h3>
           </div>
-          <div className="h-48 bg-background/30 rounded-lg border border-border/50 p-2">
+          {!frequencyReported && (
+            <div className="rounded-lg border border-border/50 bg-background/30 p-4 text-sm text-muted-foreground">
+              Source reports Schumann activity score, station count and freshness, but no measured frequency or harmonic amplitudes.
+              {schumannData.stationSignals.length > 0 && (
+                <div className="mt-3 grid gap-2">
+                  {schumannData.stationSignals.slice(0, 5).map(signal => (
+                    <div key={signal.source} className="flex items-center justify-between rounded border border-border/40 p-2">
+                      <span>{signal.source}</span>
+                      <span className="font-mono">{signal.activityScore.toFixed(0)}/100</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {frequencyReported && <div className="h-48 bg-background/30 rounded-lg border border-border/50 p-2">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={spectrographData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
@@ -163,11 +181,11 @@ export function SchumannSpectrograph() {
                 ))}
               </AreaChart>
             </ResponsiveContainer>
-          </div>
+          </div>}
         </div>
 
         {/* Harmonic Spectrum */}
-        <div className="space-y-2">
+        {frequencyReported && <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Waves className="w-4 h-4 text-chart-2" />
             <h3 className="text-sm font-semibold">Harmonic Spectrum</h3>
@@ -204,10 +222,10 @@ export function SchumannSpectrograph() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </div>}
 
         {/* Emotional Tone Mapping */}
-        <div className="space-y-2">
+        {frequencyReported && <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-chart-3" />
             <h3 className="text-sm font-semibold">Emotional Frequency Mapping</h3>
@@ -247,10 +265,10 @@ export function SchumannSpectrograph() {
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Emotional Phase Legend */}
-        <div className="p-3 bg-background/20 rounded-lg border border-border/30">
+        {frequencyReported && <div className="p-3 bg-background/20 rounded-lg border border-border/30">
           <div className="text-xs font-semibold mb-2 text-muted-foreground">Emotional Phases</div>
           <div className="grid grid-cols-5 gap-2">
             {(['FEAR', 'FORMING', 'LOVE', 'AWE', 'UNITY'] as EmotionalPhase[]).map(phase => (
@@ -266,7 +284,7 @@ export function SchumannSpectrograph() {
           <div className="text-xs text-muted-foreground mt-2">
             110 Hz (Fear) → 528 Hz (Love) → 963 Hz (Unity)
           </div>
-        </div>
+        </div>}
 
         {/* Real-time Insights */}
         {schumannData.resonancePhase === 'peak' && (
@@ -276,7 +294,7 @@ export function SchumannSpectrograph() {
               <span className="font-semibold">Peak Resonance Active</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Earth's field is in high coherence. Enhanced unity frequencies detected.
+              {frequencyReported ? "Earth's field is in high coherence. Enhanced unity frequencies detected." : 'Station activity is elevated, with no measured-frequency trading signal opened.'}
             </p>
           </div>
         )}

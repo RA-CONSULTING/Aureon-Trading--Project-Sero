@@ -28,6 +28,8 @@ from typing import List, Dict, Tuple, Optional, Set
 from dataclasses import dataclass, asdict, field
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 BINANCE_API = "https://api.binance.com"
 INTERVAL = "1h"
 DAYS_BACK = 730  # 2 years for cultural pattern detection
@@ -494,9 +496,13 @@ def analyze_bot_culturally(symbol: str, bot: Dict, candles: List[Dict]) -> Cultu
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    if no_external_api_calls():
+        print("🌍 AUREON CULTURAL BOT FINGERPRINTING ENGINE blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print(f"\n🌍 AUREON CULTURAL BOT FINGERPRINTING ENGINE")
     print("="*80)
-    
+
     # Load census
     try:
         with open("bot_census_registry.json", "r") as f:

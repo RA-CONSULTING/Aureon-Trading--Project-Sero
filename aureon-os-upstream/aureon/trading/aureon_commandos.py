@@ -14,6 +14,8 @@ COMMANDOS:
 Gary Leckey's Animal Army | November 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import logging
 import math
@@ -54,6 +56,9 @@ class PrideScanner:
           - opportunity_score (volume × volatility)
           - price
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.PrideScanner.scan_pride blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if quote_assets is None:
             quote_assets = ['USDT', 'USDC', 'BTC', 'ETH', 'BNB']
         
@@ -94,6 +99,9 @@ class PrideScanner:
     
     def get_top_prey(self, n=10) -> List[str]:
         """Get top N prey symbols"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.PrideScanner.get_top_prey blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         targets = self.scan_pride()
         return [t['symbol'] for t in targets[:n]]
 
@@ -124,6 +132,9 @@ class LoneWolf:
         Scoring: momentum × log(1 + volume)
         Returns dict with symbol, score, momentum
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.LoneWolf.pick_momentum_prey blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         best = {'symbol': None, 'score': -999999, 'momentum': 0}
         
         for sym in universe:
@@ -182,6 +193,9 @@ class ArmyAnts:
           - price
           - volume (24h quote volume)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.ArmyAnts.find_scraps blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if quote_assets is None:
             quote_assets = ['USDT', 'USDC', 'BTC', 'ETH', 'BNB']
         
@@ -334,6 +348,9 @@ class LionHunt:
     
     def calculate_opportunity(self, target: Dict) -> float:
         """Calculate opportunity score for a target"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.LionHunt.calculate_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         volatility = abs(target.get('change_pct', 0))
         volume = target.get('volume_usd', 0) / 1000000  # In millions
         return volatility * volume * 100
@@ -426,6 +443,9 @@ class QuackCommandos:
         
         Returns multiplier >= 1.0
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.QuackCommandos.calculate_commando_boost blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         boost = 1.0
         
         pride_targets = commando_targets.get('pride_targets', [])
@@ -461,6 +481,9 @@ class QuackCommandos:
     
     def get_available_slots(self, commando: str) -> int:
         """Get slots available for this commando (own + borrowable)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.QuackCommandos.get_available_slots blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         own_slots = self.slot_config.get(commando, 0)
         used_slots = self.get_active_slots(commando)
         base_available = own_slots - used_slots
@@ -490,6 +513,9 @@ class QuackCommandos:
     def can_enter(self, commando: str, current_total_positions: int, max_positions: int) -> bool:
         """Check if this commando can enter a new position"""
         # Global cap check
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.QuackCommandos.can_enter blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if current_total_positions >= max_positions:
             return False
         
@@ -499,6 +525,9 @@ class QuackCommandos:
     
     def record_entry(self, symbol: str, commando: str):
         """Record that a commando owns a position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.QuackCommandos.record_entry blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         import time
         self.position_owners[symbol] = commando
         self.last_activity[commando] = time.time()
@@ -528,6 +557,9 @@ class QuackCommandos:
           - reason: Why this target
           - score: Priority score
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.QuackCommandos.get_next_entry_recommendation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         import time
         recommendations = []
         
@@ -619,6 +651,9 @@ class QuackCommandos:
     
     def get_status(self) -> str:
         """Get commando status report with ecosystem slots"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_commandos.QuackCommandos.get_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         import time
         now = time.time()
         

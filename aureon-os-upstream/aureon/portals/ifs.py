@@ -83,6 +83,7 @@ or email send should happen without Gary approval."
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import urllib.error
@@ -92,12 +93,15 @@ from datetime import UTC, datetime
 from html import unescape
 from typing import Any, Callable
 
+from aureon.core.no_external_calls import no_external_api_calls
 from aureon.portals.schemas import (
     PortalApplication,
     PortalSnapshot,
     PortalState,
     normalise_state,
 )
+
+logger = logging.getLogger(__name__)
 
 # ── what we are reading ──────────────────────────────────────────────────────
 
@@ -986,6 +990,9 @@ def cdp_fetcher(
     """
 
     def _fetch() -> str:
+        if no_external_api_calls():
+            logger.info("cdp_fetcher blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            raise PortalBlocked("external API calls are disabled by AUREON_NO_EXTERNAL_API_CALLS")
         text, _source, blocker = _cdp_read(cdp_url=cdp_url, env=env, timeout=timeout, marker=marker)
         if blocker:
             raise PortalBlocked(blocker)
@@ -1020,6 +1027,14 @@ def read_dashboard(
     read_at = read_at or _now()
 
     if fetcher is None:
+        if no_external_api_calls():
+            logger.info("read_dashboard blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return PortalSnapshot.blocked(
+                "external API calls are disabled by AUREON_NO_EXTERNAL_API_CALLS",
+                read_at=read_at,
+                source="cdp (refused)",
+                funder=FUNDER,
+            )
         text, source, blocker = _cdp_read(cdp_url=cdp_url, env=env, timeout=timeout)
         if blocker:
             return PortalSnapshot.blocked(blocker, read_at=read_at, source=source, funder=FUNDER)

@@ -427,7 +427,11 @@ class RealPortfolioTracker:
             
             acc = self._capital_client.get_accounts()
             if acc and len(acc) > 0:
-                balance = float(acc[0].get('balance', {}).get('balance', 0))
+                raw_balance = acc[0].get('balance', 0)
+                if isinstance(raw_balance, dict):
+                    balance = float(raw_balance.get('balance', 0))
+                else:
+                    balance = float(raw_balance)
                 return ExchangeBalance(
                     exchange='capital',
                     total_usd=balance,

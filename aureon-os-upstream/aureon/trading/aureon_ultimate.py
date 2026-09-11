@@ -23,6 +23,9 @@ Gary Leckey | November 2025
 "We're making history! If you don't quit, you can't lose!" 🎵
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, time, math, json, logging, hmac, hashlib, random
 from collections import Counter, deque
@@ -178,6 +181,9 @@ class ElephantMemory:
     
     def load(self):
         # 1. Load local memory
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.ElephantMemory.load blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             with open(self.filepath) as f:
                 self.symbols = json.load(f)
@@ -210,6 +216,9 @@ class ElephantMemory:
     
     def record_hunt(self, symbol: str, volume: float = 0, change: float = 0):
         """Remember we hunted this symbol (Quackers style)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.ElephantMemory.record_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if symbol not in self.symbols:
             self.symbols[symbol] = {
                 'hunts': 0, 'trades': 0, 'wins': 0, 'losses': 0,
@@ -276,6 +285,9 @@ class ElephantMemory:
     
     def should_avoid(self, symbol: str) -> bool:
         # Check local memory
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.ElephantMemory.should_avoid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if self._check_avoid(self.symbols.get(symbol)):
             return True
             
@@ -299,6 +311,9 @@ class ElephantMemory:
         return False
     
     def get_win_rate(self) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.ElephantMemory.get_win_rate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total_wins = sum(s.get('wins', 0) for s in self.symbols.values())
         total_losses = sum(s.get('losses', 0) for s in self.symbols.values())
         if total_wins + total_losses == 0:
@@ -400,27 +415,42 @@ class LotSizeManager:
                 logger.error(f"Exchange info error: {e}")
     
     def can_trade(self, symbol: str) -> bool:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.LotSizeManager.can_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         self.update()
         info = self.cache.get(symbol, {})
         return info.get('status') == 'TRADING'
     
     def get_step_size(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.LotSizeManager.get_step_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         self.update()
         lot = self.cache.get(symbol, {}).get('filters', {}).get('LOT_SIZE', {})
         return float(lot.get('stepSize', '0.001'))
     
     def get_min_qty(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.LotSizeManager.get_min_qty blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         self.update()
         lot = self.cache.get(symbol, {}).get('filters', {}).get('LOT_SIZE', {})
         return float(lot.get('minQty', '0.001'))
     
     def get_min_notional(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.LotSizeManager.get_min_notional blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         self.update()
         notional = self.cache.get(symbol, {}).get('filters', {}).get('NOTIONAL', {})
         return float(notional.get('minNotional', '5.0'))
     
     def format_qty(self, symbol: str, qty: float) -> str:
         """Format quantity to LOT_SIZE precision - THE FIX!"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.LotSizeManager.format_qty blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         step = self.get_step_size(symbol)
         min_qty = self.get_min_qty(symbol)
         
@@ -582,6 +612,9 @@ def generate_piano_signal(pos: Position, coherence: float, momentum: float, rsi:
     - STRONG_SELL/SELL: Low coherence + bearish momentum
     - HOLD: Neutral
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_ultimate.generate_piano_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     score = 0.0
     
     # Lambda contribution
@@ -825,6 +858,9 @@ class AureonUltimate:
     
     def sync_allowed_quotes_with_account(self):
         """Blend Binance UK permissions with our preferred quotes - ONLY trade quotes with actual balance."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.sync_allowed_quotes_with_account blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         detected = self.detect_allowed_quotes()
         if detected:
             preferred = CONFIG.get('TARGET_QUOTES', [])
@@ -859,6 +895,9 @@ class AureonUltimate:
 
     def detect_allowed_quotes(self) -> List[str]:
         """Return quote assets our trade-group is cleared for."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.detect_allowed_quotes blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         try:
             account = self.client.account()
             perms = account.get('permissions') or []
@@ -982,6 +1021,9 @@ class AureonUltimate:
         return total, details
 
     def get_real_exchange_equity(self, refresh_seconds: int = 60) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.get_real_exchange_equity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         now = time.time()
         if self.real_equity_cache and (now - self.last_real_equity_sync) < refresh_seconds:
             return self.real_equity_cache
@@ -1011,6 +1053,9 @@ class AureonUltimate:
         return result
 
     def get_base_asset(self, symbol: str) -> Optional[str]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.get_base_asset blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         info = self.lot_mgr.cache.get(symbol)
         if info and info.get('base'):
             return info['base']
@@ -1020,6 +1065,9 @@ class AureonUltimate:
         return None
 
     def get_available_position_quantity(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.get_available_position_quantity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         base_asset = self.get_base_asset(symbol)
         if not base_asset:
             return 0.0
@@ -1057,10 +1105,16 @@ class AureonUltimate:
         return self.total_gross_pnl - self.total_fees
 
     def business_threshold(self) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.business_threshold blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         return CONFIG.get('BUSINESS_GREEN_THRESHOLD', 0.0)
 
     def business_can_execute(self, expected_net: float, action: str, allow_positive: bool = True) -> bool:
         """Centralize Business 101 gating rules for exits/harvests."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.business_can_execute blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         realized_net = self.current_realized_net()
         threshold = self.business_threshold()
         if realized_net >= threshold:
@@ -1599,6 +1653,9 @@ class AureonUltimate:
 
     def consolidate_balances(self, min_notional: float = 3.0):
         """Convert stray assets into the primary quote asset."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.consolidate_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info(
             f"♻️ CONSOLIDATION CHECK: Rolling non-{self.primary_quote} balances into {self.primary_quote}"
         )
@@ -1678,6 +1735,9 @@ class AureonUltimate:
         This runs every cycle to compound profits, regardless of position count.
         Returns the number of positions harvested.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.auto_harvest_floor_winners blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         if not self.positions:
             return 0
             
@@ -1784,6 +1844,9 @@ class AureonUltimate:
         Floor strategy: Take ANY net profit to compound faster.
         Minimum gain: 0.22% (covers 0.2% fees + 0.02% profit = survival mode)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.harvest_winner_for_liquidity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if not self.positions:
             return False
 
@@ -1913,6 +1976,9 @@ class AureonUltimate:
     
     def sync_bridge(self):
         """Sync state with Aureon Bridge for Ultimate ↔ Unified communication"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.sync_bridge blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not BRIDGE_AVAILABLE or not self.bridge:
             return
         
@@ -1980,6 +2046,9 @@ class AureonUltimate:
     
     def publish_opportunities_to_bridge(self, opportunities: List[Dict]):
         """Publish top opportunities to bridge for Unified system"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.publish_opportunities_to_bridge blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not BRIDGE_AVAILABLE or not self.bridge:
             return
         
@@ -2051,6 +2120,9 @@ class AureonUltimate:
     
     def check_bridge_commands(self):
         """Process control commands from bridge"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.check_bridge_commands blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not BRIDGE_AVAILABLE or not self.bridge:
             return
         
@@ -2080,6 +2152,9 @@ class AureonUltimate:
             logger.warning(f"⚠️ Bridge command processing error: {e}")
 
     def update_tickers(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.update_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if time.time() - self.last_ticker_update < 2:
             return
 
@@ -2124,6 +2199,9 @@ class AureonUltimate:
         """Scan for high-coherence entries with COMMANDO INTELLIGENCE 🦆⚔️"""
         
         # 🦆 Get commando targets (cache for 30 seconds)
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if time.time() - self.last_commando_scan > 30:
             logger.info("🦁 DEPLOYING COMMANDOS FOR PRIDE SCAN...")
             self.commando_cache = self.commandos.get_commando_targets(self.memory, self.allowed_quotes)
@@ -2227,6 +2305,9 @@ class AureonUltimate:
     
     def build_opportunity_from_eco_pick(self, eco_pick: Dict) -> Optional[Dict]:
         """Convert ecosystem recommendation to opportunity format for enter_position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.build_opportunity_from_eco_pick blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         symbol = eco_pick['symbol']
         env_gamma = float(self.lighthouse_metrics.get('gamma_ratio', 0.0)) if self.lighthouse_metrics else 0.0
         env_distortion = float(self.lighthouse_metrics.get('distortion_index', 0.0)) if self.lighthouse_metrics else 0.0
@@ -2299,6 +2380,9 @@ class AureonUltimate:
     
     def enter_position(self, opp: Dict, quote_balance: float, commando: str = 'lion') -> Any:
         """PING - Enter position with PRIME SCALING (commando-aware)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.enter_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         symbol = opp['symbol']
         quote_asset = self.match_quote_asset(symbol) or self.primary_quote
         
@@ -2494,6 +2578,9 @@ class AureonUltimate:
     
     def check_exits(self):
         """PONG - Check exit conditions with Piano intelligence"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.business_green_light:
             threshold = CONFIG.get('BUSINESS_GREEN_THRESHOLD', 0.0)
             logger.info(
@@ -2689,6 +2776,9 @@ class AureonUltimate:
     
     def display_status(self):
         """Display current status"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.display_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         quote_balance = self.get_quote_balance()
         pos_value = sum(
             float(self.ticker_cache.get(s, {}).get('lastPrice', 0)) * p.quantity
@@ -2839,6 +2929,9 @@ class AureonUltimate:
     
     def sync_bridge(self):
         """Sync state with bridge for Unified ↔ Ultimate communication"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.sync_bridge blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.bridge_enabled or not self.bridge:
             return
         
@@ -2897,6 +2990,9 @@ class AureonUltimate:
     
     def publish_opportunities_to_bridge(self):
         """Publish commando targets as opportunities to bridge"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.publish_opportunities_to_bridge blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.bridge_enabled or not self.bridge or not self.commando_cache:
             return
         
@@ -2972,6 +3068,9 @@ class AureonUltimate:
     
     def check_bridge_commands(self):
         """Process control commands from bridge"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.check_bridge_commands blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.bridge_enabled or not self.bridge:
             return
         
@@ -3003,6 +3102,9 @@ class AureonUltimate:
     
     def force_exit_position(self, symbol: str, reason: str) -> Any:
         """Force exit a position (used by bridge commands)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.force_exit_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if symbol not in self.positions:
             return False
         
@@ -3055,6 +3157,9 @@ class AureonUltimate:
     
     def run(self, duration_sec: int = 3600):
         """Run the ultimate trader"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultimate.AureonUltimate.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("""
 ╔════════════════════════════════════════════════════════════════╗
 ║                                                                

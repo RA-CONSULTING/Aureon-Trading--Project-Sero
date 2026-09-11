@@ -40,6 +40,8 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 import threading
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -199,11 +201,15 @@ class HistoricalDataFetcher:
     def fetch_coinbase_candles(self, symbol: str, granularity: str = '1h',
                                 start: datetime = None, end: datetime = None) -> List[OHLCV]:
         """Fetch candles from Coinbase (max 300 per request)"""
+        if no_external_api_calls():
+            logger.info("fetch_coinbase_candles blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         if start is None:
             start = datetime.now() - timedelta(days=30)
         if end is None:
             end = datetime.now()
-            
+
         granularity_seconds = self.GRANULARITY.get(granularity, 3600)
         all_candles = []
         current_start = start
@@ -256,11 +262,15 @@ class HistoricalDataFetcher:
     def fetch_binance_candles(self, symbol: str, interval: str = '1h',
                                start: datetime = None, end: datetime = None) -> List[OHLCV]:
         """Fetch candles from Binance (max 1000 per request)"""
+        if no_external_api_calls():
+            logger.info("fetch_binance_candles blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         if start is None:
             start = datetime.now() - timedelta(days=30)
         if end is None:
             end = datetime.now()
-            
+
         all_candles = []
         current_start = int(start.timestamp() * 1000)
         end_ms = int(end.timestamp() * 1000)

@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 MAX_RECEIPT_AGE_SECONDS = 300.0
 FUTURE_TOLERANCE_SECONDS = 5.0
 
@@ -1185,6 +1187,10 @@ class S5V14LiveEngine:
 
     async def run(self) -> Dict[str, Any]:
         """Run only after explicit configuration and source injection."""
+        if no_external_api_calls():
+            return self._record_no_data(
+                "AUREON_NO_EXTERNAL_API_CALLS"
+            )
         if not self.check_runtime_ready():
             return self._record_no_data(
                 "market_account_and_hnc_auris_receipt_adapters_required"

@@ -5,44 +5,20 @@
  * (trading as Aureon Zorza Technologies): the registered company facts, the
  * Innovate NI Silver recognition, community support, and contact — all
  * verifiable public data transcribed from COMPANY.md, carried with an honest
- * data-provenance badge. Nothing is fabricated; with no backend it shows the
- * honest offline state.
+ * data-provenance badge. An unavailable gateway falls back to the explicitly
+ * recorded repository profile, without asserting current official status.
  */
 
-import { useEffect, useState } from "react";
 import { Award, Building2, ExternalLink, HeartHandshake, ScrollText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LiveDataNotice } from "@/shell/Page";
-import { type TruthStatus, TRUTH_STATUS_STYLE } from "../truthStatus";
 import { buildStaticCompanyProfile } from "../companyFacts";
-
-
-interface OrgProfile {
-  identity: Record<string, string>;
-  identity_note: string;
-  recognition: Record<string, string>;
-  community: { summary: string; partners: string[] };
-  product: Record<string, string>;
-  contact: Record<string, string>;
-  disclaimer: string;
-  source?: string;
-  truth_status: TruthStatus;
-}
-
-const STATUS_STYLE: Record<TruthStatus, { cls: string; label: string }> = {
-  live: { cls: TRUTH_STATUS_STYLE.live, label: "live" },
-  real_derived: { cls: TRUTH_STATUS_STYLE.real_derived, label: "real · derived" },
-  cached_real: { cls: TRUTH_STATUS_STYLE.cached_real, label: "cached real" },
-  no_data: { cls: TRUTH_STATUS_STYLE.no_data, label: "no data" },
-  test_fixture: { cls: TRUTH_STATUS_STYLE.test_fixture, label: "test fixture" },
-};
-
-function StatusBadge({ status }: { status: TruthStatus }) {
-  const s = STATUS_STYLE[status] ?? STATUS_STYLE.no_data;
-  return <Badge variant="outline" className={`text-[10px] ${s.cls}`}>{s.label}</Badge>;
-}
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { companyStore } from "@/services/platformReads";
+import { readRecordedCompanyProfile } from "@/lib/platformConfiguration";
+import { configurationMessage, configurationStatus } from "@/lib/accountConfigurationEvidence";
+import { GlassPageHeader } from "@/shell/GlassPage";
 
 /** Turn snake_case keys into a human label ("company_number" → "Company number"). */
 function humanize(key: string): string {
@@ -56,41 +32,24 @@ const IDENTITY_ORDER = [
 ];
 
 export default function CompanyPage() {
-  const [data, setData] = useState<OrgProfile | null | undefined>(undefined);
-
-  useEffect(() => {
-    // Prefer the live gateway; fall back to the committed static facts so the company
-    // story is never blank — the facts are identical (both real_derived from COMPANY.md).
-    fetch("/api/org")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
-      .catch(() => setData(buildStaticCompanyProfile() as OrgProfile));
-  }, []);
+  const receipt = useReadOnlyPoller(companyStore, 30_000, 8_000);
+  const fallback = !receipt.loading && receipt.data === null;
+  const data = receipt.loading ? undefined : receipt.data ?? readRecordedCompanyProfile(buildStaticCompanyProfile());
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Building2 className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Company</h1>
-          <p className="text-sm text-muted-foreground">
-            The organization behind Aureon OS — verifiable public facts, not marketing.
-          </p>
-        </div>
-        {data && <StatusBadge status={data.truth_status} />}
-      </div>
+      <GlassPageHeader icon={Building2} eyebrow="Organization record" title="Company"
+        description="Recorded company profile and project information."
+        actions={data && <Badge variant="outline">{fallback ? 'Committed record' : 'Recorded profile'}</Badge>} />
 
-      <LiveDataNotice />
+      <p className="text-xs text-muted-foreground">
+        {fallback ? `${configurationMessage(configurationStatus(receipt), receipt.error)} Showing the committed repository profile.`
+          : receipt.lastReceivedAt ? `Gateway copy received ${new Date(receipt.lastReceivedAt).toISOString()}.` : 'Reading recorded profile…'}
+        {' '}Source: {data?.source ?? 'committed companyFacts.ts / COMPANY.md'}. A current HTTP response does not verify current official registration or recognition status.
+      </p>
 
       {data === undefined && (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>
-      )}
-      {data === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Start the operator gateway for the live company profile. The facts are also in
-            <span className="font-mono"> COMPANY.md</span> at the repository root.
-          </CardContent></Card>
       )}
 
       {data && (
@@ -99,7 +58,7 @@ export default function CompanyPage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-primary" />
-                <CardTitle className="text-base">Registered company</CardTitle>
+                <CardTitle className="text-base">Recorded registration details</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">

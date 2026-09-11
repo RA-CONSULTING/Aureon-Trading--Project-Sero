@@ -21,6 +21,8 @@ URL: http://localhost:13333
 Gary Leckey | January 2026 | UNIFIED MASTER HUB
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys, os
 if sys.platform == 'win32':
@@ -2940,6 +2942,9 @@ class AureonUnifiedMasterHub:
     
     async def handle_websocket(self, request):
         """Handle WebSocket connections."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_master_hub.AureonUnifiedMasterHub.handle_websocket blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         
@@ -2995,6 +3000,9 @@ class AureonUnifiedMasterHub:
     
     async def unified_data_stream(self):
         """Main unified data stream - all data flowing to correct sections."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_master_hub.AureonUnifiedMasterHub.unified_data_stream blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         await asyncio.sleep(2)
         
         logger.info("🌊 Starting UNIFIED DATA STREAM...")
@@ -3584,6 +3592,9 @@ class AureonUnifiedMasterHub:
     async def start(self):
         """Start the unified master hub."""
         # Start web server
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_master_hub.AureonUnifiedMasterHub.start blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', self.port)
@@ -3614,6 +3625,9 @@ class AureonUnifiedMasterHub:
         asyncio.create_task(self.unified_data_stream())
 
 async def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_master_hub.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     hub = AureonUnifiedMasterHub(port=13333)
     await hub.start()
     await asyncio.Event().wait()

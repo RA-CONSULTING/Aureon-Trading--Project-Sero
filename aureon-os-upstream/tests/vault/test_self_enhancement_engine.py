@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 import tempfile
 import time
 from pathlib import Path
@@ -381,12 +382,34 @@ def test_singleton_lifecycle():
     reset_self_enhancement_engine()
 
 
-def test_feedback_loop_calls_enhance_on_nth_tick():
-    print("\n[14] SelfFeedbackLoop self-coding remains on production HOLD")
+def test_feedback_loop_calls_enhance_on_nth_tick(
+    monkeypatch, tmp_path,
+):
+    print("\n[14] SelfFeedbackLoop self-coding: fail-closed; provider stays inert")
     from aureon.vault.self_feedback_loop import AureonSelfFeedbackLoop
 
+    # HOLD path: record absent → the loop refuses the effectful flag.
+    monkeypatch.setenv(
+        "AUREON_CORE_RELEASE_RECORD",
+        str(tmp_path / "no_such_core_release.json"),
+    )
     with pytest.raises(RuntimeError, match="aureon_self_feedback_loop_hold"):
         AureonSelfFeedbackLoop(enable_self_enhancement=True)
+
+    # Released path: the loop's own gate opens, but the self-enhancement
+    # provider is queen-owned and is NOT released by the core record — the
+    # enhancer must stay inert.
+    record = tmp_path / "core_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["aureon_vault", "casimir_quantifier",
+                    "harmonic_pinger", "self_feedback_loop"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("AUREON_CORE_RELEASE_RECORD", str(record))
+    loop = AureonSelfFeedbackLoop(enable_self_enhancement=True)
+    assert loop._enhance_enabled is False
+    assert loop._enhancer is None
 
 
 def test_multiple_gaps_cycles_exhaust_seed():

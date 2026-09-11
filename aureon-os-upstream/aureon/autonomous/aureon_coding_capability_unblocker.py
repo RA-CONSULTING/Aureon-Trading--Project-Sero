@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -220,6 +221,37 @@ def _state_signal(states: Dict[str, Dict[str, Any]], *keys: str) -> Any:
     return None
 
 
+def _coherence_gate_quality_evidence(root: Path, max_age_sec: float = 3600.0) -> Dict[str, Any]:
+    """Check for a recent coherence-gate director butterfly receipt.
+
+    A fresh ``emerged`` or ``held`` receipt is treated as quality evidence:
+    ``emerged`` means a patch was produced after backup, ``git apply --check``,
+    bounded test layers, and rollback-on-failure have all succeeded;
+    ``held`` means the director completed a healthy cycle with no proposals
+    to apply.
+    """
+    path = root / "state" / "aureon_autonomous_coherence_gate_director_last_run.json"
+    try:
+        payload = _read_json(path)
+        if not isinstance(payload, dict):
+            return {"present": False, "fresh": False}
+        status = payload.get("status")
+        ok = payload.get("ok")
+        generated_at = payload.get("generated_at")
+        if status not in ("emerged", "held") or not ok or not generated_at:
+            return {"present": True, "fresh": False, "status": status}
+        generated_ts = datetime.fromisoformat(generated_at).timestamp()
+        age = time.time() - generated_ts
+        return {
+            "present": True,
+            "fresh": 0 <= age <= max_age_sec,
+            "status": status,
+            "age_seconds": round(age, 3),
+        }
+    except Exception as exc:
+        return {"present": False, "fresh": False, "error": type(exc).__name__}
+
+
 def _build_gate_status(root: Path, states: Dict[str, Dict[str, Any]], prompt: str) -> List[Dict[str, Any]]:
     root_checks = {
         "capability_forge": (root / "aureon" / "autonomous" / "aureon_capability_forge.py").exists(),
@@ -263,9 +295,16 @@ def _build_gate_status(root: Path, states: Dict[str, Dict[str, Any]], prompt: st
             evidence = "pytest or Playwright surfaces present" if gate_open else "no validation surface detected"
             next_action = "Run focused tests/build/smoke after each generated artifact or repo patch."
         elif gate_id == "quality_handover_gate":
-            gate_open = root_checks["complex_stress"] and ("certified" in complex_status or stress_ok)
-            evidence = complex_status or "complex stress certification not run yet"
-            next_action = "Run complex stress certification and hold handover until fake passes are zero."
+            coherence = _coherence_gate_quality_evidence(root)
+            complex_ready = root_checks["complex_stress"] and ("certified" in complex_status or stress_ok)
+            gate_open = complex_ready or (coherence["present"] and coherence["fresh"])
+            if complex_ready:
+                evidence = complex_status
+            elif coherence["fresh"]:
+                evidence = f"coherence_gate_emerged {coherence.get('age_seconds')}s ago"
+            else:
+                evidence = "no fresh quality evidence"
+            next_action = "Run complex stress certification or produce a fresh coherence-gate butterfly receipt; hold handover until fake passes are zero."
         elif gate_id == "manual_authority_boundary_gate":
             gate_open = True
             evidence = "manual-only boundaries remain active"

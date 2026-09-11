@@ -1460,7 +1460,7 @@ export type Database = {
           d1_price: Json
           d2_volume: Json
           d3_time: Json
-          REDACTED_USE_CLOUD_SECRET: Json
+          d4_correlation: Json
           d5_momentum: Json
           d6_frequency: Json
           dimensional_coherence: number
@@ -1481,7 +1481,7 @@ export type Database = {
           d1_price?: Json
           d2_volume?: Json
           d3_time?: Json
-          REDACTED_USE_CLOUD_SECRET?: Json
+          d4_correlation?: Json
           d5_momentum?: Json
           d6_frequency?: Json
           dimensional_coherence?: number
@@ -1502,7 +1502,7 @@ export type Database = {
           d1_price?: Json
           d2_volume?: Json
           d3_time?: Json
-          REDACTED_USE_CLOUD_SECRET?: Json
+          d4_correlation?: Json
           d5_momentum?: Json
           d6_frequency?: Json
           dimensional_coherence?: number

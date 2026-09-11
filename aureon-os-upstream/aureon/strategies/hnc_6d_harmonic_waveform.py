@@ -115,7 +115,7 @@ class HarmonicWaveform6D:
     d1_price: Dimension = field(default_factory=lambda: Dimension("price"))
     d2_volume: Dimension = field(default_factory=lambda: Dimension("volume"))
     d3_time: Dimension = field(default_factory=lambda: Dimension("time"))
-    REDACTED_USE_CLOUD_SECRET: Dimension = field(default_factory=lambda: Dimension("correlation"))
+    d4_correlation: Dimension = field(default_factory=lambda: Dimension("correlation"))
     d5_momentum: Dimension = field(default_factory=lambda: Dimension("momentum"))
     d6_frequency: Dimension = field(default_factory=lambda: Dimension("frequency"))
     
@@ -239,8 +239,8 @@ class SixDimensionalHarmonicEngine:
         # How this asset resonates with the ecosystem
         # ═══════════════════════════════════════════════════════════════
         correlation_value = self._calculate_ecosystem_correlation(symbol, change_pct)
-        wf.REDACTED_USE_CLOUD_SECRET.update(correlation_value)
-        wf.REDACTED_USE_CLOUD_SECRET.amplitude = abs(correlation_value - 0.5) * 2
+        wf.d4_correlation.update(correlation_value)
+        wf.d4_correlation.amplitude = abs(correlation_value - 0.5) * 2
         
         # ═══════════════════════════════════════════════════════════════
         # DIMENSION 5: Momentum Vortex
@@ -362,7 +362,7 @@ class SixDimensionalHarmonicEngine:
             wf.d1_price.value,
             wf.d2_volume.value,
             wf.d3_time.value,
-            wf.REDACTED_USE_CLOUD_SECRET.value,
+            wf.d4_correlation.value,
             wf.d5_momentum.value,
             wf.d6_frequency.value,
         ]
@@ -379,7 +379,7 @@ class SixDimensionalHarmonicEngine:
             wf.d1_price.phase,
             wf.d2_volume.phase,
             wf.d3_time.phase,
-            wf.REDACTED_USE_CLOUD_SECRET.phase,
+            wf.d4_correlation.phase,
             wf.d5_momentum.phase,
             wf.d6_frequency.phase,
         ]
@@ -401,7 +401,7 @@ class SixDimensionalHarmonicEngine:
             wf.d1_price.amplitude ** 2 * wf.d1_price.frequency,
             wf.d2_volume.amplitude ** 2 * wf.d2_volume.frequency,
             wf.d3_time.amplitude ** 2 * wf.d3_time.frequency,
-            wf.REDACTED_USE_CLOUD_SECRET.amplitude ** 2 * wf.REDACTED_USE_CLOUD_SECRET.frequency,
+            wf.d4_correlation.amplitude ** 2 * wf.d4_correlation.frequency,
             wf.d5_momentum.amplitude ** 2 * wf.d5_momentum.frequency,
             wf.d6_frequency.amplitude ** 2 * wf.d6_frequency.frequency,
         ]
@@ -487,7 +487,7 @@ class SixDimensionalHarmonicEngine:
             wf.d1_price.value,
             wf.d2_volume.value,
             wf.d3_time.value,
-            wf.REDACTED_USE_CLOUD_SECRET.value,
+            wf.d4_correlation.value,
             wf.d5_momentum.value,
             wf.d6_frequency.value,
         ]
@@ -622,9 +622,9 @@ class SixDimensionalHarmonicEngine:
                     'velocity': wf.d3_time.velocity,
                     'phase': wf.d3_time.phase,
                 },
-                'REDACTED_USE_CLOUD_SECRET': {
-                    'value': wf.REDACTED_USE_CLOUD_SECRET.value,
-                    'velocity': wf.REDACTED_USE_CLOUD_SECRET.velocity,
+                'd4_correlation': {
+                    'value': wf.d4_correlation.value,
+                    'velocity': wf.d4_correlation.velocity,
                 },
                 'd5_momentum': {
                     'value': wf.d5_momentum.value,
@@ -826,7 +826,7 @@ class Enhanced6DProbabilityMatrix:
 ║  │ D1: Price      │ {wf.d1_price.value:>8.3f} │ {wf.d1_price.velocity:>+8.4f} │ {wf.d1_price.phase:>8.3f} │                        ║
 ║  │ D2: Volume     │ {wf.d2_volume.value:>8.3f} │ {wf.d2_volume.velocity:>+8.4f} │ {wf.d2_volume.phase:>8.3f} │                        ║
 ║  │ D3: Time       │ {wf.d3_time.value:>8.3f} │ {wf.d3_time.velocity:>+8.4f} │ {wf.d3_time.phase:>8.3f} │                        ║
-║  │ D4: Correlation│ {wf.REDACTED_USE_CLOUD_SECRET.value:>8.3f} │ {wf.REDACTED_USE_CLOUD_SECRET.velocity:>+8.4f} │ {wf.REDACTED_USE_CLOUD_SECRET.phase:>8.3f} │                        ║
+║  │ D4: Correlation│ {wf.d4_correlation.value:>8.3f} │ {wf.d4_correlation.velocity:>+8.4f} │ {wf.d4_correlation.phase:>8.3f} │                        ║
 ║  │ D5: Momentum   │ {wf.d5_momentum.value:>8.3f} │ {wf.d5_momentum.velocity:>+8.4f} │ {wf.d5_momentum.phase:>8.3f} │                        ║
 ║  │ D6: Frequency  │ {wf.d6_frequency.value:>8.3f} │ {wf.d6_frequency.velocity:>+8.4f} │ {wf.d6_frequency.phase:>8.3f} │                        ║
 ║  └────────────────┴──────────┴──────────┴──────────┘                        ║

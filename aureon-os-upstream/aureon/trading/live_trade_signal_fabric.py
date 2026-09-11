@@ -17,6 +17,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 SCHEMA_VERSION = "aureon-live-trade-signal-fabric-v1"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOG_PATH = Path("state/aureon_live_trade_signal_fabric_events.jsonl")
@@ -235,6 +238,9 @@ def _normalize_phase(phase: Any, payload: Dict[str, Any]) -> str:
 
 
 def expected_rate_budget_tags(event: Dict[str, Any]) -> List[str]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.expected_rate_budget_tags blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return []
     venue = str(event.get("venue") or "").lower()
     phase = str(event.get("phase") or "").lower()
     expected = list(RATE_BUDGET_VENUE_TAGS.get(venue, ["api_budget_source"]))
@@ -265,6 +271,9 @@ def _rate_budget_tags_from(data: Dict[str, Any], rate_budget: Dict[str, Any]) ->
 
 
 def normalize_rate_budget_proof(event: Dict[str, Any]) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.normalize_rate_budget_proof blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     normalized = dict(event)
     rate_budget = normalized.get("rate_budget") if isinstance(normalized.get("rate_budget"), dict) else {}
     if rate_budget:
@@ -323,6 +332,9 @@ def build_api_budget_proof(
     producing the event.
     """
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.build_api_budget_proof blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     venue_key = str(venue or "").lower()
     phase_key = str(phase or "").lower()
     observed_tags = [str(item).strip() for item in (tags or []) if str(item).strip()]
@@ -411,6 +423,9 @@ def normalize_trade_flow_event(
     source_system: str = "unknown",
     generated_at: Optional[str] = None,
 ) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.normalize_trade_flow_event blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     data = dict(payload or {})
     phase_key = _normalize_phase(phase, data)
     timestamp = str(generated_at or data.get("generated_at") or data.get("event_time") or utc_now())
@@ -590,6 +605,9 @@ def _parse_ts(value: Any) -> float:
 
 
 def build_state_from_events(events: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.build_state_from_events blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     rows = [dict(event) for event in events if isinstance(event, dict)]
     rows.sort(key=lambda event: _parse_ts(event.get("generated_at")))
     phase_counts = Counter(str(event.get("phase") or "unknown") for event in rows)
@@ -762,6 +780,9 @@ def publish_trade_flow_event(
     emit_external: bool = True,
     write_artifacts: bool = True,
 ) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.publish_trade_flow_event blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     event = normalize_trade_flow_event(phase, payload, source_system=source_system)
     thought_result = _publish_to_thought_bus(event, thought_bus=thought_bus, emit_external=emit_external)
     mycelium_result = _ingest_mycelium(event, mycelium=mycelium, emit_external=emit_external)
@@ -789,6 +810,9 @@ def publish_lifecycle_event(
     root: Optional[Path] = None,
     emit_external: bool = True,
 ) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.publish_lifecycle_event blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     phase = _normalize_phase(lifecycle_event.get("status") or lifecycle_event.get("event_type"), lifecycle_event)
     return publish_trade_flow_event(
         phase,
@@ -800,6 +824,9 @@ def publish_lifecycle_event(
 
 
 def rebuild_latest(root: Optional[Path] = None) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.rebuild_latest blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     state = build_state_from_events(_tail_jsonl(rooted(root, LOG_PATH), 1000))
     for rel in (STATE_PATH, PUBLIC_PATH):
         _write_json_atomic(rooted(root, rel), state)
@@ -807,6 +834,9 @@ def rebuild_latest(root: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def latest_for_ui(root: Optional[Path] = None) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_trade_signal_fabric.latest_for_ui blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     state = _read_json(rooted(root, STATE_PATH), {})
     if isinstance(state, dict) and state:
         return state

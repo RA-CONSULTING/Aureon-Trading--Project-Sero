@@ -1,43 +1,61 @@
-import { defineConfig, type ProxyOptions } from "vite";
+import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import {
+  createLoopbackIngressPlugin,
+  createLoopbackProxyRoute,
+  operatorAuthorizationConfig,
+} from "./config/operatorProxySecurity";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
-  // The React app talks to the Aureon operator's REST surface over relative
-  // `/api/...` paths (see src/services/apiClient.ts). In dev the operator runs
-  // as a separate process, so proxy `/api` to it. Target + optional bearer are
-  // env-configurable so the client code never carries a token.
-  const operatorUrl = process.env.VITE_OPERATOR_URL || "http://localhost:8080";
-  const operatorToken =
-    process.env.VITE_OPERATOR_TOKEN || process.env.AUREON_OPERATOR_API_KEY || "";
-  const apiProxy: ProxyOptions = {
-    target: operatorUrl,
-    changeOrigin: true,
-    // Bearer is injected here (not in client code) so a secured operator
-    // (AUREON_OPERATOR_API_KEY set) still works without leaking the token.
-    configure: (proxy) => {
-      if (!operatorToken) return;
-      proxy.on("proxyReq", (proxyReq) => {
-        proxyReq.setHeader("Authorization", `Bearer ${operatorToken}`);
-      });
-    },
-  };
-
-  return {
+export default defineConfig(({ mode, isPreview }) => ({
   server: {
-    host: "0.0.0.0",
-    // Dev server runs on 8088 so the operator can keep its default 8080 (the
-    // proxy target below). Playwright uses 8081; nothing else pins 8080 here.
-    port: 8088,
+    host: "127.0.0.1",
+    port: 5173,
+    strictPort: true,
+    // HFT desk / operator glass: default proxy /api -> operator:8080 (spec). Override with AUREON_OPERATOR_URL or VITE_OPERATOR_URL.
+    // Dev had no equivalent, so every /api/* call from the console 404'd against
+    // Vite itself â€” including /api/cognition/field, which feeds the HNC-derived
+    // visuals. Point dev at the operator so measured readings work locally too.
     proxy: {
-      "/api": apiProxy,
-      "/healthz": apiProxy,
-      "/readyz": apiProxy,
+      "^/api/orca-observations$": createLoopbackProxyRoute(
+        "orca_observations",
+        "http://127.0.0.1:8888",
+        {
+          rewrite: () => "/api/observations",
+          // Only this passive observation route is exposed. Orca control routes
+          // stay outside this exact-path proxy; the reader owns provider polling.
+        },
+      ),
+      "/api/terminal-state": createLoopbackProxyRoute(
+        "terminal_state",
+        process.env.AUREON_TERMINAL_STATE_URL ?? "http://127.0.0.1:8791",
+      ),
+      "/api/flight-test": createLoopbackProxyRoute(
+        "flight_test",
+        process.env.AUREON_TERMINAL_STATE_URL ?? "http://127.0.0.1:8791",
+      ),
+      "/api": createLoopbackProxyRoute(
+        "operator",
+        process.env.AUREON_OPERATOR_URL ?? process.env.VITE_OPERATOR_URL ?? "http://127.0.0.1:8080",
+        {
+          authorization: operatorAuthorizationConfig(
+            process.env.AUREON_UI_AUTH_MODE,
+            process.env.AUREON_OPERATOR_PROXY_BEARER,
+          ),
+        },
+      ),
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  preview: {
+    host: "127.0.0.1",
+  },
+  plugins: [
+    createLoopbackIngressPlugin(Boolean(isPreview)),
+    react(),
+    mode === "development" && componentTagger(),
+  ].filter(Boolean),
   resolve: {
     alias: [
       {
@@ -49,6 +67,12 @@ export default defineConfig(({ mode }) => {
         replacement: path.resolve(__dirname, "./src"),
       },
     ],
+  },
+  // Unit tests live beside the source in src/**; tests/ belongs to Playwright
+  // (see playwright.config.ts testDir), whose specs cannot run under vitest.
+  test: {
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["tests/**", "node_modules/**", "dist/**"],
   },
   build: {
     // The big trading/console route chunks (WarRoom, LegacyConsole) and recharts
@@ -77,5 +101,6 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
-  };
-});
+}));
+
+

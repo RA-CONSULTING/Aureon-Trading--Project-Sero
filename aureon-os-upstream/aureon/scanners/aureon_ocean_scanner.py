@@ -70,6 +70,8 @@ SCHUMANN_BASE = 7.83
 
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 @dataclass
 class OceanOpportunity:
     """A single opportunity in the ocean of possibilities."""
@@ -198,10 +200,14 @@ class OceanScanner:
     async def discover_universe(self) -> Dict[str, int]:
         """
         🔭 DISCOVER THE ENTIRE TRADING UNIVERSE
-        
+
         This scans all exchanges and builds a map of every tradeable
         symbol across the global market.
         """
+        if no_external_api_calls():
+            logger.info("Ocean Scanner discover_universe blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         print("\n" + "=" * 70)
         print("🔭 DISCOVERING THE TRADING UNIVERSE...")
         print("=" * 70)
@@ -356,12 +362,16 @@ class OceanScanner:
     async def scan_ocean(self, limit: int = 100) -> List[OceanOpportunity]:
         """
         🌊 SCAN THE ENTIRE OCEAN FOR OPPORTUNITIES
-        
+
         This performs a full scan of all discovered symbols,
         calculating momentum and identifying opportunities.
-        
+
         Returns the TOP opportunities sorted by score.
         """
+        if no_external_api_calls():
+            logger.info("Ocean Scanner scan_ocean blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         print(f"\n🌊 SCANNING OCEAN... (Universe: {self.total_symbols_scanned:,} symbols)")
         scan_start = time.time()
         

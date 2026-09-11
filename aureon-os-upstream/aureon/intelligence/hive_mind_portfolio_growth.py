@@ -43,10 +43,15 @@ import asyncio
 import json
 import math
 import time
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 # Sacred constants
 PHI = (1 + math.sqrt(5)) / 2  # 1.618033989 - Golden Ratio
@@ -191,8 +196,14 @@ class HiveMindTrader:
     
     async def initialize_hive(self):
         """Initialize the hive mind with all available exchanges."""
+        if no_external_api_calls():
+            logger.info("HiveMindPortfolioGrowth.initialize_hive blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            print("\n🐝 BUILDING HIVE MIND...")
+            print("⏸️ EXTERNAL CALLS DISABLED - hive initialization held")
+            return False
+
         print("\n🐝 BUILDING HIVE MIND...")
-        
+
         # Initialize portfolio tracker
         await self.portfolio_tracker.initialize_exchanges()
         
@@ -472,9 +483,14 @@ class HiveMindTrader:
     
     async def execute_hive_decision(self, decision: HiveDecision) -> bool:
         """Execute hive decision across participating nodes."""
+        if no_external_api_calls():
+            logger.info("HiveMindPortfolioGrowth.execute_hive_decision held by AUREON_NO_EXTERNAL_API_CALLS")
+            print("🐝 Hive trade held: AUREON_NO_EXTERNAL_API_CALLS")
+            return False
+
         if decision.decision_type != 'TRADE':
             return False
-        
+
         action_plan = decision.action_plan
         symbol = action_plan['symbol']
         action = action_plan['action']
@@ -575,11 +591,17 @@ class HiveMindTrader:
 
     async def run_hive_growth_session(self, duration_minutes: int = 60):
         """Main loop for hive mind growth."""
+        if no_external_api_calls():
+            logger.info("HiveMindPortfolioGrowth.run_hive_growth_session held by AUREON_NO_EXTERNAL_API_CALLS")
+            print(f"\n🚀 STARTING HIVE MIND GROWTH SESSION - {duration_minutes} minutes")
+            print("⏸️ EXTERNAL CALLS DISABLED - hive growth session held")
+            return
+
         print(f"\n🚀 STARTING HIVE MIND GROWTH SESSION - {duration_minutes} minutes")
         print("   🐝 All exchanges coordinate as worker bees")
         print("   🧠 Collective intelligence grows your $7.39")
         print("   🎯 306° perfection logic enforced")
-        
+
         # Initialize hive
         hive_ready = await self.initialize_hive()
         if not hive_ready:

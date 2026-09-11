@@ -10,6 +10,9 @@ Usage:
     python force_trade.py BTCGBP       # Force trade on specific symbol
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -34,6 +37,9 @@ from aureon.queen.queen_force_trade_governance import evaluate_queen_force_trade
 def force_trade():
     """Force execute a single trade"""
     
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.force_trade.force_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*70)
     print("🔥 AUREON FORCE TRADE MODE 🔥")
     print("="*70)

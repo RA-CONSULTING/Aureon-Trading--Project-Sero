@@ -44,6 +44,8 @@ from collections import deque
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Try imports
 try:
     import websockets
@@ -417,6 +419,9 @@ class LiveFeedManager:
             
     async def start_all_feeds(self):
         """Start all available feeds"""
+        if no_external_api_calls():
+            logger.info("Live Market Feed blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         tasks = []
         
         # CoinGecko feed (always works, no auth needed)
@@ -452,7 +457,10 @@ class LiveFeedManager:
 
 async def run_live_surveillance():
     """Run the complete live surveillance system"""
-    
+    if no_external_api_calls():
+        print("\n🔴 Live Market Surveillance blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print()
     print("🔥" * 40)
     print()

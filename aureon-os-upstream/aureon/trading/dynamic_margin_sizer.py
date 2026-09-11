@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 def _as_float(value: Any, default: float = 0.0) -> float:
     try:
         if value in (None, ""):
@@ -43,6 +46,9 @@ class MarginCapitalSnapshot:
 
     @classmethod
     def from_trade_balance(cls, trade_balance: Mapping[str, Any]) -> "MarginCapitalSnapshot":
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.dynamic_margin_sizer.MarginCapitalSnapshot.from_trade_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         equity = _first_number(trade_balance, "equity", "equity_value", "e")
         trade_bal = _first_number(trade_balance, "trade_balance", "tb")
         margin_used = _first_number(trade_balance, "margin_amount", "margin_used", "m")

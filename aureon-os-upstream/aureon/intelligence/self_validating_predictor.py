@@ -25,16 +25,22 @@ import sys
 import time
 import math
 import json
+import logging
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 from collections import deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 os.environ['LIVE'] = '1'
 
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
+
+logger = logging.getLogger(__name__)
+
 
 # Constants
 PHI = (1 + math.sqrt(5)) / 2
@@ -110,39 +116,55 @@ class SelfValidatingPredictor:
     
     def __init__(self):
         print("\n🔮 Initializing Self-Validating Prediction Engine...")
-        
-        self.binance = get_binance_client()
-        self.kraken = get_kraken_client()
-        
+
+        if no_external_api_calls():
+            logger.info("SelfValidatingPredictor blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.binance = None
+            self.kraken = None
+        else:
+            self.binance = get_binance_client()
+            self.kraken = get_kraken_client()
+
         # Prediction history
         self.predictions: List[Prediction] = []
         self.accuracy_window = deque(maxlen=20)  # Last 20 predictions
-        
+
         # Tracking
         self.total_predictions = 0
         self.correct_predictions = 0
-        
+
         print("   ✅ Ready to predict and validate\n")
     
     def get_price(self, platform: str, symbol: str) -> float:
         """Get current price"""
+        if no_external_api_calls():
+            logger.info("SelfValidatingPredictor.get_price blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0.0
         try:
             if platform == 'binance':
+                if self.binance is None:
+                    return 0.0
                 ticker = self.binance.get_24h_ticker(symbol)
                 return float(ticker.get('lastPrice', 0))
             elif platform == 'kraken':
+                if self.kraken is None:
+                    return 0.0
                 ticker = self.kraken.get_24h_ticker(symbol)
                 return float(ticker.get('lastPrice', 0))
         except:
             pass
         return 0.0
     
-    def collect_baseline(self, platform: str, symbol: str, 
+    def collect_baseline(self, platform: str, symbol: str,
                          duration_sec: int = 10) -> Tuple[List[float], float, float]:
         """
         Collect baseline data for prediction.
         Returns (prices, avg_momentum, frequency)
         """
+        if no_external_api_calls():
+            logger.info("SelfValidatingPredictor.collect_baseline blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return [], 0.0, 432.0
+
         prices = []
         prev_price = None
         momentums = []
@@ -245,14 +267,22 @@ class SelfValidatingPredictor:
         3. Wait for window
         4. Validate
         """
+        if no_external_api_calls():
+            logger.info("SelfValidatingPredictor.run_prediction_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            print(f"\n{'='*60}")
+            print(f"🔮 PREDICTION CYCLE: {platform.upper()} {symbol}")
+            print(f"{'='*60}")
+            print("\n⏸️ EXTERNAL CALLS DISABLED - prediction cycle skipped")
+            return None
+
         print(f"\n{'='*60}")
         print(f"🔮 PREDICTION CYCLE: {platform.upper()} {symbol}")
         print(f"{'='*60}")
-        
+
         # Step 1: Collect baseline
         print(f"\n📊 STEP 1: Collecting baseline (10 seconds)...")
         prices, momentum, frequency = self.collect_baseline(platform, symbol, 10)
-        
+
         if not prices:
             print("   ❌ Failed to collect baseline data")
             return None

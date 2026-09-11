@@ -32,6 +32,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 MAX_MARKET_DATA_AGE_SECONDS = 120.0
 MAX_SOURCE_CLOCK_SKEW_SECONDS = 5.0
 
@@ -630,6 +632,10 @@ class MegaScanner:
         
     async def connect_exchanges(self):
         """Connect to all exchanges."""
+        if no_external_api_calls():
+            print("Mega Scanner connect_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print("📡 Connecting to exchanges...")
         
         if KRAKEN_OK:
@@ -657,6 +663,9 @@ class MegaScanner:
     
     async def fetch_kraken_data(self) -> Dict[str, Any]:
         """Fetch all market data from Kraken."""
+        if no_external_api_calls():
+            return self._record_no_data("kraken", "AUREON_NO_EXTERNAL_API_CALLS")
+
         if not self.kraken:
             return self._record_no_data("kraken", "provider_client_unavailable")
         
@@ -690,6 +699,9 @@ class MegaScanner:
     
     async def fetch_binance_data(self) -> Dict[str, Any]:
         """Fetch all market data from Binance."""
+        if no_external_api_calls():
+            return self._record_no_data("binance", "AUREON_NO_EXTERNAL_API_CALLS")
+
         try:
             print("   🟡 Fetching Binance tickers...")
             
@@ -715,6 +727,9 @@ class MegaScanner:
     
     async def fetch_alpaca_data(self) -> Dict[str, Any]:
         """Fetch all market data from Alpaca."""
+        if no_external_api_calls():
+            return self._record_no_data("alpaca", "AUREON_NO_EXTERNAL_API_CALLS")
+
         if not self.alpaca:
             return self._record_no_data("alpaca", "provider_client_unavailable")
         
@@ -736,6 +751,10 @@ class MegaScanner:
     
     async def scan(self):
         """Run a full market scan."""
+        if no_external_api_calls():
+            print("Mega Scanner scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print()
         print("📊 Fetching ALL market data...")
         print()

@@ -28,6 +28,8 @@ import math
 import requests
 from datetime import datetime, timedelta, timezone
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ═══════════════════════════════════════════════════════════════════════════
 # WINDOWS UTF-8 FIX - Must be at top before any logging/printing
 # ═══════════════════════════════════════════════════════════════════════════
@@ -987,6 +989,10 @@ class HistoricalLearner:
         """
         Fetch historical candles from Binance (PUBLIC API)
         """
+        if no_external_api_calls():
+            logger.info("ElephantLearning.fetch_binance_history blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         cache_key = f"binance_{symbol}_{interval}_{days}d"
         self._ensure_cache_loaded()
         
@@ -1283,6 +1289,14 @@ class HistoricalLearner:
     
     def learn_from_symbol(self, symbol: str, days: int = 90) -> Dict:
         """Learn everything from a symbol's history"""
+        if no_external_api_calls():
+            logger.info("ElephantLearning.learn_from_symbol blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return _no_data_receipt(
+                "AUREON_NO_EXTERNAL_API_CALLS",
+                now=float(self._clock()),
+                purpose="historical_research",
+            )
+
         logger.info(f"🐘📚 Learning from {symbol} ({days} days)...")
         
         # Fetch data

@@ -30,6 +30,8 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timezone
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # Position tracking file
@@ -175,6 +177,8 @@ class OrcaKillExecutor:
     
     def get_balance(self, exchange: str) -> Tuple[str, float]:
         """Get available balance on exchange."""
+        if no_external_api_calls():
+            return 'USD', 0.0
         if exchange == 'kraken' and self.kraken:
             # Use cached balance if available, otherwise fetch fresh (with dry_run disabled)
             if hasattr(self, 'kraken_balance') and self.kraken_balance:
@@ -200,6 +204,8 @@ class OrcaKillExecutor:
     
     def get_price(self, symbol: str, exchange: str) -> float:
         """Get current price for symbol."""
+        if no_external_api_calls():
+            return 0.0
         try:
             if exchange == 'kraken' and self.kraken:
                 # Normalize symbol (ME/USD -> MEUSD)
@@ -260,6 +266,8 @@ class OrcaKillExecutor:
         Validate a list of tickers and select the highest-priced valid candidate.
         Selection policy is intentionally deterministic for auditability.
         """
+        if no_external_api_calls():
+            return {"selected": None, "validations": []}
         if not tickers:
             return {"selected": None, "validations": [], "reason": "No tickers provided"}
 
@@ -286,6 +294,8 @@ class OrcaKillExecutor:
         Execute the complete Orca cycle:
         selection/validation -> trade -> monitor -> profitable close.
         """
+        if no_external_api_calls():
+            return {"success": False, "phase": "held", "reason": "AUREON_NO_EXTERNAL_API_CALLS"}
         selection = self.select_trade_candidate(tickers=tickers, exchange=exchange)
         selected = selection.get("selected")
         if not selected:
@@ -362,6 +372,9 @@ class OrcaKillExecutor:
         Returns:
             OrcaPosition if successful, None if failed
         """
+        if no_external_api_calls():
+            print("🦈🔪 ORCA KILL EXECUTION HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return None
         print(f"\n🦈🔪 ORCA KILL EXECUTION")
         print("=" * 60)
         print(f"   Symbol:   {symbol}")
@@ -509,6 +522,9 @@ class OrcaKillExecutor:
         """
         Close an open position.
         """
+        if no_external_api_calls():
+            print("🔪 CLOSE POSITION HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         if position.status != 'open':
             print(f"⚠️ Position {position.id} already {position.status}")
             return False
@@ -601,6 +617,8 @@ class OrcaKillExecutor:
         Monitor all open positions and close if hit TP/SL.
         Returns list of positions that were closed.
         """
+        if no_external_api_calls():
+            return []
         closed = []
         
         for pos_id, position in list(self.positions.items()):
@@ -688,11 +706,17 @@ class OrcaKillExecutor:
 def orca_execute_kill(symbol: str, exchange: str, side: str, 
                       amount_usd: float = None, dry_run: bool = False):
     """🔪 Execute a kill (trade)."""
+    if no_external_api_calls():
+        print("🔪 ORCA EXECUTE KILL HELD - AUREON_NO_EXTERNAL_API_CALLS")
+        return None
     executor = OrcaKillExecutor(dry_run=dry_run)
     return executor.execute_kill(symbol, exchange, side, amount_usd)
 
 def orca_hunt_and_kill(dry_run: bool = False):
     """🦈 Run full hunt cycle and execute best kill."""
+    if no_external_api_calls():
+        print("🦈 ORCA HUNT AND KILL HELD - AUREON_NO_EXTERNAL_API_CALLS")
+        return None
     from aureon.scanners.aureon_live_momentum_hunter import LiveMomentumHunter
     
     # Hunt
@@ -726,11 +750,17 @@ def orca_hunt_and_kill(dry_run: bool = False):
 
 def orca_monitor():
     """👀 Monitor open positions."""
+    if no_external_api_calls():
+        print("👀 ORCA MONITOR HELD - AUREON_NO_EXTERNAL_API_CALLS")
+        return []
     executor = OrcaKillExecutor(dry_run=False)  # Always real for monitoring
     return executor.monitor_positions()
 
 def orca_status():
     """📊 Show executor status."""
+    if no_external_api_calls():
+        print("📊 ORCA STATUS HELD - AUREON_NO_EXTERNAL_API_CALLS")
+        return
     executor = OrcaKillExecutor(dry_run=False)
     executor.status()
 

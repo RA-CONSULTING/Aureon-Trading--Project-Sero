@@ -38,6 +38,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.append(os.getcwd())
 
 # ═══════════════════════════════════════════════════════════════
@@ -208,6 +210,8 @@ class GaiaUnityTrader:
 
     def get_binance_data(self) -> Tuple[List[Position], float]:
         """Fetch Binance positions"""
+        if no_external_api_calls():
+            return [], 0.0
         positions = []
         usdc_bal = 0.0
         try:
@@ -234,6 +238,8 @@ class GaiaUnityTrader:
 
     def get_alpaca_data(self) -> Tuple[List[Position], float]:
         """Fetch Alpaca positions"""
+        if no_external_api_calls():
+            return [], 0.0
         positions = []
         cash_bal = 0.0
         try:
@@ -258,6 +264,8 @@ class GaiaUnityTrader:
 
     def get_kraken_data(self) -> Tuple[List[Position], float]:
         """Fetch Kraken positions"""
+        if no_external_api_calls():
+            return [], 0.0
         positions = []
         usd_bal = 0.0
         try:
@@ -301,6 +309,8 @@ class GaiaUnityTrader:
         Find best asset to buy based on momentum AND harmonic alignment.
         Returns: (symbol, momentum, harmonic_score)
         """
+        if no_external_api_calls():
+            return None, -999, 0
         pairs = ['SOLUSDC', 'BTCUSDC', 'ETHUSDC', 'AVAXUSDC', 'DOGEUSDC']
         best, best_score = None, -999
         best_harmonic = 0
@@ -344,6 +354,8 @@ class GaiaUnityTrader:
 
     def execute_trade(self, platform: str, action: str, **kwargs):
         """Unified execution wrapper"""
+        if no_external_api_calls():
+            return None
         try:
             if platform == 'binance':
                 if action == 'SELL':
@@ -370,6 +382,8 @@ class GaiaUnityTrader:
 
     def process_profit_taking(self, pos: Position):
         """Take profit using planetary coherence validation"""
+        if no_external_api_calls():
+            return
         # Gate 1: Minimum profit threshold
         if pos.pnl_pct < self.min_profit_pct:
             return
@@ -462,6 +476,8 @@ class GaiaUnityTrader:
 
     def deploy_idle_cash(self, platform: str, amount: float):
         """Deploy cash with harmonic timing"""
+        if no_external_api_calls():
+            return
         if amount <= 2: return
         
         # Only deploy if planetary coherence is decent
@@ -500,6 +516,8 @@ class GaiaUnityTrader:
 
     def run_cycle(self):
         """Execute one unified cycle across all planetary nodes"""
+        if no_external_api_calls():
+            return [], (0.0, 0.0, 0.0)
         # Parallel fetch from all stargates
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_bin = executor.submit(self.get_binance_data)
@@ -577,6 +595,9 @@ class GaiaUnityTrader:
 
     def run(self):
         """Run the unified planetary protocol"""
+        if no_external_api_calls():
+            print("🌍 GAIA UNITY HELD - AUREON_NO_EXTERNAL_API_CALLS is set 🌍")
+            return
         print()
         print("🌍" * 30)
         print("    GAIA UNITY PROTOCOL - PLANETARY ENERGY RECLAMATION")

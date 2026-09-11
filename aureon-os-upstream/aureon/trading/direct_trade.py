@@ -5,6 +5,9 @@
 This bypasses all the ecosystem complexity and directly places a Binance order.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -19,6 +22,9 @@ from datetime import datetime
 def direct_trade(symbol: str = None, amount_usdt: float = 15.0):
     """Execute a direct market buy on Binance"""
     
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.direct_trade.direct_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*70)
     print("🔥 DIRECT BINANCE TRADE 🔥")
     print("="*70)

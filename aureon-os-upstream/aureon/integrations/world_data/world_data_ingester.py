@@ -39,6 +39,8 @@ import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger("aureon.integrations.world_data")
 
 _DNS_LOCK = threading.RLock()
@@ -102,6 +104,7 @@ class WorldDataItem:
     learning_enabled: bool = False
     raw: Dict[str, Any] = field(default_factory=dict)
     category: str = "knowledge"   # for the interpreter
+    reason: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -177,6 +180,11 @@ class WorldDataIngester:
     # ─────────────────────────────────────────────────────────────────────
     def _http_get(self, url: str) -> Optional[Any]:
         """Plain stdlib HTTP GET → parsed JSON. Returns None on any error."""
+        if no_external_api_calls():
+            logger.debug("HTTP GET blocked by AUREON_NO_EXTERNAL_API_CALLS: %s", url)
+            with self._lock:
+                self._stats["errors"] += 1
+            return None
         try:
             req = urllib.request.Request(
                 url,
@@ -197,6 +205,11 @@ class WorldDataIngester:
         Used by the keyed feeds (NOAA CDO ``token``, USGS Water ``X-Api-Key``).
         Returns None on any error — never raises into the daemon loop.
         """
+        if no_external_api_calls():
+            logger.debug("HTTP GET (headers) blocked by AUREON_NO_EXTERNAL_API_CALLS: %s", url)
+            with self._lock:
+                self._stats["errors"] += 1
+            return None
         try:
             merged = {"User-Agent": self.USER_AGENT, "Accept": "application/json"}
             merged.update(headers)
@@ -654,6 +667,8 @@ class WorldDataIngester:
     # ─────────────────────────────────────────────────────────────────────
     def fetch_arxiv(self, query: str, n: int = 3) -> List[WorldDataItem]:
         """Search arXiv for recent papers matching a query."""
+        if no_external_api_calls():
+            return []
         with self._lock:
             self._stats["arxiv_calls"] += 1
         safe = urllib.parse.quote(query)
@@ -731,6 +746,8 @@ class WorldDataIngester:
     # ─────────────────────────────────────────────────────────────────────
     def fetch_fred(self, series_id: str = "GDP") -> Optional[WorldDataItem]:
         """Fetch latest value for a FRED series (no key needed for public endpoint)."""
+        if no_external_api_calls():
+            return None
         with self._lock:
             self._stats["fred_calls"] += 1
         # FRED's free CSV endpoint doesn't need a key for a single series download
@@ -893,6 +910,8 @@ class WorldDataIngester:
     # ─────────────────────────────────────────────────────────────────────
     def fetch_rss(self, feed_url: str = "http://feeds.bbci.co.uk/news/world/rss.xml", n: int = 5) -> List[WorldDataItem]:
         """Fetch items from an RSS feed (BBC World News by default)."""
+        if no_external_api_calls():
+            return []
         with self._lock:
             self._stats["rss_calls"] += 1
         try:
@@ -934,6 +953,18 @@ class WorldDataIngester:
         Try to answer a question by searching many free open-source APIs.
         Returns aggregated WorldDataItems — more sources = richer answer.
         """
+        if no_external_api_calls():
+            return [
+                WorldDataItem(
+                    source="world_data_guard",
+                    topic=question,
+                    title="External calls blocked",
+                    text="AUREON_NO_EXTERNAL_API_CALLS is set",
+                    truth_status="no_source",
+                    reason="AUREON_NO_EXTERNAL_API_CALLS",
+                    category="knowledge",
+                )
+            ]
         results: List[WorldDataItem] = []
         lower = question.lower()
 

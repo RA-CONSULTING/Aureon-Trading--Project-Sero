@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from decimal import Decimal
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aureon.exchanges.binance_client import BinanceClient, BinancePoolClient, get_binance_client
@@ -117,6 +119,9 @@ class S5BinanceEcosystem:
     
     async def initialize(self):
         """Initialize the ecosystem - load all available pairs and balances"""
+        if no_external_api_calls():
+            print("S5BinanceEcosystem.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("""
 ╔══════════════════════════════════════════════════════════════════╗
 ║   🌌 S5 BINANCE ECOSYSTEM - THE INFINITE LABYRINTH 🌌           ║
@@ -289,6 +294,9 @@ class S5BinanceEcosystem:
     
     async def run(self):
         """Main run loop"""
+        if no_external_api_calls():
+            print("S5BinanceEcosystem.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         if not await self.initialize():
             return
         

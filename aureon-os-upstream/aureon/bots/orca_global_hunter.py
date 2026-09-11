@@ -53,6 +53,8 @@ import json
 
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🌍 MARKET SESSION TRACKING
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -587,6 +589,9 @@ class OrcaGlobalHunter:
         
         Kraken has 1,419 pairs - we sample the most active ones.
         """
+        if no_external_api_calls():
+            logger.info("scan_kraken blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         opportunities: List[GlobalOpportunity] = []
         kraken = self.exchanges.get("kraken")
         if kraken is None:
@@ -701,6 +706,9 @@ class OrcaGlobalHunter:
         """
         🦙 Scan Alpaca crypto for momentum opportunities.
         """
+        if no_external_api_calls():
+            logger.info("scan_alpaca_crypto blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         opportunities: List[GlobalOpportunity] = []
         alpaca = self.exchanges.get("alpaca")
         if alpaca is None:
@@ -842,6 +850,9 @@ class OrcaGlobalHunter:
         We use Binance's massive universe to FIND opportunities,
         then execute on Kraken/Alpaca where the same pair exists.
         """
+        if no_external_api_calls():
+            logger.info("scan_binance blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         opportunities: List[GlobalOpportunity] = []
 
         try:
@@ -1076,6 +1087,9 @@ class OrcaGlobalHunter:
         
         Scans ALL exchanges in parallel and returns the best opportunities.
         """
+        if no_external_api_calls():
+            logger.info("hunt_global blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         print("\n" + "=" * 70)
         print("🦈🌍 ORCA GLOBAL HUNT - SCANNING THE WORLD 🌍🦈")
         print("=" * 70)
@@ -1132,6 +1146,9 @@ class OrcaGlobalHunter:
         
     def get_best_kill(self) -> Optional[GlobalOpportunity]:
         """Get the single best opportunity for immediate execution."""
+        if no_external_api_calls():
+            logger.info("get_best_kill blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
         if not self.opportunities:
             self.hunt_global()
             
@@ -1147,11 +1164,17 @@ class OrcaGlobalHunter:
 
 def orca_hunt_world():
     """🦈🌍 Hunt the entire global market."""
+    if no_external_api_calls():
+        logger.info("orca_hunt_world blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
     hunter = OrcaGlobalHunter()
     return hunter.hunt_global()
 
 def orca_best_global_kill():
     """🦈🎯 Get the single best global opportunity."""
+    if no_external_api_calls():
+        logger.info("orca_best_global_kill blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
     hunter = OrcaGlobalHunter()
     return hunter.get_best_kill()
 

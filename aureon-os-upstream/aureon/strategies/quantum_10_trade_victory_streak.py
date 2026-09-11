@@ -47,6 +47,8 @@ from typing import List, Dict, Optional
 from datetime import datetime
 from pathlib import Path
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Import exchange clients
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
 from aureon.exchanges.alpaca_client import AlpacaClient
@@ -130,6 +132,9 @@ class QuantumVictoryTrader:
         
     def get_real_price(self, symbol: str, exchange: str) -> Optional[Dict]:
         """Get REAL current price from exchange"""
+        if no_external_api_calls():
+            print(f"QuantumVictoryTrader.get_real_price blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
         try:
             if exchange == "kraken" and self.kraken:
                 ticker = self.kraken.get_ticker(symbol)
@@ -156,6 +161,9 @@ class QuantumVictoryTrader:
     
     def get_available_balance(self, asset: str, exchange: str) -> float:
         """Get REAL available balance from exchange"""
+        if no_external_api_calls():
+            print(f"QuantumVictoryTrader.get_available_balance blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0.0
         try:
             if exchange == "kraken" and self.kraken:
                 balances = self.kraken.get_balance()
@@ -277,7 +285,9 @@ class QuantumVictoryTrader:
     
     def run_10_trade_victory_streak(self):
         """Execute 10 consecutive trades aiming for 10/10 wins"""
-        
+        if no_external_api_calls():
+            print("QuantumVictoryTrader.run_10_trade_victory_streak blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("=" * 80)
         print("🏆 AUREON QUANTUM 10-TRADE VICTORY STREAK 🏆")
         print("=" * 80)

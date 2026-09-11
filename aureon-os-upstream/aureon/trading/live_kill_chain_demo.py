@@ -1,3 +1,6 @@
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import json
@@ -22,6 +25,9 @@ def log_system(msg):
     print(f"🖥️ [SYSTEM] {msg}")
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_kill_chain_demo.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     log_system("Initializing Kill Chain Protocols...")
     
     # 1. Connect

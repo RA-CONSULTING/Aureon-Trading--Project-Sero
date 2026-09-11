@@ -12,16 +12,25 @@ per-message cost stays low, and renders a prompt-ready text block.
 Sources wired:
 
   * ``DrAurisThrone``              — cosmic advisory + Kp + Schumann + Λ(t) (10 s cycle)
-  * ``SchumannResonanceBridge``    — live 7.83 Hz fundamental + earth_blessing (1 min cache)
+  * ``SchumannResonanceBridge``    — live 7.83 Hz fundamental + earth_blessing (local
+                                     station state first, then derived; 5 min cache)
   * ``EarthResonanceEngine``       — trading-gate status + PHI multiplier
   * ``SpaceWeatherBridge``         — NOAA Kp / solar wind / Bz / flares (5 min cache)
   * ``GlobalFinancialFeed``        — fear/greed + VIX + DXY + market regime (60 s cache)
   * ``news_signal``                — RSS-based news sentiment + geo risk (10 min refresh)
+  * ``news_geo_digest``            — cross-agent contract file
+                                     (``aureon/data_feeds/state/news_geo_digest.json``);
+                                     fail-closed with reason ``digest_not_yet_present``
+                                     until the world-digest agent's producer lands
 
-Every source is pulled inside a try/except — a missing or dead source
-leaves its slice of the state empty instead of crashing the voice
-path. A per-snapshot total budget (default 1.5 s) caps total wait time
-even if a source stalls.
+All pullers run concurrently in daemon threads: no single slow source
+can starve the others the way the old sequential loop let the Schumann
+bridge eat the whole budget. Every source is wrapped in try/except — a
+missing or dead source leaves its slice of the state empty instead of
+crashing the voice path. A per-snapshot total budget (default 8 s,
+override ``AUREON_WORLD_SENSE_BUDGET_S``) caps total wait time even if
+a source stalls; stalled sources are recorded as
+``<name>:budget_exhausted``.
 
 Usage::
 
@@ -33,10 +42,12 @@ Usage::
 from __future__ import annotations
 
 import datetime
+import json
 import logging
+import os
 import threading
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("aureon.queen.world_sense")
@@ -81,6 +92,12 @@ class WorldState:
     geo_risk: Optional[float] = None
     news_risk_level: str = ""
     dominant_themes: List[str] = field(default_factory=list)
+
+    # ── News geo digest (cross-agent contract) ─────────────────
+    news_geo_risk: Optional[float] = None
+    news_geo_level: str = ""
+    news_geo_themes: List[str] = field(default_factory=list)
+    news_geo_headline: str = ""
 
     # ── Bookkeeping ────────────────────────────────────────────
     sources_ok: List[str] = field(default_factory=list)
@@ -155,6 +172,19 @@ class WorldState:
         if news_bits:
             lines.append("  • news: " + ", ".join(news_bits))
 
+        # News geo digest contract file (another agent produces it)
+        news_geo_bits: List[str] = []
+        if self.news_geo_risk is not None:
+            news_geo_bits.append(f"risk={self.news_geo_risk:.2f}")
+        if self.news_geo_level:
+            news_geo_bits.append(self.news_geo_level)
+        if self.news_geo_themes:
+            news_geo_bits.append("themes: " + ", ".join(self.news_geo_themes[:3]))
+        if self.news_geo_headline:
+            news_geo_bits.append(self.news_geo_headline[:60])
+        if news_geo_bits:
+            lines.append("  • news_geo: " + ", ".join(news_geo_bits))
+
         block = "\n".join(lines)
         if len(block) > max_chars:
             block = block[: max_chars - 3].rstrip() + "..."
@@ -175,15 +205,24 @@ class WorldSense:
     they need a fresh read.
     """
 
+    # Maximum age of the cross-agent news geo digest file (seconds).
+    _NEWS_GEO_DIGEST_MAX_AGE_S: float = float(
+        os.environ.get("AUREON_NEWS_GEO_DIGEST_MAX_AGE_S", "1800")
+    )
+
     def __init__(
         self,
         *,
         cache_ttl_s: float = 20.0,
-        total_budget_s: float = 1.5,
+        total_budget_s: Optional[float] = None,
         sources: Optional[Dict[str, Any]] = None,
     ):
         self.cache_ttl_s = float(cache_ttl_s)
-        self.total_budget_s = float(total_budget_s)
+        self.total_budget_s = float(
+            total_budget_s
+            if total_budget_s is not None
+            else os.environ.get("AUREON_WORLD_SENSE_BUDGET_S", "8.0")
+        )
         self._cached: Optional[WorldState] = None
         self._cached_at: float = 0.0
         self._lock = threading.RLock()
@@ -209,9 +248,11 @@ class WorldSense:
         state = WorldState(captured_at=now)
         self._populate_temporal(state)
 
-        # Each source gets a slice of the total budget. We short-circuit
-        # if the remaining budget runs out so a slow source can't block
-        # the rest.
+        # Run every puller in its own daemon thread so a single slow
+        # source (historically the Schumann bridge) cannot starve the
+        # others. Each thread writes into a private scratch state; we
+        # merge in the order below, giving Dr Auris priority over the
+        # direct space-weather bridge for overlapping fields.
         pullers = [
             ("dr_auris", self._pull_dr_auris),
             ("schumann", self._pull_schumann),
@@ -219,17 +260,55 @@ class WorldSense:
             ("space_weather", self._pull_space_weather),
             ("financial", self._pull_financial),
             ("news", self._pull_news),
+            ("news_geo_digest", self._pull_news_geo_digest),
         ]
-        for name, fn in pullers:
-            elapsed = time.time() - t0
-            if elapsed >= self.total_budget_s:
-                state.sources_failed.append(f"{name}:budget_exhausted")
-                continue
+
+        scratch: Dict[str, Any] = {}
+        scratch_lock = threading.Lock()
+
+        def _run_puller(name: str, fn: Any) -> None:
+            local = WorldState()
             try:
-                fn(state)
+                fn(local)
+            except SourceSkipped as exc:
+                with scratch_lock:
+                    scratch[name] = ("skipped", str(exc) or "skipped")
+                return
+            except Exception as exc:
+                logger.debug("world_sense: %s pull failed: %s", name, exc)
+                with scratch_lock:
+                    scratch[name] = ("failed", "")
+                return
+            with scratch_lock:
+                scratch[name] = ("ok", local)
+
+        threads = []
+        for name, fn in pullers:
+            th = threading.Thread(
+                target=_run_puller,
+                args=(name, fn),
+                daemon=True,
+                name=f"world_sense_{name}",
+            )
+            th.start()
+            threads.append((name, th))
+
+        deadline = t0 + self.total_budget_s
+        for _name, th in threads:
+            remaining = deadline - time.time()
+            th.join(timeout=max(0.0, remaining))
+
+        for name, _th in threads:
+            outcome = scratch.get(name)
+            if outcome is None:
+                # Thread never finished in the allotted budget.
+                state.sources_failed.append(f"{name}:budget_exhausted")
+            elif outcome[0] == "ok":
+                _merge_state(state, outcome[1])
                 state.sources_ok.append(name)
-            except Exception as e:
-                logger.debug("world_sense: %s pull failed: %s", name, e)
+            elif outcome[0] == "skipped":
+                state.sources_failed.append(f"{name}:{outcome[1]}")
+            else:
                 state.sources_failed.append(name)
 
         state.resolve_ms = (time.time() - t0) * 1000.0
@@ -384,9 +463,9 @@ class WorldSense:
         src = self._sources.get("news")
         if src is None:
             try:
-                from aureon.data_feeds.news_signal import get_news_signal_engine
-                engine = get_news_signal_engine()
-                src = lambda: engine.get_latest_signal()
+                from aureon.data_feeds.news_signal import get_news_signal
+
+                src = get_news_signal
             except Exception:
                 return
         data = src()
@@ -404,6 +483,133 @@ class WorldSense:
         themes = _get_attr_or_key(data, "themes")
         if isinstance(themes, (list, tuple)):
             state.dominant_themes = [str(t) for t in themes[:5]]
+
+    def _pull_news_geo_digest(self, state: WorldState) -> None:
+        """
+        Consume the world-digest agent's contract file. If the file does
+        not exist yet the producer is still building it; fail-closed with
+        reason ``digest_not_yet_present`` and do not fabricate values.
+        """
+        src = self._sources.get("news_geo_digest")
+        data: Any = None
+        if src is not None:
+            data = src()
+        else:
+            path = os.environ.get("AUREON_NEWS_GEO_DIGEST_PATH")
+            if not path:
+                here = os.path.dirname(os.path.abspath(__file__))
+                path = os.path.abspath(
+                    os.path.join(here, "..", "data_feeds", "state", "news_geo_digest.json")
+                )
+            else:
+                path = os.path.abspath(path)
+
+            if not os.path.exists(path):
+                raise SourceSkipped("digest_not_yet_present")
+
+            try:
+                with open(path, "r", encoding="utf-8") as fh:
+                    data = json.load(fh)
+            except Exception:
+                raise SourceSkipped("digest_unreadable")
+
+            if not isinstance(data, dict):
+                raise SourceSkipped("digest_unreadable")
+
+            ts = (
+                _get_attr_or_key(data, "timestamp")
+                or _get_attr_or_key(data, "captured_at")
+                or _get_attr_or_key(data, "generated_at")
+                or _get_attr_or_key(data, "updated_at")
+                or _get_attr_or_key(data, "ts")
+            )
+            if ts:
+                try:
+                    ts_str = str(ts)
+                    normalized = (
+                        ts_str[:-1] + "+00:00" if ts_str.endswith("Z") else ts_str
+                    )
+                    age = time.time() - datetime.datetime.fromisoformat(normalized).timestamp()
+                    if age > self._NEWS_GEO_DIGEST_MAX_AGE_S:
+                        raise SourceSkipped("digest_stale")
+                except SourceSkipped:
+                    raise
+                except Exception:
+                    # Unparseable timestamp: fail-closed would be too harsh for a
+                    # brand-new contract file, so we accept it but do not invent an age.
+                    pass
+
+        if data is None:
+            return
+
+        risk = _get_attr_or_key(data, "geo_risk") or _get_attr_or_key(data, "risk")
+        if risk is not None:
+            try:
+                state.news_geo_risk = float(risk)
+            except Exception:
+                pass
+        lvl = _get_attr_or_key(data, "risk_level") or _get_attr_or_key(data, "level")
+        if lvl:
+            state.news_geo_level = str(lvl)
+        themes = _get_attr_or_key(data, "themes") or _get_attr_or_key(data, "dominant_themes")
+        if isinstance(themes, (list, tuple)):
+            state.news_geo_themes = [str(t) for t in themes[:5]]
+        headline = _get_attr_or_key(data, "headline") or _get_attr_or_key(data, "summary")
+
+        # If the producer has not yet written the canonical fields, we can
+        # still surface a short, honest headline from the funding-energy
+        # slice that the file already carries. This uses real contract data,
+        # never fabricating a risk score.
+        if not headline:
+            funding = _get_attr_or_key(data, "funding_energy") or {}
+            flows = _get_attr_or_key(funding, "notable_flows") or []
+            if isinstance(flows, (list, tuple)) and flows:
+                bits = []
+                for flow in flows[:2]:
+                    if not isinstance(flow, dict):
+                        continue
+                    name = flow.get("name") or flow.get("protocol") or "?"
+                    change = flow.get("change_1d_pct")
+                    if change is None:
+                        change = flow.get("change_pct")
+                    sign = "+" if change is not None and change >= 0 else ""
+                    bits.append(
+                        f"{name} {sign}{change:.2f}%" if change is not None else str(name)
+                    )
+                if bits:
+                    headline = "DeFi flows: " + ", ".join(bits)
+
+        if headline:
+            state.news_geo_headline = str(headline)[:120]
+
+        # If the file is present but carries nothing we can interpret, say so
+        # honestly rather than pretending the source contributed data.
+        if (
+            state.news_geo_risk is None
+            and not state.news_geo_level
+            and not state.news_geo_themes
+            and not state.news_geo_headline
+        ):
+            raise SourceSkipped("digest_no_recognized_fields")
+
+
+class SourceSkipped(Exception):
+    """A puller intentionally produced nothing; the reason surfaces in the report."""
+
+
+def _merge_state(dst: WorldState, src: WorldState) -> None:
+    """Merge a per-puller scratch state into the main state, respecting priority."""
+    for field_info in fields(src):
+        name = field_info.name
+        if name in ("sources_ok", "sources_failed", "resolve_ms", "captured_at"):
+            continue
+        current = getattr(dst, name)
+        if current not in (None, "", []):
+            continue
+        value = getattr(src, name)
+        if value in (None, "", []):
+            continue
+        setattr(dst, name, value)
 
 
 def _get_attr_or_key(obj: Any, name: str) -> Any:

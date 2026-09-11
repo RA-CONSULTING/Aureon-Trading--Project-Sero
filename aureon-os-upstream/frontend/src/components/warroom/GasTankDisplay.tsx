@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useGasTank } from '@/hooks/useGasTank';
+import { gasTankMoney, gasTankReceiptIsCurrent } from '@/lib/gasTankDisplay';
 import { useState } from 'react';
 import {
   Dialog,
@@ -19,6 +20,7 @@ interface GasTankDisplayProps {
 
 export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
   const gasTank = useGasTank(userId);
+  const observed = gasTankReceiptIsCurrent(gasTank.receipt.observed, gasTank.receipt.receivedAt);
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('100');
   const [isTopping, setIsTopping] = useState(false);
@@ -87,7 +89,7 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono bg-primary/10 px-2 py-1 rounded">
-                  {gasTank.membershipType.toUpperCase()} {(gasTank.feeRate * 100).toFixed(0)}%
+                  {observed ? gasTank.membershipType.toUpperCase() : 'Unavailable'} {observed ? `${(gasTank.feeRate * 100).toFixed(0)}%` : ''}
                 </span>
               </div>
             </div>
@@ -101,13 +103,13 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-xs font-bold text-white drop-shadow-lg">
-                    {percentage.toFixed(0)}%
+                    {observed ? `${percentage.toFixed(0)}%` : 'N/A'}
                   </span>
                 </div>
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">
-                  £{gasTank.balance.toFixed(2)} / £{gasTank.initialBalance.toFixed(2)}
+                  {gasTankMoney(gasTank.balance, observed)} / {gasTankMoney(gasTank.initialBalance, observed)}
                 </span>
               </div>
             </div>
@@ -116,23 +118,26 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <p className="text-muted-foreground">High-Water Mark</p>
-                <p className="font-bold">£{gasTank.highWaterMark.toFixed(2)}</p>
+                <p className="font-bold">{gasTankMoney(gasTank.highWaterMark, observed)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Today's Fees</p>
-                <p className="font-bold text-destructive">£{gasTank.feesPaidToday.toFixed(2)}</p>
+                <p className="font-bold text-destructive">{gasTankMoney(gasTank.feesPaidToday, observed)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Total Fees Paid</p>
-                <p className="font-bold text-destructive">£{gasTank.totalFeesPaid.toFixed(2)}</p>
+                <p className="font-bold text-destructive">{gasTankMoney(gasTank.totalFeesPaid, observed)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Status</p>
                 <p className="font-bold">
-                  {getStatusEmoji()} {gasTank.status}
+                  {getStatusEmoji()} {observed ? gasTank.status : 'Unavailable'}
                 </p>
               </div>
             </div>
+            {!observed && (
+              <p className="text-xs text-muted-foreground">{gasTank.receipt.reason}</p>
+            )}
 
             {/* Top Up Button */}
             <Button
@@ -144,7 +149,7 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
             </Button>
 
             {/* Empty Overlay */}
-            {gasTank.status === 'EMPTY' && (
+            {observed && gasTank.status === 'EMPTY' && (
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center rounded-lg">
                 <div className="text-center p-4">
                   <p className="text-2xl mb-2"></p>
@@ -194,11 +199,11 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
             <div className="bg-muted/30 p-3 rounded-lg space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Membership Type:</span>
-                <span className="font-bold">{gasTank.membershipType.toUpperCase()}</span>
+                <span className="font-bold">{observed ? gasTank.membershipType.toUpperCase() : 'Unavailable'}</span>
               </div>
               <div className="flex justify-between">
                 <span>Performance Fee:</span>
-                <span className="font-bold">{(gasTank.feeRate * 100).toFixed(0)}%</span>
+                <span className="font-bold">{observed ? `${(gasTank.feeRate * 100).toFixed(0)}%` : 'Unavailable'}</span>
               </div>
               <p className="text-xs text-muted-foreground">
                 Fees are only charged on NEW profits above your high-water mark

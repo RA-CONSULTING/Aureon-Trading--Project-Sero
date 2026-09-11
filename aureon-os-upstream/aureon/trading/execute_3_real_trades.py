@@ -13,6 +13,9 @@ Using existing MultiExchangeClient infrastructure.
 Gary Leckey | December 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -40,6 +43,9 @@ def get_symbol_filters(client: MultiExchangeClient, exchange: str, symbol: str) 
 
 
 def get_quote_asset(client: MultiExchangeClient, exchange: str, symbol: str) -> Optional[str]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.get_quote_asset blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     filters = get_symbol_filters(client, exchange, symbol)
     quote = filters.get('quote_asset')
     if quote:
@@ -59,6 +65,9 @@ def get_quote_asset(client: MultiExchangeClient, exchange: str, symbol: str) -> 
 
 
 def get_available_balance(client: MultiExchangeClient, exchange: str, asset: Optional[str]) -> Optional[float]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.get_available_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if not asset:
         return None
     try:
@@ -72,6 +81,9 @@ def get_available_balance(client: MultiExchangeClient, exchange: str, asset: Opt
 
 
 def get_min_notional(client: MultiExchangeClient, exchange: str, symbol: str) -> float:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.get_min_notional blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return 0.0
     filters = get_symbol_filters(client, exchange, symbol)
     value = filters.get('min_notional')
     if value:
@@ -83,6 +95,9 @@ def get_min_notional(client: MultiExchangeClient, exchange: str, symbol: str) ->
 
 def get_best_price(client, exchange: str, symbol: str):
     """Get current best bid/ask for a symbol"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.get_best_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     try:
         ticker = client.get_ticker(exchange, symbol)
         if ticker:
@@ -111,6 +126,9 @@ def get_best_price(client, exchange: str, symbol: str):
 
 def resolve_order_reference(exchange: str, client: MultiExchangeClient, order_response: dict, action: str) -> Tuple[bool, Optional[str]]:
     """Normalize order responses across exchanges and confirm Capital.com deals."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.resolve_order_reference blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     if not order_response or not isinstance(order_response, dict):
         return False, None
 
@@ -151,6 +169,9 @@ def execute_scalp_trade(client, exchange: str, symbol: str, amount_usd: float):
     2. Wait for small price movement
     3. Sell at market (with limit to ensure profit)
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.execute_scalp_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     print(f"\n{'='*60}")
     print(f"🎯 EXECUTING TRADE: {symbol} on {exchange.upper()}")
     print(f"{'='*60}")
@@ -307,6 +328,9 @@ def execute_scalp_trade(client, exchange: str, symbol: str, amount_usd: float):
 
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_3_real_trades.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*70)
     print("💰 REAL MONEY TRADE EXECUTION - 3 NET PROFIT TRADES 💰")
     print("="*70)

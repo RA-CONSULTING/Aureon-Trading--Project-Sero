@@ -14,6 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 try:
     from aureon.trading.live_trade_signal_fabric import publish_lifecycle_event
 except Exception:
@@ -252,6 +255,9 @@ def route_key_for(venue: Any, market_type: Any, symbol: Any, side: Any) -> str:
 
 
 def transition_allowed(previous_status: Any, next_status: Any) -> bool:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.transition_allowed blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return False
     previous = str(previous_status or "").strip()
     next_value = str(next_status or "").strip()
     if not previous:
@@ -265,6 +271,9 @@ def transition_allowed(previous_status: Any, next_status: Any) -> bool:
 
 
 def normalize_broker_status(venue: Any, venue_status: Any) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.normalize_broker_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     venue_key = str(venue or "").strip().lower()
     status_key = str(venue_status or "").strip().lower()
     lifecycle_status = BROKER_STATUS_MAP.get(venue_key, {}).get(status_key, status_key or "unknown")
@@ -279,6 +288,9 @@ def normalize_broker_status(venue: Any, venue_status: Any) -> Dict[str, Any]:
 
 
 def proof_tier_for(payload: Dict[str, Any]) -> str:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.proof_tier_for blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ''
     tier = str(payload.get("proof_tier") or payload.get("proof_mode") or "").strip().lower()
     if tier in PROOF_TIERS:
         return tier
@@ -290,6 +302,9 @@ def proof_tier_for(payload: Dict[str, Any]) -> str:
 
 
 def validate_proof_tier(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.validate_proof_tier blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     if not isinstance(payload, dict):
         return {
             "valid": False,
@@ -329,6 +344,9 @@ def validate_proof_tier(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def required_correlation_fields(venue: Any, status: Any) -> List[str]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.required_correlation_fields blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return []
     venue_key = str(venue or "").strip().lower()
     status_key = str(status or "").strip()
     fields = list(CORE_CORRELATION_FIELDS)
@@ -338,6 +356,9 @@ def required_correlation_fields(venue: Any, status: Any) -> List[str]:
 
 
 def missing_correlation_fields(payload: Dict[str, Any]) -> List[str]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.missing_correlation_fields blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return []
     if not isinstance(payload, dict):
         return list(CORE_CORRELATION_FIELDS)
     status = str(payload.get("current_status") or payload.get("status") or payload.get("event_type") or "")
@@ -496,6 +517,9 @@ def _summarize_lifecycle(events: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def build_state_from_events(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.build_state_from_events blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     grouped: Dict[str, List[Dict[str, Any]]] = {}
     for event in events:
         lifecycle_id = str(event.get("lifecycle_id") or "")
@@ -625,6 +649,9 @@ def _merge_preserved_active_lifecycles(
 
 
 def load_state(root: Optional[Path] = None) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.load_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     data = _read_json(rooted(root, STATE_PATH), {})
     if isinstance(data, dict) and data:
         return data
@@ -649,6 +676,9 @@ def append_event(
     root: Optional[Path] = None,
     **fields: Any,
 ) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.append_event blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     generated_at = str(fields.pop("generated_at", "") or utc_now())
     event: Dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -687,6 +717,9 @@ def append_event(
 
 
 def is_active_route(route_key: str, root: Optional[Path] = None) -> bool:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.is_active_route blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return False
     if not route_key:
         return False
     state = load_state(root)
@@ -700,6 +733,9 @@ def is_active_route(route_key: str, root: Optional[Path] = None) -> bool:
 
 
 def lifecycle_for_deal(deal_id: str, root: Optional[Path] = None) -> str:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.lifecycle_for_deal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ''
     deal = str(deal_id or "").strip()
     if not deal:
         return ""
@@ -712,6 +748,9 @@ def lifecycle_for_deal(deal_id: str, root: Optional[Path] = None) -> str:
 
 
 def latest_for_ui(root: Optional[Path] = None) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.order_lifecycle.latest_for_ui blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     state = load_state(root)
     if state:
         return state

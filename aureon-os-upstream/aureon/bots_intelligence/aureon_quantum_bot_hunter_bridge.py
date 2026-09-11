@@ -31,6 +31,8 @@ from collections import deque, defaultdict
 import websockets
 import aiohttp
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Import our enhanced quantum telescope
 from aureon.simulation.aureon_enhanced_quantum_telescope import EnhancedQuantumGeometryEngine, EnhancedQuantumBotHunter
 
@@ -56,6 +58,10 @@ class QuantumBotHunterBridge:
         """
         Connect to the existing Bot Hunter Dashboard WebSocket.
         """
+        if no_external_api_calls():
+            logger.info("Quantum Bot Hunter Bridge connect_to_bot_hunter blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         uri = "ws://localhost:9999/ws"
 
         while True:
@@ -728,6 +734,10 @@ INTEGRATED_DASHBOARD_HTML = """
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def main():
+    if no_external_api_calls():
+        logger.info("Quantum Bot Hunter Bridge blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print()
     print("🌌" * 35)
     print()

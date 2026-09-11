@@ -22,6 +22,8 @@ Gary Leckey | January 2026 | SNOWBALL MODE | ALPACA-FOCUSED
 """
 
 from __future__ import annotations
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 
 import os
@@ -1378,6 +1380,9 @@ class QueenEnhancementLoader:
         
         Returns: {adjusted_score, adjustments, applied_enhancements}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.QueenEnhancementLoader.apply_to_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.loaded_enhancements:
             return {'adjusted_score': opportunity.get('score', 0.5), 'adjustments': [], 'applied': 0}
         
@@ -1479,6 +1484,9 @@ class RunMetrics:
     
     def get_summary(self) -> str:
         """Generate compact summary text."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.RunMetrics.get_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         now = time.time()
         elapsed = now - self.session_start
         elapsed_str = f"{int(elapsed//60)}m {int(elapsed%60)}s"
@@ -1706,6 +1714,9 @@ class AnimalPackScanner:
     
     def tiger_hunt(self) -> List[AnimalPackSignal]:
         """🐅 TIGER - Hunts VOLATILITY (wild markets = opportunity)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.tiger_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         threshold = self.cfg['tiger_volatility_threshold']
         
@@ -1737,6 +1748,9 @@ class AnimalPackScanner:
     
     def hummingbird_hunt(self) -> List[AnimalPackSignal]:
         """🐦 HUMMINGBIRD - Hunts STABILITY (calm before the storm)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.hummingbird_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         min_vol = self.cfg['hummingbird_volatility_min']
         max_vol = self.cfg['hummingbird_volatility_max']
@@ -1774,6 +1788,9 @@ class AnimalPackScanner:
     
     def deer_hunt(self) -> List[AnimalPackSignal]:
         """🦌 DEER - Hunts SUBTLE SIGNALS (senses the invisible)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.deer_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         min_mom = self.cfg['deer_momentum_min']
         max_mom = self.cfg['deer_momentum_max']
@@ -1791,6 +1808,9 @@ class AnimalPackScanner:
     
     def owl_hunt(self, golden_paths: List[str] = None) -> List[AnimalPackSignal]:
         """🦉 OWL - Hunts PATTERNS (memory of what worked before)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.owl_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         confidence_threshold = self.cfg['owl_pattern_confidence']
         
@@ -1809,6 +1829,9 @@ class AnimalPackScanner:
     
     def panda_hunt(self, entries: Dict[str, float] = None) -> List[AnimalPackSignal]:
         """🐼 PANDA - Hunts BALANCE (equilibrium = opportunity)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.panda_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         max_deviation = self.cfg['panda_deviation_max']
         
@@ -1844,6 +1867,9 @@ class AnimalPackScanner:
     
     def clownfish_hunt(self) -> List[AnimalPackSignal]:
         """🐠 CLOWNFISH - Hunts SYMBIOSIS (ecosystem harmony)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.clownfish_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         harmony_threshold = self.cfg['clownfish_harmony_ratio']
         
@@ -1867,6 +1893,9 @@ class AnimalPackScanner:
     
     def wolf_hunt(self) -> List[AnimalPackSignal]:
         """🐺 WOLF - The pack hunter, tracks TRENDS with relentless pursuit"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.wolf_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         threshold = self.warriors_cfg['wolf_trend_threshold']
         
@@ -1928,6 +1957,9 @@ class AnimalPackScanner:
     
     def bee_hunt(self) -> List[AnimalPackSignal]:
         """🐝 BEE - The consensus hunter, builds HIVE INTELLIGENCE"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.bee_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         min_consensus = self.warriors_cfg['bee_consensus_signals']
         
@@ -1955,6 +1987,9 @@ class AnimalPackScanner:
         
         Returns dict: {"Tiger": [signals], "Falcon": [signals], ...}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.AnimalPackScanner.scan_all blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         self.signals.clear()  # Reset
         
         results = {
@@ -2153,6 +2188,9 @@ class PathMemory:
             self.save()
 
     def boost(self, from_asset: str, to_asset: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.PathMemory.boost blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         key = (from_asset.upper(), to_asset.upper())
         stats = self.memory.get(key)
         if not stats:
@@ -2319,6 +2357,9 @@ class ThoughtBusAggregator:
 
     def get_signal_status(self) -> Dict[str, Any]:
         """Get status of all signal sources."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.ThoughtBusAggregator.get_signal_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         now = time.time()
         status = {}
         for topic in self.weights.keys():
@@ -2646,6 +2687,9 @@ class LiveBarterMatrix:
         
         Returns: (approved: bool, reason: str)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.queen_approves_path blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         key = (from_asset.upper(), to_asset.upper())
         
         # ═══════════════════════════════════════════════════════════════════════════════
@@ -2736,6 +2780,9 @@ class LiveBarterMatrix:
         
         Returns: (allowed: bool, reason: str)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.check_pair_allowed blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         exchange_lower = exchange.lower()
         
         # Get the right config
@@ -2780,6 +2827,9 @@ class LiveBarterMatrix:
         - Win: Reset consecutive loss count to 0
         - Loss: Increment consecutive loss count, block if threshold reached
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.record_pair_result blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         exchange_lower = exchange.lower()
         
         # Get streak tracker
@@ -2816,6 +2866,9 @@ class LiveBarterMatrix:
         """
         🌟 LEGACY COMPATIBILITY - Now uses check_pair_allowed instead
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.second_chance_check blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         return self.check_pair_allowed(pair_key, exchange)
 
     def queen_math_gate(self, from_asset: str, to_asset: str, from_amount: float,
@@ -2826,6 +2879,9 @@ class LiveBarterMatrix:
         Uses AdaptivePrimeProfitGate to calculate RIGOROUS break-even and profit targets.
         Ensures trades are only taken if the cost of entry is surmountable by the signal.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.queen_math_gate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         from_asset = from_asset.upper()
         to_asset = to_asset.upper()
         
@@ -3075,6 +3131,9 @@ class LiveBarterMatrix:
         
         Returns (is_blocked, reason)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.is_preexec_blocked blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         key = (from_asset.upper(), to_asset.upper())
         
         if key not in self.preexec_rejections:
@@ -3154,6 +3213,9 @@ class LiveBarterMatrix:
         
         Returns (is_blocked, reason)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.is_source_blocked blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         key = (asset.upper(), exchange.lower())
         
         if key not in self.blocked_sources:
@@ -3265,6 +3327,9 @@ class LiveBarterMatrix:
     
     def get_barter_rate(self, from_asset: str, to_asset: str) -> Optional[Dict[str, Any]]:
         """Get the current barter rate between two assets."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.get_barter_rate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         key = (from_asset.upper(), to_asset.upper())
         return self.barter_rates.get(key)
     
@@ -3277,6 +3342,9 @@ class LiveBarterMatrix:
         Returns both the USD-equivalent calculation AND the barter-adjusted calculation.
         """
         # USD-equivalent method (simple)
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.calculate_barter_value blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         from_usd = from_amount * from_price
         usd_equiv_amount = from_usd / to_price if to_price > 0 else 0
         
@@ -3307,6 +3375,9 @@ class LiveBarterMatrix:
         👑 QUEEN'S MANDATE: Track wins/losses to block losing paths!
         """
         # Calculate realized P/L
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.record_realized_profit blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         profit_usd_raw = to_usd - from_usd
         profit_pct_raw = (profit_usd_raw / from_usd * 100) if from_usd > 0 else 0
 
@@ -3485,6 +3556,9 @@ class LiveBarterMatrix:
         actual_slippage_pct: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Record exact provider-derived PnL without estimates or outlier rewriting."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.record_verified_realized_profit blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         numeric = {
             'from_amount': from_amount,
             'from_usd': from_usd,
@@ -3610,6 +3684,9 @@ class LiveBarterMatrix:
         
         Returns ranked list of targets sorted by expected VALUE (not just USD conversion).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.get_best_barter_path blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         from_price = prices.get(from_asset, 0)
         if from_price <= 0:
             return []
@@ -3768,6 +3845,9 @@ class LiveBarterMatrix:
     
     def get_spread_for_asset(self, asset: str, exchange: str = 'kraken') -> float:
         """Get the expected spread cost for an asset on a given exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.get_spread_for_asset blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         asset_type = self.get_asset_type(asset)
         
         # Get the right spread table
@@ -3800,6 +3880,9 @@ class LiveBarterMatrix:
         Shows how much of the market the Barter Matrix can now see.
         """
         # Count categorized assets
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiveBarterMatrix.print_market_coverage blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         static_count = len(self.MEME_COINS) + len(self.MAJOR_COINS) + len(self.STABLECOINS)
         static_count += len(self.DEFI_COINS) + len(self.AI_COINS) + len(self.LAYER2_COINS) + len(self.RWA_COINS)
         discovered_count = len(self.DISCOVERED_ASSETS)
@@ -3966,6 +4049,9 @@ class LiquidityEngine:
         - Assets we're trying to BUY
         - Assets we recently liquidated (cooldown)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiquidityEngine.find_funding_candidates blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         candidates = []
         current_time = time.time()
         
@@ -4083,6 +4169,9 @@ class LiquidityEngine:
         - Total fees would exceed expected profit
         """
         # Find candidates
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.LiquidityEngine.create_aggregation_plan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         candidates = self.find_funding_candidates(
             exchange=target_exchange,
             amount_needed_usd=amount_needed_usd * 1.05,  # 5% buffer for fees
@@ -4301,6 +4390,9 @@ class ProfitHarvester:
         Returns:
             List of HarvestCandidate sorted by priority (best first)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.ProfitHarvester.find_harvest_candidates blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         exclude_assets = exclude_assets or set()
         candidates = []
         current_time = time.time()
@@ -4671,6 +4763,9 @@ class UnifiedProfitGoalTracker:
 
     def update_gbp_rate(self, prices: Dict[str, float] = None):
         """Update GBP→USD rate from market data or API."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.UnifiedProfitGoalTracker.update_gbp_rate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         now = time.time()
         if now - self.last_gbp_update < self.gbp_update_interval:
             return
@@ -4705,6 +4800,9 @@ class UnifiedProfitGoalTracker:
 
     def get_dashboard(self) -> str:
         """Return a formatted dashboard string for the main loop."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.UnifiedProfitGoalTracker.get_dashboard blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         elapsed = self.elapsed_minutes
         rate = self.actual_usd_per_min
         target = self.target_usd_per_min
@@ -5734,6 +5832,9 @@ class MicroProfitLabyrinth:
     
     def is_binance_pair_allowed(self, pair: str) -> bool:
         """Check if a Binance pair is allowed for UK trading."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.is_binance_pair_allowed blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if not self.binance_uk_mode:
             return True
         
@@ -5747,6 +5848,9 @@ class MicroProfitLabyrinth:
     
     async def initialize(self):
         """Initialize all systems."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if os.getenv("AUREON_DEBUG_STARTUP") == "1":
             try:
                 safe_print("[DEBUG] Entered MicroProfitLabyrinth.initialize()")
@@ -7181,6 +7285,9 @@ class MicroProfitLabyrinth:
     
     async def fetch_prices(self) -> Dict[str, float]:
         """Fetch all asset prices from ALL exchanges."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.fetch_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         prices = {}
         ticker_cache = {}
 
@@ -7612,6 +7719,9 @@ class MicroProfitLabyrinth:
     
     async def fetch_balances(self) -> Dict[str, float]:
         """Fetch balances from ALL exchanges."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.fetch_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         combined = {}
         self.exchange_balances = {}
         self.exchange_data = {}
@@ -7804,6 +7914,9 @@ class MicroProfitLabyrinth:
         - Multi-exchange training data
         """
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.calculate_trained_matrix_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         score = 0.5  # Neutral default
         reasons = []
         
@@ -7912,6 +8025,9 @@ class MicroProfitLabyrinth:
         
         Returns: (score 0-1, reason string)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.calculate_barter_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         score = 0.5  # Start neutral
         reasons = []
         
@@ -8059,6 +8175,9 @@ class MicroProfitLabyrinth:
     
     def calculate_v14_score(self, from_asset: str, to_asset: str) -> float:
         """Calculate V14 score for a conversion."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.calculate_v14_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not self.v14 or not self.ticker_cache:
             return 5.0  # Neutral score if V14 not available
         
@@ -8132,6 +8251,9 @@ class MicroProfitLabyrinth:
 
     def calculate_hub_score(self, from_asset: str, to_asset: str) -> float:
         """Get consensus score from Mycelium Hub."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.calculate_hub_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not self.hub:
             return 0.5  # Neutral if hub not available
         
@@ -8152,6 +8274,9 @@ class MicroProfitLabyrinth:
         from_amount: float
     ) -> Tuple[float, float]:
         """Calculate expected profit in USD and % using barter matrix costs."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.calculate_profit_potential blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         from_price = self.prices.get(from_asset, 0)
         to_price = self.prices.get(to_asset, 0)
 
@@ -8218,6 +8343,9 @@ class MicroProfitLabyrinth:
     
     async def collect_all_signals(self) -> Dict[str, List[Dict]]:
         """Collect signals from ALL wired systems."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.collect_all_signals blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         signals = defaultdict(list)
         
         # ════════════════════════════════════════════════════════════════
@@ -8336,6 +8464,9 @@ class MicroProfitLabyrinth:
         💭 DREAMING PHASE: Predict future movements based on Multiverse & Ecosystem.
         "It dreams about live tickers... validates itself... adapt adjust"
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.dream_about_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         current_time = time.time()
         
         # Only dream every 10 seconds to avoid noise
@@ -8416,6 +8547,9 @@ class MicroProfitLabyrinth:
         ✅ VALIDATION PHASE: Check if dreams came true.
         "Right I know I was right there... adapt adjust"
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.validate_dreams blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         current_time = time.time()
         active_dreams = []
         dreams_validated_this_cycle = False
@@ -8468,6 +8602,9 @@ class MicroProfitLabyrinth:
         🫒🔄 POPULATE BARTER GRAPH from already-loaded exchange data.
         Called ONCE after pairs and prices are loaded.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.populate_barter_graph blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.barter_navigator:
             return
         
@@ -8514,6 +8651,9 @@ class MicroProfitLabyrinth:
         
         👑🔮 THE QUEEN DREAMS FIRST - Her dreams guide all other dreams!
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.dream_for_turn blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         current_time = time.time()
         turn_dreams = []
         
@@ -8733,6 +8873,9 @@ class MicroProfitLabyrinth:
     def get_current_exchange(self) -> str:
         """Get the exchange whose turn it is to trade."""
         # Filter to only connected exchanges
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.get_current_exchange blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         connected = [ex for ex in self.exchange_order 
                      if self.exchange_data.get(ex, {}).get('connected', False)]
         if not connected:
@@ -8750,6 +8893,9 @@ class MicroProfitLabyrinth:
         
         No waiting for turns - whoever has profit FIRST wins!
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.execute_fptp_scan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         safe_print(f"\n🏁 ═══ FPTP SCAN #{self.turns_completed + 1}: ALL EXCHANGES ═══")
         
         # ═══════════════════════════════════════════════════════════════════════════
@@ -10445,6 +10591,9 @@ class MicroProfitLabyrinth:
 
     def advance_turn(self):
         """Move to the next exchange's turn."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.advance_turn blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         connected = [ex for ex in self.exchange_order 
                      if self.exchange_data.get(ex, {}).get('connected', False)]
         if connected:
@@ -10466,6 +10615,9 @@ class MicroProfitLabyrinth:
     
     def get_turn_display(self) -> str:
         """Get a display string showing current turn status."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.get_turn_display blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         current = self.get_current_exchange()
         if not current:
             return "No exchanges"
@@ -10487,10 +10639,16 @@ class MicroProfitLabyrinth:
     
     def get_exchange_assets(self, exchange: str) -> Dict[str, float]:
         """Get assets held on a specific exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.get_exchange_assets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self.exchange_balances.get(exchange, {})
     
     async def refresh_exchange_balances(self, exchange: str):
         """Refresh balances for a specific exchange to ensure fresh data."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.refresh_exchange_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if exchange == 'kraken' and self.kraken:
             try:
                 kraken_bal = {}
@@ -10743,6 +10901,9 @@ class MicroProfitLabyrinth:
         Returns:
             Dict with harvest results
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.harvest_profitable_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         result = {
             'harvested': False,
             'positions_sold': 0,
@@ -10868,6 +11029,9 @@ class MicroProfitLabyrinth:
         Returns:
             Dict with harvest results
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.harvest_exchange_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         result = {
             'harvested': False,
             'positions_sold': 0,
@@ -10988,6 +11152,9 @@ class MicroProfitLabyrinth:
         Returns:
             Portfolio data dict with Queen's verdict
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.report_portfolio_to_queen blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         portfolio_data = {
             'kraken': {'value': 0.0, 'profit': 0.0, 'trades': 0, 'win_rate': 0.0},
             'binance': {'value': 0.0, 'profit': 0.0, 'trades': 0, 'win_rate': 0.0},
@@ -11101,6 +11268,9 @@ class MicroProfitLabyrinth:
         Execute one turn for the current exchange.
         Returns (opportunities found, conversions made this turn)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.execute_turn blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         current_exchange = self.get_current_exchange()
         if not current_exchange:
             return [], 0
@@ -11637,6 +11807,9 @@ class MicroProfitLabyrinth:
         # Ladder: 0.07 pip (0.0007%) to 1.4 pip (0.014%)
         # Higher confidence = lower threshold needed!
         # Calculate price from value/amount (from_price not stored on MicroOpportunity)
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.ask_queen_will_we_win blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         _from_price = opportunity.from_value_usd / opportunity.from_amount if opportunity.from_amount > 0 else 1.0
         trade_value = opportunity.from_value_usd  # Already have this!
         
@@ -12389,6 +12562,9 @@ class MicroProfitLabyrinth:
         10. Deep Learning - Evolve Consciousness
         11. Code Architect - Write code from learnings! 🏗️
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.queen_continuous_learning blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         learning_active = {
             'neural_brain': False,
             'elephant_memory': False,
@@ -13039,6 +13215,9 @@ if __name__ == "__main__":
         Routes to unified_learn_from_outcome() for consistent learning.
         """
         # Get actual P/L if available
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.queen_learn_from_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         actual_pnl = getattr(opportunity, 'actual_pnl_usd', opportunity.expected_pnl_usd)
         
         # 🦈🔪 ORCA LEARNS FROM TRADE OUTCOME - Feed the killer whale!
@@ -13140,6 +13319,9 @@ if __name__ == "__main__":
         
         Returns: dict with queen's observations
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.queen_observe_market blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         _icon = {'kraken': '🐙', 'alpaca': '🦙', 'binance': '🟡'}.get(exchange, '📊')
         
         observations = {
@@ -13242,6 +13424,9 @@ if __name__ == "__main__":
         
         Returns: (approved: bool, reason: str)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.queen_timeline_gate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         from_asset = opportunity.from_asset
         to_asset = opportunity.to_asset
         from_price = self.prices.get(from_asset, 0)
@@ -13448,6 +13633,9 @@ if __name__ == "__main__":
         
         Returns: 0.0-1.0 quality score (higher = better signals)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.validate_signal_quality blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         quality_scores = []
         
         # 👑🔮 0. QUEEN'S DREAM - THE MOST IMPORTANT SIGNAL!
@@ -13590,6 +13778,9 @@ if __name__ == "__main__":
     
     def get_momentum(self, asset: str) -> float:
         """Get current momentum for asset (%/minute)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.get_momentum blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         return self.asset_momentum.get(asset, 0.0)
     
     def get_strongest_rising(self, exclude: set = None, limit: int = 3000) -> List[Tuple[str, float]]:
@@ -13613,6 +13804,9 @@ if __name__ == "__main__":
         
         Returns: (from_asset, to_asset, from_amount, expected_gain_pct, momentum_diff)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.find_momentum_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         best = None
         best_momentum_diff = self.min_momentum_diff
         
@@ -13654,6 +13848,9 @@ if __name__ == "__main__":
         
         Returns: List of (stablecoin, target, available_amount, target_momentum)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.lion_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         stablecoins = {'USD', 'ZUSD', 'USDT', 'USDC', 'TUSD', 'DAI', 'BUSD'}
         hunts = []
         
@@ -13701,6 +13898,9 @@ if __name__ == "__main__":
         
         Returns: (symbol, momentum, score) or None
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.wolf_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         best_symbol = None
         best_score = -999999
         best_momentum = 0
@@ -13785,6 +13985,9 @@ if __name__ == "__main__":
         
         Returns: Number of successful dust conversions.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.dust_sweep blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         if not self.dust_converter:
             return 0
         
@@ -14107,6 +14310,9 @@ if __name__ == "__main__":
         
         Returns: (boost_multiplier, commando_reason)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.get_quack_commando_boost blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not self.quack_commandos:
             return (1.0, "")
         
@@ -14163,6 +14369,9 @@ if __name__ == "__main__":
 
     async def find_opportunities_for_exchange(self, exchange: str) -> List['MicroOpportunity']:
         """Find opportunities for a specific exchange only."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.find_opportunities_for_exchange blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         exchange_assets = self.get_exchange_assets(exchange)
@@ -15146,6 +15355,9 @@ if __name__ == "__main__":
 
     async def find_opportunities(self) -> List[MicroOpportunity]:
         """Find all micro profit opportunities."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.find_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         self.scans += 1
         opportunities = []
         
@@ -16145,6 +16357,9 @@ if __name__ == "__main__":
         Returns:
             Dict with status and execution details
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.execute_orca_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         hunt_id = str(order.get('orca_hunt_id') or order.get('hunt_id') or '').strip()
         symbol = str(order.get('symbol') or '').strip().upper()
         side = str(order.get('side') or order.get('action') or '').strip().lower()
@@ -16272,6 +16487,9 @@ if __name__ == "__main__":
             Execution result dict
         """
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.execute_validated_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             # Parse symbol
             parts = symbol.replace('/', '-').replace('_', '-').split('-')
@@ -16433,6 +16651,9 @@ if __name__ == "__main__":
     
     async def execute_conversion(self, opp: MicroOpportunity) -> bool:
         """Execute a conversion (dry run or live)."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.execute_conversion blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         symbol = f"{opp.from_asset}/{opp.to_asset}"
         if self._has_pending_reconciliation(opp, getattr(opp, 'source_exchange', None)):
             safe_print(f"   RECONCILIATION REQUIRED: {symbol} will not be retried")
@@ -17899,6 +18120,9 @@ if __name__ == "__main__":
 
         Returns: (ok: bool, reason: str)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.ensure_round_trip_available blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         try:
             observed_notional = self._finite_observation(notional_usd, positive=True)
             if observed_notional is None:
@@ -19410,6 +19634,9 @@ if __name__ == "__main__":
     
     async def run(self, duration_s: int = 60):
         """Run the micro profit labyrinth."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if os.getenv("AUREON_DEBUG_STARTUP") == "1":
             try:
                 safe_print(f"[DEBUG] Entered MicroProfitLabyrinth.run(duration_s={duration_s})")
@@ -19986,6 +20213,9 @@ if __name__ == "__main__":
     
     async def print_summary(self):
         """Print final summary."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.print_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         safe_print("\n" + "=" * 70)
         safe_print("🔬💰 MICRO PROFIT LABYRINTH SUMMARY 💰🔬")
         safe_print("=" * 70)
@@ -20365,6 +20595,9 @@ if __name__ == "__main__":
         Returns:
             Dict with status, changes made, and backup info
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.queen_propose_code_change blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.queen or not hasattr(self.queen, 'architect') or not self.queen.architect:
             return {
                 'status': 'error',
@@ -20488,6 +20721,9 @@ if __name__ == "__main__":
         
         The Queen becomes smarter by learning from the internet!
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.micro_profit_labyrinth.MicroProfitLabyrinth.queen_research_online_and_enhance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             from aureon.queen.queen_online_researcher import get_online_researcher, queen_research_and_enhance
             from aureon.queen.queen_code_architect import get_code_architect
@@ -20621,6 +20857,9 @@ if __name__ == "__main__":
 # ════════════════════════════════════════════════════════════════════════════
 
 async def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.micro_profit_labyrinth.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if os.getenv("AUREON_DEBUG_STARTUP") == "1":
         try:
             safe_print("[DEBUG] Entered main()")

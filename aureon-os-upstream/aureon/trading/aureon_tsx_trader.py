@@ -11,6 +11,8 @@ Usage:
     python aureon_tsx_trader.py --mode live     # Real money
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -108,6 +110,9 @@ class MarketSnapshot:
 
 def get_market_snapshot(client: BinanceClient, symbol: str) -> Optional[MarketSnapshot]:
     """Fetch current market data for a symbol."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_tsx_trader.get_market_snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     try:
         # Get 24hr ticker using session directly
         ticker_resp = client.session.get(f"{client.base}/api/v3/ticker/24hr", params={'symbol': symbol})
@@ -176,6 +181,9 @@ def decide(snapshot: MarketSnapshot, config: TradingConfig, qgita_event: Optiona
     Decision fusion layer (ported from decisionFusion.ts).
     Combines ensemble models, sentiment, and QGITA lighthouse.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_tsx_trader.decide blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     models = ['market_derived']
     model_signals = [generate_model_signal(m, snapshot) for m in models]
     
@@ -311,6 +319,9 @@ def calculate_quantity(client: BinanceClient, symbol: str, usdt_amount: float) -
 
 def execute_trade(client: BinanceClient, symbol: str, side: str, quantity: float, paper_mode: bool = True) -> Optional[dict]:
     """Execute a trade on Binance."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_tsx_trader.execute_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if paper_mode:
         # Simulate trade using session directly
         ticker = client.best_price(symbol)
@@ -357,6 +368,9 @@ class TSXTrader:
     
     def scan_opportunities(self) -> List[Tuple[str, DecisionSignal, MarketSnapshot]]:
         """Scan all pairs for trading opportunities."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_tsx_trader.TSXTrader.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         for symbol in self.config.pairs:
@@ -374,6 +388,9 @@ class TSXTrader:
     
     def execute_opportunities(self, opportunities: List[Tuple[str, DecisionSignal, MarketSnapshot]]):
         """Execute trades on detected opportunities."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_tsx_trader.TSXTrader.execute_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         portfolio_value, balances = get_portfolio_value(self.client)
         usdt_available = balances.get('USDT', 0) + balances.get('USDC', 0)
         
@@ -417,6 +434,9 @@ class TSXTrader:
     
     def run_cycle(self):
         """Run one trading cycle."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_tsx_trader.TSXTrader.run_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("=" * 60)
         logger.info(f"  TRADING CYCLE - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info("=" * 60)
@@ -434,6 +454,9 @@ class TSXTrader:
     
     def run(self, cycles: int = 10, interval: float = 30.0):
         """Run the trader for multiple cycles."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_tsx_trader.TSXTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         mode_str = "PAPER" if self.paper_mode else "🔴 LIVE"
         
         print(f"""

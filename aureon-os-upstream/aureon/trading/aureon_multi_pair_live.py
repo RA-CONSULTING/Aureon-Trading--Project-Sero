@@ -29,6 +29,9 @@ Usage:
 Author: Aureon System / Gary Leckey
 Date: November 28, 2025
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, json, time, logging, argparse, threading
 from datetime import datetime
@@ -185,6 +188,9 @@ class MultiPairTrader:
         
     def discover_tradeable_pairs(self) -> List[Dict[str, Any]]:
         """Find all pairs we can trade based on current wallet balances."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_pair_live.MultiPairTrader.discover_tradeable_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         logger.info("🔍 Scanning wallet for tradeable assets...")
         try:
             # Get non-zero balances
@@ -235,6 +241,9 @@ class MultiPairTrader:
 
     def get_market_snapshot(self, symbol: str) -> dict:
         """Fetch current market data for a symbol."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_pair_live.MultiPairTrader.get_market_snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             ticker = self.client.session.get(
                 f"{self.client.base}/api/v3/ticker/24hr",
@@ -327,6 +336,9 @@ class MultiPairTrader:
 
     def execute_trade(self, symbol: str, side: str, coherence: float, quantity: float = None) -> dict:
         """Execute a trade with Master Equation signal."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_pair_live.MultiPairTrader.execute_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             price_data = self.client.best_price(symbol)
             price = float(price_data['price'])
@@ -379,6 +391,9 @@ class MultiPairTrader:
 
     def monitor_and_trade(self, symbols: List[str], duration_sec: int = 3600):
         """Main trading loop: monitor coherence and execute on signals."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_pair_live.MultiPairTrader.monitor_and_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info(f"\n🚀 Starting multi-pair trading on {len(symbols)} pairs for {duration_sec}s...")
         logger.info(f"   Risk per trade: {self.risk_percent * 100:.1f}% | Fee: {self.fee_rate * 100:.1f}%")
         logger.info(f"   Entry Γ > {self.master_eq.ENTRY_COHERENCE} | Exit Γ < {self.master_eq.EXIT_COHERENCE}")
@@ -441,6 +456,9 @@ class MultiPairTrader:
         logger.info(f"   Open positions: {len(self.positions)}")
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_multi_pair_live.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser(description="Aureon Multi-Pair Live Trading")
     parser.add_argument('--dry-run', action='store_true', help='Dry-run mode (no real orders)')
     parser.add_argument('--max-pairs', type=int, default=20, help='Max number of pairs to trade')

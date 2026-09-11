@@ -19,6 +19,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 try:
     from aureon.core.exchange_rate_limit_registry import get_exchange_rate_limit
 except Exception:  # pragma: no cover - import guard for partial runtimes
@@ -409,6 +412,9 @@ def _lambda_tempo_from_history(history: Mapping[str, Any]) -> Dict[str, Any]:
 
 def build_harmonic_api_piano_context(*, root: Optional[Path] = None, runtime: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """Read real local HNC/harmonic evidence and convert it into API tempo context."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.build_harmonic_api_piano_context blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     runtime_map = runtime if isinstance(runtime, Mapping) else {}
     hnc = _read_json(_rooted(root, HNC_COGNITIVE_PROOF_STATE_PATH), {})
     operating_cycle = _read_json(_rooted(root, HNC_OPERATING_CYCLE_STATE_PATH), {})
@@ -491,6 +497,9 @@ def apply_harmonic_api_piano(
     harmonic_context: Mapping[str, Any],
 ) -> Dict[str, Any]:
     """Layer adaptive HNC/harmonic tempo over Ghost Dance phase lanes."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.apply_harmonic_api_piano blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     rows = [row for row in ghost_dance.get("worker_phase_rows", []) if isinstance(row, Mapping)]
     tempo_multiplier = _clamp(_as_float(harmonic_context.get("tempo_multiplier"), 0.65), 0.25, 1.15)
     hnc_score = _clamp(_as_float(harmonic_context.get("hnc_score"), 0.5))
@@ -574,6 +583,9 @@ def apply_rainbow_harmonic_frequency_ladder(
     harmonic_context: Mapping[str, Any],
 ) -> Dict[str, Any]:
     """Map workers onto a neutral seven-step frequency ladder for request pacing."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.apply_rainbow_harmonic_frequency_ladder blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     rows = [row for row in harmonic_piano.get("worker_phase_rows", []) if isinstance(row, Mapping)]
     lyra_frequency = _as_float(harmonic_context.get("lyra_frequency_hz"), 0.0)
     base_frequency = lyra_frequency if lyra_frequency > 0 else 528.0
@@ -668,6 +680,9 @@ def build_power_station_request_governor(
     rainbow_ladder: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Read Power Station metadata and convert it into request-governor context."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.build_power_station_request_governor blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     source_path = _rooted(root, V11_POWER_STATION_SOURCE_PATH)
     source_text = ""
     source_present = source_path.exists()
@@ -801,6 +816,9 @@ class UnifiedExchangeRequestBroker:
         self._used_by_venue: Dict[str, float] = {}
 
     def request_lease(self, request: Mapping[str, Any]) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.parallel_strategy_unity.UnifiedExchangeRequestBroker.request_lease blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         worker_id = str(request.get("worker_id") or "").strip()
         venue = str(request.get("venue") or "").strip().lower()
         operation_type = str(request.get("operation_type") or "").strip().lower()
@@ -977,6 +995,9 @@ class UnifiedExchangeRequestBroker:
         }
 
     def snapshot(self) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.parallel_strategy_unity.UnifiedExchangeRequestBroker.snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         venues = []
         for venue in sorted(set(self._used_by_venue) | {str(row.get("venue") or "") for row in self._leases}):
             if not venue:
@@ -1058,6 +1079,9 @@ class UnifiedExchangeRequestBroker:
         }
 
     def publish(self) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.parallel_strategy_unity.UnifiedExchangeRequestBroker.publish blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         snapshot = self.snapshot()
         for rel in (REQUEST_BROKER_STATE_PATH, REQUEST_BROKER_PUBLIC_PATH):
             _write_json_atomic(_rooted(self.root, rel), snapshot)
@@ -1093,6 +1117,9 @@ def _fresh_intents(root: Optional[Path], ttl_sec: float = DEFAULT_INTENT_TTL_SEC
 
 
 def normalize_strategy_intent(worker: StrategyWorkerConfig, signal: Mapping[str, Any]) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.normalize_strategy_intent blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     symbol = str(signal.get("symbol") or signal.get("route_symbol") or "UNKNOWN").upper().strip()
     side = str(signal.get("side") or signal.get("direction") or "HOLD").upper().strip()
     venue = str(signal.get("venue") or worker.venue).lower()
@@ -1188,6 +1215,9 @@ def publish_strategy_intent(
     thought_bus: Any = None,
     mycelium: Any = None,
 ) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.publish_strategy_intent blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     row = dict(intent)
     _append_jsonl(_rooted(root, STRATEGY_INTENT_LOG_PATH), row)
     rows = _tail_jsonl(_rooted(root, STRATEGY_INTENT_LOG_PATH), 300)
@@ -1257,6 +1287,9 @@ def _dedupe_intents(rows: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def build_strategy_intent_state(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.build_strategy_intent_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     deduped = _dedupe_intents(rows)
     route_sides: Dict[str, set[str]] = {}
     for row in deduped:
@@ -1307,6 +1340,9 @@ class ParallelStrategySupervisor:
         self.workers = list(workers)
 
     def run_once(self) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.parallel_strategy_unity.ParallelStrategySupervisor.run_once blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         runtime = _read_json(_rooted(self.root, RUNTIME_STATUS_PATH), {})
         worker_rows: List[Dict[str, Any]] = []
         intents: List[Dict[str, Any]] = []
@@ -1614,6 +1650,9 @@ class ParallelStrategySupervisor:
         }
 
     def run_forever(self, interval: float) -> None:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.parallel_strategy_unity.ParallelStrategySupervisor.run_forever blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         while True:
             self.run_once()
             time.sleep(max(1.0, float(interval)))
@@ -1624,6 +1663,9 @@ def build_parallel_strategy_unity_snapshot(*, root: Optional[Path] = None) -> Di
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.parallel_strategy_unity.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return 0
     parser = argparse.ArgumentParser(description="Run Aureon parallel strategy unity supervisor.")
     parser.add_argument("--once", action="store_true", help="Run one cycle and exit.")
     parser.add_argument("--watch", action="store_true", help="Run continuously.")

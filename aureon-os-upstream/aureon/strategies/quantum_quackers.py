@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 import random
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, '/workspaces/aureon-trading')
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
 
@@ -116,6 +118,9 @@ class QuantumQuackers:
         
     def update_tickers(self):
         """Fetch latest Kraken tickers"""
+        if no_external_api_calls():
+            print("QuantumQuackers.update_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         try:
             tickers = self.client.get_24h_tickers()
             for t in tickers:
@@ -313,6 +318,9 @@ class QuantumQuackers:
         
     def run(self, cycles: int = 100, interval: float = 5.0):
         """Run the Quantum Quacker!"""
+        if no_external_api_calls():
+            print("QuantumQuackers.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         self.quack_banner()
         
         print("🦆 Connecting to Kraken pond...")

@@ -1,97 +1,32 @@
-// WebSocket hook and main dashboard component
-import React, { useEffect, useRef, useState } from "react";
-import { AurisMetrics, AuraMetrics } from "./NexusLiveDashboardComplete";
+import { useState } from 'react';
+import { Button } from './ui/button';
 
-// ---------- WebSocket hook ----------
-export function useAurisWS(url = "ws://localhost:8787"){
-  const [connected, setConnected] = useState(false);
-  const [auris, setAuris] = useState<AurisMetrics>({});
-  const [aura,  setAura]  = useState<AuraMetrics>({});
-  const wsRef = useRef<WebSocket|null>(null);
-  
-  useEffect(()=>{
-    let alive = true;
-    function connect(){
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-      ws.onopen = () => setConnected(true);
-      ws.onclose = () => { setConnected(false); if(alive) setTimeout(connect, 1200); };
-      ws.onerror = () => { try{ws.close();}catch{} };
-      ws.onmessage = (ev) => {
-        try{
-          const msg = JSON.parse(ev.data);
-          if(msg?.type === 'auris_metrics') setAuris(msg.data||{});
-          if(msg?.type === 'aura_features') setAura(msg.data||{});
-        }catch{}
-      };
-    }
-    connect();
-    return ()=>{ alive=false; wsRef.current?.close(); };
-  }, [url]);
-  
-  return {connected, auris, aura, wsCtl: wsRef};
-}
+export type HarmonicControlRequest = { gain: number; fundamental: number; intent: string };
 
-// ---------- Controls Component ----------
-export function HarmonicControls({onUpdate}: {onUpdate: (params: any) => void}) {
-  const [gain, setGain] = useState(0.5);
-  const [fundamental, setFundamental] = useState(7.83);
-  const [intent, setIntent] = useState("validation love grounding");
-
-  useEffect(() => {
-    onUpdate({ gain, fundamental, intent });
-  }, [gain, fundamental, intent, onUpdate]);
-
-  return (
-    <div className="bg-zinc-800/50 rounded-xl p-4 space-y-4">
-      <h3 className="text-zinc-200 font-medium">Field Tuning</h3>
-      
-      <div className="space-y-2">
-        <label className="text-sm text-zinc-300">Gain: {gain.toFixed(2)}</label>
-        <input 
-          type="range" 
-          min="0" max="1" step="0.01" 
-          value={gain}
-          onChange={(e) => setGain(Number(e.target.value))}
-          className="w-full"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm text-zinc-300">Fundamental: {fundamental} Hz</label>
-        <input 
-          type="range" 
-          min="6" max="12" step="0.01" 
-          value={fundamental}
-          onChange={(e) => setFundamental(Number(e.target.value))}
-          className="w-full"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm text-zinc-300">Intent</label>
-        <input 
-          type="text" 
-          value={intent}
-          onChange={(e) => setIntent(e.target.value)}
-          className="w-full bg-zinc-700 text-zinc-200 px-3 py-2 rounded-lg"
-          placeholder="validation love grounding"
-        />
-      </div>
-      
-      <button
-        onClick={()=>{
-          const payload = {
-            type: "snapshot",
-            at: new Date().toISOString(),
-            controls: { gain, fundamental, intent },
-          };
-          // This would be handled by parent component with WebSocket reference
-          console.log("Snapshot requested:", payload);
-        }}
-        className="mt-3 w-full px-3 py-2 rounded-xl bg-success hover:bg-success text-white transition-colors">
-        Snapshot ⌘S
-      </button>
+/** Calibration targets are manually entered requests, never measured telemetry. */
+export function HarmonicControls({ onUpdate, disabled }: { onUpdate: (params: HarmonicControlRequest) => boolean; disabled: boolean }) {
+  const [gain, setGain] = useState('');
+  const [fundamental, setFundamental] = useState('');
+  const [intent, setIntent] = useState('');
+  const [status, setStatus] = useState<string | null>(null);
+  const gainNumber = gain.trim() ? Number(gain) : NaN;
+  const fundamentalNumber = fundamental.trim() ? Number(fundamental) : NaN;
+  const valid = Number.isFinite(gainNumber) && gainNumber >= 0 && gainNumber <= 1
+    && Number.isFinite(fundamentalNumber) && fundamentalNumber > 0;
+  const apply = () => {
+    if (disabled || !valid) return;
+    const sent = onUpdate({ gain: gainNumber, fundamental: fundamentalNumber, intent });
+    setStatus(sent ? 'Request sent. Runtime acknowledgement is unavailable.' : 'Request could not be sent.');
+  };
+  return <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+    <h2 className="font-semibold">Manual calibration request</h2>
+    <p className="text-sm text-muted-foreground">Enter a target for a connected research receiver. These inputs are settings, not observed frequencies or biological measurements.</p>
+    <div className="grid gap-3 md:grid-cols-3">
+      <label className="text-sm">Gain (0 to 1)<input className="mt-1 w-full rounded bg-muted p-2" type="number" min="0" max="1" step="0.01" value={gain} onChange={(event) => setGain(event.target.value)} /></label>
+      <label className="text-sm">Target frequency (Hz)<input className="mt-1 w-full rounded bg-muted p-2" type="number" min="0" value={fundamental} onChange={(event) => setFundamental(event.target.value)} /></label>
+      <label className="text-sm">Experiment note<input className="mt-1 w-full rounded bg-muted p-2" value={intent} onChange={(event) => setIntent(event.target.value)} /></label>
     </div>
-  );
+    <Button disabled={disabled || !valid} onClick={apply}>Send calibration request</Button>
+    {status && <p role="status" className="text-sm text-muted-foreground">{status}</p>}
+  </div>;
 }

@@ -48,6 +48,8 @@ try:
 except ImportError:
     pd = None
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ===========================================================================
@@ -127,6 +129,10 @@ class SolarDataFetcher:
 
     def fetch_current(self) -> Optional[SolarSnapshot]:
         """Fetch current solar conditions from NOAA."""
+        if no_external_api_calls():
+            logger.info("SolarDataFetcher.fetch_current blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if requests is None:
             logger.warning("requests library not available")
             return None
@@ -184,6 +190,12 @@ class SubstrateActivityFetcher:
 
     def fetch_current(self) -> SubstrateSnapshot:
         """Collect snapshot of all substrate activity."""
+        if no_external_api_calls():
+            logger.info("SubstrateActivityFetcher.fetch_current blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return SubstrateSnapshot(
+                timestamp=datetime.now(timezone.utc).isoformat()
+            )
+
         snapshot = SubstrateSnapshot(
             timestamp=datetime.now(timezone.utc).isoformat()
         )

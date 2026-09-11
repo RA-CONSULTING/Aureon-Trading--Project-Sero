@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Mapping
 
+from aureon.core.no_external_calls import no_external_api_calls
 from aureon.connectors.base import (
     SOURCE_INJECTED,
     ConnectorResult,
@@ -120,6 +121,12 @@ class DriveConnector:
 
     def status(self) -> ConnectorStatus:
         """Reachability now. Builds the client on first call and caches it."""
+        if no_external_api_calls():
+            LOG.info("DriveConnector.status blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return ConnectorStatus.blocked(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Drive access is disabled",
+                source="air_gap",
+            )
         return self._resolve()[1]
 
     @property
@@ -151,6 +158,13 @@ class DriveConnector:
         listing the whole Drive is what :meth:`list_recent` is for, and silently
         substituting one for the other hides a caller's bug.
         """
+        if no_external_api_calls():
+            LOG.info("DriveConnector.search blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return blocked_result(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Drive file search is disabled",
+                source="air_gap",
+            )
+
         term = (query or "").strip()
         if not term:
             return blocked_result("search query is empty — use list_recent() to browse instead")
@@ -159,6 +173,13 @@ class DriveConnector:
 
     def list_recent(self, *, limit: int = DEFAULT_LIMIT) -> ConnectorResult:
         """The most recently modified files this credential can see."""
+        if no_external_api_calls():
+            LOG.info("DriveConnector.list_recent blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return blocked_result(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Drive recent-file listing is disabled",
+                source="air_gap",
+            )
+
         return self._list(
             "trashed = false",
             limit=limit,
@@ -175,6 +196,13 @@ class DriveConnector:
         one path without the other would fail on exactly the files this organism
         most needs — the war-room spreadsheet is a native Google Sheet.
         """
+        if no_external_api_calls():
+            LOG.info("DriveConnector.read blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return blocked_result(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Drive file read is disabled",
+                source="air_gap",
+            )
+
         identifier = (file_id or "").strip()
         if not identifier:
             return blocked_result("no file id given")

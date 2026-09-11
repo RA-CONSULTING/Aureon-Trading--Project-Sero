@@ -28,6 +28,9 @@ RAINBOW BRIDGE STATES:
 Gary Leckey & GitHub Copilot | November 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import hmac
 import hashlib
@@ -141,17 +144,26 @@ class AureonPiano:
     
     def get_account(self) -> dict:
         """Get account balances"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.get_account blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         query = self.sign_request({})
         url = f'https://api.binance.com/api/v3/account?{query}'
         return requests.get(url, headers={'X-MBX-APIKEY': API_KEY}).json()
     
     def get_prices(self) -> Dict[str, float]:
         """Get all current prices"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.get_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         resp = requests.get('https://api.binance.com/api/v3/ticker/price').json()
         return {p['symbol']: float(p['price']) for p in resp}
     
     def get_24h_tickers(self) -> Dict[str, dict]:
         """Get 24h ticker data for all pairs"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.get_24h_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         resp = requests.get('https://api.binance.com/api/v3/ticker/24hr').json()
         return {t['symbol']: {
             'change': float(t['priceChangePercent']),
@@ -162,6 +174,9 @@ class AureonPiano:
     
     def get_klines(self, symbol: str, interval: str = '15m', limit: int = 20) -> List[dict]:
         """Get candlestick data"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.get_klines blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         resp = requests.get(
             'https://api.binance.com/api/v3/klines',
             params={'symbol': symbol, 'interval': interval, 'limit': limit}
@@ -417,6 +432,9 @@ class AureonPiano:
         
         Returns: (signal, confidence)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.generate_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         score = 0.0
         
         # Lambda contribution (field strength)
@@ -499,6 +517,9 @@ class AureonPiano:
     
     def refresh_keys(self):
         """Refresh all piano keys from account"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.refresh_keys blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         account = self.get_account()
         prices = self.get_prices()
         tickers = self.get_24h_tickers()
@@ -547,6 +568,9 @@ class AureonPiano:
     
     def analyze_all_keys(self):
         """Analyze all keys with full Master Equation"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.analyze_all_keys blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print(f"\n🎹 ANALYZING {len(self.keys)} PIANO KEYS")
         print("=" * 70)
         
@@ -593,6 +617,9 @@ class AureonPiano:
     
     def find_opportunities(self) -> List[Tuple[str, str, float]]:
         """Find trading opportunities from analyzed keys"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.find_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         for asset, key in self.keys.items():
@@ -609,6 +636,9 @@ class AureonPiano:
     
     def display_portfolio_status(self):
         """Display full portfolio status"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.display_portfolio_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         prices = self.get_prices()
         btc_usd = prices.get('BTCUSDT', 95000)
         account = self.get_account()
@@ -656,6 +686,9 @@ class AureonPiano:
         4. Execute trades based on signals
         5. Display harmonic status
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.play blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "=" * 70)
         print("🎹 AUREON PIANO PLAYER - STARTING")
         print("   'Playing the harmonics across all coins'")
@@ -703,6 +736,9 @@ class AureonPiano:
     
     def get_symbol_info(self, symbol: str) -> Optional[dict]:
         """Get trading rules for a symbol"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.get_symbol_info blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             resp = requests.get('https://api.binance.com/api/v3/exchangeInfo', 
                                params={'symbol': symbol}).json()
@@ -728,6 +764,9 @@ class AureonPiano:
     
     def place_order(self, symbol: str, side: str, quantity: float) -> dict:
         """Place a market order"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         params = {
             'symbol': symbol,
             'side': side,
@@ -740,6 +779,9 @@ class AureonPiano:
     
     def execute_signal(self, asset: str, key: PianoKey, signal: str, confidence: float) -> bool:
         """Execute a trade based on signal"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.execute_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         prices = self.get_prices()
         btc_usd = prices.get('BTCUSDT', 95000)
         
@@ -826,6 +868,9 @@ class AureonPiano:
     
     def execute_opportunities(self, max_trades: int = 2):
         """Execute trades on best opportunities"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_piano.AureonPiano.execute_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         opps = self.find_opportunities()
         trades_made = 0
         
@@ -848,6 +893,9 @@ class AureonPiano:
 
 def main():
     """Main entry point"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_piano.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import sys
     
     # Parse command line

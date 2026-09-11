@@ -33,6 +33,8 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Set
 from collections import deque, defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -915,6 +917,10 @@ class DashboardServer:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def main():
+    if no_external_api_calls():
+        logger.info("Bot Hunter Dashboard blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print()
     print("🔥" * 40)
     print()
@@ -927,7 +933,7 @@ async def main():
     print()
     print("🔥" * 40)
     print()
-    
+
     # Initialize
     engine = BotEngine()
     server = DashboardServer(engine)

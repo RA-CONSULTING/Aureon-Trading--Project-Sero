@@ -71,6 +71,8 @@ from datetime import datetime, timedelta, timezone
 from collections import deque
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONSTANTS - TIMELINE CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -286,7 +288,13 @@ class TimelineBranch:
     
     # Combined confidence (are we acting out the right timeline?)
     branch_confidence: float = 0.0
-    
+
+    # FAIL-CLOSED provenance (owner decree 2026-09-06): which subsystems
+    # contributed REAL data to this branch. A branch with no real sources has
+    # fabricated confidence and must never be published as a live prediction.
+    real_sources: Set[str] = field(default_factory=set)
+    error: Optional[str] = None
+
     # Validation (what ACTUALLY happened - proves we chose correctly)
     validated: bool = False
     validation_time: Optional[float] = None
@@ -309,6 +317,8 @@ class TimelineBranch:
             'miner_speculation': self.miner_speculation,
             'telescope_refraction': self.telescope_refraction,
             'multiverse_vote': self.multiverse_vote,
+            'real_sources': sorted(self.real_sources),
+            'error': self.error,
             'branch_confidence': self.branch_confidence,
             'validated': self.validated,
             'validation_time': self.validation_time,
@@ -606,31 +616,34 @@ class TimelineOracle:
         # ═══════════════════════════════════════════════════════════════════════
         # 🔌 EXCHANGE CLIENTS - ALL TRADING PLATFORMS
         # ═══════════════════════════════════════════════════════════════════════
-        
-        # 🐙 Kraken
-        if KRAKEN_AVAILABLE:
-            try:
-                self.kraken = get_kraken_client()
-                logger.info("   🐙 Kraken Exchange: WIRED")
-            except Exception as e:
-                logger.warning(f"   🐙 Kraken: Failed ({e})")
-        
-        # 🟡 Binance
-        if BINANCE_AVAILABLE:
-            try:
-                self.binance = get_binance_client()
-                logger.info("   🟡 Binance Exchange: WIRED")
-            except Exception as e:
-                logger.warning(f"   🟡 Binance: Failed ({e})")
-        
-        # 🦙 Alpaca
-        if ALPACA_AVAILABLE:
-            try:
-                self.alpaca = AlpacaClient()
-                logger.info("   🦙 Alpaca Exchange: WIRED")
-            except Exception as e:
-                logger.warning(f"   🦙 Alpaca: Failed ({e})")
-        
+
+        if no_external_api_calls():
+            logger.info("TimelineOracle.initialize skipping exchange wiring (AUREON_NO_EXTERNAL_API_CALLS)")
+        else:
+            # 🐙 Kraken
+            if KRAKEN_AVAILABLE:
+                try:
+                    self.kraken = get_kraken_client()
+                    logger.info("   🐙 Kraken Exchange: WIRED")
+                except Exception as e:
+                    logger.warning(f"   🐙 Kraken: Failed ({e})")
+
+            # 🟡 Binance
+            if BINANCE_AVAILABLE:
+                try:
+                    self.binance = get_binance_client()
+                    logger.info("   🟡 Binance Exchange: WIRED")
+                except Exception as e:
+                    logger.warning(f"   🟡 Binance: Failed ({e})")
+
+            # 🦙 Alpaca
+            if ALPACA_AVAILABLE:
+                try:
+                    self.alpaca = AlpacaClient()
+                    logger.info("   🦙 Alpaca Exchange: WIRED")
+                except Exception as e:
+                    logger.warning(f"   🦙 Alpaca: Failed ({e})")
+
         exchanges_wired = sum([
             self.kraken is not None,
             self.binance is not None,
@@ -1135,8 +1148,9 @@ class TimelineOracle:
         # Sort by confidence (highest first)
         branches.sort(key=lambda b: b.branch_confidence, reverse=True)
         
-        # Publish best branch if confidence is high enough
-        if branches and branches[0].branch_confidence > 0.5:
+        # Publish best branch if confidence is high enough AND real data backs it.
+        # Fail-closed: neutral-default confidence (no real_sources) is never published.
+        if branches and branches[0].branch_confidence > 0.5 and branches[0].real_sources:
             self._publish_timeline_prediction(branches[0])
         
         logger.info(f"⏳ Created {len(branches)} timeline branches for {symbol}")
@@ -1176,6 +1190,8 @@ class TimelineOracle:
                     total_resonance += result.resonance * result.clarity
                 
                 branch.quantum_vision['telescope'] = total_resonance / len(refraction) if refraction else 0.5
+                if refraction:
+                    branch.real_sources.add('telescope')
             except Exception as e:
                 logger.debug(f"Quantum prism error: {e}")
                 branch.quantum_vision['telescope'] = 0.5
@@ -1202,6 +1218,7 @@ class TimelineOracle:
                         alignment = 1.0 - abs(math.sin(2 * phase))
                     
                     branch.harmonic_alignment = alignment * symbol_state.coherence
+                    branch.real_sources.add('harmonic')
                 else:
                     branch.harmonic_alignment = 0.5
             except Exception as e:
@@ -1215,9 +1232,12 @@ class TimelineOracle:
                 if hasattr(self.mycelium, 'get_consensus'):
                     consensus = self.mycelium.get_consensus(branch.symbol, branch.action.value)
                     branch.mycelium_consensus = consensus if isinstance(consensus, float) else 0.5
+                    if isinstance(consensus, float):
+                        branch.real_sources.add('mycelium')
                 elif hasattr(self.mycelium, 'queen') and self.mycelium.queen:
                     # Use queen neuron's activation
                     branch.mycelium_consensus = self.mycelium.queen.activation
+                    branch.real_sources.add('mycelium')
                 else:
                     branch.mycelium_consensus = 0.5
             except Exception as e:
@@ -1230,9 +1250,13 @@ class TimelineOracle:
                 if hasattr(self.miner_brain, 'speculate'):
                     speculation = self.miner_brain.speculate(branch.symbol, branch.action.value)
                     branch.miner_speculation = speculation.get('confidence', 0.5) if isinstance(speculation, dict) else 0.5
+                    if isinstance(speculation, dict):
+                        branch.real_sources.add('miner')
                 elif hasattr(self.miner_brain, 'get_market_coherence'):
                     coherence = self.miner_brain.get_market_coherence()
                     branch.miner_speculation = coherence if isinstance(coherence, float) else 0.5
+                    if isinstance(coherence, float):
+                        branch.real_sources.add('miner')
                 else:
                     branch.miner_speculation = 0.5
             except Exception as e:
@@ -1251,6 +1275,7 @@ class TimelineOracle:
                             branch.multiverse_vote = vote.get('confidence', 0.7)
                         else:
                             branch.multiverse_vote = 1.0 - vote.get('confidence', 0.5)
+                        branch.real_sources.add('multiverse')
                     else:
                         branch.multiverse_vote = 0.5
                 else:
@@ -1273,7 +1298,18 @@ class TimelineOracle:
         Calculate combined confidence for a timeline branch.
         
         This tells us how likely we are to be "acting out the right timeline."
+        
+        FAIL-CLOSED (owner decree 2026-09-06): a branch with zero real data
+        sources gets confidence 0.0 and an error — neutral defaults must never
+        be boosted into a publishable "live" prediction.
         """
+        if not branch.real_sources:
+            branch.error = (
+                "no_live_sources: no subsystem contributed real data; "
+                "prediction suppressed (fail-closed)"
+            )
+            return 0.0
+
         weights = {
             'harmonic': 0.25,     # 7-day seed is our primary validation
             'mycelium': 0.20,    # Hive intelligence
@@ -1633,7 +1669,7 @@ def timeline_select(
     """
     oracle = get_timeline_oracle()
     action, branch = oracle.select_timeline(symbol, price, volume, change_pct)
-    confidence = branch.branch_confidence if branch else 0.5
+    confidence = branch.branch_confidence if branch else 0.0
     return action.value, confidence
 
 

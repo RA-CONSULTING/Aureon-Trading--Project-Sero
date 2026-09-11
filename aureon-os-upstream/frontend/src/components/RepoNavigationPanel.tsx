@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { recordedNumber, recordedContractCheck } from "@/lib/recordedReportEvidence";
+import { fetchRepoManifests, type ManifestReceipt } from "@/lib/repoManifestEvidence";
 import { BookOpen, CheckCircle2, ExternalLink, FileJson, GitBranch, Search, Server, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -379,14 +381,6 @@ function manifestLabel(path: string): string {
   return AUTONOMOUS_MANIFEST_LABELS[file] || file.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
-async function loadJson<T>(url: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(url, { cache: "no-store", signal });
-  if (!response.ok) {
-    throw new Error(`${url} returned ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
 function matchesQuery(values: string[], query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -407,12 +401,11 @@ function PathLink({ path }: { path: string }) {
   );
 }
 
-function ContractPill({ label, clear }: { label: string; clear: boolean }) {
-  return (
-    <Badge variant="outline" className={clear ? "border-success/40 bg-success/10 text-success" : "border-destructive/40 bg-destructive/10 text-destructive"}>
-      {label}: {clear ? "clear" : "review"}
-    </Badge>
-  );
+function ContractPill({ label, contains }: { label: string; contains: unknown }) {
+  const status = recordedContractCheck(contains);
+  return <Badge variant="outline" className={status === "recorded review" ? "border-warning/40 text-warning" : "text-muted-foreground"}>
+    {label}: {status}
+  </Badge>;
 }
 
 export function RepoNavigationPanel() {
@@ -429,70 +422,52 @@ export function RepoNavigationPanel() {
   const [hardeningManifest, setHardeningManifest] = useState<SupabaseHardeningManifest | null>(null);
   const [autonomousManifests, setAutonomousManifests] = useState<AutonomousFrontendManifest[]>([]);
   const [query, setQuery] = useState("");
-  const [error, setError] = useState("");
+  const [sources, setSources] = useState<ManifestReceipt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const error = sources.filter(source => !source.report).map(source => `${source.source}: ${source.reason}`).join(" · ");
 
   useEffect(() => {
     const controller = new AbortController();
+    let cancelled = false;
+    setLoading(true);
     const refresh = async () => {
       try {
-        const [
-          repoManifest,
-          accessManifest,
-          capabilityAccessMatrixManifest,
-          capabilityRegistryManifest,
-          indexManifest,
-          organizationTreeManifest,
-          navigationReadinessManifest,
-          systemIntegrationManifest,
-          integrationHandoffManifest,
-          integrationManifest,
-          supabaseHardeningManifest,
-        ] = await Promise.all([
-          loadJson<RepoSitemapManifest>("/aureon_repo_sitemap.json", controller.signal),
-          loadJson<AccessMapManifest>("/aureon_end_user_access_map.json", controller.signal),
-          loadJson<CapabilityAccessMatrixManifest>("/aureon_capability_access_matrix.json", controller.signal),
-          loadJson<CapabilityRegistryManifest>("/aureon_capability_registry.json", controller.signal),
-          loadJson<NavigationIndexManifest>("/aureon_repo_navigation_index.json", controller.signal),
-          loadJson<OrganizationTreeManifest>("/aureon_repo_organization_tree.json", controller.signal),
-          loadJson<NavigationReadinessManifest>("/aureon_repo_navigation_readiness.json", controller.signal),
-          loadJson<SystemIntegrationMapManifest>("/aureon_system_integration_map.json", controller.signal),
-          loadJson<SaaSIntegrationHandoffManifest>("/aureon_saas_integration_handoff.json", controller.signal),
-          loadJson<SaaSIntegrationManifest>("/aureon_saas_integration_manifest.json", controller.signal),
-          loadJson<SupabaseHardeningManifest>("/aureon_supabase_hardening_manifest.json", controller.signal),
-        ]);
-        const mountedAutonomousManifests = await Promise.all(
-          (repoManifest.autonomous_frontend_manifests || []).map(async (manifestPath) => {
-            const manifest = await loadJson<Omit<AutonomousFrontendManifest, "path" | "label">>(publicUrl(manifestPath), controller.signal);
-            return {
-              ...manifest,
-              path: manifestPath,
-              label: manifestLabel(manifestPath),
-            };
-          }),
-        );
-        setRepoMap(repoManifest);
-        setAccessMap(accessManifest);
-        setCapabilityAccessMatrix(capabilityAccessMatrixManifest);
-        setCapabilityRegistry(capabilityRegistryManifest);
-        setNavigationIndex(indexManifest);
-        setOrganizationTree(organizationTreeManifest);
-        setNavigationReadiness(navigationReadinessManifest);
-        setSystemMap(systemIntegrationManifest);
-        setSaasHandoff(integrationHandoffManifest);
-        setSaasManifest(integrationManifest);
-        setHardeningManifest(supabaseHardeningManifest);
-        setAutonomousManifests(mountedAutonomousManifests);
-        setError("");
-      } catch (loadError) {
-        if (!controller.signal.aborted) {
-          setError(loadError instanceof Error ? loadError.message : "Navigation manifests unavailable");
-        }
-      }
+        const receipts = await fetchRepoManifests([
+          "/aureon_repo_sitemap.json", "/aureon_end_user_access_map.json", "/aureon_capability_access_matrix.json",
+          "/aureon_capability_registry.json", "/aureon_repo_navigation_index.json", "/aureon_repo_organization_tree.json",
+          "/aureon_repo_navigation_readiness.json", "/aureon_system_integration_map.json", "/aureon_saas_integration_handoff.json",
+          "/aureon_saas_integration_manifest.json", "/aureon_supabase_hardening_manifest.json",
+        ], controller.signal);
+        if (cancelled) return;
+        const bySource = new Map(receipts.map(receipt => [receipt.source, receipt]));
+        const report = <T,>(source: string) => (bySource.get(source)?.report ?? null) as T | null;
+        const sitemap = report<RepoSitemapManifest>("/aureon_repo_sitemap.json");
+        setRepoMap(sitemap);
+        setAccessMap(report<AccessMapManifest>("/aureon_end_user_access_map.json"));
+        setCapabilityAccessMatrix(report<CapabilityAccessMatrixManifest>("/aureon_capability_access_matrix.json"));
+        setCapabilityRegistry(report<CapabilityRegistryManifest>("/aureon_capability_registry.json"));
+        setNavigationIndex(report<NavigationIndexManifest>("/aureon_repo_navigation_index.json"));
+        setOrganizationTree(report<OrganizationTreeManifest>("/aureon_repo_organization_tree.json"));
+        setNavigationReadiness(report<NavigationReadinessManifest>("/aureon_repo_navigation_readiness.json"));
+        setSystemMap(report<SystemIntegrationMapManifest>("/aureon_system_integration_map.json"));
+        setSaasHandoff(report<SaaSIntegrationHandoffManifest>("/aureon_saas_integration_handoff.json"));
+        setSaasManifest(report<SaaSIntegrationManifest>("/aureon_saas_integration_manifest.json"));
+        setHardeningManifest(report<SupabaseHardeningManifest>("/aureon_supabase_hardening_manifest.json"));
+        setSources(receipts);
+        setAutonomousManifests([]);
+        const paths = [...new Set((sitemap?.autonomous_frontend_manifests ?? []).map(publicUrl))];
+        const extra = await fetchRepoManifests(paths, controller.signal);
+        if (cancelled) return;
+        setAutonomousManifests(extra.filter(receipt => receipt.report).map(receipt => ({
+          ...receipt.report, path: receipt.source, label: manifestLabel(receipt.source),
+        } as unknown as AutonomousFrontendManifest)));
+        setSources([...receipts, ...extra]);
+      } finally { if (!cancelled) setLoading(false); }
     };
-
-    refresh();
-    return () => controller.abort();
-  }, []);
+    void refresh();
+    return () => { cancelled = true; controller.abort(); };
+  }, [refreshKey]);
 
   const filteredZones = useMemo(() => {
     const zones = repoMap?.zones || [];
@@ -555,7 +530,7 @@ export function RepoNavigationPanel() {
       );
   }, [capabilityAccessMatrix, query]);
 
-  const indexedEntries = navigationIndex?.entries || [];
+  const indexedEntries = useMemo(() => navigationIndex?.entries ?? [], [navigationIndex]);
   const filteredEntries = useMemo(() => {
     const needle = query.trim();
     const seedPrefixes = ["README.md", "docs/", "frontend/", "aureon/", "supabase/", "scripts/validation/"];
@@ -567,7 +542,7 @@ export function RepoNavigationPanel() {
     return entries.slice(0, 120);
   }, [indexedEntries, query]);
 
-  const organizationDirectories = organizationTree?.directories || [];
+  const organizationDirectories = useMemo(() => organizationTree?.directories ?? [], [organizationTree]);
   const filteredDirectories = useMemo(() => {
     const needle = query.trim();
     const entries = needle
@@ -689,6 +664,23 @@ export function RepoNavigationPanel() {
 
   return (
     <div className="space-y-5">
+      <Card className="border-border/60 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h1 className="text-lg font-semibold">Recorded repository structure</h1>
+            <p className="mt-1 text-sm text-muted-foreground">These manifests describe historical repository snapshots. Listed routes, gates and counts do not establish current runtime health.</p></div>
+          <Button variant="outline" size="sm" disabled={loading} onClick={() => setRefreshKey(key => key + 1)}>{loading ? "Reading reports…" : "Refresh reports"}</Button>
+        </div>
+        <details className="mt-3 text-xs text-muted-foreground" open>
+          <summary className="cursor-pointer">Report sources · {sources.filter(source => source.report).length} available{loading ? " · loading" : ` / ${sources.length}`}</summary>
+          <ul className="mt-2 space-y-2">
+            {sources.map(source => <li key={source.source} className="break-words">
+              <a href={source.source} target="_blank" rel="noreferrer" className="underline">{source.source}</a>
+              {" · "}{source.report ? `recorded ${source.date}` : `Unavailable: ${source.reason}`}
+              {source.receivedAt && <span> · HTTP received {source.receivedAt}</span>}
+            </li>)}
+          </ul>
+        </details>
+      </Card>
       <div className="grid gap-4 lg:grid-cols-[1fr_0.75fr]">
         <Card className="border-border/60 bg-card/90">
           <CardHeader className="pb-3">
@@ -701,33 +693,33 @@ export function RepoNavigationPanel() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Tracked files</div>
-                <div className="mt-1 text-2xl font-semibold">{(repoMap?.tracked_file_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-2xl font-semibold">{recordedNumber(repoMap?.tracked_file_count)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Indexed paths</div>
-                <div className="mt-1 text-2xl font-semibold">{(navigationIndex?.entry_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-2xl font-semibold">{recordedNumber(navigationIndex?.entry_count)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Directories</div>
-                <div className="mt-1 text-2xl font-semibold">{(organizationTree?.directory_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-2xl font-semibold">{recordedNumber(organizationTree?.directory_count)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Routed capabilities</div>
                 <div className="mt-1 text-2xl font-semibold">
-                  {(capabilityAccessMatrix?.summary?.routed_capability_count || capabilityRegistry?.summary?.capability_count || 0).toLocaleString()}
+                  {recordedNumber(capabilityAccessMatrix?.summary?.routed_capability_count)}
                 </div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Systems mapped</div>
-                <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.system_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.system_count)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Env names</div>
-                <div className="mt-1 text-2xl font-semibold">{(saasManifest?.environment?.variable_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-2xl font-semibold">{recordedNumber(saasManifest?.environment?.variable_count)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/50 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Public review</div>
-                <div className="mt-1 text-2xl font-semibold">{(saasManifest?.supabase?.public_endpoint_review_required_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-2xl font-semibold">{recordedNumber(saasManifest?.supabase?.public_endpoint_review_required_count)}</div>
               </div>
             </div>
 
@@ -751,14 +743,14 @@ export function RepoNavigationPanel() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
               <ShieldCheck className="h-5 w-5 text-success" />
-              Public Contract
+              Recorded Public Contract
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <ContractPill label="secrets" clear={!contract?.contains_secrets} />
-              <ContractPill label="runtime state" clear={!contract?.contains_private_runtime_state} />
-              <ContractPill label="customer data" clear={!contract?.contains_customer_data} />
+              <ContractPill label="secrets" contains={contract?.contains_secrets} />
+              <ContractPill label="runtime state" contains={contract?.contains_private_runtime_state} />
+              <ContractPill label="customer data" contains={contract?.contains_customer_data} />
             </div>
             <div className="grid gap-2 text-xs">
               <a className="inline-flex items-center gap-2 text-primary hover:text-primary" href="/aureon_repo_sitemap.json" target="_blank" rel="noreferrer">
@@ -835,7 +827,7 @@ export function RepoNavigationPanel() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <ShieldCheck className="h-5 w-5 text-success" />
-            Navigation Readiness Audit
+            Recorded Navigation Readiness Audit
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -846,23 +838,23 @@ export function RepoNavigationPanel() {
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Gates passed</div>
-              <div className="mt-1 text-2xl font-semibold">{(navigationReadiness?.summary?.passed_gate_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(navigationReadiness?.summary?.passed_gate_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Warnings</div>
-              <div className="mt-1 text-2xl font-semibold">{(navigationReadiness?.summary?.warning_gate_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(navigationReadiness?.summary?.warning_gate_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Failed gates</div>
-              <div className="mt-1 text-2xl font-semibold">{(navigationReadiness?.summary?.failed_gate_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(navigationReadiness?.summary?.failed_gate_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Mapped capabilities</div>
-              <div className="mt-1 text-2xl font-semibold">{(navigationReadiness?.summary?.system_mapped_capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(navigationReadiness?.summary?.system_mapped_capability_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">SaaS blockers</div>
-              <div className="mt-1 text-2xl font-semibold">{(navigationReadiness?.summary?.supabase_production_blocker_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(navigationReadiness?.summary?.supabase_production_blocker_count)}</div>
             </div>
           </div>
 
@@ -896,7 +888,7 @@ export function RepoNavigationPanel() {
             ))}
           </div>
           <div className="text-xs text-muted-foreground">
-            Showing {filteredReadinessGates.length.toLocaleString()} of {(navigationReadiness?.summary?.gate_count || 0).toLocaleString()} readiness gates, with all matching evidence links.
+            Showing {filteredReadinessGates.length.toLocaleString()} of {recordedNumber(navigationReadiness?.summary?.gate_count)} readiness gates, with all matching evidence links.
           </div>
         </CardContent>
       </Card>
@@ -912,23 +904,23 @@ export function RepoNavigationPanel() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Routed capabilities</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityAccessMatrix?.summary?.routed_capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityAccessMatrix?.summary?.routed_capability_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Route bindings</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityAccessMatrix?.summary?.route_binding_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityAccessMatrix?.summary?.route_binding_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">System bound</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityAccessMatrix?.summary?.system_bound_capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityAccessMatrix?.summary?.system_bound_capability_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Public artifacts</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityAccessMatrix?.summary?.public_artifact_capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityAccessMatrix?.summary?.public_artifact_capability_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Review needed</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityAccessMatrix?.summary?.unresolved_capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityAccessMatrix?.summary?.unresolved_capability_count)}</div>
             </div>
           </div>
 
@@ -941,8 +933,8 @@ export function RepoNavigationPanel() {
                       <div className="font-medium">{capability.label}</div>
                       <div className="mt-1 text-xs text-muted-foreground">{capability.description}</div>
                     </div>
-                    <Badge variant="outline" className="w-fit max-w-full whitespace-normal border-success/30 bg-success/10 text-[10px] leading-snug text-success">
-                      {capability.readiness_status}
+                    <Badge variant="outline" className="w-fit max-w-full whitespace-normal text-[10px] leading-snug text-muted-foreground">
+                      recorded: {capability.readiness_status}
                     </Badge>
                   </div>
                   <div className="mt-3 space-y-2">
@@ -985,7 +977,7 @@ export function RepoNavigationPanel() {
             </div>
           </ScrollArea>
           <div className="text-xs text-muted-foreground">
-            Showing {filteredCapabilityAccessRows.length.toLocaleString()} of {(capabilityAccessMatrix?.summary?.capability_count || 0).toLocaleString()} routed capabilities, with all matching access routes, start points, systems, and gates.
+            Showing {filteredCapabilityAccessRows.length.toLocaleString()} of {recordedNumber(capabilityAccessMatrix?.summary?.capability_count)} routed capabilities, with all matching access routes, start points, systems, and gates.
           </div>
         </CardContent>
       </Card>
@@ -1014,13 +1006,13 @@ export function RepoNavigationPanel() {
                   </div>
                   <ExternalLink className="h-4 w-4 shrink-0 text-primary" />
                 </div>
-                <Badge variant="outline" className="w-fit max-w-full whitespace-normal border-success/30 bg-success/10 text-left text-[10px] leading-snug text-success">
-                  {manifest.status}
+                <Badge variant="outline" className="w-fit max-w-full whitespace-normal text-left text-[10px] leading-snug text-muted-foreground">
+                  Recorded status: {manifest.status || "Unavailable"}
                 </Badge>
                 <div className="mt-auto flex flex-wrap gap-2">
                   {Object.entries(manifest.summary || {}).slice(0, 4).map(([key, value]) => (
                     <Badge key={`${manifest.path}-${key}`} variant="secondary" className="max-w-full whitespace-normal text-[10px] leading-snug">
-                      {key}: {String(value)}
+                      {key}: {value == null ? "Unavailable" : String(value)}
                     </Badge>
                   ))}
                 </div>
@@ -1041,19 +1033,19 @@ export function RepoNavigationPanel() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Directory nodes</div>
-              <div className="mt-1 text-2xl font-semibold">{(organizationTree?.directory_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(organizationTree?.directory_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Top-level directories</div>
-              <div className="mt-1 text-2xl font-semibold">{(organizationTree?.summary?.top_level_directory_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(organizationTree?.summary?.top_level_directory_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Max depth</div>
-              <div className="mt-1 text-2xl font-semibold">{(organizationTree?.max_depth || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(organizationTree?.max_depth)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Root files</div>
-              <div className="mt-1 text-2xl font-semibold">{(organizationTree?.root_file_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(organizationTree?.root_file_count)}</div>
             </div>
           </div>
           <ScrollArea className="h-[420px] pr-3">
@@ -1091,7 +1083,7 @@ export function RepoNavigationPanel() {
             </div>
           </ScrollArea>
           <div className="text-xs text-muted-foreground">
-            Showing {filteredDirectories.length.toLocaleString()} of {(organizationTree?.directory_count || 0).toLocaleString()} directory nodes. Use search to narrow by path, zone, category, capability, or sample file.
+            Showing {filteredDirectories.length.toLocaleString()} of {recordedNumber(organizationTree?.directory_count)} directory nodes. Use search to narrow by path, zone, category, capability, or sample file.
           </div>
         </CardContent>
       </Card>
@@ -1111,23 +1103,23 @@ export function RepoNavigationPanel() {
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Public manifests</div>
-              <div className="mt-1 text-xl font-semibold">{(saasHandoff?.summary?.public_manifest_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-xl font-semibold">{recordedNumber(saasHandoff?.summary?.public_manifest_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Steps</div>
-              <div className="mt-1 text-xl font-semibold">{(saasHandoff?.summary?.integration_step_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-xl font-semibold">{recordedNumber(saasHandoff?.summary?.integration_step_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Env names</div>
-              <div className="mt-1 text-xl font-semibold">{(saasHandoff?.summary?.environment_variable_name_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-xl font-semibold">{recordedNumber(saasHandoff?.summary?.environment_variable_name_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Supabase blockers</div>
-              <div className="mt-1 text-xl font-semibold">{(saasHandoff?.summary?.supabase_production_blocker_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-xl font-semibold">{recordedNumber(saasHandoff?.summary?.supabase_production_blocker_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Advisory items</div>
-              <div className="mt-1 text-xl font-semibold">{(saasHandoff?.summary?.advisory_review_item_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-xl font-semibold">{recordedNumber(saasHandoff?.summary?.advisory_review_item_count)}</div>
             </div>
           </div>
           <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
@@ -1138,7 +1130,7 @@ export function RepoNavigationPanel() {
                     <div className="font-medium">{step.label}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{step.action}</div>
                   </div>
-                  <Badge variant="outline" className="w-fit max-w-full whitespace-normal border-success/30 bg-success/10 text-[10px] leading-snug text-success">
+                  <Badge variant="outline" className="w-fit max-w-full whitespace-normal text-[10px] leading-snug text-muted-foreground">
                     {step.id}
                   </Badge>
                 </div>
@@ -1172,20 +1164,20 @@ export function RepoNavigationPanel() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-md border border-border/50 bg-background/45 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Supabase functions</div>
-                <div className="mt-1 text-xl font-semibold">{(saasManifest?.supabase?.function_count || 0).toLocaleString()}</div>
+                <div className="mt-1 text-xl font-semibold">{recordedNumber(saasManifest?.supabase?.function_count)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/45 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">JWT gated</div>
-                <div className="mt-1 text-xl font-semibold">{(saasManifest?.supabase?.verify_jwt_true || 0).toLocaleString()}</div>
+                <div className="mt-1 text-xl font-semibold">{recordedNumber(saasManifest?.supabase?.verify_jwt_true)}</div>
               </div>
               <div className="rounded-md border border-border/50 bg-background/45 p-3">
                 <div className="text-[11px] uppercase text-muted-foreground">Public edge</div>
-                <div className="mt-1 text-xl font-semibold">{(saasManifest?.supabase?.verify_jwt_false || 0).toLocaleString()}</div>
+                <div className="mt-1 text-xl font-semibold">{recordedNumber(saasManifest?.supabase?.verify_jwt_false)}</div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               {(saasManifest?.deployment_surfaces || []).map((surface) => (
-                <Badge key={surface.id} variant="outline" className={surface.tracked ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"}>
+                <Badge key={surface.id} variant="outline" className={surface.tracked === true ? "border-primary/30 text-primary" : "text-muted-foreground"}>
                   {surface.label}
                 </Badge>
               ))}
@@ -1233,23 +1225,23 @@ export function RepoNavigationPanel() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Current capabilities</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityRegistry?.summary?.capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityRegistry?.summary?.capability_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Resolved surfaces</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityRegistry?.summary?.resolved_surface_ref_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityRegistry?.summary?.resolved_surface_ref_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Runtime refs</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityRegistry?.summary?.runtime_surface_ref_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityRegistry?.summary?.runtime_surface_ref_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Generated refs</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityRegistry?.summary?.generated_artifact_ref_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityRegistry?.summary?.generated_artifact_ref_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Review refs</div>
-              <div className="mt-1 text-2xl font-semibold">{(capabilityRegistry?.summary?.unresolved_surface_ref_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(capabilityRegistry?.summary?.unresolved_surface_ref_count)}</div>
             </div>
           </div>
 
@@ -1296,7 +1288,7 @@ export function RepoNavigationPanel() {
             </div>
           </ScrollArea>
           <div className="text-xs text-muted-foreground">
-            Showing {filteredCurrentCapabilities.length.toLocaleString()} of {(capabilityRegistry?.summary?.capability_count || 0).toLocaleString()} current capabilities, with all matching access-route IDs and resolved surface references.
+            Showing {filteredCurrentCapabilities.length.toLocaleString()} of {recordedNumber(capabilityRegistry?.summary?.capability_count)} recorded capabilities, with all matching access-route IDs and resolved surface references.
           </div>
         </CardContent>
       </Card>
@@ -1312,27 +1304,27 @@ export function RepoNavigationPanel() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Mapped systems</div>
-              <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.system_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.system_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Current capabilities</div>
-              <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.mapped_capability_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.mapped_capability_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">System links</div>
-              <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.capability_system_binding_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.capability_system_binding_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Access routes</div>
-              <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.mapped_access_route_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.mapped_access_route_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">SaaS surfaces</div>
-              <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.saas_deployment_surface_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.saas_deployment_surface_count)}</div>
             </div>
             <div className="rounded-md border border-border/50 bg-background/45 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">Supabase blockers</div>
-              <div className="mt-1 text-2xl font-semibold">{(systemMap?.summary?.supabase_public_blocker_count || 0).toLocaleString()}</div>
+              <div className="mt-1 text-2xl font-semibold">{recordedNumber(systemMap?.summary?.supabase_public_blocker_count)}</div>
             </div>
           </div>
 
@@ -1348,7 +1340,7 @@ export function RepoNavigationPanel() {
                     <Badge variant="secondary">{system.tracked_files.toLocaleString()}</Badge>
                   </div>
                   <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                    <div className="rounded-md border border-border/40 bg-background/40 px-2 py-1">{system.readiness_status}</div>
+                    <div className="rounded-md border border-border/40 bg-background/40 px-2 py-1">recorded: {system.readiness_status}</div>
                     <div className="rounded-md border border-border/40 bg-background/40 px-2 py-1">{system.access_mode}</div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -1369,7 +1361,7 @@ export function RepoNavigationPanel() {
             </div>
           </ScrollArea>
           <div className="text-xs text-muted-foreground">
-            Showing {filteredSystemRows.length.toLocaleString()} of {(systemMap?.summary?.system_count || 0).toLocaleString()} mapped systems, with all matching capability IDs and access-route IDs.
+            Showing {filteredSystemRows.length.toLocaleString()} of {recordedNumber(systemMap?.summary?.system_count)} mapped systems, with all matching capability IDs and access-route IDs.
           </div>
         </CardContent>
       </Card>
@@ -1386,25 +1378,25 @@ export function RepoNavigationPanel() {
             <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3">
               <div className="text-[11px] uppercase text-destructive/80">Production blockers</div>
               <div className="mt-1 text-2xl font-semibold text-destructive">
-                {(hardeningManifest?.summary?.production_blocker_count || 0).toLocaleString()}
+                {recordedNumber(hardeningManifest?.summary?.production_blocker_count)}
               </div>
             </div>
             <div className="rounded-md border border-warning/30 bg-warning/10 p-3">
               <div className="text-[11px] uppercase text-warning/80">High-risk public</div>
               <div className="mt-1 text-2xl font-semibold text-warning">
-                {(hardeningManifest?.summary?.public_high_risk_count || 0).toLocaleString()}
+                {recordedNumber(hardeningManifest?.summary?.public_high_risk_count)}
               </div>
             </div>
             <div className="rounded-md border border-primary/30 bg-primary/10 p-3">
               <div className="text-[11px] uppercase text-primary/80">Medium public</div>
               <div className="mt-1 text-2xl font-semibold text-primary">
-                {(hardeningManifest?.summary?.public_medium_risk_count || 0).toLocaleString()}
+                {recordedNumber(hardeningManifest?.summary?.public_medium_risk_count)}
               </div>
             </div>
             <div className="rounded-md border border-primary/30 bg-primary/10 p-3">
               <div className="text-[11px] uppercase text-primary/80">JWT review</div>
               <div className="mt-1 text-2xl font-semibold text-primary">
-                {(hardeningManifest?.summary?.jwt_review_required_count || 0).toLocaleString()}
+                {recordedNumber(hardeningManifest?.summary?.jwt_review_required_count)}
               </div>
             </div>
           </div>
@@ -1490,7 +1482,7 @@ export function RepoNavigationPanel() {
               </div>
             </ScrollArea>
             <div className="mt-3 text-xs text-muted-foreground">
-              Showing {filteredEntries.length.toLocaleString()} of {(navigationIndex?.entry_count || 0).toLocaleString()} indexed paths. Use the search field to narrow by file, folder, category, zone, or capability ID.
+              Showing {filteredEntries.length.toLocaleString()} of {recordedNumber(navigationIndex?.entry_count)} indexed paths. Use the search field to narrow by file, folder, category, zone, or capability ID.
             </div>
           </CardContent>
         </Card>

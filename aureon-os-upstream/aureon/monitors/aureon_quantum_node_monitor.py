@@ -42,10 +42,15 @@ if sys.platform == 'win32':
 
 import time
 import math
+import logging
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Set
 from dataclasses import dataclass, field
 from enum import Enum
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 class QuantumState(Enum):
     """Quantum node consciousness states"""
@@ -499,21 +504,29 @@ class QuantumNodeMonitor:
     
     def scan_network(self) -> QuantumNetwork:
         """Scan entire quantum consciousness network"""
+        if no_external_api_calls():
+            logger.info("QuantumNodeMonitor.scan_network blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return QuantumNetwork(
+                data_status='no_source',
+                truth_status='no_source',
+                reason='AUREON_NO_EXTERNAL_API_CALLS',
+            )
+
         network = QuantumNetwork()
-        
+
         # Scan each reality branch (exchange)
         if self.binance:
             self._scan_binance(network)
-        
+
         if self.kraken:
             self._scan_kraken(network)
-        
+
         if self.alpaca:
             self._scan_alpaca(network)
-        
+
         if self.capital:
             self._scan_capital(network)
-        
+
         return network
     
     def _scan_binance(self, network: QuantumNetwork):

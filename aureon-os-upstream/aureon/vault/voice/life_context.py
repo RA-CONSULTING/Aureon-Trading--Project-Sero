@@ -40,6 +40,15 @@ LIFE_CONTEXT_RELEASE_HOLD = (
     "life_context_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("life_context"):
+        raise RuntimeError(LIFE_CONTEXT_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Data
@@ -122,7 +131,7 @@ class LifeContext:
         tags: Optional[Sequence[str]] = None,
     ) -> LifeEvent:
         if self._vault is not None:
-            raise RuntimeError(LIFE_CONTEXT_RELEASE_HOLD)
+            _require_release()
         title = str(title or "").strip()
         if not title:
             raise ValueError("LifeEvent title is required")
@@ -148,7 +157,7 @@ class LifeContext:
 
     def archive(self, event_id: str) -> bool:
         if self._vault is not None:
-            raise RuntimeError(LIFE_CONTEXT_RELEASE_HOLD)
+            _require_release()
         with self._lock:
             event = self._events.get(event_id)
             if event is None:
@@ -159,7 +168,7 @@ class LifeContext:
 
     def complete(self, event_id: str) -> bool:
         if self._vault is not None:
-            raise RuntimeError(LIFE_CONTEXT_RELEASE_HOLD)
+            _require_release()
         with self._lock:
             event = self._events.get(event_id)
             if event is None:
@@ -191,7 +200,7 @@ class LifeContext:
     def _persist(self, event: LifeEvent) -> None:
         if self._vault is None:
             return
-        raise RuntimeError(LIFE_CONTEXT_RELEASE_HOLD)
+        _require_release()
         if not hasattr(self._vault, "ingest"):
             return
         try:
@@ -202,7 +211,7 @@ class LifeContext:
     def load_from_vault(self, vault: Any) -> int:
         """Rebuild the in-memory event table from vault cards on the
         ``life.event`` topic. Returns the number of events loaded."""
-        raise RuntimeError(LIFE_CONTEXT_RELEASE_HOLD)
+        _require_release()
         self._vault = vault
         if vault is None:
             return 0

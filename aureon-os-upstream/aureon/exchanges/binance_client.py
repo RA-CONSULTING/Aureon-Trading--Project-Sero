@@ -16,6 +16,8 @@ try:
 except Exception:
     pass
 from typing import Dict, Any, Set, List, Optional
+from aureon.exchanges.provider_ui_observations import begin_provider_http_observation, fail_provider_http_observation, record_provider_http_observation
+from aureon.core.no_external_calls import no_external_api_calls
 
 from aureon.governance.economic_boundary import (
     EconomicGovernanceBlocked,
@@ -1029,7 +1031,9 @@ class BinanceClient:
 
         for attempt in range(self.max_retries + 1):
             # For signed POST requests, params go in query string, not body
+            ui_observation_token = None
             try:
+                ui_observation_token = begin_provider_http_observation(self, "binance", normalized_method, path, now=time.time())
                 resp = self.session.request(
                     normalized_method,
                     url,
@@ -1037,11 +1041,16 @@ class BinanceClient:
                     data=data,
                     timeout=timeout,
                 )
+                ui_received_at = time.time()
             except Exception as e:
+                if ui_observation_token is not None:
+                    fail_provider_http_observation(self, "binance", normalized_method, path, refresh_token=ui_observation_token)
                 self.last_error = str(e)
                 if "[WinError 10013]" in self.last_error:
                     self.init_error = "socket_blocked"
                 raise
+            if resp.status_code != 200:
+                fail_provider_http_observation(self, "binance", normalized_method, path, refresh_token=ui_observation_token)
             if resp.status_code == 429:
                 # Metric: API 429
                 try:
@@ -1078,7 +1087,16 @@ class BinanceClient:
                         pass
                 raise RuntimeError(f"Binance error {resp.status_code}: {resp.text}")
             self.last_error = ""
-            return resp.json()
+            try:
+                result = resp.json()
+            except Exception:
+                fail_provider_http_observation(self, "binance", normalized_method, path, refresh_token=ui_observation_token)
+                raise
+            record_provider_http_observation(self, "binance", normalized_method, path, result,
+                headers=getattr(resp, "headers", {}), received_at=ui_received_at,
+                live_endpoint=self.base == BINANCE_MAINNET and not getattr(self, "use_testnet", True),
+                refresh_token=ui_observation_token)
+            return result
         raise RuntimeError("Binance request failed after retries")
 
     def _signed_request(self, method: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -1149,6 +1167,20 @@ class BinanceClient:
             return False
 
     def diagnose_ready(self) -> Dict[str, Any]:
+        if no_external_api_calls() and (not self.api_key or not self.api_secret):
+            self.init_error = "no_external_api_calls"
+            return {
+                "dry_run": self.dry_run,
+                "testnet": self.use_testnet,
+                "uk_mode": self.uk_mode,
+                "base": self.base,
+                "network_ok": False,
+                "account_ok": False,
+                "margin_available": False,
+                "init_error": self.init_error,
+                "last_error": self.last_error,
+                "account_error": "",
+            }
         network_ok = self.ping()
         account_ok = False
         account_error = ""
@@ -3937,7 +3969,16 @@ def get_binance_client() -> Optional['BinanceClient']:
     if _binance_client_lock is None:
         import threading
         _binance_client_lock = threading.Lock()
-    
+
+    if no_external_api_calls():
+        key = os.getenv("BINANCE_API_KEY") or os.getenv("BINANCE_KEY") or ""
+        secret = os.getenv("BINANCE_API_SECRET") or os.getenv("BINANCE_SECRET") or ""
+        if not key or not secret:
+            logging.getLogger(__name__).warning(
+                "⚠️ Binance client unavailable: no_external_api_calls and credentials absent"
+            )
+            return None
+
     if _binance_client_instance is None:
         with _binance_client_lock:
             # Double-check locking pattern

@@ -155,3 +155,24 @@ def test_capital_asset_registry_does_not_emit_secret_like_market_fields():
     rendered = json.dumps(report)
     assert "SECRET-DO-NOT-EMIT" not in rendered
     assert "apiKey" not in rendered
+
+
+
+def test_capital_asset_registry_reports_credential_bootstrap_without_secrets():
+    client = FakeCapitalClient()
+    client.credential_bootstrap_report = {
+        "bootstrap_ok": True,
+        "loaded": True,
+        "loaded_paths_count": 1,
+        "aliases_applied": 0,
+        "keystore_applied": True,
+        "present_before": {"CAPITAL_API_KEY": False},
+        "present_after": {"CAPITAL_API_KEY": True},
+    }
+
+    report = build_capital_asset_registry(client=client, max_snapshots=0)
+
+    assert report["credential_bootstrap"]["keystore_applied"] is True
+    rendered = json.dumps(report)
+    assert "SECRET" not in rendered
+    assert "CAPITAL_API_KEY" in rendered

@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from 'recharts';
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from 'recharts';
 import { useProjections } from '@/hooks/useProjections';
 
 export function ProjectionHorizon() {
-  const { projections, loading } = useProjections();
+  const { projections, loading, reason } = useProjections();
 
   if (loading) {
     return (
@@ -14,6 +14,23 @@ export function ProjectionHorizon() {
         <CardContent>
           <div className="h-64 flex items-center justify-center">
             <p className="text-muted-foreground">Loading projections...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (projections.length === 0) {
+    return (
+      <Card className="bg-card/50 backdrop-blur border-primary/20">
+        <CardHeader>
+          <CardTitle> 6-Month Projection Horizon</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 flex items-center justify-center">
+            <p className="text-muted-foreground text-center max-w-md">
+              {reason ?? 'No projection data available.'}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -66,9 +83,9 @@ export function ProjectionHorizon() {
               dataKey="median" 
               stroke="hsl(var(--primary))" 
               strokeWidth={3}
-              dot={(props: any) => {
-                const milestone = projections[props.index]?.milestone;
-                if (milestone) {
+              dot={(props: { cx?: number; cy?: number; index?: number }) => {
+                const milestone = projections[props.index ?? -1]?.milestone;
+                if (milestone && props.cx != null && props.cy != null) {
                   return (
                     <circle
                       cx={props.cx}

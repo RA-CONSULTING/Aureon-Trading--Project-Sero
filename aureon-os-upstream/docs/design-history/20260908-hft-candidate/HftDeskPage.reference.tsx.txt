@@ -1,0 +1,455 @@
+Superseded, noncompiled design source. This earlier candidate is preserved for provenance; it is not mounted by the application.
+
+/**
+ * HFT Desk — one-roof operator glass for execution speed.
+ *
+ * Display unification only. LatencyHook is labeled UI RTT (not tick→ack).
+ * Trace/SLO strip stays dark until real decision_trace_id JSONL exists.
+ * See frontend/HFT_UI_CARDS.md for the mount map.
+ */
+
+import { useEffect, useState, type ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLatency } from "@/components/LatencyHook";
+import { LivePriceTicker } from "@/components/LivePriceTicker";
+import { TradeValidationPanel } from "@/components/TradeValidationPanel";
+import { SniperLeaderboard } from "@/components/warroom/SniperLeaderboard";
+import { TradingModeToggle } from "@/components/warroom/TradingModeToggle";
+import { AutomatedHuntControl } from "@/components/AutomatedHuntControl";
+
+/** Fail-closed zone: missing/broken feed → dark panel, never invent numbers. */
+type TerminalVenue = {
+  ready?: boolean;
+  candidate_count?: number;
+  ready_candidate_count?: number;
+  blockers?: string[];
+  trade_path_state?: string;
+};
+
+type TerminalState = {
+  ok?: boolean;
+  stale?: boolean;
+  booting?: boolean;
+  stale_reason?: string;
+  last_tick_completed_at?: string | null;
+  last_tick_age_sec?: number | null;
+  tick_phase?: string;
+  errors?: { last_tick_error?: string };
+  trading_ready?: boolean;
+  data_ready?: boolean;
+  exchanges?: {
+    kraken_ready?: boolean;
+    binance_ready?: boolean;
+    alpaca_ready?: boolean;
+    capital_ready?: boolean;
+    execution_venues?: Record<string, TerminalVenue>;
+  };
+  combined?: { open_positions?: number };
+  exchange_action_plan?: {
+    executor_enabled?: boolean;
+    order_intents_published?: number;
+  };
+  runtime_watchdog?: {
+    tick_stale?: boolean;
+    tick_long_running?: boolean;
+    tick_active?: boolean;
+    severity?: string;
+    recovery_action?: string;
+  };
+  runtime_stall_diagnostic?: { reason?: string };
+};
+
+/**
+ * Read-only status feed for the HFT glass. The page is deliberately bound to
+ * the terminal-state contract rather than credential presence or a synthetic
+ * OMS session.
+ */
+function useTerminalState() {
+  const [state, setState] = useState<TerminalState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/terminal-state", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const next = (await response.json()) as TerminalState;
+        if (!mounted) return;
+        setState(next);
+        setError(null);
+      } catch (reason) {
+        if (!mounted) return;
+        setError(reason instanceof Error ? reason.message : "terminal state unavailable");
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 3_000);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  return { state, error };
+}
+
+function TerminalRuntimePanel({
+  state,
+  error,
+}: {
+  state: TerminalState | null;
+  error: string | null;
+}) {
+  const watchdog = state?.runtime_watchdog;
+  const degraded =
+    Boolean(error) ||
+    !state ||
+    state.ok !== true ||
+    state.stale === true ||
+    state.booting === true ||
+    watchdog?.tick_stale === true ||
+    watchdog?.tick_long_running === true;
+  const venueFlags = [
+    ["Kraken", state?.exchanges?.kraken_ready],
+    ["Binance", state?.exchanges?.binance_ready],
+    ["Alpaca", state?.exchanges?.alpaca_ready],
+    ["Capital", state?.exchanges?.capital_ready],
+  ] as const;
+  const routes = Object.entries(state?.exchanges?.execution_venues ?? {});
+  const holdReason =
+    state?.stale_reason ||
+    state?.runtime_stall_diagnostic?.reason ||
+    state?.errors?.last_tick_error ||
+    watchdog?.recovery_action ||
+    "none reported";
+  const lastTick = state?.last_tick_completed_at || "none observed";
+  const tickAge =
+    state?.last_tick_age_sec == null ? "-" : state.last_tick_age_sec.toFixed(1) + "s";
+
+  return (
+    <Zone
+      title="Observed terminal state"
+      subtitle="Read-only /api/terminal-state. Venue lights come from runtime observations, never credential presence."
+    >
+      <div className="space-y-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant="outline"
+            className={
+              degraded
+                ? "border-amber-500/60 text-amber-300"
+                : "border-[#22c55e]/60 text-[#4ade80]"
+            }
+          >
+            {degraded ? "RUNTIME DEGRADED" : "RUNTIME OBSERVED READY"}
+          </Badge>
+          <Badge variant="outline" className="border-zinc-700 text-zinc-300">
+            data {state?.data_ready === true ? "ready" : "unavailable"}
+          </Badge>
+          <Badge variant="outline" className="border-zinc-700 text-zinc-300">
+            execution {state?.exchange_action_plan?.executor_enabled ? "enabled" : "disabled"}
+          </Badge>
+          <Badge variant="outline" className="border-zinc-700 text-zinc-300">
+            intents {state?.exchange_action_plan?.order_intents_published ?? 0}
+          </Badge>
+          <Badge variant="outline" className="border-zinc-700 text-zinc-300">
+            open positions {state?.combined?.open_positions ?? "-"}
+          </Badge>
+        </div>
+
+        {error ? (
+          <div className="rounded border border-amber-500/40 bg-amber-950/20 p-2 text-amber-200">
+            terminal-state read failed: {error}
+          </div>
+        ) : null}
+
+        <div className="grid gap-2 sm:grid-cols-4">
+          {venueFlags.map(([name, ready]) => (
+            <div
+              key={name}
+              className="rounded border border-zinc-800 bg-black/30 px-2 py-1.5"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-zinc-200">{name}</span>
+                <span className={ready ? "text-[#4ade80]" : "text-zinc-600"}>
+                  {ready ? "ready" : "held"}
+                </span>
+              </div>
+              <div className="text-[10px] text-zinc-500">
+                {ready ? "observed ready" : "not observed ready"}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-2">
+          {routes.length ? (
+            routes.map(([key, route]) => (
+              <div key={key} className="rounded border border-zinc-800 bg-black/30 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-zinc-200">{key}</span>
+                  <span className={route.ready ? "text-[#4ade80]" : "text-amber-300"}>
+                    {route.ready ? "available" : "held"}
+                  </span>
+                </div>
+                <div className="mt-1 text-zinc-500">
+                  candidates {route.candidate_count ?? 0} - routeable {route.ready_candidate_count ?? 0}
+                </div>
+                {route.blockers?.length ? (
+                  <div className="mt-1 text-amber-300">
+                    blocker: {route.blockers.join(", ")}
+                  </div>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <div className="rounded border border-dashed border-zinc-700 p-2 text-zinc-500">
+              No execution venue rows in the terminal contract.
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-1 text-zinc-500 md:grid-cols-2">
+          <div>last completed tick: {lastTick} - age {tickAge}</div>
+          <div>phase: {state?.tick_phase || "none observed"}</div>
+          <div>runtime hold reason: {holdReason}</div>
+          <div>last tick error: {state?.errors?.last_tick_error || "none reported"}</div>
+        </div>
+      </div>
+    </Zone>
+  );
+}
+
+function TerminalBlotter({ state }: { state: TerminalState | null }) {
+  const positions = state?.combined?.open_positions;
+  return (
+    <div className="space-y-2 text-[11px]">
+      <div className="rounded border border-zinc-800 bg-black/30 p-2">
+        <div className="flex items-center justify-between">
+          <span className="text-zinc-400">terminal aggregate open positions</span>
+          <span className="font-mono text-zinc-100">{positions ?? "-"}</span>
+        </div>
+      </div>
+      <div className="rounded border border-dashed border-zinc-700 p-2 text-zinc-500">
+        Row-level blotter entries are not exposed by this read-only contract. No synthetic rows are rendered.
+      </div>
+    </div>
+  );
+}
+
+function TerminalOmsStatus({ state }: { state: TerminalState | null }) {
+  const executor = state?.exchange_action_plan?.executor_enabled === true;
+  return (
+    <div className="space-y-2 text-[11px]">
+      <div className="rounded border border-zinc-800 bg-black/30 p-2 text-zinc-400">
+        OMS session: none mounted on this desk
+      </div>
+      <div className="grid gap-1 text-zinc-500">
+        <div>
+          terminal order intents published: {state?.exchange_action_plan?.order_intents_published ?? 0}
+        </div>
+        <div>executor: {executor ? "enabled" : "disabled"}</div>
+        <div>
+          queue readback: empty / unavailable until a session-specific OMS contract is mounted
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TerminalFillsStatus() {
+  return (
+    <div className="rounded border border-dashed border-zinc-700 p-3 text-[11px] text-zinc-500">
+      No confirmed fill rows are exposed by the read-only terminal-state contract.
+    </div>
+  );
+}
+
+function Zone({
+  title,
+  subtitle,
+  children,
+  className = "",
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card className={`border border-[#c9a227]/40 bg-zinc-950/90 text-zinc-100 shadow-[0_0_24px_rgba(34,197,94,0.05)] ${className}`}>
+      <CardHeader className="py-2 px-3 space-y-0">
+        <CardTitle className="text-sm font-medium tracking-wide text-[#e8c547]">{title}</CardTitle>
+        {subtitle ? (
+          <CardDescription className="text-[11px]">{subtitle}</CardDescription>
+        ) : null}
+      </CardHeader>
+      <CardContent className="p-2 pt-0 min-h-[4rem]">{children}</CardContent>
+    </Card>
+  );
+}
+
+function SafeMount({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  try {
+    return <>{children}</>;
+  } catch (err) {
+    return (
+      <div className="rounded border border-dashed border-zinc-700 p-3 text-xs text-zinc-500 bg-black/30">
+        {label} dark — mount failed ({String(err)})
+      </div>
+    );
+  }
+}
+
+/** Honest empty SLO / trace strip — never derived from UI RTT. */
+function DarkLatencyStrip({ uiRtt }: { uiRtt: number | null }) {
+  const venues = ["Kraken", "Binance", "Alpaca", "Capital"] as const;
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+      <Badge variant="outline" className="font-mono border-[#22c55e]/50 text-[#4ade80]">
+        UI RTT{" "}
+        {uiRtt == null ? "—" : `${uiRtt} ms`}
+      </Badge>
+      <Badge variant="secondary" className="font-mono border-[#22d3ee]/30 text-[#67e8f9]/80 bg-transparent">
+        traces: none
+      </Badge>
+      {venues.map((v) => (
+        <span
+          key={v}
+          className="rounded border border-dashed border-[#c9a227]/30 px-2 py-0.5 font-mono text-zinc-500"
+          title="No decision_trace_id JSONL yet — SLO dark by design"
+        >
+          {v} p50/p95/p99 — · — · —
+        </span>
+      ))}
+      <span className="text-muted-foreground">
+        rate-limit % — · (no registry on this page yet)
+      </span>
+    </div>
+  );
+}
+
+function DarkTraceTable() {
+  return (
+    <div className="overflow-auto rounded border border-dashed border-[#c9a227]/35 bg-black/50">
+      <table className="w-full text-[11px] font-mono">
+        <thead className="bg-zinc-900 text-left text-zinc-500">
+          <tr>
+            <th className="p-2">decision_trace_id</th>
+            <th className="p-2">t_intel_seen</th>
+            <th className="p-2">t_signal_scored</th>
+            <th className="p-2">t_intent_published</th>
+            <th className="p-2">t_exec_dispatched</th>
+            <th className="p-2">t_exchange_ack</th>
+            <th className="p-2">t_state_converged</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="p-3 text-muted-foreground" colSpan={7}>
+              No traces — LATENCY_READINESS_PLAN timestamps not in API yet. This
+              is not UI RTT. Blotter only until JSONL lands.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function HftDeskPage() {
+  const uiRtt = useLatency();
+  const terminal = useTerminalState();
+
+  return (
+    <div className="flex h-full flex-col gap-2 overflow-auto p-3 bg-[#0a0c0b] text-zinc-100 dark" data-hft-theme="aureon-dark" style={{ backgroundImage: "radial-gradient(ellipse at top, rgba(34,211,238,0.08), transparent 55%)" }}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight text-zinc-50"><span className="text-[#22c55e]">HFT</span> Desk</h1>
+          <p className="text-[11px] text-zinc-500">
+            One roof — venues, tape, blotter, OMS, fills. Latency SLOs dark until
+            real traces exist.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SafeMount label="mode">
+            <TradingModeToggle />
+          </SafeMount>
+          <SafeMount label="hunt">
+            <AutomatedHuntControl />
+          </SafeMount>
+        </div>
+      </div>
+
+      <Zone
+        title="Venues + clock / SLO"
+        subtitle="UI RTT is browser round-trip only; runtime lights come from observed terminal state. Percentiles remain dark until decision_trace_id JSONL."
+      >
+        <div className="space-y-2">
+          <DarkLatencyStrip uiRtt={uiRtt} />
+          <div className="text-[11px] text-zinc-500">
+            Runtime venue and execution evidence is shown in the observed terminal-state panel below.
+          </div>
+        </div>
+      </Zone>
+
+      <TerminalRuntimePanel state={terminal.state} error={terminal.error} />
+
+      <div className="grid gap-2 lg:grid-cols-3">
+        <Zone title="Tape" subtitle="LivePriceTicker — bid/ask/last family">
+          <SafeMount label="tape">
+            <LivePriceTicker />
+          </SafeMount>
+        </Zone>
+        <Zone
+          title="Positions + blotter"
+          subtitle="Terminal aggregate positions; row-level blotter is not exposed by this read-only contract"
+        >
+          <TerminalBlotter state={terminal.state} />
+        </Zone>
+        <Zone
+          title="OMS queue"
+          subtitle="Read-only terminal evidence; no session queue mounted"
+        >
+          <TerminalOmsStatus state={terminal.state} />
+        </Zone>
+      </div>
+
+      <div className="grid gap-2 lg:grid-cols-2">
+        <Zone title="Fills" subtitle="Terminal fill evidence">
+          <TerminalFillsStatus />
+        </Zone>
+        <Zone title="Rejects / gates" subtitle="TradeValidationPanel — display only">
+          <SafeMount label="rejects">
+            <TradeValidationPanel compact />
+          </SafeMount>
+        </Zone>
+      </div>
+
+      <Zone
+        title="Latency trace"
+        subtitle="Six timestamps from LATENCY_READINESS_PLAN — dark until API exposes them"
+      >
+        <DarkTraceTable />
+      </Zone>
+
+      <Zone
+        title="Sniper hold-time"
+        subtitle="SniperLeaderboard numbers — duck chrome may still render from component"
+      >
+        <SafeMount label="sniper">
+          <SniperLeaderboard symbolStats={[]} />
+        </SafeMount>
+      </Zone>
+    </div>
+  );
+}

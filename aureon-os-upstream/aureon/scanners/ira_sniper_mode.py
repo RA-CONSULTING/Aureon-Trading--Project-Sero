@@ -39,10 +39,15 @@ One bullet. One kill. NO MISSES. EVER.
 # """
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
+import logging
 import os
 import time
 from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass, field
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # 🇮🇪 EARLY EXPORTS - Define these BEFORE heavy imports to prevent circular import
@@ -1089,10 +1094,10 @@ def get_sniper_config() -> Dict[str, Any]:
 def map_sniper_platform_assets(multi_client: Any) -> Dict[str, Any]:
     """
     Build a per-platform coverage map for IRA sniper mode.
-    
+
     Args:
         multi_client: MultiExchangeClient-like object with .clients mapping.
-    
+
     Returns:
         {
             'sniper_active': bool,
@@ -1102,10 +1107,20 @@ def map_sniper_platform_assets(multi_client: Any) -> Dict[str, Any]:
             }
         }
     """
+    if no_external_api_calls():
+        logger.info("map_sniper_platform_assets blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        config = get_sniper_config()
+        return {
+            'sniper_active': bool(config.get('ACTIVE', True)),
+            'platforms': {},
+            'position_size_usd': config.get('POSITION_SIZE_USD'),
+            'max_positions': config.get('MAX_POSITIONS'),
+        }
+
     config = get_sniper_config()
     platforms: Dict[str, Dict[str, Any]] = {}
     clients = getattr(multi_client, 'clients', {}) or {}
-    
+
     for name, client in clients.items():
         sellable_assets = []
         balances = {}

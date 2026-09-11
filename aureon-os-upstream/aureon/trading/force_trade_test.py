@@ -13,6 +13,8 @@ Under the authority of:
 The system will NOT stop until trading is VERIFIED.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -108,6 +110,9 @@ async def test_2_labyrinth_status():
 
 async def test_3_fptp_scan(labyrinth):
     """Test 3: Run FPTP opportunity scan."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.force_trade_test.test_3_fptp_scan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return []
     print("\n" + "=" * 70)
     print("🔱 TEST 3: FPTP OPPORTUNITY SCAN")
     print("=" * 70)
@@ -259,6 +264,9 @@ def print_final_summary(all_passed: bool):
 
 async def main():
     """Run all force trade tests."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.force_trade_test.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print_banner()
     
     try:

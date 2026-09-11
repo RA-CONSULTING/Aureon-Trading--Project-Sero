@@ -100,6 +100,8 @@ def run_probe(name: str, args: list[str], env: dict) -> tuple[bool, str]:
             env=env,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=90,
         )
         tail = (p.stdout or "").strip().splitlines()
@@ -589,4 +591,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from _console_utf8_shim import ensure_utf8_stdout
+
+    ensure_utf8_stdout()
     main()

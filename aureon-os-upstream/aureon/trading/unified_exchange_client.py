@@ -25,6 +25,8 @@ from aureon.governance.legacy_unity_composition import (
 # from aureon.exchanges.alpaca_client import AlpacaClient
 # from aureon.exchanges.capital_client import CapitalClient
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 MAX_RECEIPT_AGE_SECONDS = 300.0
 
@@ -170,6 +172,9 @@ class MultiExchangeClient:
         Get balances from all exchanges.
         Returns: {'kraken': {'BTC': 0.1}, 'binance': {'BTC': 0.2}}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.MultiExchangeClient.get_all_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return {
             name: client.get_all_balances()
             for name, client in self.clients.items()
@@ -177,6 +182,9 @@ class MultiExchangeClient:
 
     def get_consolidated_equity(self, base_currency: str = 'USD') -> float:
         """Calculate total equity across all exchanges in base currency."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.MultiExchangeClient.get_consolidated_equity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total = 0.0
         for name, client in self.clients.items():
             # This is an approximation. A real implementation would need
@@ -194,6 +202,9 @@ class MultiExchangeClient:
 
     def get_24h_tickers(self) -> List[Dict[str, Any]]:
         """Get tickers from all exchanges, tagged with source."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.MultiExchangeClient.get_24h_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         all_tickers = []
         for name, client in self.clients.items():
             try:
@@ -209,6 +220,9 @@ class MultiExchangeClient:
 
     def normalize_symbol(self, exchange: str, symbol: str) -> str:
         """Normalize a canonical symbol to an exchange-specific one."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.MultiExchangeClient.normalize_symbol blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         exchange = exchange.lower()
         s = symbol.upper().replace('/', '')
         base, quote = None, None
@@ -877,6 +891,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_plan: LegacyUnityIntentPlan | None = None,
         unity_purpose: str | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_market_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange,
             symbol,
@@ -938,6 +955,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_plan: LegacyUnityIntentPlan | None = None,
         unity_purpose: str | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_limit_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -988,6 +1008,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_invocation: LegacyEconomicInvocation | None = None,
         unity_plan: LegacyUnityIntentPlan | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_stop_loss_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -1034,6 +1057,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_invocation: LegacyEconomicInvocation | None = None,
         unity_plan: LegacyUnityIntentPlan | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_take_profit_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -1080,6 +1106,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_invocation: LegacyEconomicInvocation | None = None,
         unity_plan: LegacyUnityIntentPlan | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_trailing_stop_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -1128,6 +1157,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_plan: LegacyUnityIntentPlan | None = None,
         unity_purpose: str | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_order_with_tp_sl blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -1177,6 +1209,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_invocation: LegacyEconomicInvocation | None = None,
         unity_plan: LegacyUnityIntentPlan | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.cancel_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, order_id, unity_invocation, unity_plan
         )
@@ -1213,6 +1248,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_invocation: LegacyEconomicInvocation | None = None,
         unity_plan: LegacyUnityIntentPlan | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.cancel_all_orders blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         request_symbol = str(symbol or "ALL_OPEN_ORDERS").strip().upper()
         rejected = self._reject_caller_authority(
             exchange, request_symbol, unity_invocation, unity_plan
@@ -1259,6 +1297,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_purpose: str = "ENTRY",
         unity_reduce_only: bool = False,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.place_margin_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -1311,6 +1352,9 @@ class GovernedMultiExchangeClient(MultiExchangeClient):
         unity_invocation: LegacyEconomicInvocation | None = None,
         unity_plan: LegacyUnityIntentPlan | None = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.GovernedMultiExchangeClient.close_margin_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         rejected = self._reject_caller_authority(
             exchange, symbol, unity_invocation, unity_plan
         )
@@ -1492,11 +1536,17 @@ class UnifiedExchangeClient:
 
     def normalize(self, symbol: str) -> str:
         """Normalize a canonical symbol to this client's exchange format."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.normalize blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         mec = MultiExchangeClient()
         return mec.normalize_symbol(self.exchange_id, symbol)
 
     def get_balance(self, asset: str) -> float:
         """Get free balance for a specific asset."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.get_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if self.client is None:
             return 0.0
 
@@ -1546,6 +1596,9 @@ class UnifiedExchangeClient:
 
     def get_all_balances(self) -> Dict[str, float]:
         """Get all non-zero balances."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.get_all_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if self.client is None:
             return {}
 
@@ -1602,6 +1655,9 @@ class UnifiedExchangeClient:
     def convert_to_quote(self, asset: str, amount: float, quote: str) -> float:
         """Convert amount of asset to quote currency value."""
         # Handle Binance Earn assets (LD prefix)
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.convert_to_quote blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if self.exchange_id == 'binance' and asset.startswith('LD'):
             asset = asset[2:]
             
@@ -1637,6 +1693,9 @@ class UnifiedExchangeClient:
 
     def get_24h_tickers(self) -> List[Dict[str, Any]]:
         """Proxy to client, ensuring symbols are returned in canonical form when possible."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.get_24h_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if hasattr(self.client, 'get_24h_tickers'):
             tks = self.client.get_24h_tickers()
             # Attempt minimal canonicalization: map XBT->BTC and wsname-derived quotes
@@ -1653,6 +1712,9 @@ class UnifiedExchangeClient:
 
     def get_ticker(self, symbol: str) -> Dict[str, float]:
         """Get ticker with normalization applied for this exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.get_ticker blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         norm = self.normalize(symbol)
         if hasattr(self.client, 'get_ticker'):
             return self.client.get_ticker(norm)
@@ -1716,6 +1778,9 @@ class UnifiedExchangeClient:
         Get current ticker data (price, bid, ask).
         Returns dict with 'price', 'bid', 'ask'.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.get_ticker blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if self.client is None:
             return {'price': 0.0, 'bid': 0.0, 'ask': 0.0}
 
@@ -1834,6 +1899,9 @@ class UnifiedExchangeClient:
         quantity: amount of base asset (e.g. BTC)
         quote_qty: amount of quote asset (e.g. USD)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.place_market_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         side = side.lower()
 
         # Prevent Kraken "volume minimum not met" by enforcing a notional floor
@@ -1996,6 +2064,9 @@ class UnifiedExchangeClient:
                           unity_invocation: LegacyEconomicInvocation | None = None,
                           unity_plan: LegacyUnityIntentPlan | None = None) -> Dict[str, Any]:
         """Place a limit order. Uses maker fees (0.16% on Kraken vs 0.26% taker)."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.place_limit_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         side = side.lower()
 
         # Apply the same notional floor for Kraken limit orders
@@ -2177,6 +2248,9 @@ class UnifiedExchangeClient:
                                unity_invocation: LegacyEconomicInvocation | None = None,
                                unity_plan: LegacyUnityIntentPlan | None = None) -> Dict[str, Any]:
         """Place order with attached Take-Profit and/or Stop-Loss (conditional close)."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.place_order_with_tp_sl blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         side = side.lower()
         
         if self.exchange_id == "kraken":
@@ -2405,6 +2479,9 @@ class UnifiedExchangeClient:
                            unity_invocation: LegacyEconomicInvocation | None = None,
                            unity_plan: LegacyUnityIntentPlan | None = None) -> Dict[str, Any]:
         """Place a margin (leveraged) order."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_exchange_client.UnifiedExchangeClient.place_margin_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         side = side.lower()
 
         if self.exchange_id == "kraken":

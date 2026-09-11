@@ -15,10 +15,15 @@ It uses the repo's existing conversion plumbing via `MultiExchangeClient`.
 from __future__ import annotations
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 
+import logging
 import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 
 STABLES = ("USDT", "USDC", "USD", "GBP", "EUR")
@@ -331,6 +336,10 @@ class ConversionLadder:
 
         Returns the decision when one is made.
         """
+        if no_external_api_calls():
+            logger.warning("ConversionLadder.step blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if not self.enabled:
             return None
 

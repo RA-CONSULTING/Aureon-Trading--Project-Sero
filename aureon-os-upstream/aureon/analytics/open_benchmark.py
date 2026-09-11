@@ -40,6 +40,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger("aureon.analytics.open_benchmark")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -135,6 +137,10 @@ def fetch_dataset(name: str, limit: int = 50, timeout: float = 60.0,
     """Fetch an open dataset with a provenance stamp, caching to disk.
     Offline (or on any failure) the cache is used if present; otherwise the
     result is honestly empty with the blocker named — never a fabricated set."""
+    if no_external_api_calls():
+        logger.info("fetch_dataset blocked by AUREON_NO_EXTERNAL_API_CALLS; using offline/cache only")
+        offline = True
+
     spec = DATASETS[name]
     cache_root = cache_dir or CACHE_DIR
     cache_root.mkdir(parents=True, exist_ok=True)
@@ -267,6 +273,18 @@ def run_open_benchmark(limit: int = 25, offline: bool = False,
     """Fetch the open sets, run Aureon through the one door, and assemble the
     honest comparison: measured Aureon rows, cited competition rows, pinned
     architecture contract."""
+    if no_external_api_calls():
+        logger.info("run_open_benchmark blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {
+            "adapter": None,
+            "model": None,
+            "aureon_measured": {},
+            "competition_cited": COMPETITION,
+            "architecture_contract": ARCHITECTURE_CONTRACT,
+            "honesty": "blocked by AUREON_NO_EXTERNAL_API_CALLS",
+            "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+        }
+
     if cog_factory is None:
         def cog_factory() -> Any:
             from aureon.operator.cognition import AureonCognition

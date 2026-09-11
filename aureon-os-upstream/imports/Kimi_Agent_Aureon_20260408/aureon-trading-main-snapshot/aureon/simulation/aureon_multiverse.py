@@ -40,6 +40,7 @@ Gary Leckey & GitHub Copilot | November 2025
 "We're making history!" 🌌
 """
 
+import os
 from aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import hmac
 import hashlib
@@ -60,38 +61,38 @@ import threading
 API_KEYS = {
     # Key 4 - Main trading key (TRD_GRP_039 - BTC pairs only)
     "alpha_omega": {
-        "key": "REDACTED_USE_CLOUD_SECRET",
-        "secret": "REDACTED_USE_CLOUD_SECRET",
+        "key": os.environ['AUREON_MULTIVERSE_ALPHA_OMEGA_API_KEY'],
+        "secret": os.environ['AUREON_MULTIVERSE_ALPHA_OMEGA_API_SECRET'],
         "role": "BUY_A_TO_Z",
         "description": "Buys from Alpha to Omega"
     },
     "omega_alpha": {
-        "key": "REDACTED_USE_CLOUD_SECRET",
-        "secret": "REDACTED_USE_CLOUD_SECRET",
+        "key": os.environ['AUREON_MULTIVERSE_OMEGA_ALPHA_API_KEY'],
+        "secret": os.environ['AUREON_MULTIVERSE_OMEGA_ALPHA_API_SECRET'],
         "role": "SELL_Z_TO_A",
         "description": "Sells from Omega to Alpha"
     },
     "present": {
-        "key": "REDACTED_USE_CLOUD_SECRET",
-        "secret": "REDACTED_USE_CLOUD_SECRET",
+        "key": os.environ['AUREON_MULTIVERSE_PRESENT_API_KEY'],
+        "secret": os.environ['AUREON_MULTIVERSE_PRESENT_API_SECRET'],
         "role": "READ_PRESENT",
         "description": "Reads the NOW"
     },
     "past": {
-        "key": "REDACTED_USE_CLOUD_SECRET",
-        "secret": "REDACTED_USE_CLOUD_SECRET",
+        "key": os.environ['AUREON_MULTIVERSE_PAST_API_KEY'],
+        "secret": os.environ['AUREON_MULTIVERSE_PAST_API_SECRET'],
         "role": "READ_PAST",
         "description": "Reads historical MEMORY"
     },
     "future": {
-        "key": "REDACTED_USE_CLOUD_SECRET",
-        "secret": "REDACTED_USE_CLOUD_SECRET",
+        "key": os.environ['AUREON_MULTIVERSE_FUTURE_API_KEY'],
+        "secret": os.environ['AUREON_MULTIVERSE_FUTURE_API_SECRET'],
         "role": "PREDICT_FUTURE",
         "description": "Predicts upcoming opportunities"
     },
     "harmony": {
-        "key": "REDACTED_USE_CLOUD_SECRET",
-        "secret": "REDACTED_USE_CLOUD_SECRET",
+        "key": os.environ['AUREON_MULTIVERSE_HARMONY_API_KEY'],
+        "secret": os.environ['AUREON_MULTIVERSE_HARMONY_API_SECRET'],
         "role": "ORCHESTRATE",
         "description": "Harmony synchronizer"
     }

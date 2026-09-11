@@ -56,6 +56,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 PHI = (1 + math.sqrt(5)) / 2  # Golden ratio
 LOVE_FREQUENCY = 528  # Hz DNA repair frequency
 
@@ -383,10 +385,25 @@ class AlpacaStockScanner:
             min_volume: Minimum daily volume in USD
             min_price: Minimum stock price
             max_price: Maximum stock price
-            
+
         Returns:
             List of stock opportunities ranked by combined score
         """
+        if no_external_api_calls():
+            logger.info("AlpacaStockScanner.scan_stocks blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.last_scan_receipt = {
+                "source_id": ALPACA_STOCK_SNAPSHOT_SOURCE,
+                "source_timestamp": None,
+                "received_at": None,
+                "data_status": "no_data",
+                "truth_status": "no_source",
+                "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+                "generated_values": False,
+                "eligible_for_ranking": False,
+                "eligible_for_action": False,
+            }
+            return []
+
         self.last_scan_receipt = self._no_data_receipt("scan_has_no_verified_provider_data")
         if not self.alpaca:
             logger.warning("No Alpaca client available for stock scanning")
@@ -804,8 +821,12 @@ class AlpacaStockScanner:
 
 def test_stock_scanner():
     """Test the stock scanner with sample data."""
+    if no_external_api_calls():
+        print("AlpacaStockScanner test blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print("🦙📈 Testing Alpaca Stock Scanner...")
-    
+
     from aureon.exchanges.alpaca_client import AlpacaClient
     
     alpaca = AlpacaClient()

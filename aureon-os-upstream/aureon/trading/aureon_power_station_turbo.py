@@ -14,6 +14,8 @@ from typing import Dict, List, Optional, Tuple
 from decimal import Decimal
 import logging
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(message)s', datefmt='%H:%M:%S')
 log = logging.getLogger('TURBO')
 
@@ -403,6 +405,9 @@ class PowerStationTurbo:
             duration_sec: How long to run (seconds)
             target_gain: Stop when this energy gain is reached
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_power_station_turbo.PowerStationTurbo.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.running = True
         self.state = PowerStationState()
         
@@ -525,6 +530,9 @@ class PowerStationTurbo:
 
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_power_station_turbo.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     parser = argparse.ArgumentParser(description='Power Station Turbo')
     parser.add_argument('--live', action='store_true', help='Enable LIVE trading')

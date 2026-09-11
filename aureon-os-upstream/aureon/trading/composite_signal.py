@@ -17,6 +17,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger("aureon.trading.composite_signal")
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -112,6 +114,9 @@ def score(
 
     Requires score ≥ 0.45 to be considered tradeable.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.composite_signal.score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     breakdown = {}
     total = 0.0
 

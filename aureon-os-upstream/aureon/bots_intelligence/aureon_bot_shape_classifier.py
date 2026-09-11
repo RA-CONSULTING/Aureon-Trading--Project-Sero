@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from aureon.core.aureon_thought_bus import get_thought_bus, Thought
+from aureon.core.no_external_calls import no_external_api_calls
 
 try:
     from aureon.bots.whale_metrics import whale_shape_detected_total
@@ -105,6 +106,10 @@ class BotShapeClassifier:
 
     def _init_market_connections(self) -> None:
         """Initialize optional exchange client connections for live data."""
+        if no_external_api_calls():
+            logger.info("Bot Shape Classifier market connections blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         if KRAKEN_AVAILABLE and KrakenClient is not None:
             try:
                 self.kraken_client = KrakenClient()

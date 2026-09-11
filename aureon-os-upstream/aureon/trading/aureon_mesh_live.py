@@ -25,6 +25,9 @@ Usage:
 Author: Aureon System / Gary Leckey
 Date: November 28, 2025
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, json, time, logging, argparse, random
 from datetime import datetime
@@ -68,6 +71,9 @@ class AurisNode:
             return 0.0
 
 def create_auris_nodes():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_mesh_live.create_auris_nodes blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import math
     
     # Enhanced Clownfish v2.0 micro-change state tracking (12 factors)
@@ -477,6 +483,9 @@ class MeshTrader:
         self.min_notional = 10.0
         
     def get_market_snapshot(self, symbol: str) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_mesh_live.MeshTrader.get_market_snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             ticker = self.client.session.get(
                 f"{self.client.base}/api/v3/ticker/24hr",
@@ -496,6 +505,9 @@ class MeshTrader:
 
     def discover_tradeable_pairs(self) -> List[Dict[str, Any]]:
         """Find all pairs we can trade based on current wallet balances."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_mesh_live.MeshTrader.discover_tradeable_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         logger.info("🔍 Scanning wallet for tradeable assets...")
         try:
             account = self.client.account()
@@ -585,6 +597,9 @@ class MeshTrader:
         return {}
 
     def run(self, duration_sec: int = 3600):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_mesh_live.MeshTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info(f"\n🚀 Starting MESH trading for {duration_sec}s...")
         start_time = time.time()
         cycle = 0
@@ -616,6 +631,9 @@ class MeshTrader:
             time.sleep(5)
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_mesh_live.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--duration', type=int, default=3600)

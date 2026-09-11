@@ -1,13 +1,7 @@
-/**
- * LiveVitals — a compact, always-visible strip of REAL operator numbers.
- *
- * Reads /api/pulse (via useOperatorPulse) and shows a few genuine vitals in the
- * shell top bar: configured providers, switchboard enabled/total, and the
- * organism's connectome coverage. Renders nothing when the backend is offline or
- * the fields are absent — so it only ever shows live, backend-sourced values,
- * never a placeholder.
- */
+/** A recent operator configuration receipt; it does not assert provider health. */
+import { useEffect, useState } from "react";
 import { useOperatorPulse } from "@/hooks/useOperatorPulse";
+import { readOperatorConfiguration } from "@/lib/operatorConfiguration";
 
 function Pill({ label, value }: { label: string; value: string }) {
   return (
@@ -19,27 +13,20 @@ function Pill({ label, value }: { label: string; value: string }) {
 }
 
 export function LiveVitals() {
-  const { pulse, offline, loading } = useOperatorPulse();
-  if (loading || offline || !pulse) return null;
-
-  const providers = Array.isArray(pulse.providers) ? pulse.providers.length : null;
-  const sb = pulse.switchboard;
-  const enabled = typeof sb?.enabled === "number" ? sb.enabled : null;
-  const total = typeof sb?.total === "number" ? sb.total : null;
-  const coverage = pulse.organism?.connectome?.coverage_pct;
-
-  const items: Array<{ label: string; value: string }> = [];
-  if (providers != null) items.push({ label: "providers", value: String(providers) });
-  if (enabled != null && total != null) items.push({ label: "switchboard", value: `${enabled}/${total}` });
-  if (typeof coverage === "number") items.push({ label: "coverage", value: `${coverage.toFixed(1)}%` });
-
+  const receipt = useOperatorPulse();
+  const [, refreshAge] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => refreshAge((value) => value + 1), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const items = readOperatorConfiguration(receipt);
   if (items.length === 0) return null;
 
   return (
     <div
       className="hidden items-center gap-3 text-xs lg:flex"
-      title="Live operator vitals (GET /api/pulse)"
-      aria-label="live operator vitals"
+      title={`Operator configuration snapshot · received ${new Date(receipt.lastOkAt!).toISOString()} (GET /api/pulse). Configured providers do not establish provider health.`}
+      aria-label="recent operator configuration snapshot"
     >
       {items.map((it, i) => (
         <span key={it.label} className="flex items-center gap-3">

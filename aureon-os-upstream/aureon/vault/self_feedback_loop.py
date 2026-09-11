@@ -21,6 +21,12 @@ Each tick runs the full synthesis:
   8. PING      — HarmonicPinger emits the heartbeat
   9. FEEDBACK  — update gratitude from white cell outcomes
  10. SLEEP     — LoveGratitudeClock.sleep()
+
+Effect paths (``tick``/``run``/``start`` and the effectful constructor
+options) are gated by the fail-closed core release record
+(``aureon_fusion/state/vault/core_release.json``); the voice and
+self-enhancement provider placeholders stay inert regardless — those
+modules are owned and released by their own authorities.
 """
 
 from __future__ import annotations
@@ -59,6 +65,17 @@ logger = logging.getLogger("aureon.vault.loop")
 SELF_FEEDBACK_RELEASE_HOLD = (
     "aureon_self_feedback_loop_hold:production_magic_star_release_unavailable"
 )
+
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/vault/core_release.json) names this module.
+# Voice-provider and self-enhancement modules remain voice/queen-owned and
+# are NOT released here — their import placeholders below stay inert.
+from aureon.vault import _core_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("self_feedback_loop"):
+        raise RuntimeError(SELF_FEEDBACK_RELEASE_HOLD)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -149,6 +166,13 @@ class AureonSelfFeedbackLoop:
         enable_harmonic_buses: bool = False,
         enhance_every_n_ticks: int = 30,
     ):
+        """Assemble the vault organ stack (inert by default).
+
+        Effectful options (bus wiring, native Casimir, harmonic buses) are
+        gated by the fail-closed core release record; the voice and
+        self-enhancement provider placeholders remain inert regardless
+        (they are owned and released elsewhere).
+        """
         if any((
             auto_wire_bus,
             enable_voice,
@@ -156,7 +180,7 @@ class AureonSelfFeedbackLoop:
             enable_native_casimir,
             enable_harmonic_buses,
         )):
-            raise RuntimeError(SELF_FEEDBACK_RELEASE_HOLD)
+            _require_release()
         self.loop_id = uuid.uuid4().hex[:8]
         self.vault = vault or AureonVault()
         if auto_wire_bus:
@@ -218,8 +242,17 @@ class AureonSelfFeedbackLoop:
     # ─────────────────────────────────────────────────────────────────────
 
     def tick(self) -> TickResult:
-        """Run one full cycle of the self-feedback loop."""
-        raise RuntimeError(SELF_FEEDBACK_RELEASE_HOLD)
+        """Run one full cycle of the self-feedback loop.
+
+        Gated by the fail-closed release record; when released, a fusion-
+        conscience VETO refuses the cycle (fail-closed, before any effect).
+        """
+        _require_release()
+        if not _release.conscience_permits(
+            "aureon_self_feedback_loop: run one self-feedback tick",
+            {"loop_id": self.loop_id, "cycle": self._cycle + 1},
+        ):
+            raise RuntimeError("conscience_veto:aureon_self_feedback_loop.tick")
         start = time.time()
         self._cycle += 1
 
@@ -384,7 +417,7 @@ class AureonSelfFeedbackLoop:
             sleep_between: whether to honor the LoveGratitudeClock cadence
                            (False runs tight for tests; True uses real timing)
         """
-        raise RuntimeError(SELF_FEEDBACK_RELEASE_HOLD)
+        _require_release()
         results: List[TickResult] = []
         i = 0
         self._running = True
@@ -403,7 +436,7 @@ class AureonSelfFeedbackLoop:
 
     def start(self) -> None:
         """Start the loop in a background daemon thread using the real clock."""
-        raise RuntimeError(SELF_FEEDBACK_RELEASE_HOLD)
+        _require_release()
         if self._running:
             return
         self._running = True

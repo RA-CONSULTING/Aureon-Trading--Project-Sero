@@ -18,23 +18,30 @@ Gary Leckey | The Math Works | January 2026
 """
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
+import logging
 import time
 from typing import List, Optional
+
+from aureon.core.no_external_calls import no_external_api_calls
 from aureon.analytics.aureon_rising_star_logic import RisingStarScanner
 
 
-def add_accumulation_logic(orca_instance, pos, current_price: float, 
+def add_accumulation_logic(orca_instance, pos, current_price: float,
                             amount_per_position: float, fee_rate: float) -> bool:
     """
     🔄 ACCUMULATION LOGIC - Buy more when price drops.
-    
+
     Implements DCA (Dollar Cost Averaging) strategy:
     - If position dropped 5% from avg entry → BUY MORE
     - Max 3 accumulations per position
     - Updates avg entry price, total cost, breakeven
-    
+
     Returns True if accumulated, False otherwise.
     """
+    if no_external_api_calls():
+        logging.info("add_accumulation_logic blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return False
+
     # Check if we can still accumulate
     if pos.accumulation_count >= 3:
         return False
@@ -109,19 +116,23 @@ def check_30_second_profit_window(pos, net_pnl: float, entry_time) -> bool:
     return False
 
 
-def scan_with_rising_star(orca_instance, max_positions: int, 
+def scan_with_rising_star(orca_instance, max_positions: int,
                           active_symbols: List[str]) -> List[dict]:
     """
     🌟 SCAN WITH RISING STAR LOGIC
-    
+
     Replaces old scan_entire_market() with 4-stage Rising Star filtering:
     1. Scan entire market with ALL intelligence
     2. Pick top 4 candidates
     3. Run Monte Carlo simulations on each
     4. Select best 2
-    
+
     Returns list of position data dicts ready to open.
     """
+    if no_external_api_calls():
+        logging.info("scan_with_rising_star blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     if not hasattr(orca_instance, 'rising_star_scanner'):
         return []
     

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/services/apiClient';
+import { readClosedPositionWarMetrics } from '@/lib/warMetricsClosedPositions';
 
 export interface WarMetrics {
   totalBalance: number;
@@ -15,6 +17,8 @@ export interface WarMetrics {
   queueDepth: number;
   rateLimitUsage: number;
   roiPercent: number;
+  closedPositionAnalyticsStatus: 'observed' | 'unavailable';
+  closedPositionAnalyticsReason: string;
 }
 
 export function useWarMetrics(initialBalance: number = 0) {
@@ -32,6 +36,8 @@ export function useWarMetrics(initialBalance: number = 0) {
     queueDepth: 0,
     rateLimitUsage: 0,
     roiPercent: 0,
+    closedPositionAnalyticsStatus: 'unavailable',
+    closedPositionAnalyticsReason: 'Tenant-scoped closed-position analytics has not been read yet.',
   });
 
   const fetchMetrics = useCallback(async () => {
@@ -47,23 +53,18 @@ export function useWarMetrics(initialBalance: number = 0) {
 
       if (execError) throw execError;
 
-      // Fetch closed positions for today's P&L
-      const { data: positions, error: posError } = await supabase
-        .from('trading_positions')
-        .select('*')
-        .eq('status', 'closed')
-        .gte('closed_at', today.toISOString());
-
-      if (posError) throw posError;
+      // Fetch closed positions for today's P&L through the local backend only.
+      // This route enforces user_id tenant scope and keeps Supabase keys out of browser table reads.
+      const closedPositionMetrics = readClosedPositionWarMetrics(await api.get('/api/trading/closed-position-analytics?range=24h', {
+        timeoutMs: 10_000,
+      }).catch(error => ({ available: false, reason: error instanceof Error ? error.message : 'Closed-position analytics backend unavailable' })));
 
       // Calculate P&L
-      const netPnL = positions?.reduce((sum, pos) => sum + (parseFloat(String(pos.realized_pnl || '0'))), 0) || 0;
-      const winningTrades = positions?.filter(p => parseFloat(String(p.realized_pnl || '0')) > 0).length || 0;
-      const totalTrades = positions?.length || 0;
-      const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+      const netPnL = closedPositionMetrics.netPnL ?? 0;
+      const winRate = closedPositionMetrics.winRate ?? 0;
 
       // Fetch latest lighthouse event
-      const { data: latestLHE, error: lheError } = await supabase
+      const { data: latestLHE } = await supabase
         .from('lighthouse_events')
         .select('coherence, lighthouse_signal, is_lhe')
         .order('timestamp', { ascending: false })
@@ -71,27 +72,27 @@ export function useWarMetrics(initialBalance: number = 0) {
         .single();
 
       // Fetch today's LHE count
-      const { count: lheCount, error: lheCountError } = await supabase
+      const { count: lheCount } = await supabase
         .from('lighthouse_events')
         .select('*', { count: 'exact', head: true })
         .eq('is_lhe', true)
         .gte('timestamp', today.toISOString());
 
       // Fetch optimal signals count
-      const { count: optimalCount, error: optimalError } = await supabase
+      const { count: optimalCount } = await supabase
         .from('trading_signals')
         .select('*', { count: 'exact', head: true })
         .ilike('reason', '%OPTIMAL%')
         .gte('timestamp', today.toISOString());
 
       // Fetch queue depth
-      const { count: queueCount, error: queueError } = await supabase
+      const { count: queueCount } = await supabase
         .from('oms_order_queue')
         .select('*', { count: 'exact', head: true })
         .in('status', ['queued', 'pending']);
 
       // Fetch rate limit metrics
-      const { data: rateMetrics, error: rateError } = await supabase
+      const { data: rateMetrics } = await supabase
         .from('oms_execution_metrics')
         .select('rate_limit_utilization')
         .order('timestamp', { ascending: false })
@@ -104,10 +105,7 @@ export function useWarMetrics(initialBalance: number = 0) {
         : 0;
 
       // Calculate max drawdown (simplified)
-      const maxDrawdown = positions?.reduce((max, pos) => {
-        const dd = parseFloat(String(pos.realized_pnl || '0'));
-        return dd < max ? dd : max;
-      }, 0) || 0;
+      const maxDrawdown = closedPositionMetrics.netPnL === null ? 0 : Math.min(0, closedPositionMetrics.netPnL);
 
       // Calculate ROI
       const roi = initialBalance > 0 ? (netPnL / initialBalance) * 100 : 0;
@@ -125,7 +123,9 @@ export function useWarMetrics(initialBalance: number = 0) {
         optimalSignalsToday: optimalCount || 0,
         queueDepth: queueCount || 0,
         rateLimitUsage: rateMetrics?.rate_limit_utilization || 0,
-        roiPercent: roi,
+        roiPercent: closedPositionMetrics.netPnL === null ? 0 : roi,
+        closedPositionAnalyticsStatus: closedPositionMetrics.status,
+        closedPositionAnalyticsReason: closedPositionMetrics.reason,
       });
 
     } catch (error) {

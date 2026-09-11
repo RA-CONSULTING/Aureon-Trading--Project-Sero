@@ -30,6 +30,8 @@ from dataclasses import dataclass, field
 import random
 import math
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
@@ -778,6 +780,9 @@ class S5IntelligentDance:
     
     async def initialize(self):
         """Initialize the intelligent dance floor"""
+        if no_external_api_calls():
+            print("S5IntelligentDance.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("""
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║   🎭 S5 INTELLIGENT DANCE - THE LEARNING STEPPING STONE SYMPHONY 🎭          ║
@@ -905,6 +910,9 @@ class S5IntelligentDance:
     
     async def run(self):
         """Start the intelligent dance"""
+        if no_external_api_calls():
+            print("S5IntelligentDance.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         if not await self.initialize():
             print("\n⚠️ No assets to dance with!")
             return

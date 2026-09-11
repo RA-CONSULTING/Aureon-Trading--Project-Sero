@@ -3117,8 +3117,10 @@ class KrakenMarginArmyTrader:
         trusted_unity_plan_supplier_ids: Tuple[str, ...] = (),
         mycelium_network: Any = None,
     ):
-        if dry_run:
-            os.environ["KRAKEN_DRY_RUN"] = "true"
+        # Do NOT force KRAKEN_DRY_RUN globally. Private reads (balances,
+        # positions, ledgers) are allowed to be provider-backed while order
+        # mutations remain blocked by the economic-dispatch gate and the four
+        # terminal safety holds.
         try:
             from aureon.exchanges.kraken_client import KrakenClient
         except ImportError:

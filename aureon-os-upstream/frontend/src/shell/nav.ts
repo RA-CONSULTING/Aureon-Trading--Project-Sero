@@ -95,9 +95,9 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         path: "/platform/repo-map",
         label: "Repo Map",
-        description: "Whole-repo systems map and capability routes",
+        description: "Dated repository inventory and current package declarations with source scope",
         icon: Map,
-        Component: lazyNamed(() => import("@/components/RepoNavigationPanel"), "RepoNavigationPanel"),
+        Component: lazy(() => import("./pages/RepoMapPage")),
       },
       {
         path: "/platform/coverage",
@@ -158,7 +158,15 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "War Room",
         description: "Live trading command center",
         icon: Briefcase,
-        Component: lazy(() => import("@/components/WarRoomDashboard")),
+        Component: lazy(() => import("./pages/WarRoomPage")),
+        live: true,
+      },
+      {
+        path: "/trading/hft",
+        label: "HFT Desk",
+        description: "Current execution gates, decision traces and latency evidence",
+        icon: TerminalSquare,
+        Component: lazy(() => import("./pages/HftDeskPage")),
         live: true,
       },
       {
@@ -166,7 +174,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Live Bridge",
         description: "Exchange balances, signals, and movers over the live bridge",
         icon: Activity,
-        Component: lazyNamed(() => import("@/components/AureonLiveDashboard"), "AureonLiveDashboard"),
+        Component: lazy(() => import("./pages/LiveBridgePage")),
         live: true,
       },
       {
@@ -200,7 +208,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         path: "/research/nexus",
         label: "Harmonic Nexus",
-        description: "Biofield validation and harmonic coherence console",
+        description: "Timestamped NOAA observations and source-reported research channels",
         icon: Radio,
         Component: lazy(() => import("@/components/NexusLiveDashboardComplete")),
         live: true,

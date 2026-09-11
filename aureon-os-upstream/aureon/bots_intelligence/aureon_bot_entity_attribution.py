@@ -27,6 +27,8 @@ from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, asdict, field
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ⚙️ CONFIG
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -352,9 +354,13 @@ def attribute_bot(symbol: str, bot_id: str, bot_name: str, period: float, candle
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    if no_external_api_calls():
+        print("🕵️ AUREON BOT ENTITY ATTRIBUTION ENGINE blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print(f"\n🕵️ AUREON BOT ENTITY ATTRIBUTION ENGINE")
     print("="*80)
-    
+
     # Load Census Data
     try:
         with open("bot_census_registry.json", "r") as f:

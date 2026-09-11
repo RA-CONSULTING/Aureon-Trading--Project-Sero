@@ -39,6 +39,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Sacred Constants
 PHI = (1 + math.sqrt(5)) / 2  # 1.618 Golden Ratio
 SCHUMANN_BASE = 7.83  # Hz Earth resonance
@@ -90,6 +92,10 @@ def log(msg: str):
 
 def get_quote(symbol: str) -> Optional[Dict]:
     """Get latest quote for symbol"""
+    if no_external_api_calls():
+        print(f"get_quote({symbol}) blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     try:
         resp = requests.get(
             f'https://data.alpaca.markets/v1beta3/crypto/us/latest/quotes?symbols={symbol}/USD',
@@ -108,6 +114,10 @@ def get_quote(symbol: str) -> Optional[Dict]:
 
 def get_bars(symbol: str, limit: int = 60) -> List:
     """Get historical bars"""
+    if no_external_api_calls():
+        print(f"get_bars({symbol}) blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     try:
         resp = requests.get(
             f'https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols={symbol}/USD&timeframe=1Min&limit={limit}',
@@ -120,6 +130,10 @@ def get_bars(symbol: str, limit: int = 60) -> List:
 
 def scan_universe(symbol: str) -> Optional[ScanResult]:
     """Scan a symbol with all 14 voices of the universe"""
+    if no_external_api_calls():
+        print(f"scan_universe({symbol}) blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     quote = get_quote(symbol)
     bars = get_bars(symbol)
     
@@ -217,6 +231,10 @@ def scan_universe(symbol: str) -> Optional[ScanResult]:
 
 def get_positions() -> List[Position]:
     """Get all current positions with market value > $0.50"""
+    if no_external_api_calls():
+        print("get_positions blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     try:
         resp = requests.get('https://api.alpaca.markets/v2/positions', headers=ALPACA_HEADERS)
         positions = resp.json()
@@ -239,6 +257,10 @@ def get_positions() -> List[Position]:
 
 def get_account() -> Dict:
     """Get account info"""
+    if no_external_api_calls():
+        print("get_account blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {'equity': 0, 'cash': 0, 'reason': 'AUREON_NO_EXTERNAL_API_CALLS'}
+
     try:
         resp = requests.get('https://api.alpaca.markets/v2/account', headers=ALPACA_HEADERS)
         acc = resp.json()
@@ -252,6 +274,10 @@ def get_account() -> Dict:
 
 def execute_trade(symbol: str, side: str, qty: float) -> Dict:
     """Execute a trade"""
+    if no_external_api_calls():
+        print(f"execute_trade({symbol}, {side}) blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {'status': 'HOLD', 'reason': 'AUREON_NO_EXTERNAL_API_CALLS', 'executed': False}
+
     data = {
         'symbol': f'{symbol}USD',
         'qty': str(qty),
@@ -268,6 +294,10 @@ def execute_trade(symbol: str, side: str, qty: float) -> Dict:
 
 def main():
     """Main trading loop"""
+    if no_external_api_calls():
+        log('Prime Sentinel of Gaia main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return
+
     log('🔱═══════════════════════════════════════════════════════════════════🔱')
     log('        PRIME SENTINEL OF GAIA - PERPETUAL MODE ACTIVATED')
     log('        "We don\'t stop until every piece of energy is reclaimed"')

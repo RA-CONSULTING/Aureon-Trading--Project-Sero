@@ -11,6 +11,9 @@ Strategy:
 Gary Leckey | December 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import time
@@ -22,11 +25,17 @@ from aureon.exchanges.binance_client import BinanceClient, get_binance_client
 
 def get_price(client, symbol):
     """Get current price"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.momentum_profit_trades.get_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     ticker = client.best_price(symbol)
     return float(ticker.get('price', ticker.get('last', 0)))
 
 def detect_momentum(client, symbol, samples=5, interval=1):
     """Detect if there's upward momentum"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.momentum_profit_trades.detect_momentum blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     prices = []
     for _ in range(samples):
         prices.append(get_price(client, symbol))
@@ -40,6 +49,9 @@ def detect_momentum(client, symbol, samples=5, interval=1):
 
 def execute_momentum_trade(client, symbol, amount_usd):
     """Execute trade when momentum is positive"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.momentum_profit_trades.execute_momentum_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     print(f"\n{'='*60}")
     print(f"🎯 MOMENTUM TRADE: {symbol}")
     print(f"{'='*60}")
@@ -167,6 +179,9 @@ def execute_momentum_trade(client, symbol, amount_usd):
 
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.momentum_profit_trades.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*70)
     print("💰 MOMENTUM PROFIT TRADES 💰")
     print("="*70)

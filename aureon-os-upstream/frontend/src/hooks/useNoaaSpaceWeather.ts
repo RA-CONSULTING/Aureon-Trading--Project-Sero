@@ -1,88 +1,34 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from 'react';
+import { NOAA_FEED_IDS, NOAA_REFRESH_MS, emptyNoaaReceipt, type NoaaFeed, type NoaaReceipt } from '@/lib/noaaObservationEvidence';
+import { fetchNoaaFeed } from '@/lib/noaaPublicSource';
 
-/**
- * Real NOAA space-weather feed (solar wind, magnetometer/Kp, aurora forecast).
- *
- * Backed by the `fetch-noaa-space-weather` edge function — the single source of
- * truth for Kp/storm/solar-wind across the platform. Returns `data: null` (never
- * fabricated values) when the feed is unavailable, so surfaces can render an
- * honest no-data state.
- */
+const initial = (): Record<NoaaFeed, NoaaReceipt> => Object.fromEntries(
+  NOAA_FEED_IDS.map(feed => [feed, emptyNoaaReceipt(feed, true, 'Loading NOAA public source')]),
+) as Record<NoaaFeed, NoaaReceipt>;
 
-export interface SolarWindData {
-  timestamp: string;
-  speed: number;
-  density: number;
-  temperature: number;
-  bz: number;
-}
-
-export interface MagnetometerData {
-  timestamp: string;
-  hComponent: number;
-  intensity: number;
-  kIndex: number;
-}
-
-export interface AuroraForecast {
-  timestamp: string;
-  kpIndex: number;
-  probability: number;
-  viewingLatitude: number;
-}
-
-export interface SpaceWeatherData {
-  timestamp: string;
-  solarWind: {
-    current: SolarWindData;
-    history: SolarWindData[];
-    status: string;
-  };
-  magnetometer: {
-    current: MagnetometerData;
-    history: MagnetometerData[];
-    stormLevel: string;
-  };
-  aurora: {
-    current: AuroraForecast;
-    forecast: AuroraForecast[];
-    visible: boolean;
-    location: string;
-  };
-  alerts: {
-    solarWindAlert: boolean;
-    magneticStorm: boolean;
-    auroraAlert: boolean;
-  };
-}
-
-export const useNoaaSpaceWeather = (refreshMs = 5 * 60 * 1000) => {
-  const [data, setData] = useState<SpaceWeatherData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
+/** Four independent public observations. Transport never replaces a provider time_tag. */
+export function useNoaaSpaceWeather(refreshMs = NOAA_REFRESH_MS) {
+  const [feeds, setFeeds] = useState(initial);
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
     let cancelled = false;
-    const fetchSpaceWeather = async () => {
-      try {
-        const { data: weatherData, error } = await supabase.functions.invoke("fetch-noaa-space-weather");
-        if (error) throw error;
-        if (!cancelled) setData((weatherData as SpaceWeatherData) ?? null);
-      } catch (error) {
-        console.error("Error fetching space weather:", error);
-        if (!cancelled) setData(null);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    const poll = async () => {
+      await Promise.all(NOAA_FEED_IDS.map(async feed => {
+        const receipt = await fetchNoaaFeed(feed, controller.signal);
+        if (!cancelled) setFeeds(current => ({ ...current, [feed]: receipt }));
+      }));
+      if (!cancelled) pollTimer = setTimeout(() => void poll(), Math.max(NOAA_REFRESH_MS, refreshMs));
     };
-
-    fetchSpaceWeather();
-    const interval = setInterval(fetchSpaceWeather, refreshMs);
+    void poll();
+    const ageTimer = setInterval(() => setNow(Date.now()), 5_000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      controller.abort();
+      clearTimeout(pollTimer);
+      clearInterval(ageTimer);
     };
   }, [refreshMs]);
-
-  return { data, isLoading };
-};
+  return { feeds, now, isLoading: NOAA_FEED_IDS.some(feed => feeds[feed].status === 'loading') };
+}

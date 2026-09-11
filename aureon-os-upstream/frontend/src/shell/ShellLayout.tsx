@@ -26,6 +26,7 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Breadcrumb,
@@ -55,48 +56,32 @@ import { LiveVitals } from "@/components/LiveVitals";
 import { SiteFooter } from "./SiteFooter";
 import { RiskDisclaimer } from "@/components/RiskDisclaimer";
 import { SupportProjectPrompt } from "@/components/SupportProjectPrompt";
+import { platformStatusStore } from "@/services/platformReads";
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { runtimeSourceFresh } from "@/lib/runtimeSourceStatus";
+import "./glass.css";
 
 type PlatformHealth = "healthy" | "degraded" | "critical" | "unknown";
 
 function usePlatformStatus(): PlatformHealth {
-  const [health, setHealth] = useState<PlatformHealth>("unknown");
-  useEffect(() => {
-    let cancelled = false;
-    const poll = async () => {
-      try {
-        const r = await fetch("/api/status", { cache: "no-store" });
-        if (!r.ok) throw new Error(String(r.status));
-        const j = (await r.json()) as { status?: string };
-        if (!cancelled) {
-          const s = String(j.status || "unknown");
-          setHealth(s === "healthy" || s === "degraded" || s === "critical" ? (s as PlatformHealth) : "unknown");
-        }
-      } catch {
-        if (!cancelled) setHealth("unknown");
-      }
-    };
-    poll();
-    const t = setInterval(poll, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
-  return health;
+  const read = useReadOnlyPoller(platformStatusStore, 30_000, 8_000);
+  if (!runtimeSourceFresh(read.data?.operational_core?.source_observation, Date.now())) return "unknown";
+  const status = read.data?.status;
+  return status === "healthy" || status === "degraded" || status === "critical" ? status : "unknown";
 }
 
 const STATUS_STYLE: Record<PlatformHealth, { dot: string; label: string }> = {
-  healthy: { dot: "bg-success", label: "Healthy" },
-  degraded: { dot: "bg-primary", label: "Degraded" },
-  critical: { dot: "bg-destructive", label: "Critical" },
-  unknown: { dot: "bg-muted-foreground", label: "No gateway" },
+  healthy: { dot: "bg-success", label: "Observed core healthy" },
+  degraded: { dot: "bg-primary", label: "Observed core degraded" },
+  critical: { dot: "bg-destructive", label: "Observed core critical" },
+  unknown: { dot: "bg-muted-foreground", label: "Health unconfirmed" },
 };
 
 function StatusIndicator() {
   const health = usePlatformStatus();
   const s = STATUS_STYLE[health];
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground" title="Platform status (GET /api/status)">
+    <div className="flex items-center gap-2 text-xs text-muted-foreground" title="Health of the observed operational core; individual systems have separate source readings">
       <span className={`h-2 w-2 rounded-full ${s.dot} ${health === "healthy" ? "animate-pulse" : ""}`} />
       {s.label}
     </div>
@@ -165,6 +150,7 @@ function CommandPalette() {
 
 function ShellSidebar() {
   const { identity } = useIdentity();
+  const { isMobile, setOpenMobile } = useSidebar();
   const sections = navSectionsForPlane(identity.isAdmin);
   const location = useLocation();
   return (
@@ -191,7 +177,7 @@ function ShellSidebar() {
                       isActive={location.pathname === item.path}
                       tooltip={item.label}
                     >
-                      <Link to={item.path}>
+                      <Link to={item.path} onClick={() => { if (isMobile) setOpenMobile(false); }}>
                         <item.icon />
                         <span>{item.label}</span>
                       </Link>
@@ -265,10 +251,10 @@ export default function ShellLayout() {
   const isTrading = section?.label === "Trading";
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="aureon-glass-shell">
       <ShellSidebar />
       <SidebarInset>
-        <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/90 px-4 backdrop-blur">
+        <header className="aureon-glass-topbar sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/90 px-4 backdrop-blur">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <ShellBreadcrumb />
@@ -276,7 +262,7 @@ export default function ShellLayout() {
             <LiveVitals />
             {item?.live && (
               <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
-                live surface
+                data source
               </Badge>
             )}
             <CommandPalette />
@@ -291,7 +277,7 @@ export default function ShellLayout() {
           )}
           <RouteErrorBoundary key={location.pathname} name={item?.label ?? "This page"}>
             <Suspense fallback={<PageSkeleton />}>
-              <Outlet />
+              <div className="aureon-glass-page" data-glass-route={location.pathname}><Outlet /></div>
             </Suspense>
           </RouteErrorBoundary>
           <SiteFooter />

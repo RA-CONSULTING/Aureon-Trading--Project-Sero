@@ -17,6 +17,9 @@
 ╚═══════════════════════════════════════════════════════════════════════════════════╝
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -182,6 +185,9 @@ class LiveConversionTrader:
         
     def load_balances(self) -> bool:
         """Load real balances from Kraken"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.live_conversion_trader.LiveConversionTrader.load_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         print("\n📊 Loading balances...")
         
         if self.dry_run:
@@ -232,6 +238,9 @@ class LiveConversionTrader:
             
     async def fetch_prices(self) -> bool:
         """Fetch current prices from Binance (fastest)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.live_conversion_trader.LiveConversionTrader.fetch_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         import requests
         
         try:
@@ -265,6 +274,9 @@ class LiveConversionTrader:
         """Find the best conversion opportunity using Mycelium Hub"""
         
         # Get assets we hold
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.live_conversion_trader.LiveConversionTrader.find_conversion_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         held_assets = [a for a, amt in self.balances.items() 
                       if amt > 0 and a not in ['USD', 'USDT', 'USDC']]
         
@@ -336,6 +348,9 @@ class LiveConversionTrader:
     async def execute_conversion(self, opportunity: Dict) -> Any:
         """Execute a conversion on Kraken"""
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.live_conversion_trader.LiveConversionTrader.execute_conversion blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         from_asset = opportunity['from_asset']
         to_asset = opportunity['to_asset']
 
@@ -443,6 +458,9 @@ class LiveConversionTrader:
     def check_conversions(self):
         """Check open conversions for profit targets"""
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.live_conversion_trader.LiveConversionTrader.check_conversions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for conv_id, conv in list(self.conversions.items()):
             if conv.status != 'OPEN':
                 continue
@@ -513,6 +531,9 @@ class LiveConversionTrader:
     async def run(self, duration_seconds: int = 300):
         """Run the live trader"""
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.live_conversion_trader.LiveConversionTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         mode = "DRY RUN" if self.dry_run else "🔴 LIVE TRADING"
         
         print(f"""
@@ -608,6 +629,9 @@ class LiveConversionTrader:
 # ═══════════════════════════════════════════════════════════════════════════════════
 
 async def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.live_conversion_trader.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--live', action='store_true', help='Enable LIVE trading (real money!)')

@@ -14,6 +14,9 @@ Strategy:
 Author: Aureon System / Gary Leckey
 Date: November 28, 2025
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, json, time, logging, argparse, math
 from datetime import datetime
@@ -91,6 +94,9 @@ class MasterEquation:
 
     def compute_coherence(self, symbol: str, snap: Dict) -> float:
         # S(t) Substrate
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.MasterEquation.compute_coherence blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total_val = 0
         total_weight = 0
         for node in self.nodes:
@@ -140,6 +146,9 @@ class ThePlayTrader:
 
     def load_existing_positions(self):
         """Load existing balances as positions to manage."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.load_existing_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("🔍 Scanning for existing holdings...")
         try:
             account = self.client.account()
@@ -184,6 +193,9 @@ class ThePlayTrader:
 
     def update_ticker_cache(self):
         """Fetch all tickers at once to save API calls."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.update_ticker_cache blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             if time.time() - self.last_ticker_update < 2: return # Cache for 2 seconds
             
@@ -194,6 +206,9 @@ class ThePlayTrader:
             logger.error(f"❌ Failed to update ticker cache: {e}")
 
     def get_market_snapshot(self, symbol: str) -> Dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.get_market_snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             # Use cache if available
             ticker = self.ticker_cache.get(symbol)
@@ -224,6 +239,9 @@ class ThePlayTrader:
             return None
 
     def get_tradeable_pairs(self) -> List[Dict]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.get_tradeable_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         account = self.client.account()
         balances = {b['asset']: float(b['free']) for b in account['balances'] if float(b['free']) > 0.01}
         info = self.client.exchange_info()
@@ -257,6 +275,9 @@ class ThePlayTrader:
 
     def kelly_size(self, balance: float, quote_symbol: str) -> float:
         # Kelly = W - (1-W)/R
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.kelly_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         win_prob = 0.6
         win_ratio = 1.5
         k = win_prob - (1 - win_prob) / win_ratio
@@ -302,6 +323,9 @@ class ThePlayTrader:
             return round(max(size, 6.0), 4) if quote_symbol == 'USDT' else round(size, 4)
 
     def run(self, duration_sec: int = 3600):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info(f"\n🚀 STARTING 'THE PLAY' TRADER ({self.scan_direction})")
         logger.info(f"Strategy: A-Z/Z-A Sweep | Kelly Compounding | Γ>{CONFIG['ENTRY_COHERENCE']}")
         logger.info(f"⚡ LIGHT SPEED MODE: Batch {CONFIG['SCAN_BATCH_SIZE']} | TP {CONFIG['TAKE_PROFIT_PCT']*100}% | SL {CONFIG['STOP_LOSS_PCT']*100}%")
@@ -373,6 +397,9 @@ class ThePlayTrader:
             # time.sleep(0.1)
 
     def check_exits(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_the_play_old.ThePlayTrader.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for symbol in list(self.positions.keys()):
             pos = self.positions[symbol]
             snap = self.get_market_snapshot(symbol)
@@ -453,6 +480,9 @@ class ThePlayTrader:
             del self.positions[symbol]
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_the_play_old.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--duration', type=int, default=3600)

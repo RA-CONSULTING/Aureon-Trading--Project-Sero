@@ -18,6 +18,9 @@ ONE SYSTEM. ALL THE POWER.
 Gary Leckey | November 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, time, math, json, logging, tempfile
 from datetime import datetime
@@ -184,6 +187,9 @@ class ElephantMemory:
         self.save()
     
     def should_avoid(self, symbol: str, current_price: float = None) -> Tuple[bool, str]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.ElephantMemory.should_avoid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if symbol not in self.symbols:
             return False, ""
         s = self.symbols[symbol]
@@ -232,10 +238,16 @@ class LotSizeManager:
             logger.error(f"Exchange info error: {e}")
     
     def can_trade(self, symbol: str) -> bool:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.LotSizeManager.can_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         self.update()
         return self.cache.get(symbol, {}).get('status') == 'TRADING'
     
     def format_qty(self, symbol: str, qty: float) -> str:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.LotSizeManager.format_qty blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         self.update()
         lot = self.cache.get(symbol, {}).get('filters', {}).get('LOT_SIZE', {})
         step = float(lot.get('stepSize', '0.001'))
@@ -297,6 +309,9 @@ class AureonUnifiedLive:
 
     def load_brain_state(self) -> Dict:
         """Load cached Quantum Brain/Piano state if recently updated."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.load_brain_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             now = time.time()
             if now - self.brain_cache_time < 10:  # reuse for 10 seconds
@@ -339,6 +354,9 @@ class AureonUnifiedLive:
         self.total_profit_usd = 0.0
     
     def update_tickers(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.update_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if time.time() - self.last_ticker_update < 2: return
         try:
             tickers = self.client.session.get(f"{self.client.base}/api/v3/ticker/24hr", timeout=5).json()
@@ -364,6 +382,9 @@ class AureonUnifiedLive:
     
     def detect_spike(self, symbol: str) -> Tuple[bool, float]:
         """v6: Detect if symbol had a recent price spike (pump/dump)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.detect_spike blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if symbol not in self.price_history:
             return False, 0.0
         
@@ -467,6 +488,9 @@ class AureonUnifiedLive:
 
     def get_all_balances(self) -> Dict[str, float]:
         """Get all non-zero balances for reconciliation"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.get_all_balances blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             acc = self.client.account()
             balances = {}
@@ -481,6 +505,9 @@ class AureonUnifiedLive:
     
     def scan_opportunities(self) -> List[Dict]:
         """v4 Enhanced opportunity scanner with learned frequency filters"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         PHI = (1 + 5**0.5) / 2  # Golden ratio
 
@@ -648,6 +675,9 @@ class AureonUnifiedLive:
         return opportunities
     
     def enter_position(self, opp: Dict, usdc_balance: float) -> bool:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.enter_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         symbol = opp['symbol']
         coherence = opp.get('coherence', 0.70)
         
@@ -744,6 +774,9 @@ class AureonUnifiedLive:
             return False
     
     def check_exits(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for symbol in list(self.positions.keys()):
             pos = self.positions[symbol]
             ticker = self.ticker_cache.get(symbol)
@@ -858,6 +891,9 @@ class AureonUnifiedLive:
                     logger.error(f"[FAIL] Sell failed: {e}")
     
     def display_status(self, cycle: int):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.display_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         usdc = self.get_usdc_balance()
         pos_value = sum(float(self.ticker_cache.get(s, {}).get('lastPrice', 0)) * p['qty'] 
                        for s, p in self.positions.items())
@@ -912,6 +948,9 @@ class AureonUnifiedLive:
         return None
 
     def run(self, duration_sec: int = 3600):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_live.AureonUnifiedLive.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("""
 +================================================================+
 |        * AUREON UNIFIED LIVE TRADER v6.1 *

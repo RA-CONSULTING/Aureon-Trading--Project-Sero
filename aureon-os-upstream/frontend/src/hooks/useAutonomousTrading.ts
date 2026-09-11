@@ -102,15 +102,14 @@ export function useAutonomousTrading() {
   }, [isActive, scanMarket]);
 
   const start = useCallback(() => {
-    const confirmed = window.confirm(
-      'LIVE EXECUTION: this can submit real Binance market orders using real funds. Continue with autonomous execution for this active session?',
-    );
-    if (!confirmed) return;
-    liveExecutionConfirmedRef.current = true;
+    // Live execution is permanently disabled in this frontend build. The hook
+    // may still scan and surface opportunities, but it will never invoke the
+    // execute-trade edge function or set liveExecutionConfirmed.
+    liveExecutionConfirmedRef.current = false;
     setIsActive(true);
     toast({
-      title: 'Live autonomous execution enabled',
-      description: 'Only fresh provider tickers, real-derived QGITA signals, and provider order receipts are accepted.',
+      title: 'Autonomous analysis scan enabled',
+      description: 'Live order execution is disabled. Only market scanning and signal observation are active.',
     });
   }, [toast]);
 

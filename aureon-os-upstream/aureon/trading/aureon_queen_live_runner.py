@@ -23,6 +23,8 @@ from typing import Any, Dict, Iterable
 
 from aureon.core.aureon_baton_link import link_system as _baton_link
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 _baton_link(__name__)
 
 
@@ -73,6 +75,9 @@ class SimpleThoughtBus:
         self.thoughts_file = thoughts_file
 
     def think(self, content: str = "", topic: str = "", source: str = "", **kwargs: Any) -> None:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_live_runner.SimpleThoughtBus.think blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         message = kwargs.get("message", content)
         payload = kwargs.get("payload")
         if payload is None:
@@ -135,6 +140,9 @@ class BinancePublicMarketFeed:
         self.timeout_seconds = timeout_seconds
 
     def fetch(self) -> Dict[str, MarketObservation]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_live_runner.BinancePublicMarketFeed.fetch blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         provider_symbols = list(self.SYMBOLS.values())
         query = urllib.parse.urlencode({"symbols": json.dumps(provider_symbols, separators=(",", ":"))})
         source_url = f"{BINANCE_API_BASE}/api/v3/ticker/24hr?{query}"
@@ -207,6 +215,9 @@ class QueenLiveRunner:
         )
 
     def run_cycle(self) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_live_runner.QueenLiveRunner.run_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         self.cycle_count += 1
         collected_at = time.time()
         try:
@@ -255,6 +266,9 @@ class QueenLiveRunner:
         return heartbeat
 
     def start(self) -> None:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_live_runner.QueenLiveRunner.start blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.running = True
         self.start_time = time.time()
         logger.info("Queen live runner started with Binance provider observations only")
@@ -286,6 +300,9 @@ class QueenLiveRunner:
 
 
 def main() -> None:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_live_runner.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser(description="Aureon Queen live provider runner")
     parser.add_argument("--interval", type=float, default=2.0)
     parser.add_argument("--daemon", action="store_true")

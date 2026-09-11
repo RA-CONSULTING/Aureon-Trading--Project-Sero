@@ -1,8 +1,44 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from aureon.trading import order_lifecycle as lifecycle
+
+
+def test_lifecycle_tail_reads_bounded_bytes_in_growing_append_log(tmp_path, monkeypatch):
+    log_path = tmp_path / "events.jsonl"
+    rows = [{"event_id": str(index), "padding": "x" * 100} for index in range(10000)]
+    log_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    original_open = Path.open
+    bytes_read = []
+    class MeasuredReader:
+        def __init__(self, handle):
+            self.handle = handle
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            self.handle.close()
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+        def read(self, size=-1):
+            data = self.handle.read(size)
+            bytes_read.append(len(data))
+            return data
+    def measured_open(path, mode="r", *args, **kwargs):
+        handle = original_open(path, mode, *args, **kwargs)
+        return MeasuredReader(handle) if path == log_path and mode == "rb" else handle
+    monkeypatch.setattr(Path, "open", measured_open)
+    assert lifecycle._tail_jsonl(log_path, 5) == rows[-5:]
+    assert sum(bytes_read) <= 2 * 64 * 1024
+    assert sum(bytes_read) < log_path.stat().st_size
+
+
+def test_lifecycle_tail_preserves_complete_large_records(tmp_path):
+    log_path = tmp_path / "events.jsonl"
+    rows = [{"event_id": str(index), "padding": "é" * 70000} for index in range(3)]
+    log_path.write_text("\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n", encoding="utf-8")
+    assert lifecycle._tail_jsonl(log_path, 2) == rows[-2:]
 
 
 def test_order_lifecycle_valid_transition_chain(tmp_path):

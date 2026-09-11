@@ -22,7 +22,8 @@ export function ConsciousnessCoherenceTracker({ currentCoherence }: Consciousnes
   const lastSaveTime = useRef<number>(0);
 
   // Calculate total consciousness field coherence
-  const schumannBoost = schumannData?.coherenceBoost || 0;
+  const schumannFrequencyReported = schumannData?.frequencyReported === true;
+  const schumannBoost = schumannFrequencyReported ? schumannData?.coherenceBoost || 0 : 0;
   const totalBoost = celestialBoost + schumannBoost;
   const enhancedCoherence = currentCoherence * (1 + totalBoost);
 
@@ -78,7 +79,7 @@ export function ConsciousnessCoherenceTracker({ currentCoherence }: Consciousnes
           <div className="flex items-center gap-2">
             <Activity className={`w-4 h-4 ${schumannConnected ? 'text-success' : 'text-destructive'}`} />
             <span className="text-xs font-medium">
-              Schumann: {schumannConnected ? 'ONLINE' : 'OFFLINE'}
+              Schumann: {schumannConnected ? 'TELEMETRY ONLINE' : 'OFFLINE'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -112,16 +113,16 @@ export function ConsciousnessCoherenceTracker({ currentCoherence }: Consciousnes
           <div className={`p-4 bg-background/50 rounded-lg border ${schumannConnected ? 'border-success/30' : 'border-border/50'}`}>
             <div className="flex items-center gap-2 mb-2">
               <Activity className={`w-4 h-4 ${schumannConnected ? 'text-success' : 'text-muted-foreground'}`} />
-              <span className="text-xs text-muted-foreground">Schumann Boost</span>
+              <span className="text-xs text-muted-foreground">{schumannFrequencyReported ? 'Schumann Boost' : 'Schumann Telemetry'}</span>
               {schumannConnected && <Wifi className="w-3 h-3 text-success ml-auto" />}
               {!schumannConnected && <WifiOff className="w-3 h-3 text-destructive ml-auto" />}
             </div>
             <div className={`text-2xl font-bold ${schumannConnected ? 'text-success' : 'text-muted-foreground'}`}>
-              +{(schumannBoost * 100).toFixed(1)}%
+              {schumannFrequencyReported ? `+${(schumannBoost * 100).toFixed(1)}%` : schumannConnected ? 'Observed' : '+0.0%'}
             </div>
             <Progress value={(schumannBoost / 0.12) * 100} className="mt-2 h-1" />
             <p className="text-xs text-muted-foreground mt-1">
-              {schumannData?.fundamentalHz.toFixed(2) || '—'} Hz
+              {schumannFrequencyReported ? `${schumannData?.fundamentalHz.toFixed(2)} Hz` : schumannData?.activityScore !== undefined ? `${schumannData.activityScore.toFixed(0)}/100 activity` : '—'}
             </p>
           </div>
 
@@ -195,7 +196,7 @@ export function ConsciousnessCoherenceTracker({ currentCoherence }: Consciousnes
         {schumannConnected && biometricConnected && (
           <div className="p-4 bg-success/10 border border-success/30 rounded-lg">
             <p className="text-sm text-success font-medium">
-              ✅ All Earth Live Data sensors online and streaming real-time consciousness field data
+              ✅ Earth telemetry and biometric sensors online; Schumann frequency-derived boosts remain source-gated
             </p>
           </div>
         )}

@@ -23,6 +23,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 import random
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
@@ -130,6 +132,9 @@ class S5InfiniteDance:
     
     async def initialize(self):
         """Set up the dance floor"""
+        if no_external_api_calls():
+            print("S5InfiniteDance.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("""
 ╔═══════════════════════════════════════════════════════════════════════╗
 ║   💃 S5 INFINITE DANCE - THE STEPPING STONE SYMPHONY 🕺              ║
@@ -237,6 +242,9 @@ class S5InfiniteDance:
     
     async def run(self):
         """Start the infinite dance"""
+        if no_external_api_calls():
+            print("S5InfiniteDance.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         if not await self.initialize():
             print("\n⚠️ No assets to dance with!")
             return

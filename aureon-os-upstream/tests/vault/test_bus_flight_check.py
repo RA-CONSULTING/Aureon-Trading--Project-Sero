@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -13,6 +14,26 @@ from aureon.vault.voice.bus_flight_check import (
     get_bus_flight_check,
     reset_bus_flight_check,
 )
+
+
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
+@pytest.fixture
+def released(monkeypatch, tmp_path):
+    record_dir = tmp_path / "record"
+    record_dir.mkdir()
+    record = record_dir / "dispatch_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["bus_flight_check"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("GOAL_DISPATCH_RELEASE_RECORD", str(record))
+    return record
 
 
 class _Trap:
@@ -73,3 +94,72 @@ def test_topic_matching_remains_pure() -> None:
     )
     assert BusFlightCheck._matches("goal.completed", "goal.*") is True
     assert BusFlightCheck._matches("goal.completed", "persona.*") is False
+
+
+# ─── Released path ───────────────────────────────────────────────────────────
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.handlers: dict = {}
+        self.published: list = []
+        self._subs: dict = {}
+
+    def subscribe(self, topic: str, handler) -> None:
+        self.handlers.setdefault(topic, []).append(handler)
+        self._subs.setdefault(topic, []).append(handler)
+
+    def publish(self, *args: Any, **kwargs: Any) -> None:
+        self.published.append(args[0] if args else kwargs)
+
+    def list_subscribed_topics(self):
+        return list(self._subs.keys())
+
+    def subscriber_count(self, pattern: str) -> int:
+        return len(self._subs.get(pattern, []))
+
+
+class _Thought:
+    def __init__(self, topic: str, source: str = "probe") -> None:
+        self.topic = topic
+        self.source = source
+
+
+def test_released_start_observes_and_reports_topology(released) -> None:
+    bus = _Bus()
+    check = BusFlightCheck(bus)
+    check.start()
+    assert "*" in bus.handlers
+    for handler in bus.handlers["*"]:
+        handler(_Thought("goal.completed", "engine"))
+        handler(_Thought("persona.collapse", "vacuum"))
+    topo = check.topology()
+    topics = {r["topic"] for r in topo["topics"]}
+    assert {"goal.completed", "persona.collapse"} <= topics
+    report = check.standing_wave_report()
+    assert 0.0 <= report["health"] <= 1.0
+
+
+def test_released_publish_pulse_emits_compact_report(released) -> None:
+    bus = _Bus()
+    check = BusFlightCheck(bus)
+    check._publish_pulse({"ts": 1.0, "health": 0.5, "covered_ratio": 0.5,
+                          "active_ratio": 0.5, "publication_balance": 0.5,
+                          "active_topic_count": 1, "dormant_topic_count": 0,
+                          "subscribed_topic_count": 1, "total_publications": 2,
+                          "orphans_published_unsubscribed": [],
+                          "orphans_subscribed_unpublished": []})
+    pulses = [t for t in bus.published
+              if getattr(t, "topic", "") == "flight.check.pulse"]
+    assert len(pulses) == 1
+    assert pulses[0].payload["health"] == 0.5
+
+
+def test_released_singleton_getter_creates_and_resets(released) -> None:
+    reset_bus_flight_check()
+    bus = _Bus()
+    check = get_bus_flight_check(bus)
+    assert flight_module._singleton is check
+    assert "*" in bus.handlers
+    reset_bus_flight_check()
+    assert flight_module._singleton is None

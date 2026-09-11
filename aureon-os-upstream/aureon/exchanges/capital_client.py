@@ -6,13 +6,14 @@ import re
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
+from aureon.exchanges.provider_ui_observations import record_capital_ui_observation
 
 from aureon.governance.economic_boundary import (
     EconomicGovernanceBlocked,
@@ -37,12 +38,46 @@ try:
 except ImportError:
     pass
 
-try:
-    from aureon.core.aureon_env import load_aureon_environment
+CAPITAL_CREDENTIAL_ENVS = (
+    "CAPITAL_API_KEY",
+    "CAPITAL_IDENTIFIER",
+    "CAPITAL_PASSWORD",
+    "CAPITAL_API_PASSWORD",
+    "CAPITAL_DEMO",
+)
 
-    load_aureon_environment(Path(_REPO_ROOT), override=False)
-except Exception:
-    pass
+
+def _capital_env_presence() -> dict[str, bool]:
+    return {key: bool(os.getenv(key)) for key in CAPITAL_CREDENTIAL_ENVS}
+
+
+def _bootstrap_capital_credentials() -> dict[str, Any]:
+    """Apply Aureon's unified credential loaders before reading Capital env vars.
+
+    The returned payload is safe to include in status reports: it contains only
+    booleans and loader metadata, never credential values.
+    """
+    before = _capital_env_presence()
+    try:
+        from aureon.core.aureon_env import bootstrap_credentials
+
+        report = bootstrap_credentials(Path(_REPO_ROOT), override=False)
+        return {
+            "bootstrap_ok": True,
+            "loaded": bool(report.get("loaded")),
+            "loaded_paths_count": len(report.get("loaded_paths") or []),
+            "aliases_applied": int(report.get("aliases_applied") or 0),
+            "keystore_applied": bool(report.get("keystore_applied")),
+            "present_before": before,
+            "present_after": _capital_env_presence(),
+        }
+    except Exception as exc:  # noqa: BLE001 - Capital should fail closed when loaders are unavailable
+        return {
+            "bootstrap_ok": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "present_before": before,
+            "present_after": _capital_env_presence(),
+        }
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +104,9 @@ CAPITAL_HTTP_TIMEOUT = float(os.getenv('CAPITAL_HTTP_TIMEOUT_SECS', '8'))
 CAPITAL_SESSION_RETRY_BACKOFF_SECS = float(os.getenv('CAPITAL_SESSION_RETRY_BACKOFF_SECS', '15'))
 CAPITAL_TICKER_WORKERS = int(os.getenv('CAPITAL_TICKER_WORKERS', '4'))
 CAPITAL_TICKER_MEM_TTL = float(os.getenv('CAPITAL_TICKER_MEM_TTL', '25.0'))  # In-memory per-symbol ticker cache TTL
+CAPITAL_TICKER_BATCH_TIMEOUT = max(1.0, float(os.getenv('CAPITAL_TICKER_BATCH_TIMEOUT_SECS', '12.0')))
+CAPITAL_TICKER_BATCH_MAX_SYMBOLS = max(1, int(float(os.getenv('CAPITAL_TICKER_BATCH_MAX_SYMBOLS', '16'))))
+CAPITAL_MARKET_CATALOGUE_MAX_BFS_SECS = max(1.0, float(os.getenv('CAPITAL_MARKET_CATALOGUE_MAX_BFS_SECS', '12.0')))
 CAPITAL_MONITOR_CACHE_PATH = os.getenv("CAPITAL_MONITOR_CACHE_PATH", os.path.join("ws_cache", "capital_monitor.json"))
 CAPITAL_MONITOR_CACHE_MAX_AGE_S = float(os.getenv("CAPITAL_MONITOR_CACHE_MAX_AGE_S", "20"))
 CAPITAL_QUOTE_MAX_AGE_S = float(os.getenv("CAPITAL_QUOTE_MAX_AGE_S", "120"))
@@ -201,6 +239,10 @@ class ObservationList(list):
         self.received_at = provenance.get("received_at")
         self.generated_values = False
 
+        # Display metadata preserves visible provider inventory separately from
+        # fee-complete accounting. Existing list contents remain unchanged.
+        self.inventory_complete = provenance.get("inventory_complete")
+
 
 class BalanceObservation(dict):
     """Dict-compatible currency map that keeps provenance out of numeric items."""
@@ -220,6 +262,7 @@ class CapitalClient:
     Handles session management and trading operations.
     """
     def __init__(self):
+        self.credential_bootstrap_report = _bootstrap_capital_credentials()
         self.api_key = os.getenv('CAPITAL_API_KEY')
         self.identifier = os.getenv('CAPITAL_IDENTIFIER')
         # Support both legacy and documented env names.
@@ -722,7 +765,7 @@ class CapitalClient:
         queue: List[Optional[str]] = [None]
         visited: set = set()
         bfs_started = time.time()
-        max_bfs_sec = 30.0  # Hard cap on catalogue traversal time
+        max_bfs_sec = CAPITAL_MARKET_CATALOGUE_MAX_BFS_SECS  # Hard cap on catalogue traversal time
 
         while queue and (time.time() - bfs_started) < max_bfs_sec:
             node_id = queue.pop(0)
@@ -1094,6 +1137,7 @@ class CapitalClient:
         self.last_account_observation = observation
         return observation
 
+    @record_capital_ui_observation("accounts", max_age_seconds=CAPITAL_ACCOUNT_RECEIPT_MAX_AGE_S)
     def get_accounts(self, *, cache_ttl: float = 60.0) -> ObservationList:
         """Get account information including available balance.
         Returns list of accounts with structure: [{'accountId': str, 'available': float, 'balance': float}]
@@ -1399,29 +1443,56 @@ class CapitalClient:
         if not uncached_symbols:
             return results
         max_workers = max(1, int(max_workers))
+        batch_started = time.time()
+        submitted_symbols = list(uncached_symbols[:CAPITAL_TICKER_BATCH_MAX_SYMBOLS])
+        deferred_symbols = list(uncached_symbols[CAPITAL_TICKER_BATCH_MAX_SYMBOLS:])
+        for sym in deferred_symbols:
+            results[sym] = self._no_data_ticker(sym, "ticker_batch_deferred", received_at=now)
 
         # Pre-warm market catalogue once serially — prevents N concurrent
         # get_all_markets() calls each downloading 6799 markets → 429 ban.
         self.get_all_markets()
+        remaining_timeout = CAPITAL_TICKER_BATCH_TIMEOUT - (time.time() - batch_started)
+        if remaining_timeout <= 0.1:
+            for sym in submitted_symbols:
+                results.setdefault(sym, self._no_data_ticker(sym, "ticker_batch_timeout_before_submit"))
+            return results
 
         def _fetch(sym: str) -> Dict[str, Any]:
             return self.get_ticker(sym)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            future_map = {ex.submit(_fetch, sym): sym for sym in uncached_symbols}
-            for fut in as_completed(future_map):
-                sym = future_map[fut]
-                try:
-                    result = fut.result()
-                except Exception:
-                    result = self._no_data_ticker(sym, "ticker_worker_failed")
-                if not isinstance(result, dict):
-                    result = self._no_data_ticker(sym, "ticker_worker_returned_no_observation")
-                results[sym] = result
-                # Populate in-memory cache for subsequent ticks
-                if self._ticker_is_actionable(result):
-                    self._ticker_mem_cache[sym] = result
-                    self._ticker_mem_cache_times[sym] = time.time()
+        executor = ThreadPoolExecutor(max_workers=max_workers)
+        future_map = {executor.submit(_fetch, sym): sym for sym in submitted_symbols}
+        completed = set()
+        try:
+            try:
+                iterator = as_completed(future_map, timeout=remaining_timeout)
+                for fut in iterator:
+                    completed.add(fut)
+                    sym = future_map[fut]
+                    try:
+                        result = fut.result()
+                    except Exception:
+                        result = self._no_data_ticker(sym, "ticker_worker_failed")
+                    if not isinstance(result, dict):
+                        result = self._no_data_ticker(sym, "ticker_worker_returned_no_observation")
+                    results[sym] = result
+                    # Populate in-memory cache for subsequent ticks
+                    if self._ticker_is_actionable(result):
+                        self._ticker_mem_cache[sym] = result
+                        self._ticker_mem_cache_times[sym] = time.time()
+            except FuturesTimeoutError:
+                pass
+            for fut, sym in future_map.items():
+                if fut in completed:
+                    continue
+                fut.cancel()
+                results.setdefault(sym, self._no_data_ticker(sym, "ticker_batch_timeout"))
+        finally:
+            try:
+                executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                executor.shutdown(wait=False)
 
         return results
 
@@ -2188,6 +2259,7 @@ class CapitalClient:
                 status="incomplete",
             )
 
+    @record_capital_ui_observation("positions", max_age_seconds=CAPITAL_ACCOUNT_RECEIPT_MAX_AGE_S)
     def get_positions(self) -> ObservationList:
         """Return provider-visible positions without implying fee-complete fills."""
         if not self.enabled:
@@ -2254,6 +2326,7 @@ class CapitalClient:
                     ),
                     source_timestamp=response_source_timestamp,
                     received_at=received_at,
+                    inventory_complete=incomplete_rows == 0,
                 )
             return ObservationList(
                 truth_status="no_data",

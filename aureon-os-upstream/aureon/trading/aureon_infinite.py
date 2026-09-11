@@ -24,6 +24,9 @@ We don't stop. We compound. We grow. We prove we're alive.
 Gary Leckey & GitHub Copilot | November 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import hmac
 import hashlib
@@ -134,6 +137,9 @@ def sign_request(api_key: str, api_secret: str, params: dict) -> str:
 
 def get_account(role: str = "BUY") -> dict:
     """Get account balances using specified key"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.get_account blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     key_info = API_KEYS[role]
     query = sign_request(key_info["key"], key_info["secret"], {})
     url = f'https://api.binance.com/api/v3/account?{query}'
@@ -141,11 +147,17 @@ def get_account(role: str = "BUY") -> dict:
 
 def get_prices(role: str = "PRESENT") -> Dict[str, float]:
     """Get all current prices"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.get_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     resp = requests.get('https://api.binance.com/api/v3/ticker/price').json()
     return {p['symbol']: float(p['price']) for p in resp}
 
 def get_24h_tickers(role: str = "PRESENT") -> Dict[str, dict]:
     """Get 24h ticker data"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.get_24h_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     resp = requests.get('https://api.binance.com/api/v3/ticker/24hr').json()
     return {t['symbol']: {
         'change': float(t['priceChangePercent']),
@@ -156,6 +168,9 @@ def get_24h_tickers(role: str = "PRESENT") -> Dict[str, dict]:
 
 def get_klines(symbol: str, interval: str = '5m', limit: int = 20, role: str = "PAST") -> List[dict]:
     """Get historical candlestick data"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.get_klines blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return []
     resp = requests.get(
         'https://api.binance.com/api/v3/klines',
         params={'symbol': symbol, 'interval': interval, 'limit': limit}
@@ -170,6 +185,9 @@ def get_klines(symbol: str, interval: str = '5m', limit: int = 20, role: str = "
 
 def get_symbol_info(symbol: str) -> Optional[dict]:
     """Get trading rules for a symbol"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.get_symbol_info blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     try:
         resp = requests.get('https://api.binance.com/api/v3/exchangeInfo', 
                            params={'symbol': symbol}).json()
@@ -194,6 +212,9 @@ def round_step(value: float, step: float) -> float:
 
 def place_order(symbol: str, side: str, quantity: float, role: str = None) -> dict:
     """Place a market order using appropriate key"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     if role is None:
         role = "BUY" if side == "BUY" else "SELL"
     
@@ -216,6 +237,9 @@ def calculate_momentum_score(klines: List[dict], ticker: dict) -> Tuple[float, s
     Calculate momentum score from market data
     Returns: (score 0-100, signal)
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.calculate_momentum_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     if not klines or len(klines) < 10:
         return 50, "NEUTRAL"
     
@@ -301,6 +325,9 @@ def infinite_trade_loop():
     """
     The infinite loop that never stops trading
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite.infinite_trade_loop blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "═"*70)
     print("🔄 AUREON INFINITE LOOP - STARTING")
     print("   'If you don't quit, you can't lose'")

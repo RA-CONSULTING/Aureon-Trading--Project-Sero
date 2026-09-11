@@ -14,6 +14,8 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Load environment
 load_dotenv()
 
@@ -1162,6 +1164,9 @@ class FireTrader:
 
     def run_fire_check(self):
         """Run the fire trade logic using SHARED clients."""
+        if no_external_api_calls():
+            log_fire("🔥 ORCA FIRE TRADE HELD - AUREON_NO_EXTERNAL_API_CALLS is set")
+            return False
         log_fire("=" * 50)
         log_fire("   ORCA FIRE TRADE - REAL EXECUTION")
         log_fire("=" * 50)
@@ -1800,6 +1805,9 @@ class FireTrader:
 
 def main():
     # Only for standalone run
+    if no_external_api_calls():
+        print("🔥 ORCA FIRE TRADE HELD - AUREON_NO_EXTERNAL_API_CALLS is set")
+        return
     trader = FireTrader()
     success = trader.run_fire_check()
     if success:

@@ -53,6 +53,8 @@ from typing import Dict, List, Optional, Any, Tuple, Set
 from datetime import datetime, timezone
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════
@@ -408,13 +410,22 @@ class UnifiedRiverConsciousness:
     def analyze_vessel(self, symbol: str, exchange: str = 'alpaca') -> VesselAnalysis:
         """
         Complete analysis of a vessel (trading pair).
-        
+
         This is the UNIFIED CONSCIOUSNESS at work:
         - Flow (volume/trades)
         - Direction (momentum)
         - Clarity (spread/coherence)
         - Unity (system agreement)
         """
+        if no_external_api_calls():
+            logger.info("UnifiedRiverConsciousness.analyze_vessel blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return VesselAnalysis(
+                symbol=symbol,
+                exchange=exchange,
+                timestamp=time.time(),
+                reasoning='AUREON_NO_EXTERNAL_API_CALLS',
+            )
+
         # 🛡️ RATE LIMIT PROTECTION: Check cache first!
         # If we have analyzed this vessel recently, reuse the wisdom.
         if symbol in self._vessel_cache:

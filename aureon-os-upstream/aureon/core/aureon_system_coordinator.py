@@ -96,17 +96,20 @@ class SystemCoordinator:
     Manages system coordination, dependencies, and readiness checks.
     """
 
-    def __init__(self, registry_path: str = "aureon_system_registry.json"):
+    def __init__(self, registry_path: str = "aureon_system_registry.json", *, connect_bus: bool = True):
         """
         Initialize the coordinator.
 
         Args:
             registry_path: Path to system registry JSON file
+            connect_bus: Connect event publishing for operational coordinators.
+                Read-only status probes pass False to avoid creating background
+                services through legacy ThoughtBus constructors.
         """
         self.registry_path = Path(registry_path)
         self.systems: Dict[str, SystemState_Data] = {}
         self.dependencies: Dict[str, List[SystemDependency]] = {}
-        self.thought_bus = ThoughtBus() if ThoughtBus else None
+        self.thought_bus = ThoughtBus() if connect_bus and ThoughtBus else None
         self.startup_time = time.time()
 
         self._load_registry()

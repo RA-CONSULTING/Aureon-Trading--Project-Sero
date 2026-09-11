@@ -40,6 +40,11 @@ from aureon.autonomous.aureon_goal_capability_map import build_goal_capability_m
 from aureon.integrations.obsidian import ObsidianBridge
 from aureon.obsidian_paths import resolve_obsidian_vault_path
 from aureon.integrations.ollama import OllamaBridge
+from aureon.ollama_config import (
+    OllamaDailyBudgetExceeded,
+    check_ollama_daily_budget,
+    ensure_ollama_shared_budget,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STATE_LOG = REPO_ROOT / "state" / "self_questioning_ai_cycles.jsonl"
@@ -305,6 +310,8 @@ class SelfQuestioningAI:
         if not self._cycle_lock.acquire(blocking=False):
             return self._busy_cycle(questions)
         try:
+            # Reset the shared Ollama budget at day start before any call.
+            ensure_ollama_shared_budget()
             return self._run_cycle_locked(
                 questions=questions,
                 include_audit=include_audit,
@@ -766,6 +773,11 @@ class SelfQuestioningAI:
         }
 
         try:
+            try:
+                check_ollama_daily_budget()
+            except OllamaDailyBudgetExceeded:
+                return self._fallback_answer(questions, context, "shared_budget_exhausted")
+
             question_chars = sum(len(str(item)) for item in questions)
             if len(questions) <= 1 and question_chars < 300:
                 response_tokens = max(self.ollama_num_predict, 256)

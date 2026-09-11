@@ -33,6 +33,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 
 EXECUTION_RECEIPT_MAX_AGE_SECONDS = 300.0
 EXECUTION_RECEIPT_FUTURE_SKEW_SECONDS = 30.0
@@ -1257,6 +1259,8 @@ class WinKiller:
         
     def hunt_binance(self) -> List[Dict]:
         """Scan Binance for momentum/bounce plays"""
+        if no_external_api_calls():
+            return []
         opportunities = []
         
         try:
@@ -1319,6 +1323,8 @@ class WinKiller:
     
     def hunt_kraken(self) -> List[Dict]:
         """Scan Kraken for opportunities"""
+        if no_external_api_calls():
+            return []
         opportunities = []
         
         # Top Kraken pairs to scan
@@ -1379,6 +1385,8 @@ class WinKiller:
     
     def hunt_arbitrage(self) -> List[Dict]:
         """Hunt for cross-exchange arbitrage opportunities"""
+        if no_external_api_calls():
+            return []
         opportunities = []
         
         # Compare prices across exchanges
@@ -1519,6 +1527,8 @@ class WinKiller:
     
     def hunt_all(self) -> List[Dict]:
         """Hunt across ALL sources for wins"""
+        if no_external_api_calls():
+            return []
         all_wins = []
         
         # Hunt everywhere
@@ -1581,6 +1591,8 @@ class UnifiedKillChain:
 
     def refresh_truth(self) -> Optional[Dict[str, Any]]:
         """Pull the single source of truth for portfolio state."""
+        if no_external_api_calls():
+            return None
         if not self.real_portfolio:
             return None
         try:
@@ -1757,6 +1769,9 @@ class UnifiedKillChain:
         return result
         
     def scan_all(self):
+        if no_external_api_calls():
+            log_system("scan_all held by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         log_system("Initiating Global Asset Scan...")
         opportunities = []
         self.last_no_data = []
@@ -1991,6 +2006,8 @@ class UnifiedKillChain:
         return committed
 
     def execute_kill_chain(self, target):
+        if no_external_api_calls():
+            return _no_data_decision("AUREON_NO_EXTERNAL_API_CALLS")
         if self.execution_state_path is None:
             return _no_data_decision("execution_state_path_required")
         now = _finite_provider_number(self.clock(), positive=True)
@@ -2108,6 +2125,9 @@ class UnifiedKillChain:
 
     def redeploy_energy(self):
         """Simulate identifying a buying opportunity."""
+        if no_external_api_calls():
+            log_system("redeploy_energy held by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         log_system("♻️ Checking Energy Levels for Redeployment...")
         # Check USD balances
         cached_cash = 0.0
@@ -2132,11 +2152,16 @@ class UnifiedKillChain:
     
     def hunt_for_wins(self) -> List[Dict]:
         """Hunt for winning opportunities - BY ANY MEANS"""
+        if no_external_api_calls():
+            log_killer("💀 WIN KILLER HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         log_killer("💀 WIN KILLER ACTIVATED - HUNTING...")
         return self.win_killer.hunt_all()
     
     def execute_win(self, opportunity: Dict) -> Dict:
         """Execute a winning trade"""
+        if no_external_api_calls():
+            return {'status': 'HELD', 'reason': 'AUREON_NO_EXTERNAL_API_CALLS'}
         symbol = opportunity.get('symbol', 'UNKNOWN')
         exchange = opportunity.get('exchange', 'unknown')
         op_type = opportunity.get('type', 'UNKNOWN')
@@ -2169,6 +2194,8 @@ class UnifiedKillChain:
     
     def _execute_trade(self, opportunity: Dict) -> Dict:
         """Actually execute the trade - BY THE ORCA RULES"""
+        if no_external_api_calls():
+            return {'status': 'HELD', 'reason': 'AUREON_NO_EXTERNAL_API_CALLS'}
         exchange = opportunity.get('exchange', 'unknown')
         symbol = opportunity.get('symbol', 'UNKNOWN')
         op_type = opportunity.get('type', 'UNKNOWN')
@@ -2374,6 +2401,9 @@ class UnifiedKillChain:
             print()
 
 def main():
+    if no_external_api_calls():
+        log_system("ORCA Unified Kill Chain HELD - AUREON_NO_EXTERNAL_API_CALLS is set")
+        return
     import argparse
     
     parser = argparse.ArgumentParser(description='ORCA Unified Kill Chain + WIN KILLER')

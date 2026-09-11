@@ -350,15 +350,22 @@ class HarmonicWaveFusion:
         return self.state
     
     def get_harmonic_state(self) -> Dict[str, Any]:
-        """Get simplified harmonic state dict for trading integration"""
+        """Get simplified harmonic state dict for trading integration.
+
+        FAIL-CLOSED: before the seed is loaded there is no field, so this
+        returns nulls plus an error string instead of the synthetic defaults
+        (0.5 coherence, 0.0 frequency, 1.0 schumann bias) it used to invent —
+        which downstream systems read as if they were real observations.
+        """
         if not self.state:
             return {
-                "global_coherence": 0.5,
-                "dominant_frequency": 0.0,
-                "dominant_phase": 0.0,
-                "phase_alignment": 0.5,
-                "schumann_bias": 1.0,
-                "market_regime": "neutral"
+                "error": "not_initialized",
+                "global_coherence": None,
+                "dominant_frequency": None,
+                "dominant_phase": None,
+                "phase_alignment": None,
+                "schumann_bias": None,
+                "market_regime": None,
             }
         return {
             "global_coherence": self.state.global_coherence,

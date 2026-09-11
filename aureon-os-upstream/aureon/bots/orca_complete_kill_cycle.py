@@ -70,6 +70,8 @@ import json as _json
 # import time
 import time as _time
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Use port 8080 for Orca health checks (matches app.yaml deployment config)
 _HEALTH_PORT = int(os.environ.get('HEALTH_PORT', '8080'))
 _health_status = {"status": "starting", "uptime": 0, "cycles": 0, "positions": 0}
@@ -7113,6 +7115,9 @@ class OrcaKillCycle:
         
         VOLATILITY TARGETING: Lowered to 0.05% to catch micro-movements and compound gains
         """
+        if no_external_api_calls():
+            print("  SCAN ENTIRE MARKET HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         print("\n" + "="*70)
         print("  SCANNING ENTIRE MARKET - ALL EXCHANGES")
         print("="*70)
@@ -7877,6 +7882,8 @@ class OrcaKillCycle:
     
     def _scan_alpaca_market(self, min_change_pct: float, min_volume: float) -> List[MarketOpportunity]:
         """Scan ALL Alpaca crypto pairs for momentum using snapshot API."""
+        if no_external_api_calls():
+            return []
         opportunities = []
         client = self.clients.get('alpaca')
         if not client:
@@ -8012,6 +8019,8 @@ class OrcaKillCycle:
         Uses Kraken's own complete 24-hour ticker records. Missing or
         rate-limited data yields no opportunities.
         """
+        if no_external_api_calls():
+            return []
         opportunities = []
 
         # Kraken opportunities must come from Kraken. Cross-exchange prices,
@@ -8112,6 +8121,8 @@ class OrcaKillCycle:
 
     def _scan_binance_market(self, min_change_pct: float, min_volume: float) -> List[MarketOpportunity]:
         """Scan ALL Binance pairs for momentum (UK-compliant - scans ALL non-restricted markets)."""
+        if no_external_api_calls():
+            return []
         opportunities = []
         client = self.clients.get('binance')
         if not client:
@@ -8222,6 +8233,8 @@ class OrcaKillCycle:
     
     def _scan_capital_market(self, min_change_pct: float, min_volume: float) -> List[MarketOpportunity]:
         """Scan Capital.com markets for momentum (CFDs: stocks, indices, forex, commodities)."""
+        if no_external_api_calls():
+            return []
         opportunities = []
         #   Lazy-load Capital.com client if needed (avoids rate limiting during init)
         client = self._ensure_capital_client()
@@ -8288,6 +8301,8 @@ class OrcaKillCycle:
         Only falls back to API calls if cache is empty/stale.
         This prevents Kraken rate limiting on DigitalOcean.
         """
+        if no_external_api_calls():
+            return {}
         prices = {}
         
         # 1. TRY CACHE FIRST (FREE! No API calls!)
@@ -8399,6 +8414,8 @@ class OrcaKillCycle:
     
     def get_available_cash(self) -> Dict[str, float]:
         """Get available cash across ALL exchanges using LIVE API prices."""
+        if no_external_api_calls():
+            return {}
         cash: Dict[str, float] = {}
         self.last_cash_status = {'alpaca': 'unknown', 'kraken': 'unknown', 'binance': 'unknown', 'capital': 'unknown'}
         
@@ -8666,6 +8683,8 @@ class OrcaKillCycle:
 
     def get_all_positions(self) -> Dict[str, list]:
         """Get all existing positions across ALL exchanges that could be sold."""
+        if no_external_api_calls():
+            return {'alpaca': [], 'kraken': [], 'binance': [], 'capital': []}
         all_positions = {'alpaca': [], 'kraken': [], 'binance': [], 'capital': []}
         
         # Alpaca positions
@@ -9029,6 +9048,8 @@ class OrcaKillCycle:
 
     def monitor_portfolio_truth(self) -> List[Dict[str, Any]]:
         """Cross-check tracked positions vs real balances to catch mismatches."""
+        if no_external_api_calls():
+            return []
         #   THE TRUTH UPDATE
         if self.real_portfolio:
             try:
@@ -9258,6 +9279,8 @@ class OrcaKillCycle:
         Returns:
             Dict summarising transfers attempted, sent, and any errors.
         """
+        if no_external_api_calls():
+            return {"swept": False, "reason": "AUREON_NO_EXTERNAL_API_CALLS"}
         result = {'transfers': [], 'total_swept': 0.0, 'errors': []}
 
         kraken_client = self.clients.get('kraken')
@@ -9364,6 +9387,8 @@ class OrcaKillCycle:
         Returns:
             Dict with harvested positions and freed cash
         """
+        if no_external_api_calls():
+            return {"harvested": [], "still_holding": [], "total_value": 0.0, "total_freed": 0.0, "reason": "AUREON_NO_EXTERNAL_API_CALLS"}
         results = {
             'harvested': [],
             'still_holding': [],
@@ -10652,6 +10677,8 @@ class OrcaKillCycle:
         
         THE QUEEN HAS SPOKEN: No buy executes without profit potential!
         """
+        if no_external_api_calls():
+            return {'status': 'HELD', 'reason': 'AUREON_NO_EXTERNAL_API_CALLS'}
         #
         #       CROSS-SYSTEM CONFLICT CHECK (spot vs margin unity)
         #
@@ -11103,6 +11130,8 @@ class OrcaKillCycle:
         Returns:
             Order result or blocked status dict
         """
+        if no_external_api_calls():
+            return {'status': 'HELD', 'reason': 'AUREON_NO_EXTERNAL_API_CALLS'}
         #                                                                    
         #       THE SACRED PROFIT GATE - ENFORCED!    
         #                                                                    
@@ -11947,6 +11976,8 @@ class OrcaKillCycle:
 
         Logs the order ID to verify execution on the exchange.
         """
+        if no_external_api_calls():
+            return {'status': 'HELD', 'reason': 'AUREON_NO_EXTERNAL_API_CALLS'}
         # Guard: refuse to sell without confirmed entry cost unless user manually aborted
         _is_abort = reason in ('USER_ABORT', 'ctrl_c_cleanup')
         if entry_cost <= 0 and not _is_abort:
@@ -13485,6 +13516,9 @@ class OrcaKillCycle:
         4. SELL at perfect moment
         5. RETURN realized P&L
         """
+        if no_external_api_calls():
+            print("  ORCA HUNT & KILL HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return 0.0
         print("="*60)
         print(f"  ORCA HUNT & KILL CYCLE - {symbol} ({exchange or 'auto'})")
         print("="*60)
@@ -13941,6 +13975,9 @@ class OrcaKillCycle:
           NO STOP LOSS - DON'T PULL OUT EARLY!
         Only exit on: TARGET HIT or USER ABORT (Ctrl+C)
         """
+        if no_external_api_calls():
+            print("  FAST KILL HUNT HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         print("\n" + " "*30)
         print("     FAST KILL HUNT - ORCA INTELLIGENCE   ")
         print(" "*30)
@@ -14309,6 +14346,9 @@ class OrcaKillCycle:
         5. DON'T PULL OUT EARLY - No timeout exits, NO STOP LOSS!
         6. Only exit on: TARGET HIT or USER ABORT (Ctrl+C)
         """
+        if no_external_api_calls():
+            print("  ORCA PACK HUNT HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         print("\n" + " "*30)
         print("  ORCA DYNAMIC PACK HUNT - MONITOR + SCAN + BARTER")
         print(" "*30)
@@ -15279,6 +15319,9 @@ class OrcaKillCycle:
         
         NO STOP LOSS - HOLD UNTIL PROFIT!
         """
+        if no_external_api_calls():
+            print("  ORCA AUTONOMOUS LOOP HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return
         # Max positions: <=0 means unlimited, can be overridden by ORCA_MAX_POSITIONS env.
         env_max_positions = os.getenv('ORCA_MAX_POSITIONS', '').strip().lower()
         if env_max_positions:
@@ -19623,6 +19666,8 @@ class OrcaKillCycle:
         Uses all available intelligence systems to find the most promising trading candidates.
         This is the core of STAGE 1.
         """
+        if no_external_api_calls():
+            return []
         all_candidates = []
         candidate_details = {} # Store detailed info for the winner
 
@@ -19860,6 +19905,9 @@ class OrcaKillCycle:
         3. Trade execution loop
         4. War Room dashboard updates
         """
+        if no_external_api_calls():
+            print("  ORCA WAR ROOM HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return
         import time
         from rich.live import Live
 
@@ -20143,6 +20191,10 @@ def _production_preflight(orca: "OrcaKillCycle", live_mode: bool) -> None:
     if not live_mode:
         return
 
+    if no_external_api_calls():
+        print("  Production preflight SKIPPED - AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     # 1) Required runtime packages for full live intelligence stack
     required_modules = ["dotenv", "numpy", "scipy", "aiohttp", "websockets"]
     missing = []
@@ -20177,6 +20229,10 @@ def _precheck_exchange_network(live_mode: bool, timeout_sec: float = 2.0) -> Non
     client performing its own retry loops during autonomous boot.
     """
     if not live_mode:
+        return
+
+    if no_external_api_calls():
+        print("  Network precheck SKIPPED - AUREON_NO_EXTERNAL_API_CALLS")
         return
 
     import socket

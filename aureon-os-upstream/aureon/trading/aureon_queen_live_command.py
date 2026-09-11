@@ -13,6 +13,8 @@
 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -158,6 +160,9 @@ class QueenLiveAnalyzer:
         
     def feed_price(self, symbol: str, price: float, timestamp: float):
         """Feed price data to Queen"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_live_command.QueenLiveAnalyzer.feed_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if symbol not in self.price_history:
             self.price_history[symbol] = deque(maxlen=500)
         self.price_history[symbol].append({
@@ -377,6 +382,9 @@ class QueenLiveAnalyzer:
 
 def print_queen_dashboard(analyzer: QueenLiveAnalyzer):
     """Print Queen's analysis dashboard"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_live_command.print_queen_dashboard blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     os.system('clear' if os.name != 'nt' else 'cls')
     
     analysis = analyzer.analyze()
@@ -454,6 +462,9 @@ def print_queen_dashboard(analyzer: QueenLiveAnalyzer):
 async def run_queen_command_center():
     """Run the Queen's live command center"""
     
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_live_command.run_queen_command_center blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print()
     print("👑" * 40)
     print()

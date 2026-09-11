@@ -110,6 +110,8 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 
@@ -222,8 +224,12 @@ class CelticWarfareLiveTrader:
     
     def connect_exchanges(self) -> bool:
         """Connect to enabled exchanges"""
+        if no_external_api_calls():
+            logger.info("CelticWarfareLiveTrader.connect_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
+
         success = True
-        
+
         if LIVE_CONFIG['USE_BINANCE'] and BINANCE_AVAILABLE:
             try:
                 self.binance_client = get_binance_client()
@@ -246,8 +252,12 @@ class CelticWarfareLiveTrader:
     
     def fetch_prices(self) -> Dict[str, Dict[str, float]]:
         """Fetch current prices from all connected exchanges"""
+        if no_external_api_calls():
+            logger.info("CelticWarfareLiveTrader.fetch_prices blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         prices = {}
-        
+
         # Binance prices
         if self.binance_client:
             try:
@@ -284,8 +294,12 @@ class CelticWarfareLiveTrader:
     
     def scan_and_deploy(self):
         """Scan for opportunities and deploy flying columns"""
+        if no_external_api_calls():
+            logger.info("CelticWarfareLiveTrader.scan_and_deploy blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0
+
         self.scan_count += 1
-        
+
         # Get opportunities from war room
         opportunities = self.war_room.scan_opportunities()
         
@@ -334,6 +348,10 @@ class CelticWarfareLiveTrader:
     
     def check_and_exit(self):
         """Check all positions for exit conditions"""
+        if no_external_api_calls():
+            logger.info("CelticWarfareLiveTrader.check_and_exit blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         exits = self.war_room.check_all_exits()
         
         for exit_info in exits:
@@ -352,6 +370,10 @@ class CelticWarfareLiveTrader:
     
     def run_cycle(self):
         """Run one trading cycle"""
+        if no_external_api_calls():
+            logger.info("CelticWarfareLiveTrader.run_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         # Fetch latest prices
         self.fetch_prices()
         
@@ -369,6 +391,10 @@ class CelticWarfareLiveTrader:
         Args:
             duration_minutes: How long to run (0 = indefinite)
         """
+        if no_external_api_calls():
+            logger.info("CelticWarfareLiveTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self._running = True
         start_time = time.time()
         end_time = start_time + (duration_minutes * 60) if duration_minutes > 0 else float('inf')
@@ -473,6 +499,10 @@ class CelticWarfareLiveTrader:
 # =============================================================================
 
 def main():
+    if no_external_api_calls():
+        logger.info("Celtic Warfare Live Trader main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     parser = argparse.ArgumentParser(
         description='☘️ Celtic Warfare Live Trader - Hit-and-Run Financial Tactics'
     )

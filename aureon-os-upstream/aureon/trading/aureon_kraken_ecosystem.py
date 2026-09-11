@@ -27,6 +27,8 @@ Gary Leckey & GitHub Copilot | November 2025
 "From Atom to Multiverse - We don't quit!"
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -352,6 +354,9 @@ class CapitalPool:
         
     def allocate(self, symbol: str, amount: float) -> bool:
         """Allocate capital to a position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.CapitalPool.allocate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         available = self.total_equity - sum(self.allocated.values()) - self.reserved
         if available >= amount:
             self.allocated[symbol] = self.allocated.get(symbol, 0) + amount
@@ -799,6 +804,9 @@ class MyceliumNetwork:
         
     def propagate(self) -> Dict[str, float]:
         """Propagate signals through the network"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.MyceliumNetwork.propagate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         new_activations = {}
         for symbol, activation in self.activations.items():
             new_activations[symbol] = activation
@@ -1011,6 +1019,9 @@ class PerformanceTracker:
         
         Returns: Position size as fraction of balance
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.PerformanceTracker.calculate_position_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if CONFIG['USE_KELLY_SIZING'] and self.total_trades >= 10:
             # Need at least 10 trades for stable Kelly calculation
             avg_win = CONFIG['TAKE_PROFIT_PCT'] / 100.0
@@ -1427,6 +1438,9 @@ class AureonKrakenEcosystem:
 
     def compute_total_equity(self) -> Tuple[float, float, Dict[str, float]]:
         """Return (total_equity, cash_in_base, holdings_map)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.compute_total_equity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         base = CONFIG['BASE_CURRENCY']
         holdings_value: Dict[str, float] = {}
         total_equity = 0.0
@@ -1503,6 +1517,9 @@ class AureonKrakenEcosystem:
         return total_equity, cash_balance, holdings_value
 
     def refresh_equity(self, mark_cycle: bool = False) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.refresh_equity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total, cash, holdings = self.compute_total_equity()
         
         # 🛠️ FIX: Auto-correct "Fake $1000 Balance" on first run
@@ -1539,6 +1556,9 @@ class AureonKrakenEcosystem:
         of trial and error. NOT made easier - the brain figured this out!
         """
         # Minimal sanity checks only
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.should_enter_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if pos_size <= 0 or self.total_equity_gbp <= 0:
             return False
         
@@ -1574,6 +1594,9 @@ class AureonKrakenEcosystem:
         🔧 FIX: MIN_NET_PROFIT was 0.03 which blocked many small wins.
         Now using 0.0001 (1/10th of a cent) to allow any real profit.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.should_exit_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         _change_pct = (current_price - pos.entry_price) / pos.entry_price
         
         # Calculate gross P&L (threshold handles fee math)
@@ -1653,6 +1676,9 @@ class AureonKrakenEcosystem:
     
     def load_state(self):
         """Load previous state from file"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.load_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             if not os.path.exists(CONFIG['STATE_FILE']):
                 return
@@ -1730,6 +1756,9 @@ class AureonKrakenEcosystem:
         
     async def websocket_handler(self, pairs: List[str]):
         """Handle WebSocket connection for real-time prices"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.websocket_handler blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not WEBSOCKETS_AVAILABLE:
             print("   ⚠️ WebSocket library not available. Real-time prices disabled.")
             return
@@ -1774,6 +1803,9 @@ class AureonKrakenEcosystem:
                 
     def start_websocket(self, symbols: List[str]):
         """Start WebSocket in background thread"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.start_websocket blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         ws_pairs = []
         for symbol in symbols:
             ws_pair = self.convert_symbol_to_ws(symbol)
@@ -1792,6 +1824,9 @@ class AureonKrakenEcosystem:
         
     def get_realtime_price(self, symbol: str) -> Optional[float]:
         """Get real-time price from WebSocket"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.get_realtime_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         with self.price_lock:
             if symbol in self.realtime_prices:
                 return self.realtime_prices[symbol]
@@ -1806,6 +1841,9 @@ class AureonKrakenEcosystem:
     
     def refresh_tickers(self) -> int:
         """Refresh ticker data from REST API"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.refresh_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         try:
             tickers_list = self.client.get_24h_tickers()
             self.ticker_cache = {}
@@ -1849,6 +1887,9 @@ class AureonKrakenEcosystem:
     
     def find_opportunities(self) -> List[Dict]:
         """Find best trading opportunities using all analysis methods - TRADES EVERYTHING"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.find_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         # In live mode, only look for pairs we can actually trade with our holdings
@@ -2066,6 +2107,9 @@ class AureonKrakenEcosystem:
     
     def open_position(self, opp: Dict):
         """Open a new position - dynamically frees capital if needed"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.open_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         symbol = opp['symbol']
         price = opp['price']
         
@@ -2237,6 +2281,9 @@ class AureonKrakenEcosystem:
         (score >= MARGIN_MIN_SCORE, coherence >= MARGIN_MIN_COHERENCE) and
         tighter risk management than spot positions.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.open_margin_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not CONFIG.get('MARGIN_ENABLED'):
             return
         if self.tracker.trading_halted:
@@ -2362,6 +2409,9 @@ class AureonKrakenEcosystem:
 
     def check_positions(self):
         """Check all positions for TP/SL"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.check_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         to_close = []
 
         for symbol, pos in self.positions.items():
@@ -2476,6 +2526,9 @@ class AureonKrakenEcosystem:
         Dynamic portfolio rebalancing - sell underperformers to buy better opportunities.
         Returns: Amount of capital freed up for new trades.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.rebalance_portfolio blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not CONFIG['ENABLE_REBALANCING']:
             return 0.0
             
@@ -2529,6 +2582,9 @@ class AureonKrakenEcosystem:
     def close_position(self, symbol: str, reason: str, pct: float, price: float):
         """Close a position"""
         # Don't pop yet! Wait for confirmation.
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.close_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if symbol not in self.positions:
             return
             
@@ -2688,6 +2744,9 @@ class AureonKrakenEcosystem:
     def run(self, interval: float = 5.0):
         """Main trading loop"""
         # 🛠️ CRITICAL: Compute REAL wallet balance BEFORE banner!
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_kraken_ecosystem.AureonKrakenEcosystem.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         total, cash, _holdings = self.compute_total_equity()
         if self.tracker.initial_balance == 1000.0 and self.tracker.total_trades == 0:
             if abs(total - 1000.0) > 1.0 and total > 0:
@@ -2977,6 +3036,9 @@ class AureonKrakenEcosystem:
 
 def main():
     # Configuration from environment
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_kraken_ecosystem.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     dry_run = os.getenv('LIVE', '0') != '1'
     balance = float(os.getenv('BALANCE', 1000))
     interval = float(os.getenv('INTERVAL', 5))

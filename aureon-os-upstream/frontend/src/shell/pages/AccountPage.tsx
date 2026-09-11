@@ -3,14 +3,14 @@
  *
  * Answers the four questions a real end user actually has: who am I signed in as, what can I reach,
  * what have I connected, and how do I leave. Everything on this page is the caller's OWN data — it
- * reads `/api/me`, `/api/providers` and `/api/billing/*`, all of which are on the tenant allowlist
+ * reads `/api/me`, `/api/providers` and passive `/api/billing/status`, all of which are on the tenant allowlist
  * (see `docs/architecture/MULTI_TENANT_AUTH.md`), so nothing here 403s for a signed-in user.
  *
  * Honest about the boundary rather than silent about it: a signed-in user is told, in words, that the
  * instance's control plane is the operator's and not theirs.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { KeyRound, LogOut, Shield, User, UserCircle, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useIdentity } from "@/hooks/useIdentity";
 import { useSetupStatus } from "@/hooks/useSetupStatus";
-import { ApiError, api } from "@/services/apiClient";
+import { api } from "@/services/apiClient";
+import { createReadOnlyPoller } from "@/services/readOnlyPoller";
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
 import { supabase } from "@/integrations/supabase/client";
+import { GlassPageHeader } from "@/shell/GlassPage";
 
 interface BalanceResponse {
   balance_gbp?: number | null;
   currency?: string | null;
   note?: string | null;
+  configured?: boolean | null;
+  missing_env?: string[];
+  tenancy_bridge?: string | null;
 }
 
 /** Honest states: we either have a figure, or we say why we do not. */
@@ -33,44 +39,36 @@ type BalanceState =
   | { kind: "value"; amount: number; currency: string }
   | { kind: "unavailable"; reason: string };
 
-export function AccountPage() {
-  const { identity, loading: idLoading, offline } = useIdentity();
-  const { hasProvider, liveProvider, providerCount, loading: setupLoading } = useSetupStatus();
-  const [balance, setBalance] = useState<BalanceState>({ kind: "loading" });
-  const [signingOut, setSigningOut] = useState(false);
+const balanceStore = createReadOnlyPoller<BalanceResponse>({
+  read: options => api.get("/api/billing/status", options), receiptMaxAgeMs: 45_000,
+});
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const b = await api.get<BalanceResponse>("/api/billing/balance");
-        if (cancelled) return;
-        if (typeof b.balance_gbp === "number") {
-          setBalance({ kind: "value", amount: b.balance_gbp, currency: b.currency || "GBP" });
-        } else {
-          setBalance({ kind: "unavailable", reason: b.note || "no balance recorded for this account" });
-        }
-      } catch (err) {
-        if (cancelled) return;
-        const reason =
-          err instanceof ApiError && err.status === 503
-            ? "billing backend not configured on this instance"
-            : err instanceof ApiError && err.offline
-              ? "gateway unreachable"
-              : "not available";
-        setBalance({ kind: "unavailable", reason });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+export function AccountPage() {
+  const { identity, loading: idLoading, error: identityError } = useIdentity();
+  const { known: setupKnown, error: setupError, hasProvider, liveProvider, providerCount, loading: setupLoading } = useSetupStatus();
+  const balanceRead = useReadOnlyPoller(balanceStore, 30_000, 8_000);
+  const amount = balanceRead.data?.balance_gbp;
+  const balanceReason = balanceRead.error || balanceRead.data?.note
+    || (balanceRead.data?.tenancy_bridge === "off" ? "Tenant billing balance unavailable: tenancy bridge is off" : null)
+    || (balanceRead.data?.configured === false
+      ? `Billing backend not configured${balanceRead.data.missing_env?.length ? ` (${balanceRead.data.missing_env.join(", ")})` : ""}`
+      : "No balance recorded for this account");
+  const balance: BalanceState = balanceRead.loading ? { kind: "loading" }
+    : typeof amount === "number" && Number.isFinite(amount)
+      ? { kind: "value", amount, currency: balanceRead.data?.currency || "GBP" }
+      : { kind: "unavailable", reason: balanceReason };
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const onSignOut = async () => {
     setSigningOut(true);
+    setSignOutError(null);
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       // AuthGate watches onAuthStateChange and drops back to the sign-in form.
+    } catch {
+      setSignOutError("Sign out was not confirmed. Retry when the account service is available.");
     } finally {
       setSigningOut(false);
     }
@@ -85,21 +83,13 @@ export function AccountPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <UserCircle className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Account &amp; Session</h1>
-          <p className="text-sm text-muted-foreground">
-            Who you are signed in as, what you have connected, and what this session may reach.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader icon={UserCircle} eyebrow="Your workspace" title="Account & Session"
+        description="Who you are signed in as, what you have connected, and what this session may reach." />
 
-      {offline && (
+      {identityError && (
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">
-            The gateway is unreachable, so session details cannot be confirmed right now. Nothing is
-            wrong with your account — this page needs the backend to answer.
+            Session details cannot be confirmed: {identityError}
           </CardContent>
         </Card>
       )}
@@ -127,7 +117,7 @@ export function AccountPage() {
             )}
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Multi-user mode</span>
-              <span>{identity.tenancyEnabled ? "on" : "off (single operator)"}</span>
+              <span>{identity.tenancyEnabled === null ? "unknown" : identity.tenancyEnabled ? "on" : "off (single operator)"}</span>
             </div>
             <p className="pt-1 text-xs text-muted-foreground">
               The account ref is a short hash, not your user id — enough to confirm which account you
@@ -145,17 +135,14 @@ export function AccountPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Connected</span>
-              <span>{setupLoading ? "checking…" : `${providerCount} provider${providerCount === 1 ? "" : "s"}`}</span>
+              <span className="text-muted-foreground">Keys stored</span>
+              <span>{setupLoading ? "checking…" : !setupKnown ? "unknown" : `${providerCount} provider${providerCount === 1 ? "" : "s"}`}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Answering your turns</span>
-              <span>{liveProvider ? liveProvider : hasProvider ? "stored, not yet live" : "none yet"}</span>
+              <span className="text-muted-foreground">Runtime configuration</span>
+              <span>{setupLoading ? "checking…" : !setupKnown ? "unknown" : liveProvider ? "attached" : hasProvider ? "key stored" : "none yet"}</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Your keys are encrypted at rest, isolated to your account, shown only as the last four
-              characters, and never written into the instance environment.
-            </p>
+            <p className="text-xs text-muted-foreground">{setupError || "Stored configuration and runtime attachment do not confirm a successful model response."}</p>
             <Button asChild variant="outline" size="sm">
               <Link to="/cognition/providers">Manage keys</Link>
             </Button>
@@ -171,7 +158,7 @@ export function AccountPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Gas tank</span>
+              <span className="text-muted-foreground">Recorded balance</span>
               <span>
                 {balance.kind === "loading" && "checking…"}
                 {balance.kind === "value" &&
@@ -213,17 +200,18 @@ export function AccountPage() {
                   </p>
                 )}
               </>
-            ) : (
+            ) : identity.kind === "admin" || identity.kind === "open" ? (
               <p className="text-muted-foreground">
                 This session is on the instance plane and can reach everything, including the control
                 plane. {identity.kind === "open" &&
                   "No authentication is configured on this instance — set AUREON_OPERATOR_API_KEY before exposing it."}
               </p>
-            )}
+            ) : <p className="text-muted-foreground">Session permissions are unconfirmed. Account and operator access remain subject to the current server authorization.</p>}
             <Button variant="outline" size="sm" onClick={onSignOut} disabled={signingOut}>
               <LogOut className="mr-2 h-4 w-4" />
               {signingOut ? "Signing out…" : "Sign out"}
             </Button>
+            {signOutError && <p role="alert" className="text-sm text-destructive">{signOutError}</p>}
           </CardContent>
         </Card>
       </div>

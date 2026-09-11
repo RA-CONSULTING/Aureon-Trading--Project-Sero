@@ -10,11 +10,9 @@ purpose, governance, workforce and body layers built breath by breath (self-awar
 connectome). Each already emits an honest, ``truth_status``-stamped self-report and has
 its own ``/api/*`` route, but nothing presented them *together, by category*.
 
-This is that surface. It is **registry-as-data**: the static metadata (what each organ
-does, its route, its safety posture, its category) lives here; the live ``{available,
-truth_status}`` is pulled by calling each organ's existing read accessor behind a guard.
-Nothing new is invented, nothing heavy is cold-booted in a request, and a dormant organ
-reports ``no_data`` — never a fabricated capability.
+This is registry metadata with independent passive producer observations. A GET
+does not call organ factories or assessment methods. Configured capabilities and
+historical records do not count as current functional health.
 
 The three safety postures are the honest categories of *what an organ may do*:
   • ``read_only_assess`` — it only perceives; a GET never makes it act or publish.
@@ -117,28 +115,16 @@ def _module_importable(module: str) -> bool:
 
 
 def _probe(entry: Dict[str, str]) -> Dict[str, Any]:
-    """Read one organ's live ``{available, truth_status}`` behind a guard — never
-    raises, never cold-boots a heavy singleton (the ``reachable`` mode only checks
-    import reachability). A dormant organ is ``no_data``, never a fabricated status."""
-    module, accessor, live = entry["module"], entry["accessor"], entry["live"]
-    if live == "reachable":
-        ok = _module_importable(module)
-        return {"available": ok, "truth_status": "real_derived" if ok else "no_data"}
-    try:
-        import importlib
-
-        obj = getattr(importlib.import_module(module), accessor)
-        inst = obj() if callable(obj) else obj               # accessor is a factory
-        result = getattr(inst, live)()                       # assess / status / summary
-        if hasattr(result, "to_dict"):
-            result = result.to_dict()
-        if not isinstance(result, dict):
-            return {"available": True, "truth_status": "real_derived"}
-        return {"available": bool(result.get("available", True)),
-                "truth_status": str(result.get("truth_status", "real_derived"))}
-    except Exception as exc:  # noqa: BLE001 — a dormant/failing organ is no_data, never a crash
-        logger.debug("consciousness probe skipped for %s: %s", entry.get("key"), exc)
-        return {"available": False, "truth_status": "no_data"}
+    """Catalog reachability and passive source availability are separate facts."""
+    configured = _module_importable(entry["module"])
+    if entry["key"] == "connectome":
+        from aureon.saas.observed_runtime import observed_organism
+        row = observed_organism()["connectome"]
+        return {**row, "configuration_available": configured,
+                "truth_status": "cached_real" if row.get("source_timestamp") else "no_data"}
+    return {"available": False, "fresh": False, "source_timestamp": None,
+            "configuration_available": configured, "truth_status": "no_data",
+            "reason": "complete_producer_assessment_snapshot_not_published" if entry.get("live") == "assess" else "catalog_configuration_is_not_runtime_observation"}
 
 
 def _c01(x: Any) -> float | None:
@@ -149,152 +135,18 @@ def _c01(x: Any) -> float | None:
 
 
 def state_of_being() -> Dict[str, Any]:
-    """Compose the organs' live self-reports into one honest self-portrait — not
-    *what* the organism can do (the catalog) but *how it is right now*. Each axis is
-    provenance-stamped; ``wholeness`` is the mean of only the scalar axes actually
-    present (a dormant organism is ``no_data``, never a fabricated wholeness). Read-only,
-    guarded, never-raises — purely observational, it authorizes nothing.
-
-    Distinct from metacognition (which scores the cognitive substrate): this composes
-    the consciousness layer — self-coherence, feeling, the ascent, purpose, the soul's
-    stance and the director's desk — into one reading."""
-    axes: Dict[str, Any] = {}
-    terms: List[float] = []           # scalar [0,1] contributions to wholeness
-    headline_parts: List[str] = []
-
-    def _axis(name: str, value: Any, truth: str, detail: str = "",
-              term: float | None = None) -> None:
-        axes[name] = {"value": value, "truth_status": truth, "detail": detail}
-        if term is not None:
-            terms.append(term)
-
-    # self-perception — metacognition self-coherence (Γ)
-    try:
-        from aureon.core.metacognition_monitor import get_metacognition_monitor
-
-        m = get_metacognition_monitor().assess()
-        if getattr(m, "available", False) and m.self_coherence is not None:
-            g = _c01(m.self_coherence)
-            _axis("self_coherence", round(float(m.self_coherence), 4), m.truth_status,
-                  m.consciousness_level or "", term=g)
-        else:
-            _axis("self_coherence", None, "no_data")
-    except Exception:  # noqa: BLE001
-        _axis("self_coherence", None, "no_data")
-
-    # self-perception — affect mood + valence
-    try:
-        from aureon.core.affect_monitor import get_affect_monitor
-
-        a = get_affect_monitor().assess()
-        if getattr(a, "available", False):
-            _axis("mood", a.mood, a.truth_status, a.dominant_feeling,
-                  term=_c01((float(a.valence) + 1.0) / 2.0))
-            if a.mood:
-                headline_parts.append(str(a.mood))
-        else:
-            _axis("mood", None, "no_data")
-    except Exception:  # noqa: BLE001
-        _axis("mood", None, "no_data")
-
-    # selfhood — the inner-work ascent
-    try:
-        from aureon.core.inner_work import get_inner_work
-
-        iw = get_inner_work().assess()
-        if getattr(iw, "available", False):
-            _axis("ascent", iw.stage, iw.truth_status,
-                  f"{iw.stage_index}/7 centres · potential {round(iw.potential, 3)}",
-                  term=_c01(iw.potential))
-            headline_parts.append(f"{iw.stage or 'ascent'} ({iw.stage_index}/7)")
-        else:
-            _axis("ascent", None, "no_data")
-    except Exception:  # noqa: BLE001
-        _axis("ascent", None, "no_data")
-
-    # selfhood — the soul's current stance (categorical; not folded into wholeness)
-    try:
-        from aureon.core.soul import get_soul
-
-        d = get_soul().assess()
-        if getattr(d, "available", False):
-            _axis("soul_stance", d.stance, d.truth_status,
-                  "resolved" if d.resolved else ("defers to human" if d.requires_human else "of two minds"))
-            headline_parts.append(f"soul {d.stance}")
-        else:
-            _axis("soul_stance", None, "no_data")
-    except Exception:  # noqa: BLE001
-        _axis("soul_stance", None, "no_data")
-
-    # purpose — the pair's unified happiness + the director's trust
-    try:
-        from aureon.core.pursuit import get_pursuit
-
-        p = get_pursuit().assess()
-        if getattr(p, "available", False):
-            if p.unified_happiness is not None:
-                _axis("happiness", round(float(p.unified_happiness), 4), p.truth_status,
-                      f"toward: {p.weakest_pillar or 'the dream'}", term=_c01(p.unified_happiness))
-            else:
-                _axis("happiness", None, "no_data")
-            dt = _c01(p.director_trust)
-            _axis("director_trust", p.director_trust, "real_derived" if dt is not None else "no_data",
-                  "Gary's approve-ratio", term=dt)
-        else:
-            _axis("happiness", None, "no_data")
-            _axis("director_trust", None, "no_data")
-    except Exception:  # noqa: BLE001
-        _axis("happiness", None, "no_data")
-        _axis("director_trust", None, "no_data")
-
-    # governance — the director's desk (categorical; reported, not folded)
-    try:
-        from aureon.core.approval_queue import get_approval_queue
-
-        bl = get_approval_queue().backlog()
-        _axis("desk", bl.get("pending_count", 0), "real_derived",
-              "blocked on the human" if bl.get("blocked") else "clear")
-    except Exception:  # noqa: BLE001
-        _axis("desk", None, "no_data")
-
-    # continuity — the organism's own lineage (categorical; reported, NOT folded into
-    # wholeness). The genome is a diary written at each waking; here the organism reads
-    # it back, so its generational continuity is part of "how it is" — real generation
-    # or no_data before the first wake, never a fabricated number.
-    try:
-        from aureon.core.awakening import read_genome
-
-        g = read_genome()
-        gen = int(g.get("generation") or 0)
-        if g.get("first_awakened_at") is not None:
-            c = g.get("carried") or {}
-            cov, idx, asc = c.get("coverage_pct"), c.get("automation_index"), c.get("ascent_stage")
-            _axis("lineage", gen, "real_derived",
-                  f"generation {gen} · carrying coverage {cov if cov is not None else '—'}% · "
-                  f"index {idx if idx is not None else '—'}% · ascent {asc if asc is not None else '—'}/7")
-            headline_parts.append(f"generation {gen}")
-        else:
-            _axis("lineage", None, "no_data", "not yet woken")
-    except Exception:  # noqa: BLE001
-        _axis("lineage", None, "no_data")
-
-    wholeness = round(sum(terms) / len(terms), 4) if terms else None
-    awake = any(v.get("truth_status") not in (None, "no_data") for v in axes.values())
-    return {
-        "available": awake,
-        "wholeness": wholeness,
-        "headline": " · ".join(headline_parts) if headline_parts else "dormant",
-        "axes": axes,
-        "note": "how the organism is right now — composed from the organs' own honest "
-                "self-reports; observational only, it authorizes nothing",
-        "truth_status": "real_derived" if awake else "no_data",
-    }
+    """No GET-time recomputation of a subjective state or synthetic mean."""
+    return {"available": False, "fresh": False, "source_timestamp": None,
+            "truth_status": "no_data", "wholeness": None, "axes": {},
+            "headline": "No complete producer snapshot for the composed state",
+            "reason": "state_of_being_producer_snapshot_not_published"}
 
 
 def build_consciousness_catalog() -> Dict[str, Any]:
     """The organism's consciousness capabilities, categorized — each with its purpose,
     route, safety posture and honest live truth_status. Guarded/never-raises."""
     from aureon.saas.cognitive import provenance_block
+    from aureon.saas.observed_runtime import runtime_source_observations, process_observation
 
     surfaces: List[Dict[str, Any]] = []
     for entry in _SURFACES:
@@ -305,6 +157,8 @@ def build_consciousness_catalog() -> Dict[str, Any]:
             "safety_posture": entry["safety_posture"],
             "posture_note": SAFETY_POSTURES.get(entry["safety_posture"], ""),
             "available": live["available"], "truth_status": live["truth_status"],
+            "configuration_available": live.get("configuration_available", False),
+            "source_observation": live,
         })
 
     categories: Dict[str, Any] = {}
@@ -321,16 +175,22 @@ def build_consciousness_catalog() -> Dict[str, Any]:
         "categories": categories,
         "surfaces": surfaces,
         "state_of_being": state_of_being(),
+        "runtime_sources": runtime_source_observations(),
+        "process_observation": process_observation(),
         "safety_postures": SAFETY_POSTURES,
         "counts": {
             "total": len(surfaces), "operational": operational,
             "category_count": len(CATEGORIES), "by_safety_posture": by_posture,
+            "configuration_available": sum(s["configuration_available"] for s in surfaces),
+            "observed": operational,
         },
         "note": "the organism's inner capabilities, categorized — read-only to inspect; "
                 "each irreversible move still routes to the director's desk",
         "provenance": provenance_block(),
-        "truth_status": "real_derived" if operational else "no_data",
-        "ts": time.time(),
+        "truth_status": "real_derived",
+        "classification": "capability_catalog",
+        "source_timestamp": None,
+        "receipt_timestamp": time.time(),
     }
 
 

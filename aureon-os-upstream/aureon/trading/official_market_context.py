@@ -10,6 +10,9 @@ from typing import Any, Protocol
 
 import requests
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 CFTC_GOLD_URI = "https://publicreporting.cftc.gov/resource/6dca-aqww.json"
 TREASURY_URI = (
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml"
@@ -54,6 +57,9 @@ def fetch_cftc_gold_context(
 ) -> dict[str, Any]:
     """Read the newest exact COMEX GOLD futures-only COT row."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.official_market_context.fetch_cftc_gold_context blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     response = session.get(
         CFTC_GOLD_URI,
         params={
@@ -100,6 +106,9 @@ def fetch_treasury_yield_context(
 ) -> dict[str, Any]:
     """Read the newest official daily Treasury par-yield row."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.official_market_context.fetch_treasury_yield_context blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     current = float(clock())
     year = dt.datetime.fromtimestamp(current, tz=dt.UTC).year
     response = session.get(
@@ -144,6 +153,9 @@ def fetch_noaa_kp_context(
 ) -> dict[str, Any]:
     """Read the newest official NOAA planetary K-index observation."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.official_market_context.fetch_noaa_kp_context blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     response = session.get(NOAA_KP_URI, timeout=20)
     response.raise_for_status()
     rows = response.json()

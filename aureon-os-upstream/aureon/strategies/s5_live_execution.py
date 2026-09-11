@@ -43,6 +43,7 @@ from aureon.governance.economic_boundary import (
     EconomicGovernanceBoundary,
     EconomicIntent,
 )
+from aureon.core.no_external_calls import no_external_api_calls
 
 MAX_RECEIPT_AGE_SECONDS = 300.0
 FUTURE_TOLERANCE_SECONDS = 5.0
@@ -3282,6 +3283,10 @@ class S5LiveExecutionEngine:
 
     async def run(self) -> Dict[str, Any]:
         """Run only after explicit adapter and receipt-source injection."""
+        if no_external_api_calls():
+            return self._record_no_data(
+                "AUREON_NO_EXTERNAL_API_CALLS"
+            )
         if self._state_load_error is not None:
             return self._record_no_data(
                 "valid_intent_state_readback_required"

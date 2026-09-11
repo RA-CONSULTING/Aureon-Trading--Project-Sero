@@ -18,6 +18,8 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
@@ -95,6 +97,9 @@ class S5UltraLabyrinth:
     
     def load_holdings(self):
         """Load Kraken balances"""
+        if no_external_api_calls():
+            print("S5UltraLabyrinth.load_holdings blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("\n🐙 Loading Kraken holdings...")
         
         try:
@@ -120,6 +125,9 @@ class S5UltraLabyrinth:
     
     async def run(self):
         """Main loop"""
+        if no_external_api_calls():
+            print("S5UltraLabyrinth.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("""
 ╔══════════════════════════════════════════════════════════╗
 ║   🌀 S5 ULTRA LABYRINTH - USE WHAT YOU HAVE 🌀          ║

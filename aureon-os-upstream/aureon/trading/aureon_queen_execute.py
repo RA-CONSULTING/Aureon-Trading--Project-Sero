@@ -15,6 +15,8 @@
 """
 
 from __future__ import annotations
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 
 import sys
@@ -255,16 +257,25 @@ class AlpacaExecutor:
     
     def get_account(self) -> Dict:
         """Get account info"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.AlpacaExecutor.get_account blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         resp = requests.get(f"{self.base_url}/v2/account", headers=self.headers)
         return resp.json()
     
     def get_buying_power(self) -> float:
         """Get available buying power"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.AlpacaExecutor.get_buying_power blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         acct = self.get_account()
         return float(acct.get('buying_power', 0))
     
     def get_positions(self) -> List[Dict]:
         """Get all positions"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.AlpacaExecutor.get_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         resp = requests.get(f"{self.base_url}/v2/positions", headers=self.headers)
         data = resp.json()
         return data if isinstance(data, list) else []
@@ -272,6 +283,9 @@ class AlpacaExecutor:
     def get_position(self, symbol: str) -> Optional[Dict]:
         """Get position for symbol"""
         # Convert BTC/USD -> BTCUSD
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.AlpacaExecutor.get_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         alpaca_symbol = symbol.replace('/', '')
         
         try:
@@ -287,6 +301,9 @@ class AlpacaExecutor:
     
     def get_quote(self, symbol: str) -> Dict:
         """Get current quote"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.AlpacaExecutor.get_quote blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         alpaca_symbol = symbol.replace('/', '')
         resp = requests.get(
             f"{self.crypto_url}/latest/quotes",
@@ -304,6 +321,9 @@ class AlpacaExecutor:
         qty: float = None        # Crypto quantity
     ) -> Dict:
         """Place a market order"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.AlpacaExecutor.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         alpaca_symbol = symbol.replace('/', '')
         
         order_data = {
@@ -860,6 +880,9 @@ class QueenExecutionEngine:
     
     def get_buying_power(self) -> float:
         """Get available buying power from selected exchange"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.get_buying_power blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if self.exchange == "kraken" and self.kraken:
             return self.kraken.get_stablecoin_balance()
         else:
@@ -880,6 +903,9 @@ class QueenExecutionEngine:
         Returns:
             Dict with sale result if a position was sold, None otherwise
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.check_positions_for_profit_sale blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self.exchange != "alpaca":
             return None  # Only implemented for Alpaca currently
         
@@ -979,6 +1005,9 @@ class QueenExecutionEngine:
         Returns:
             Dict with sale result if successful, None otherwise
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.execute_position_sale blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             symbol = position['symbol']
             qty = position['qty']
@@ -1095,6 +1124,9 @@ class QueenExecutionEngine:
         - Check terrain (market conditions)
         - Ensure clean shot (no slippage risk)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.war_band_sniper_check blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if not signal:
             return False
         
@@ -1131,6 +1163,9 @@ class QueenExecutionEngine:
         """
         🔫 SNIPER: Execute the kill with precision
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.war_band_sniper_kill blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not target:
             return None
         
@@ -1179,6 +1214,9 @@ class QueenExecutionEngine:
     
     def calculate_position_size(self, signal: HarmonicMomentumSignal) -> float:
         """Calculate position size based on buying power and confidence"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.calculate_position_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         buying_power = self.get_buying_power()
         
         # Use confidence to scale position (max 50% of buying power)
@@ -1195,6 +1233,9 @@ class QueenExecutionEngine:
     
     def execute_trade(self, signal: HarmonicMomentumSignal) -> Optional[TradeRecord]:
         """Execute a trade based on signal"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.execute_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not signal.is_actionable():
             print("❌ Signal not actionable")
             return None
@@ -1366,6 +1407,9 @@ class QueenExecutionEngine:
         6. Sniper (Precision execution)
         7. ThoughtBus emit result
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.run_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "=" * 70)
         print(f"👑 QUEEN CYCLE @ {datetime.now().strftime('%H:%M:%S')}")
         print("=" * 70)
@@ -1492,6 +1536,9 @@ class QueenExecutionEngine:
             interval_seconds: Seconds between cycles
             max_cycles: Maximum cycles (0 = unlimited)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_execute.QueenExecutionEngine.run_continuous blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "═" * 70)
         print("👑💰 QUEEN CONTINUOUS TRADING MODE 💰👑")
         print("═" * 70)
@@ -1526,6 +1573,9 @@ class QueenExecutionEngine:
 
 def main():
     """Main entry point"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_execute.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description="Queen Execution Engine")

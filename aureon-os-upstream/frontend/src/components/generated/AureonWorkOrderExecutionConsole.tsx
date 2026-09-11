@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { Activity, Archive, CheckCircle2, Lock, ShieldAlert } from "lucide-react";
+import { GlassPageHeader } from "@/shell/GlassPage";
+import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
+import { consoleDisplayValue } from "@/lib/generatedConsoleDisplayEvidence";
+import { useEffect, useState } from "react";
+import { Activity, Archive, CheckCircle2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,11 +12,12 @@ import {
   aureonEvolutionActivePatchCount,
 } from "@/components/generated/aureonEvolutionRuntimePatches";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generated report fields retain their existing schema boundary.
 type JsonMap = Record<string, any>;
 
 async function fetchJson(url: string): Promise<JsonMap> {
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return {};
     return await response.json();
   } catch {
@@ -22,8 +26,7 @@ async function fetchJson(url: string): Promise<JsonMap> {
 }
 
 function compact(value: unknown): string {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? number.toLocaleString() : String(value || "0");
+  return consoleDisplayValue(value);
 }
 
 function tone(status: string): string {
@@ -70,9 +73,12 @@ export function AureonWorkOrderExecutionConsole() {
   const activePatches = Array.isArray(registry.patches) ? registry.patches : report.runtime_patch_registry?.patches || [];
   const materializedPatchCount = AUREON_EVOLUTION_RUNTIME_PATCHES.length;
   const materializedActivePatchCount = aureonEvolutionActivePatchCount();
-  const top = useMemo(() => executions.slice(0, 80), [executions]);
+  const top = executions.slice(0, 80);
 
   return (
+    <div className="space-y-5">
+    <GlassPageHeader eyebrow="Coding System" title="Work orders" description="Execution receipts, queue movement and recorded validation evidence." icon={Activity} />
+    <GeneratedReportBoundary report={report} source="/aureon_frontend_work_order_execution.json" scope="recorded">
     <Card className="mb-5 bg-card/80">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -83,28 +89,28 @@ export function AureonWorkOrderExecutionConsole() {
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="border-success/40 bg-success/10 text-success">{report.status || "pending"}</Badge>
-          <Badge variant="outline" className="border-border bg-muted/20 text-muted-foreground">updated {report.generated_at ? new Date(report.generated_at).toLocaleTimeString() : "pending"}</Badge>
+          <Badge variant="outline" className="border-border bg-muted/20 text-muted-foreground">Recorded source {report.generated_at ? new Date(report.generated_at).toLocaleString() : "pending"}</Badge>
           <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">code materialized {materializedPatchCount}</Badge>
         </div>
         <div className="grid gap-2 md:grid-cols-5">
           <Stat label="orders executed" value={summary.executed_count} />
-          <Stat label="moved from queue" value={summary.moved_from_queue_count || movement.moved_from_queue_count} />
+          <Stat label="moved from queue" value={summary.moved_from_queue_count ?? movement.moved_from_queue_count} />
           <Stat label="remaining queue" value={summary.remaining_queue_count ?? movement.remaining_queue_count} />
-          <Stat label="validated" value={summary.validated_count || validation.validated_count} />
-          <Stat label="runtime patches active" value={summary.runtime_patch_count || patchSummary.active_patch_count} />
+          <Stat label="validated" value={summary.validated_count ?? validation.validated_count} />
+          <Stat label="recorded active patches" value={summary.runtime_patch_count ?? patchSummary.active_patch_count} />
         </div>
         <div className="grid gap-2 md:grid-cols-5">
           <Stat label="adapters" value={summary.adapter_record_count} />
           <Stat label="blocker cards" value={summary.blocker_card_count} />
           <Stat label="archive decisions" value={summary.archive_decision_count} />
-          <Stat label="validation failures" value={summary.failed_validation_count || validation.failed_validation_count || 0} />
-          <Stat label="queue drained" value={movement.queue_drained ? "yes" : "no"} />
+          <Stat label="validation failures" value={summary.failed_validation_count ?? validation.failed_validation_count} />
+          <Stat label="queue drained" value={movement.queue_drained === true ? "yes" : movement.queue_drained === false ? "no" : "Unavailable"} />
         </div>
         <div className="rounded-md border border-primary/25 bg-primary/10 p-3">
           <div className="mb-2 text-sm font-medium text-primary">Materialized Repo Code</div>
           <div className="grid gap-2 md:grid-cols-4">
             <Stat label="generated TS patches" value={materializedPatchCount} />
-            <Stat label="active in code" value={materializedActivePatchCount} />
+            <Stat label="declared active in code" value={materializedActivePatchCount} />
             <Stat label="module status" value={AUREON_EVOLUTION_RUNTIME_PATCH_SUMMARY.status} />
             <Stat label="source queue" value={AUREON_EVOLUTION_RUNTIME_PATCH_SUMMARY.sourceQueueCount} />
           </div>
@@ -113,7 +119,8 @@ export function AureonWorkOrderExecutionConsole() {
           </div>
         </div>
         <div className="rounded-md border border-success/25 bg-success/10 p-3">
-          <div className="mb-2 text-sm font-medium text-success">Runtime Patch Activation</div>
+          <div className="mb-2 text-sm font-medium text-success">Recorded patch registry</div>
+          <p className="mb-2 text-xs text-muted-foreground">Registry source date: {registry.generated_at || report.runtime_patch_registry?.generated_at || "Unavailable"}. Imported declarations do not attest runtime activation.</p>
           <div className="grid gap-2 md:grid-cols-3">
             {activePatches.slice(0, 6).map((patch: JsonMap) => (
               <div key={patch.patch_id} className="rounded border border-success/20 bg-background/20 px-2 py-1 text-[11px] text-success/80">
@@ -161,6 +168,8 @@ export function AureonWorkOrderExecutionConsole() {
         </ScrollArea>
       </CardContent>
     </Card>
+    </GeneratedReportBoundary>
+    </div>
   );
 }
 

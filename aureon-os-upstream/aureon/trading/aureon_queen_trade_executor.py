@@ -15,6 +15,8 @@ No more manual exchange selection - QUEEN DECIDES.
 Author: Aureon Trading System
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -119,6 +121,9 @@ def queen_execute_trade(
     Returns:
         TradeResult with success status, exchange used, order details
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_trade_executor.queen_execute_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if not QUEEN_AUTONOMY_AVAILABLE:
         # Fallback: use preferred exchange directly if Queen unavailable
         _safe_print("⚠️ Queen Autonomy unavailable - falling back to preferred exchange")
@@ -353,6 +358,9 @@ def queen_test_execution():
     Test Queen's trade execution with a dry run.
     Use this to verify the system is working before live trading.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_trade_executor.queen_test_execution blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     _safe_print("\n" + "="*60)
     _safe_print("👑 QUEEN AUTONOMY TEST")
     _safe_print("="*60)

@@ -41,6 +41,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from collections import deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # UTF-8 fix for Windows
 if sys.platform == 'win32':
     os.environ['PYTHONIOENCODING'] = 'utf-8'
@@ -511,8 +513,12 @@ class OrcaKillerWhaleIntelligence:
     
     def _init_market_connections(self):
         """Initialize connections to all global market feeds."""
+        if no_external_api_calls():
+            logger.info("Orca market connections blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         market_count = 0
-        
+
         # Kraken (crypto spot)
         if KRAKEN_AVAILABLE:
             try:
@@ -605,13 +611,17 @@ class OrcaKillerWhaleIntelligence:
         """
         Actively scan all connected markets for whale activity.
         This gives Orca proactive hunting capability across exchanges.
-        
+
         Args:
             symbols: Optional list of symbols to scan. If None, scans all hot symbols.
-        
+
         Returns:
             List of detected whale signals
         """
+        if no_external_api_calls():
+            logger.info("Orca scan_global_markets blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         whale_signals = []
         
         # Define symbol universe if not provided
@@ -1533,16 +1543,20 @@ class OrcaKillerWhaleIntelligence:
     async def scan_movers_shakers(self) -> List[WhaleSignal]:
         """
         🌊 SCAN FOR MOVERS & SHAKERS 🌊
-        
+
         Uses the unified Movers & Shakers Scanner to identify:
         - 🐋 WHALES - Large institutional players
         - 🦈 SHARKS - HFT algorithms
         - 🐙 OCTOPI - Market manipulators (AVOID)
         - 🐬 DOLPHINS - Smart money
         - 🦑 SQUIDS - Dark pool operators
-        
+
         Returns: List of whale signals derived from detected movers
         """
+        if no_external_api_calls():
+            logger.info("Orca scan_movers_shakers blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         if not self.movers_shakers:
             logger.debug("🌊 Movers & Shakers scanner not available")
             return []
@@ -2041,11 +2055,15 @@ class OrcaKillerWhaleIntelligence:
     def start_hunt(self, opportunity: OrcaOpportunity) -> bool:
         """
         Begin tracking an active hunt.
-        
+
         HIERARCHY: Orca commands Micro Profit for execution.
-        
+
         Returns: True if hunt started successfully, False if blocked.
         """
+        if no_external_api_calls():
+            logger.info("Orca start_hunt held by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
+
         if not self._validate_opportunity(opportunity):
             logger.info(f"🦈🛑 Hunt blocked by risk/quality gates: {opportunity.symbol}")
             return False

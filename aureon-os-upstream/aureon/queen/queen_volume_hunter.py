@@ -46,6 +46,8 @@ from typing import Dict, Optional, Tuple, List, Any
 from dataclasses import dataclass, field
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Exchange clients
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
@@ -1173,10 +1175,19 @@ class QueenVolumeHunter:
     def hunt(self, duration_minutes: int = 30) -> Dict:
         """
         Main hunting loop - FULLY INTEGRATED 🏹
-        
+
         Scans for volume breakouts across multiple exchanges,
         uses Queen approval gating, and emits signals to ORCA.
         """
+        if no_external_api_calls():
+            logger.info("Queen Volume Hunter blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                'status': 'external_calls_blocked',
+                'reason': 'AUREON_NO_EXTERNAL_API_CALLS',
+                'scans': 0,
+                'signals_found': 0,
+                'trades': [],
+            }
         print("=" * 70)
         print("👑 QUEEN SERO's VOLUME HUNT BEGINS - FULLY INTEGRATED")
         print("=" * 70)

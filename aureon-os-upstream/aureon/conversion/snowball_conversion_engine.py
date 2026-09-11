@@ -35,6 +35,8 @@ from collections import deque
 from dataclasses import dataclass, field
 import logging
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
@@ -119,6 +121,10 @@ class PriceCache:
         
     async def update_all_prices(self):
         """Fetch ALL prices from multiple sources"""
+        if no_external_api_calls():
+            logger.warning("PriceFeed.update_all_prices blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         tasks = [
             self._fetch_binance_prices(),
             self._fetch_kraken_prices(),
@@ -271,6 +277,10 @@ class SnowballEngine:
         
     async def initialize(self):
         """Initialize the engine"""
+        if no_external_api_calls():
+            logger.warning("SnowballEngine.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print("\n" + "="*80)
         print("❄️🔥 SNOWBALL CONVERSION ENGINE INITIALIZING 🔥❄️")
         print("="*80)
@@ -480,10 +490,14 @@ class SnowballEngine:
         
         return [(o[0], o[1], o[2], o[3], o[4]) for o in opportunities]
         
-    async def execute_conversion(self, from_asset: str, to_asset: str, 
-                                  from_amount: float, to_amount: float, 
+    async def execute_conversion(self, from_asset: str, to_asset: str,
+                                  from_amount: float, to_amount: float,
                                   net_gain: float) -> bool:
         """Execute a conversion"""
+        if no_external_api_calls():
+            logger.warning("SnowballEngine.execute_conversion blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
+
         from_price = self.price_cache.get_price(from_asset)
         to_price = self.price_cache.get_price(to_asset)
         from_value = from_amount * from_price
@@ -628,9 +642,13 @@ class SnowballEngine:
     async def run_snowball(self, duration_seconds: int = 300):
         """
         RUN THE SNOWBALL!
-        
+
         Continuously scan and convert for the specified duration.
         """
+        if no_external_api_calls():
+            logger.warning("SnowballEngine.run_snowball blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         await self.initialize()
         
         self.running = True
@@ -751,8 +769,12 @@ class SnowballEngine:
 
 async def main():
     """Main entry point"""
+    if no_external_api_calls():
+        logger.warning("snowball_conversion_engine.main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Snowball Conversion Engine')
     parser.add_argument('--live', action='store_true', help='Run in LIVE mode (real trades)')
     parser.add_argument('--duration', type=int, default=300, help='Duration in seconds')

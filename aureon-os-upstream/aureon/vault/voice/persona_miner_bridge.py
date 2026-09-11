@@ -35,6 +35,12 @@ This is the bridge between Stage 6.5's reflection cards (the system's
 self-observation) and the future Stage 7.2 goal-skill aligner that
 prefers learned-winning patterns over heuristic verb→intent mapping.
 
+RELEASE STATE: released by owner decree 2026-09-06 (Gary Leckey), recorded
+in ``aureon_fusion/state/goals/dispatch_release.json`` and read through
+``_goal_release`` (fail-closed: absent/invalid record or the module missing
+from the record's modules list → every effect method still raises
+``PERSONA_MINER_RELEASE_HOLD``).
+
 Gary Leckey · Aureon Institute — April 2026
 """
 
@@ -58,6 +64,15 @@ PHI: float = (1.0 + math.sqrt(5.0)) / 2.0
 PERSONA_MINER_RELEASE_HOLD = (
     "persona_miner_bridge_hold:production_magic_star_release_unavailable"
 )
+
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("persona_miner_bridge"):
+        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -241,13 +256,13 @@ class PersonaMinerBridge:
         self._subscribed = False
         self._published_patterns: set = set()
 
-        # Construction is deliberately inert. Historical persisted-state
-        # loading remains behind the release HOLD in _load_persisted().
+        # Construction is deliberately inert; persisted-state loading only
+        # happens via an explicit _load_persisted() call on the released path.
 
     # ─── lifecycle ───────────────────────────────────────────────────────
 
     def start(self) -> None:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         if self._subscribed or self.thought_bus is None:
             return
         for topic in self.INBOUND_TOPICS:
@@ -261,7 +276,7 @@ class PersonaMinerBridge:
     # ─── ingest ──────────────────────────────────────────────────────────
 
     def _on_thought(self, thought: Any) -> None:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         topic = getattr(thought, "topic", "") or ""
         payload = getattr(thought, "payload", {}) or {}
         if not isinstance(payload, dict):
@@ -276,7 +291,7 @@ class PersonaMinerBridge:
 
         Mirrors MinerBrain's ``record_prediction(brain_output)`` shape,
         but generic across topics."""
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         now = time.time()
 
         # Track latest SLS regardless of topic.
@@ -306,7 +321,7 @@ class PersonaMinerBridge:
     # ─── learners ────────────────────────────────────────────────────────
 
     def _persona_stat(self, persona: str) -> PersonaStats:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         with self._lock:
             stat = self._persona_stats.get(persona)
             if stat is None:
@@ -315,7 +330,7 @@ class PersonaMinerBridge:
             return stat
 
     def _intent_stat(self, persona: str, kw: str) -> IntentStats:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         key = (persona, kw)
         with self._lock:
             stat = self._intent_stats.get(key)
@@ -325,7 +340,7 @@ class PersonaMinerBridge:
             return stat
 
     def _record_persona_collapse(self, payload: Dict[str, Any], now: float) -> MinerPacket:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         persona = str(payload.get("winner") or "")
         with self._lock:
             stat = self._persona_stat(persona)
@@ -340,7 +355,7 @@ class PersonaMinerBridge:
         return packet
 
     def _record_goal_request(self, payload: Dict[str, Any], now: float) -> MinerPacket:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         persona = str(payload.get("proposed_by_persona") or "")
         text = str(payload.get("text") or "")
         goal_id = str(payload.get("goal_id") or "")
@@ -360,7 +375,7 @@ class PersonaMinerBridge:
         return packet
 
     def _record_goal_terminal(self, topic: str, payload: Dict[str, Any], now: float) -> MinerPacket:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         goal_id = str(payload.get("goal_id") or "")
         with self._lock:
             open_record = self._open_goals.pop(goal_id, None)
@@ -413,7 +428,7 @@ class PersonaMinerBridge:
         return packet
 
     def _record_reflection(self, payload: Dict[str, Any], now: float) -> MinerPacket:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         persona = str(payload.get("persona") or "")
         sls_delta = float(payload.get("sls_delta") or 0.0)
         outcome = str(payload.get("outcome") or "SILENT")
@@ -434,7 +449,7 @@ class PersonaMinerBridge:
         return packet
 
     def _record_raw(self, topic: str, payload: Dict[str, Any], now: float) -> MinerPacket:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         packet = MinerPacket(
             packet_type=topic, ts=now,
             sls_at_event=self._latest_sls, raw=dict(payload),
@@ -446,7 +461,7 @@ class PersonaMinerBridge:
     # ─── pattern publication ─────────────────────────────────────────────
 
     def _maybe_publish_pattern(self, persona: str, intent_keyword: str) -> None:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         with self._lock:
             stat = self._intent_stats.get((persona, intent_keyword))
             if stat is None:
@@ -465,7 +480,7 @@ class PersonaMinerBridge:
             })
 
     def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return
         try:
@@ -490,7 +505,7 @@ class PersonaMinerBridge:
         ``min_confidence`` AND has a recorded winning skill chain, return
         it. Otherwise consult the SkillLibrary directly for keyword
         matches. Returns None when no recommendation can be made."""
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         threshold = float(min_confidence) if min_confidence is not None else self.pattern_threshold
         keywords = _extract_intent_keywords(intent_text)
         # 1. Pattern-library lookup first.
@@ -530,7 +545,7 @@ class PersonaMinerBridge:
     def _lookup_skill(self, name: str) -> Any:
         """Best-effort SkillLibrary.get(name) without coupling to the
         library's exact API surface."""
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         for getter in ("get", "lookup", "find"):
             fn = getattr(self.skill_library, getter, None)
             if callable(fn):
@@ -580,7 +595,7 @@ class PersonaMinerBridge:
     # ─── persistence ─────────────────────────────────────────────────────
 
     def persist(self) -> Optional[str]:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         try:
             path = Path(self.persistence_path)
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -593,7 +608,7 @@ class PersonaMinerBridge:
             return None
 
     def _load_persisted(self) -> None:
-        raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+        _require_release()
         path = Path(self.persistence_path)
         if not path.exists():
             return
@@ -637,7 +652,7 @@ def get_persona_miner_bridge(
     thought_bus: Any = None,
     skill_library: Any = None,
 ) -> PersonaMinerBridge:
-    raise RuntimeError(PERSONA_MINER_RELEASE_HOLD)
+    _require_release()
     global _singleton
     with _singleton_lock:
         if _singleton is None:

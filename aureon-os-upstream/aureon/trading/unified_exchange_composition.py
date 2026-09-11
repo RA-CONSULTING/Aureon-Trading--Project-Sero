@@ -56,6 +56,9 @@ from aureon.governance.workforce_druid_resolver import (
 from aureon.swarm.auris_node_receipts import TrustedAurisNodeResolver
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 @dataclass(frozen=True, slots=True)
 class UnifiedExchangeUnityComposition:
     """The four inseparable runtime pieces of the migrated shared client."""
@@ -307,6 +310,9 @@ def build_workforce_celtic_unified_exchange_unity_composition(
 ) -> WorkforceCelticUnityComposition:
     """Seat a complete 41+41 cloud brain fabric in the governed organism."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.unified_exchange_composition.build_workforce_celtic_unified_exchange_unity_composition blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if not isinstance(workforce, TrustedWorkforceDecisionEngine):
         raise TypeError("trusted_workforce_decision_engine_required")
     report = company_brain_fabric_report(workforce)

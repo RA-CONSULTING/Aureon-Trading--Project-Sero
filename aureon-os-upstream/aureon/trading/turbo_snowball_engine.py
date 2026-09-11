@@ -24,6 +24,8 @@
 ╚═══════════════════════════════════════════════════════════════════════════════════╝
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -82,6 +84,9 @@ class TurboState:
     conversions: int = 0
     
     def current_value(self, prices: Dict[str, float]) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.turbo_snowball_engine.TurboState.current_value blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total = 0.0
         for asset, amount in self.holdings.items():
             price = prices.get(asset, 0)
@@ -89,6 +94,9 @@ class TurboState:
         return total
         
     def net_profit(self, prices: Dict[str, float]) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.turbo_snowball_engine.TurboState.net_profit blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         return self.current_value(prices) - self.starting_value_usd
 
 
@@ -112,6 +120,9 @@ class TurboPriceStream:
         
     async def start(self):
         """Start streaming prices"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.turbo_snowball_engine.TurboPriceStream.start blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.running = True
         
         # Start WebSocket streams
@@ -275,6 +286,9 @@ class TurboSnowball:
         
     async def initialize(self, starting_holdings: Dict[str, float] = None):
         """Initialize the engine"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.turbo_snowball_engine.TurboSnowball.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "="*80)
         print("⚡🔥 TURBO SNOWBALL ENGINE 🔥⚡")
         print("="*80)
@@ -485,6 +499,9 @@ class TurboSnowball:
         
         Scan continuously, convert when profitable, compound forever.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.turbo_snowball_engine.TurboSnowball.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.running = True
         self.start_time = time.time()
         end_time = self.start_time + duration_seconds
@@ -600,6 +617,9 @@ class TurboSnowball:
 
 
 async def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.turbo_snowball_engine.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description='Turbo Snowball Engine')

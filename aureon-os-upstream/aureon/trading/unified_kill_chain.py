@@ -1,3 +1,5 @@
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import time
@@ -567,6 +569,9 @@ class UnifiedKillChain:
 
     @harmonic_streaming_runtime
     def run_loop(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_kill_chain.UnifiedKillChain.run_loop blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         log_queen("System fully online. Entering dormant stalking mode.")
         while self.running:
             try:

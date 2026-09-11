@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -15,6 +17,26 @@ from aureon.vault.voice.affinity_chorus import (
 )
 from aureon.vault.voice.aureon_personas import build_aureon_personas
 from aureon.vault.voice.persona_vacuum import PersonaVacuum
+
+
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
+@pytest.fixture
+def released(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    record_dir = tmp_path / "record"
+    record_dir.mkdir()
+    record = record_dir / "dispatch_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["affinity_chorus", "persona_vacuum", "persona_action"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("GOAL_DISPATCH_RELEASE_RECORD", str(record))
+    return record
 
 
 class _Trap:
@@ -88,3 +110,51 @@ def test_vacuum_cannot_publish_or_merge_chorus_contributions() -> None:
     with pytest.raises(RuntimeError, match="persona_vacuum_hold"):
         vacuum._sample({})
     assert chorus.contributions() == []
+
+
+# ─── Released path ───────────────────────────────────────────────────────────
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.handlers: dict = {}
+        self.published: list = []
+
+    def subscribe(self, topic: str, handler) -> None:
+        self.handlers.setdefault(topic, []).append(handler)
+
+    def publish(self, *args: Any, **kwargs: Any) -> None:
+        self.published.append(args[0] if args else kwargs)
+
+
+def test_released_start_subscribes_and_publish_stamps_local(released: Path) -> None:
+    bus = _Bus()
+    chorus = AffinityChorus(thought_bus=bus)
+    chorus.start()
+    assert AffinityChorus.TOPIC in bus.handlers
+    chorus.publish("peer-a", {"mystic": 2.0})
+    assert chorus.merged() == {"mystic": 2.0}
+    published = [t for t in bus.published
+                 if getattr(t, "topic", "") == AffinityChorus.TOPIC]
+    assert len(published) == 1
+    assert published[0].payload["peer_id"] == "peer-a"
+
+
+def test_released_vacuum_contributes_and_samples_through_chorus(
+    released: Path,
+) -> None:
+    bus = _Bus()
+    chorus = AffinityChorus(thought_bus=bus, ttl_s=60.0)
+    import random
+    vacuum = PersonaVacuum(
+        personas=build_aureon_personas(),
+        thought_bus=bus,
+        chorus=chorus,
+        rng=random.Random(3),
+    )
+    scores = vacuum.contribute_affinity()
+    assert scores, "local affinity vector must be returned for inspection"
+    assert chorus.merged(), "contribution must land in the chorus"
+    winner, probs, _ = vacuum._sample({})
+    assert winner in vacuum.persona_names
+    assert abs(sum(probs.values()) - 1.0) < 1e-9

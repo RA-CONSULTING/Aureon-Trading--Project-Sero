@@ -32,6 +32,8 @@ from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field, asdict
 from threading import Lock
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -176,7 +178,13 @@ class TemporalBiometricLink:
         """Start the WebSocket connection to biometric sensors"""
         if self.running:
             return
-        
+
+        if no_external_api_calls():
+            logger.info("TemporalBiometricLink.start blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.quantum_link.link_active = False
+            self.last_error = "AUREON_NO_EXTERNAL_API_CALLS"
+            return
+
         self.running = True
         self.ws_thread = threading.Thread(target=self._ws_worker, daemon=True)
         self.ws_thread.start()

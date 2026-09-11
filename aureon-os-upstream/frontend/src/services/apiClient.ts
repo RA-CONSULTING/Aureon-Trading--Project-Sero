@@ -17,6 +17,11 @@
  * Prefer this over bare `fetch("/api/...")` in new code.
  */
 
+import {
+  AUTH_RESOLUTION_FAILED,
+  AUTH_RESOLUTION_HEADER,
+} from './authResolution';
+
 /**
  * An optional async provider of the current auth bearer token (e.g. the Supabase
  * session access token). Injected once at app bootstrap via `setAuthTokenProvider`
@@ -46,7 +51,7 @@ export class ApiError extends Error {
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
-interface RequestOptions {
+export interface RequestOptions {
   /** Abort the request after this many ms (default 8000). */
   timeoutMs?: number;
   /** Extra headers merged over the defaults. */
@@ -61,27 +66,35 @@ async function request<T>(
   opts: RequestOptions = {},
 ): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-
-  // If the caller passed their own signal, abort ours when theirs fires.
-  if (opts.signal) {
-    if (opts.signal.aborted) controller.abort();
-    else opts.signal.addEventListener("abort", () => controller.abort(), { once: true });
-  }
-
-  // Attach the end-user session bearer when one exists (tenant identity). A missing
-  // provider, a null token, or a throw all mean "no auth header" — unchanged behavior.
-  let authHeader: Record<string, string> = {};
-  try {
-    const token = authTokenProvider ? await authTokenProvider() : null;
-    if (token) authHeader = { Authorization: `Bearer ${token}` };
-  } catch {
-    /* token resolution failed — proceed unauthenticated */
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(path, {
+  let timedOut = false;
+  const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const callerAbort = () => controller.abort();
+  opts.signal?.addEventListener("abort", callerAbort, { once: true });
+  if (opts.signal?.aborted) controller.abort();
+  const abortError = () => new ApiError(`Request to ${path} ${timedOut ? "timed out" : "was cancelled"}`, { offline: true, path });
+  let rejectOnAbort: () => void;
+  const aborted = new Promise<never>((_, reject) => {
+    rejectOnAbort = () => reject(abortError());
+    if (controller.signal.aborted) rejectOnAbort();
+    else controller.signal.addEventListener("abort", rejectOnAbort, { once: true });
+  });
+  let responseStatus = 0;
+  const execute = async (): Promise<T> => {
+    if (controller.signal.aborted) throw abortError();
+    // Preserve optional bearer semantics. A rejected provider emits only the
+    // fallback-denial sentinel; a deadline/cancellation ends before fetch starts.
+    let authHeader: Record<string, string> = {};
+    let authResolutionHeader: Record<string, string> = {};
+    try {
+      const token = authTokenProvider ? await authTokenProvider() : null;
+      if (token) authHeader = { Authorization: `Bearer ${token}` };
+    } catch {
+      // Distinguish a verified no-session result from a failed lookup. A local
+      // operator proxy must never turn the latter into its administrator bearer.
+      authResolutionHeader = { [AUTH_RESOLUTION_HEADER]: AUTH_RESOLUTION_FAILED };
+    }
+    if (controller.signal.aborted) throw abortError();
+    const res = await fetch(path, {
       method,
       cache: "no-store",
       signal: controller.signal,
@@ -90,38 +103,47 @@ async function request<T>(
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
         ...authHeader,
         ...opts.headers,
+        ...authResolutionHeader,
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+    responseStatus = res.status;
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const j = await res.json();
+        detail = typeof j?.error === "string" ? j.error
+          : typeof j?.error?.message === "string" ? j.error.message : "";
+        // The gateway's structured refusal is useful context. Never stringify
+        // its remaining fields, which may contain internal commitments/details.
+        if (typeof j?.error?.reason_code === "string" && /^[a-z0-9_]{1,120}$/.test(j.error.reason_code)) {
+          detail += `${detail ? ": " : ""}${j.error.reason_code}`;
+        }
+        detail = detail.slice(0, 1_000);
+      } catch {
+        /* A malformed error body keeps the HTTP status. The outer deadline
+           still bounds a stalled body, including this error-response path. */
+      }
+      throw new ApiError(detail || `${method} ${path} -> ${res.status}`, { status: res.status, path });
+    }
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+  };
+  try {
+    // One deadline covers session resolution, headers AND body consumption.
+    // Racing also bounds token providers/custom fetches that ignore abort.
+    return await Promise.race([execute(), aborted]);
   } catch (err) {
-    // fetch rejects only on transport failure (network down, CORS, abort) — the
-    // gateway is unreachable. This is the honest "offline" signal.
-    const aborted = err instanceof DOMException && err.name === "AbortError";
-    throw new ApiError(aborted ? `Request to ${path} timed out` : `Cannot reach ${path}`, {
-      offline: true,
-      path,
+    if (controller.signal.aborted) throw abortError();
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(responseStatus ? `Invalid JSON response from ${path}` : `Cannot reach ${path}`, {
+      status: responseStatus, offline: responseStatus === 0, path,
     });
   } finally {
-    window.clearTimeout(timeout);
+    clearTimeout(timeout);
+    opts.signal?.removeEventListener("abort", callerAbort);
+    controller.signal.removeEventListener("abort", rejectOnAbort!);
   }
-
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const j = await res.json();
-      detail = typeof j?.error === "string" ? j.error : "";
-    } catch {
-      /* body was not JSON — keep the status-only message */
-    }
-    throw new ApiError(detail || `${method} ${path} -> ${res.status}`, {
-      status: res.status,
-      path,
-    });
-  }
-
-  // 204 / empty body -> return undefined as T
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
 }
 
 export const api = {
@@ -143,7 +165,7 @@ export interface OperatorPulse {
   providers?: unknown[];
   switchboard?: { total?: number; enabled?: number; armed?: number } & Record<string, unknown>;
   organism?: {
-    connectome?: { coverage_pct?: number; nodes?: number; woven?: number } & Record<string, unknown>;
+    connectome?: import('../lib/runtimeSourceStatus').RuntimeSourceObservation & { coverage_pct?: number; nodes?: number; woven?: number } & Record<string, unknown>;
   } & Record<string, unknown>;
   service?: unknown;
   [key: string]: unknown;

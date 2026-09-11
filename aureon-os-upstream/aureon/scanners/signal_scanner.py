@@ -8,7 +8,12 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from datetime import datetime
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 def main():
+    if no_external_api_calls():
+        print("Signal Scanner blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
     print("=" * 70)
     print("  SIGNAL SCANNER — All Systems (Read-Only)")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")

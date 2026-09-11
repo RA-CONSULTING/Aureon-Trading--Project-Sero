@@ -1,0 +1,10 @@
+# Aureon organism protection target — evaluates three terminal HOLD units.
+# It starts no operator, organism, HNC target code, listener, or trading swarm.
+# Deliberately not an enablement instruction: each required unit exits HOLD.
+[Unit]
+Description=Aureon organism core protection HOLD aggregate
+Requires=aureon-operator.service aureon-organism.service aureon-hnc.service
+After=network-online.target
+
+[Install]
+WantedBy=multi-user.target

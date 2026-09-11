@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from aureon.trading import live_trade_signal_fabric as fabric
 from aureon.trading import order_lifecycle
 from aureon.trading.live_trade_signal_fabric import (
     build_state_from_events,
@@ -313,3 +314,87 @@ def test_live_trade_signal_fabric_deduplicates_same_lifecycle_event_bucket(tmp_p
                 continue
             events.append(json.loads(line))
     assert len(events) == 1
+
+
+def test_event_state_reuses_one_tail_and_serialization_without_changing_state(tmp_path, monkeypatch):
+    log_path = tmp_path / fabric.LOG_PATH
+    log_path.parent.mkdir(parents=True)
+    records = [json.dumps({"event_id": str(i), "phase": "signal_generated", "generated_at": i + 1}) for i in range(1005)]
+    records[-501] = "invalid record"
+    records[-5] = ""
+    log_path.write_text("\n".join(records) + "\n", encoding="utf-8")
+    monkeypatch.setattr(fabric, "utc_now", lambda: "2026-09-08T09:00:00+00:00")
+    original_read = fabric._tail_jsonl_records
+    read_calls = []
+    def read_once(path, limit):
+        read_calls.append(limit)
+        return original_read(path, limit)
+    monkeypatch.setattr(fabric, "_tail_jsonl_records", read_once)
+    original_write = fabric._write_json_atomic
+    serialized_states = []
+    def record_write(path, state, *, serialized=None):
+        serialized_states.append(serialized)
+        original_write(path, state, serialized=serialized)
+    monkeypatch.setattr(fabric, "_write_json_atomic", record_write)
+    event = {"event_id": "new", "phase": "signal_generated", "generated_at": 2000, "dedupe_identity": "new", "unicode": "é🌍"}
+    state = fabric._write_state_for_event(event, tmp_path)
+    assert read_calls == [1000]
+    expected = build_state_from_events([row for row in original_read(log_path, 1000) if isinstance(row, dict)])
+    expected["summary"].update(dedupe_applied_count=0, dedupe_last_identity="new")
+    assert state == expected
+    assert len(log_path.read_text(encoding="utf-8").splitlines()) == 1006
+    assert len(serialized_states) == 2
+    assert serialized_states[0] is serialized_states[1]
+    assert json.loads((tmp_path / fabric.STATE_PATH).read_text(encoding="utf-8")) == state
+    assert (tmp_path / fabric.STATE_PATH).read_bytes() == (tmp_path / fabric.PUBLIC_PATH).read_bytes()
+
+
+def test_event_state_rereads_concurrent_append_without_losing_receipt(tmp_path, monkeypatch):
+    log_path = tmp_path / fabric.LOG_PATH
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text('{"event_id":"initial","generated_at":1}\n', encoding="utf-8")
+    original_read = fabric._tail_jsonl_records
+    reads = []
+    def append_during_read(path, limit):
+        rows = original_read(path, limit)
+        reads.append(limit)
+        if len(reads) == 1:
+            with log_path.open("a", encoding="utf-8") as handle:
+                handle.write('{"event_id":"concurrent","generated_at":2}\n')
+        return rows
+    monkeypatch.setattr(fabric, "_tail_jsonl_records", append_during_read)
+    state = fabric._write_state_for_event({"event_id": "ours", "generated_at": 3, "dedupe_identity": "ours"}, tmp_path)
+    assert reads == [1000, 1000]
+    assert [event["event_id"] for event in state["events"]] == ["initial", "concurrent", "ours"]
+
+
+def test_event_dedupe_retains_physical_scan_window_with_malformed_records(tmp_path):
+    log_path = tmp_path / fabric.LOG_PATH
+    log_path.parent.mkdir(parents=True)
+    old = {"event_id": "old", "generated_at": 1, "dedupe_identity": "reused"}
+    log_path.write_text(json.dumps(old) + "\n" + "invalid\n" * 500, encoding="utf-8")
+    event = {"event_id": "new", "generated_at": 2, "dedupe_identity": "reused"}
+    state = fabric._write_state_for_event(event, tmp_path)
+    assert event["dedupe_applied"] is False
+    assert state["summary"]["event_count"] == 2
+    assert len(log_path.read_text(encoding="utf-8").splitlines()) == 502
+
+
+def test_event_state_rereads_when_log_ends_with_partial_record(tmp_path, monkeypatch):
+    log_path = tmp_path / fabric.LOG_PATH
+    log_path.parent.mkdir(parents=True)
+    log_path.write_text('{"event_id":"initial","generated_at":1}\n{"partial":', encoding="utf-8")
+    monkeypatch.setattr(fabric, "utc_now", lambda: "2026-09-08T09:00:00+00:00")
+    event = {"event_id": "new", "generated_at": 2, "dedupe_identity": "new"}
+    state = fabric._write_state_for_event(event, tmp_path)
+    expected = build_state_from_events(fabric._tail_jsonl(log_path, 1000))
+    expected["summary"].update(dedupe_applied_count=0, dedupe_last_identity="new")
+    assert state == expected
+    assert state["summary"]["event_count"] == 1
+
+
+def test_tail_records_keep_complete_rows_across_binary_block_boundary(tmp_path):
+    log_path = tmp_path / "events.jsonl"
+    rows = [{"event_id": str(i), "data": "x" * 70000} for i in range(3)]
+    log_path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    assert fabric._tail_jsonl(log_path, 2) == rows[-2:]

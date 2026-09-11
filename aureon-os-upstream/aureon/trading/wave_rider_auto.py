@@ -11,6 +11,9 @@ This system:
 The market is ALWAYS moving. We ride it.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import json
 import requests
@@ -68,6 +71,9 @@ class WaveRiderAuto:
     
     def get_position(self) -> dict:
         """Get current position if any"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.get_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         try:
             if os.path.exists(self.position_file):
                 with open(self.position_file, 'r') as f:
@@ -90,6 +96,9 @@ class WaveRiderAuto:
     
     def get_current_price(self, symbol: str) -> float:
         """Get current price for symbol"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.get_current_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         try:
             url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
             resp = requests.get(url, timeout=10)
@@ -99,6 +108,9 @@ class WaveRiderAuto:
     
     def find_opportunities(self) -> list:
         """Find trading opportunities"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.find_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         try:
             resp = requests.get('https://api.binance.com/api/v3/ticker/24hr', timeout=30)
             all_tickers = resp.json()
@@ -153,6 +165,9 @@ class WaveRiderAuto:
     
     def open_position(self, opportunity: dict, capital: float) -> bool:
         """Open a new position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.open_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         symbol = opportunity['symbol']
         print(f"\n⚡ OPENING POSITION: {symbol}")
         
@@ -201,6 +216,9 @@ class WaveRiderAuto:
     
     def close_position(self, position: dict, reason: str) -> float:
         """Close current position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.close_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         symbol = position['symbol']
         base_asset = position['base_asset']
         
@@ -253,6 +271,9 @@ class WaveRiderAuto:
     
     def check_position(self, position: dict) -> tuple:
         """Check if position should be closed. Returns (should_close, reason)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.check_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         current_price = self.get_current_price(position['symbol'])
         if current_price <= 0:
             return False, ""
@@ -267,6 +288,9 @@ class WaveRiderAuto:
     
     def run(self, duration_minutes: int = 60):
         """Main loop - ride the waves"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.wave_rider_auto.WaveRiderAuto.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("=" * 70)
         print("🌊 WAVE RIDER AUTO - STARTING")
         print("=" * 70)
@@ -344,6 +368,9 @@ class WaveRiderAuto:
 
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.wave_rider_auto.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import sys
     
     live_mode = '--live' in sys.argv

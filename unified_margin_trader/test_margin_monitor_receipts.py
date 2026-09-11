@@ -2,7 +2,15 @@ import importlib.util
 from pathlib import Path
 
 
-SOURCE = Path(__file__).resolve().parents[1] / 'aureon' / 'monitors' / '_margin_monitor.py'
+# Canonical monitor lives beside this test in the workspace suite; the
+# aureon.monitors package mirror (aureon-os-upstream) is kept in sync.
+SOURCE = Path(__file__).resolve().parent / '_margin_monitor.py'
+_UPSTREAM_SOURCE = (
+    Path(__file__).resolve().parents[1]
+    / 'aureon-os-upstream' / 'aureon' / 'monitors' / '_margin_monitor.py'
+)
+if not SOURCE.exists() and _UPSTREAM_SOURCE.exists():
+    SOURCE = _UPSTREAM_SOURCE
 
 
 def _monitor_module():

@@ -34,6 +34,7 @@ import logging
 import os
 import struct
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Final
 
@@ -88,6 +89,13 @@ from aureon.observability import (  # noqa: E402
 )
 from aureon.operator.aureon_operator import AureonOperator  # noqa: E402  (after guarded flask import)
 from aureon.operator.providers import build_provider_set, describe_provider_set  # noqa: E402
+from aureon.operator.release_readiness import build_operator_release_readiness  # noqa: E402
+from aureon.operator.capability_runtime_attestation import build_operator_capability_runtime_attestation  # noqa: E402
+from aureon.operator.release_ledger import append_release_ledger_event, build_release_ledger_receipt  # noqa: E402
+from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
+from aureon.operator.executor_isolation import build_executor_isolation_receipt  # noqa: E402
+from aureon.operator.authority_map import build_authority_map_receipt  # noqa: E402
+from aureon.operator.result_binding import build_result_binding_receipt  # noqa: E402
 from aureon.plumber.os_protection import (  # noqa: E402
     DEFAULT_MAX_INGRESS_BYTES,
     AdmittedHNC,
@@ -119,10 +127,27 @@ def _json_safe(obj: Any) -> Any:
     return obj
 
 
-def _test_provider_adapter(info: Any, api_key: str, base_url: Any, model: str) -> Dict[str, Any]:
+def _test_provider_adapter(
+    info: Any,
+    api_key: str,
+    base_url: Any,
+    model: str,
+    *,
+    provider_id: str,
+    tenant: str | None = None,
+) -> Dict[str, Any]:
     """Construct a fresh adapter for ``info`` with the given key and do ONE real
-    ``prompt()`` round-trip. Never raises; returns a compact verdict (no secrets)."""
+    ``prompt()`` round-trip. Never raises; returns a compact verdict (no secrets).
+
+    The verdict is persisted to the provider's keystore entry as its test-history
+    record (``last_test_at``, ``last_test_ok``, ``last_test_latency_ms``,
+    ``last_test_error``) before returning, so later reads of ``/api/providers`` can
+    attest whether a connection test was ever completed.
+    """
     import time
+    from datetime import datetime, timezone
+
+    from aureon.operator import keystore
 
     try:
         from aureon.operator.providers import build_adapter
@@ -137,7 +162,7 @@ def _test_provider_adapter(info: Any, api_key: str, base_url: Any, model: str) -
         text = str(getattr(resp, "text", "") or "")
         stop = str(getattr(resp, "stop_reason", "") or "")
         ok = bool(text) and not text.startswith("[ERROR]") and stop != "error"
-        return {
+        result = {
             "ok": ok,
             "latency_ms": elapsed,
             "model": model,
@@ -153,7 +178,7 @@ def _test_provider_adapter(info: Any, api_key: str, base_url: Any, model: str) -
             fields={"component": "provider_test", "model": model},
             exception=exc,
         )
-        return {
+        result = {
             "ok": False,
             "latency_ms": 0,
             "model": model,
@@ -161,6 +186,16 @@ def _test_provider_adapter(info: Any, api_key: str, base_url: Any, model: str) -
             "error": "provider_test_failed",
             "error_type": type(exc).__name__,
         }
+
+    keystore.save_provider(
+        provider_id,
+        tenant=tenant,
+        last_test_at=datetime.now(timezone.utc).isoformat(),
+        last_test_ok=result["ok"],
+        last_test_latency_ms=result["latency_ms"],
+        last_test_error=result["error"],
+    )
+    return result
 
 
 PAGE = """<!doctype html>
@@ -306,6 +341,11 @@ _TENANT_OWN_PLANE = {
     # Who am I / what may I do. Reports the caller's own identity and nothing about the instance,
     # so the console can render the right plane instead of discovering it by collecting 403s.
     ("GET", "/api/me"),
+    # Public implementation requirements only; no instance/tenant credentials or authority.
+    ("GET", "/api/operator/release-readiness"),
+    ("GET", "/api/trading/backtest/capabilities"),
+    ("POST", "/api/trading/backtest"),
+    ("GET", "/api/trading/closed-position-analytics"),
     # The user's own data: their keys, their reasoning, their billing.
     ("GET", "/api/providers"), ("POST", "/api/providers/<provider_id>"),
     ("DELETE", "/api/providers/<provider_id>"), ("POST", "/api/providers/<provider_id>/test"),
@@ -823,6 +863,81 @@ def create_app(
         # Browser Response.json() rejects bare Infinity/NaN — keep the body spec-clean.
         return jsonify(_json_safe(out))
 
+    @app.get("/api/operator/release-readiness")
+    def operator_release_readiness():
+        response = jsonify(build_operator_release_readiness())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/capability-runtime-attestation")
+    def operator_capability_runtime_attestation():
+        response = jsonify(_json_safe(build_operator_capability_runtime_attestation()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/ingress-custody")
+    def operator_ingress_custody():
+        response = jsonify(_json_safe(build_ingress_custody_receipt(
+            security=_sec,
+            jwt_secret_set=bool(_jwt_secret),
+            request_view={
+                "direct_client": str(request.remote_addr or ""),
+                "resolved_client": _sec.client_ip(request.remote_addr, request.headers.get("X-Forwarded-For")),
+                "identity_kind": str(getattr(g, "identity_kind", "unavailable")),
+                "is_admin": bool(getattr(g, "is_admin", False)),
+            },
+            boundary_summary=app.extensions["aureon_operator_ingress_status"](),
+            host=os.environ.get("AUREON_OPERATOR_HOST", "127.0.0.1"),
+            port=os.environ.get("AUREON_OPERATOR_PORT", "8080"),
+        )))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/authority-map")
+    def operator_authority_map():
+        response = jsonify(_json_safe(build_authority_map_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/result-binding")
+    def operator_result_binding():
+        response = jsonify(_json_safe(build_result_binding_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/executor-isolation")
+    def operator_executor_isolation():
+        response = jsonify(_json_safe(build_executor_isolation_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/release-ledger")
+    def operator_release_ledger():
+        response = jsonify(_json_safe(build_release_ledger_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.post("/api/operator/release-ledger/events")
+    def operator_release_ledger_events():
+        denied = _admin_denied()
+        if denied is not None:
+            return denied
+        body: Dict[str, Any] = request.get_json(silent=True) or {}
+        payload = body.get("payload")
+        if not isinstance(payload, dict):
+            return _err(400, "release ledger payload must be a JSON object")
+        try:
+            row = append_release_ledger_event(
+                str(body.get("event_type") or "manual_authorization_record"),
+                payload,
+                actor=str(getattr(g, "identity_kind", "operator")),
+            )
+        except ValueError as exc:
+            return _err(400, str(exc))
+        response = jsonify({"ok": True, "event": {key: row[key] for key in ("sequence", "event_type", "actor", "recorded_at", "recorded_at_iso", "payload_digest_sha256", "previous_hash", "current_hash", "release_authority", "mutation_authority")}})
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.get("/healthz")
     def healthz():
         # Liveness: the process is up and can describe its line-up.
@@ -1214,6 +1329,10 @@ def create_app(
                 "key_source": source,
                 "enabled": bool(s.get("enabled", True)) if s else True,
                 "live": info.registry_name in live_names,
+                "last_test_at": s.get("last_test_at") if s else None,
+                "last_test_ok": s.get("last_test_ok") if s else None,
+                "last_test_latency_ms": s.get("last_test_latency_ms") if s else None,
+                "last_test_error": s.get("last_test_error") if s else None,
             })
         return out
 
@@ -1285,7 +1404,7 @@ def create_app(
         model = body.get("model") or stored.get("model") or info.default_model
         if tenant is not None and not str(api_key or "").strip():
             return jsonify(_no_key_verdict(model))
-        result = _test_provider_adapter(info, api_key, base_url, model)
+        result = _test_provider_adapter(info, api_key, base_url, model, provider_id=provider_id, tenant=tenant)
         return jsonify(result)
 
     # ── Feature switchboard (turn every system feature on/off at human discretion) ─
@@ -1470,6 +1589,14 @@ def create_app(
     except Exception as exc:  # noqa: BLE001 — legacy surface is optional; the operator must serve
         logger.warning("legacy runtime routes not registered: %s", exc)
 
+    # Dedicated analytical/review handlers remain behind this app's identity and
+    # protected ingress gates. Their default capabilities disclose unavailable
+    # release dispatch; registration cannot itself confer execution authority.
+    from aureon.operator.historical_backtest import register_historical_backtest_routes
+    from aureon.operator.coding_artifact_review import register_coding_review_routes
+
+    register_historical_backtest_routes(app)
+    register_coding_review_routes(app, root=Path(__file__).resolve().parents[2])
     return app
 
 
@@ -1556,25 +1683,36 @@ def main() -> None:
     security = SecurityConfig.from_env()
     if not _is_loopback_host(host) and not security.auth_enabled:
         raise RuntimeError("non_loopback_operator_requires_AUREON_OPERATOR_API_KEY")
+    dev = str(os.environ.get("AUREON_OPERATOR_DEV", "")).strip().lower() in {"1", "true", "yes", "on"}
+    if security.production and dev:
+        raise RuntimeError("production_operator_cannot_use_flask_development_server")
+
+    # Resolve the production HTTP dependency before constructing cognition or
+    # provider services. A missing server must not silently launch Flask in a
+    # deployment configured as production.
+    serve = None
+    if not dev:
+        try:
+            from waitress import serve  # type: ignore[import-untyped]
+        except ImportError as exc:
+            if security.production:
+                raise RuntimeError("production_operator_requires_waitress") from exc
+            logger.warning("waitress not installed — falling back to the Flask dev server. "
+                           "Install `.[operator]` for production serving.")
+
+    threads = int(os.environ.get("AUREON_OPERATOR_THREADS", "8"))
+    if threads < 1:
+        raise ValueError("AUREON_OPERATOR_THREADS must be >= 1")
     logger.info("Aureon Operator server on %s:%s — lines: %s", host, port,
                 describe_provider_set(build_provider_set()))
     app = build_boot_app()
-
-    dev = str(os.environ.get("AUREON_OPERATOR_DEV", "")).strip().lower() in {"1", "true", "yes", "on"}
-    if dev:
-        logger.warning("AUREON_OPERATOR_DEV set — using the Flask dev server (not for production)")
-        app.run(host=host, port=port, threaded=True)
-        return
-    try:
-        from waitress import serve  # type: ignore[import-untyped]
-
-        threads = int(os.environ.get("AUREON_OPERATOR_THREADS", "8"))
+    if serve is not None:
         logger.info("Serving under waitress (%d threads)", threads)
         serve(app, host=host, port=port, threads=threads)
-    except ImportError:
-        logger.warning("waitress not installed — falling back to the Flask dev server. "
-                       "Install `.[operator]` for production serving.")
-        app.run(host=host, port=port, threaded=True)
+        return
+    if dev:
+        logger.warning("AUREON_OPERATOR_DEV set — using the Flask dev server (not for production)")
+    app.run(host=host, port=port, threaded=True)
 
 
 if __name__ == "__main__":

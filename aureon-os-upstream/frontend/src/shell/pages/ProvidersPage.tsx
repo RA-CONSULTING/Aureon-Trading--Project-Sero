@@ -1,3 +1,4 @@
+import { GlassPageHeader } from '@/shell/GlassPage';
 /**
  * Providers — LLM API-key management.
  *
@@ -8,7 +9,7 @@
  * POST/DELETE /api/providers/<id> and POST /api/providers/<id>/test.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyRound, Eye, EyeOff, Loader2, CheckCircle2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +20,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/services/apiClient";
+import { useProviderConfiguration } from "@/hooks/useSetupStatus";
+import { captureTestReceipt, configurationMessage, configurationStatus, datedTestEvidence, type DatedTestReceipt, type ProviderView } from "@/lib/accountConfigurationEvidence";
 import { LiveDataNotice } from "@/shell/Page";
+import { normalizeProviderDraft, providerErrorDetail, providerRequestBody, type ProviderDraft } from "@/lib/providerDraft";
 
-interface Provider {
+interface Provider extends ProviderView {
   id: string;
   label: string;
   kind: string;
@@ -40,118 +44,120 @@ interface Provider {
   live: boolean;
 }
 
-interface Draft {
-  apiKey: string;
-  model: string;
-  baseUrl: string;
-  show: boolean;
-  testing: boolean;
-  saving: boolean;
+interface EditorState {
+  version: number;
+  drafts: Record<string, ProviderDraft>;
+  tests: Record<string, DatedTestReceipt>;
+  failures: Record<string, string>;
 }
-
-const emptyDraft = (p: Provider): Draft => ({
-  apiKey: "",
-  model: p.model || p.default_model,
-  baseUrl: p.base_url || p.default_base_url,
-  show: false,
-  testing: false,
-  saving: false,
-});
+const emptyEditor = (version: number): EditorState => ({ version, drafts: {}, tests: {}, failures: {} });
 
 export default function ProvidersPage() {
-  // undefined = loading, null = gateway offline, array = data
-  const [providers, setProviders] = useState<Provider[] | null | undefined>(undefined);
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-
-  async function load() {
-    try {
-      const data = await api.get<{ providers?: Provider[] }>("/api/providers");
-      const list: Provider[] = data.providers ?? [];
-      setProviders(list);
-      setDrafts((prev) => {
-        const next = { ...prev };
-        for (const p of list) if (!next[p.id]) next[p.id] = emptyDraft(p);
-        return next;
-      });
-    } catch {
-      setProviders(null);
-    }
-  }
-
+  const receipt = useProviderConfiguration<Provider>();
+  const providers = receipt.loading ? undefined : receipt.providers;
+  const status = configurationStatus(receipt);
+  const [editor, setEditor] = useState<EditorState>(() => emptyEditor(receipt.resetVersion));
+  // Discard another session's drafts during render, before effects run.
+  const current = editor.version === receipt.resetVersion ? editor : emptyEditor(receipt.resetVersion);
+  const { drafts, tests, failures } = current;
+  const version = useRef(receipt.resetVersion);
+  version.current = receipt.resetVersion;
   useEffect(() => {
-    load();
-  }, []);
+    setEditor(previous => {
+      const base = previous.version === receipt.resetVersion ? previous : emptyEditor(receipt.resetVersion);
+      if (!providers) return emptyEditor(receipt.resetVersion);
+      const next: Record<string, ProviderDraft> = {};
+      for (const provider of providers) next[provider.id] = normalizeProviderDraft(provider, base.drafts[provider.id]);
+      return { ...base, drafts: next };
+    });
+  }, [providers, receipt.resetVersion]);
 
-  const patch = (id: string, fields: Partial<Draft>) =>
-    setDrafts((d) => ({ ...d, [id]: { ...d[id], ...fields } }));
+  const patch = (provider: Provider, fields: Partial<ProviderDraft>) => setEditor(previous => {
+    const base = previous.version === version.current ? previous : emptyEditor(version.current);
+    return { ...base, drafts: { ...base.drafts, [provider.id]: {
+      ...normalizeProviderDraft(provider, base.drafts[provider.id]), ...fields,
+    } } };
+  });
 
   async function save(p: Provider, extra?: Partial<{ enabled: boolean }>) {
-    const d = drafts[p.id];
-    patch(p.id, { saving: true });
+    const operationVersion = version.current;
+    const d = normalizeProviderDraft(p, drafts[p.id]);
+    patch(p, { saving: true });
     try {
-      const body: Record<string, unknown> = { model: d.model, base_url: d.baseUrl, ...extra };
-      if (d.apiKey.trim()) body.api_key = d.apiKey.trim();
+      const body = { ...providerRequestBody(d), ...extra };
       await api.post(`/api/providers/${p.id}`, body);
+      if (version.current !== operationVersion) return;
       toast.success(`${p.label} saved`);
-      patch(p.id, { apiKey: "" }); // never keep the raw key in the field
-      await load();
-    } catch {
-      toast.error(`Could not save ${p.label}`);
+      patch(p, { apiKey: "" }); // never keep the raw key in the field
+      receipt.invalidate();
+    } catch (error) {
+      if (version.current === operationVersion) toast.error(`Could not save ${p.label}`, { description: providerErrorDetail(error, d.apiKey) });
     } finally {
-      patch(p.id, { saving: false });
+      if (version.current === operationVersion) patch(p, { saving: false });
     }
   }
 
   async function test(p: Provider) {
-    const d = drafts[p.id];
-    patch(p.id, { testing: true });
+    const operationVersion = version.current;
+    const d = normalizeProviderDraft(p, drafts[p.id]);
+    setEditor(previous => {
+      const next = previous.version === operationVersion ? previous : emptyEditor(operationVersion);
+      const nextTests = { ...next.tests }; const nextFailures = { ...next.failures };
+      delete nextTests[p.id]; delete nextFailures[p.id];
+      return { ...next, tests: nextTests, failures: nextFailures };
+    });
+    patch(p, { testing: true });
     try {
-      const body: Record<string, unknown> = { model: d.model, base_url: d.baseUrl };
-      if (d.apiKey.trim()) body.api_key = d.apiKey.trim();
+      const body = providerRequestBody(d);
       const v = await api.post<{ ok?: boolean; latency_ms?: number; sample?: string; error?: string }>(
         `/api/providers/${p.id}/test`,
         body,
         { timeoutMs: 30000 },
       );
-      if (v.ok) toast.success(`${p.label} responded in ${v.latency_ms} ms`, { description: v.sample });
-      else toast.error(`${p.label} test failed`, { description: v.error });
-    } catch {
-      toast.error(`${p.label} test failed`, { description: "gateway unreachable" });
+      if (version.current !== operationVersion) return;
+      const result = captureTestReceipt(v, Date.now());
+      if (result.error) result.error = providerErrorDetail(result.error, d.apiKey);
+      setEditor(previous => previous.version === operationVersion
+        ? { ...previous, tests: { ...previous.tests, [p.id]: result } } : previous);
+      if (result.ok === true) toast.success(`${p.label} test passed`, { description: `Response received ${new Date(result.receivedAt).toISOString()}` });
+      else if (result.ok === false) toast.error(`${p.label} test failed`, { description: result.error || 'The provider returned a failed test result.' });
+      else toast.error(`${p.label} test unavailable`, { description: 'The response did not contain a completed test result.' });
+    } catch (error) {
+      if (version.current === operationVersion) {
+        const detail = providerErrorDetail(error, d.apiKey);
+        setEditor(previous => previous.version === operationVersion
+          ? { ...previous, failures: { ...previous.failures, [p.id]: detail } } : previous);
+        toast.error(`${p.label} test unavailable`, { description: detail });
+      }
     } finally {
-      patch(p.id, { testing: false });
+      if (version.current === operationVersion) patch(p, { testing: false });
     }
   }
 
   async function clearKey(p: Provider) {
+    const operationVersion = version.current;
     try {
       await api.del(`/api/providers/${p.id}`);
+      if (version.current !== operationVersion) return;
       toast.success(`${p.label} cleared`);
-      await load();
-    } catch {
-      toast.error(`Could not clear ${p.label}`);
+      receipt.invalidate();
+    } catch (error) {
+      if (version.current === operationVersion) toast.error(`Could not clear ${p.label}`, { description: providerErrorDetail(error) });
     }
   }
 
   function statusBadge(p: Provider) {
-    if (p.live) return <Badge className="bg-success hover:bg-success">live</Badge>;
-    if (p.has_key) return <Badge variant="secondary">key set · idle</Badge>;
-    return <Badge variant="outline">needs key</Badge>;
+    if (p.live === true) return <Badge variant="secondary">runtime attached</Badge>;
+    if (p.has_key) return <Badge variant="secondary">key configured</Badge>;
+    return <Badge variant="outline">{p.key_optional ? 'key optional' : 'key not configured'}</Badge>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <KeyRound className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Providers</h1>
-          <p className="text-sm text-muted-foreground">
-            Bring your own API key for every model. Keys are encrypted on the server, shown only
-            masked, and never leave the box. Saving reloads the switchboard live.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader title="Providers" icon={KeyRound} eyebrow="Cognition &amp; LLM" description="Manage model connections and test them explicitly. Masked configuration and dated test results remain separate." actions={<Button variant="outline" size="sm" onClick={receipt.refresh}>Refresh observation</Button>} />
 
       <LiveDataNotice />
+      {receipt.isReceiptCurrent && <p className="text-xs text-muted-foreground">Configuration received {new Date(receipt.lastReceivedAt!).toISOString()}. This receipt does not attest provider availability.</p>}
 
       {providers === undefined && (
         <div className="grid gap-4 md:grid-cols-2">
@@ -164,19 +170,21 @@ export default function ProvidersPage() {
       {providers === null && (
         <Card>
           <CardHeader>
-            <CardTitle>Gateway offline</CardTitle>
+            <CardTitle>Provider configuration unavailable</CardTitle>
             <CardDescription>
-              The operator API is not reachable. Start the operator (or open the deployed URL) and
-              retry.
+              {configurationMessage(status, receipt.error)}
             </CardDescription>
+            <Button variant="outline" onClick={receipt.refresh}>Retry read</Button>
           </CardHeader>
         </Card>
       )}
 
       {Array.isArray(providers) && (
         <div className="grid gap-4 md:grid-cols-2">
+          {providers.length === 0 && <Card><CardContent className="pt-6 text-sm text-muted-foreground">The current configuration returned an empty provider inventory.</CardContent></Card>}
           {providers.map((p) => {
-            const d = drafts[p.id] ?? emptyDraft(p);
+            const d = normalizeProviderDraft(p, drafts[p.id]);
+            const observedTest = datedTestEvidence(tests[p.id]);
             return (
               <Card key={p.id} className="flex flex-col">
                 <CardHeader className="pb-3">
@@ -203,6 +211,13 @@ export default function ProvidersPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-1 flex-col gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {observedTest.current
+                      ? `Last requested test ${observedTest.ok ? 'passed' : 'failed'} · response received ${observedTest.timestamp}${observedTest.latencyMs !== null ? ` · ${observedTest.latencyMs} ms` : ''}. Point-in-time result.`
+                      : 'No current dated test result. Runtime attachment and key presence do not prove a successful test.'}
+                  </p>
+                  {failures[p.id] && <p className="text-xs text-destructive">Test request unavailable: {failures[p.id]}</p>}
+                  {observedTest.current && tests[p.id]?.error && <p className="text-xs text-muted-foreground">{tests[p.id].error}</p>}
                   <div className="space-y-1.5">
                     <Label htmlFor={`key-${p.id}`}>
                       API key{p.key_optional ? " (optional for local)" : ""}
@@ -214,13 +229,13 @@ export default function ProvidersPage() {
                         placeholder={p.has_key ? "•••• (leave blank to keep)" : "paste key"}
                         value={d.apiKey}
                         autoComplete="off"
-                        onChange={(e) => patch(p.id, { apiKey: e.target.value })}
+                        onChange={(e) => patch(p, { apiKey: e.target.value })}
                       />
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
-                        onClick={() => patch(p.id, { show: !d.show })}
+                        onClick={() => patch(p, { show: !d.show })}
                         aria-label={d.show ? "Hide key" : "Show key"}
                       >
                         {d.show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -234,7 +249,7 @@ export default function ProvidersPage() {
                       <Input
                         id={`model-${p.id}`}
                         value={d.model}
-                        onChange={(e) => patch(p.id, { model: e.target.value })}
+                        onChange={(e) => patch(p, { model: e.target.value })}
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -243,7 +258,7 @@ export default function ProvidersPage() {
                         id={`url-${p.id}`}
                         value={d.baseUrl}
                         placeholder={p.default_base_url}
-                        onChange={(e) => patch(p.id, { baseUrl: e.target.value })}
+                        onChange={(e) => patch(p, { baseUrl: e.target.value })}
                       />
                     </div>
                   </div>

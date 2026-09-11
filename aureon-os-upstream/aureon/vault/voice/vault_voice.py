@@ -36,6 +36,15 @@ VAULT_VOICE_RELEASE_HOLD = (
     "vault_voice_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("vault_voice"):
+        raise RuntimeError(VAULT_VOICE_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Base VaultVoice
@@ -62,7 +71,7 @@ class VaultVoice:
         self.max_tokens = int(max_tokens)
 
     def _load_adapter(self) -> None:
-        raise RuntimeError(VAULT_VOICE_RELEASE_HOLD)
+        _require_release()
         try:
             # Use the voice-safe adapter selector: prefers local LLM (Ollama / OpenAI-compatible),
             # falls back to Anthropic if configured, otherwise returns a fast stub with instructions.
@@ -78,7 +87,7 @@ class VaultVoice:
 
     def speak(self, vault: Any) -> Optional[VoiceStatement]:
         """Compose a self-authored prompt from vault state and utter it."""
-        raise RuntimeError(VAULT_VOICE_RELEASE_HOLD)
+        _require_release()
         slice_state = self._extract_slice(vault)
         prompt_lines = self._compose_prompt_lines(slice_state)
         if not prompt_lines:

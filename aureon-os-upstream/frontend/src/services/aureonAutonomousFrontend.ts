@@ -1,3 +1,4 @@
+import { api, type RequestOptions } from './apiClient';
 export interface SaaSInventorySummary {
   surface_count?: number;
   frontend_surface_count?: number;
@@ -468,14 +469,9 @@ const emptySwitchboard: CapabilitySwitchboardManifest = {
   notes: ["Capability switchboard manifest is missing."],
 };
 
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) return null;
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
+async function fetchJson<T>(url: string, options: RequestOptions): Promise<T | null> {
+  try { return await api.get<T>(url, { ...options, timeoutMs: options.timeoutMs ?? 8_000 }); }
+  catch { return null; }
 }
 
 // Where the live-rendered manifests come from. Default "" keeps the dev
@@ -483,26 +479,26 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 // VITE_AUREON_MANIFEST_BASE=/api/manifests so the gateway renders them live
 // through the nginx /api proxy. Manifests the gateway doesn't serve fall back
 // to the static path automatically (fetchJson returns null on 404).
-const MANIFEST_BASE = ((import.meta.env.VITE_AUREON_MANIFEST_BASE as string | undefined) ?? "").replace(/\/$/, "");
+const MANIFEST_BASE = ((import.meta.env?.VITE_AUREON_MANIFEST_BASE as string | undefined) ?? "").replace(/\/$/, "");
 
-async function fetchManifest<T>(filename: string): Promise<{ data: T | null; source: string }> {
-  if (MANIFEST_BASE) {
+async function fetchManifest<T>(filename: string, options: RequestOptions): Promise<{ data: T | null; source: string }> {
+  if (MANIFEST_BASE === "/api/manifests") {
     const liveUrl = `${MANIFEST_BASE}/${filename}`;
-    const live = await fetchJson<T>(liveUrl);
+    const live = await fetchJson<T>(liveUrl, options);
     if (live) return { data: live, source: liveUrl };
   }
   const staticUrl = `/${filename}`;
-  return { data: await fetchJson<T>(staticUrl), source: staticUrl };
+  return { data: await fetchJson<T>(staticUrl, options), source: staticUrl };
 }
 
-export async function loadUnifiedFrontendState(): Promise<UnifiedFrontendState> {
+export async function loadUnifiedFrontendState(options: RequestOptions = {}): Promise<UnifiedFrontendState> {
   const errors: string[] = [];
   const [inventoryRes, planRes, organismRes, evolutionRes, switchboardRes] = await Promise.all([
-    fetchManifest<SaaSInventoryManifest>("aureon_saas_system_inventory.json"),
-    fetchManifest<FrontendUnificationManifest>("aureon_frontend_unification_plan.json"),
-    fetchManifest<OrganismRuntimeManifest>("aureon_organism_runtime_status.json"),
-    fetchManifest<FrontendEvolutionQueueManifest>("aureon_frontend_evolution_queue.json"),
-    fetchManifest<CapabilitySwitchboardManifest>("aureon_autonomous_capability_switchboard.json"),
+    fetchManifest<SaaSInventoryManifest>("aureon_saas_system_inventory.json", options),
+    fetchManifest<FrontendUnificationManifest>("aureon_frontend_unification_plan.json", options),
+    fetchManifest<OrganismRuntimeManifest>("aureon_organism_runtime_status.json", options),
+    fetchManifest<FrontendEvolutionQueueManifest>("aureon_frontend_evolution_queue.json", options),
+    fetchManifest<CapabilitySwitchboardManifest>("aureon_autonomous_capability_switchboard.json", options),
   ]);
   const inventory = inventoryRes.data;
   const plan = planRes.data;
@@ -523,11 +519,11 @@ export async function loadUnifiedFrontendState(): Promise<UnifiedFrontendState> 
     organismSource: organism ? organismRes.source : "fallback",
     evolutionSource: evolution ? evolutionRes.source : "fallback",
     switchboardSource: switchboard ? switchboardRes.source : "fallback",
-    inventory: inventory || emptyInventory,
-    plan: plan || fallbackPlan,
-    organism: organism || emptyOrganism,
-    evolution: evolution || emptyEvolution,
-    switchboard: switchboard || emptySwitchboard,
+    inventory: inventory || { ...emptyInventory, summary: {} },
+    plan: plan || { ...fallbackPlan, summary: {} },
+    organism: organism || { ...emptyOrganism, summary: {} },
+    evolution: evolution || { ...emptyEvolution, summary: {} },
+    switchboard: switchboard || { ...emptySwitchboard, summary: {} },
     errors,
   };
 }
@@ -544,4 +540,23 @@ export function surfacesForScreen(inventory: SaaSInventoryManifest, screen: Fron
       return surface.domain === screen.domain || keywords.some((keyword) => keyword && haystack.includes(keyword));
     })
     .slice(0, 12);
+}
+
+/** Project the already shared canonical reader's public reports; do not issue duplicate GETs. */
+export function unifiedFrontendStateFromReports(reports: Record<string, Record<string, unknown>>, loadedAt: string): UnifiedFrontendState {
+  const source = (key: string, filename: string) => reports[key] ? `/${filename}` : "unavailable";
+  return {
+    loadedAt,
+    inventorySource: source('inventory', 'aureon_saas_system_inventory.json'),
+    planSource: source('unification', 'aureon_frontend_unification_plan.json'),
+    organismSource: source('organism', 'aureon_organism_runtime_status.json'),
+    evolutionSource: source('evolution', 'aureon_frontend_evolution_queue.json'),
+    switchboardSource: source('switchboard', 'aureon_autonomous_capability_switchboard.json'),
+    inventory: reports.inventory as SaaSInventoryManifest ?? { ...emptyInventory, summary: {} },
+    plan: reports.unification as FrontendUnificationManifest ?? { ...fallbackPlan, summary: {} },
+    organism: reports.organism as OrganismRuntimeManifest ?? { ...emptyOrganism, summary: {} },
+    evolution: reports.evolution as FrontendEvolutionQueueManifest ?? { ...emptyEvolution, summary: {} },
+    switchboard: reports.switchboard as CapabilitySwitchboardManifest ?? { ...emptySwitchboard, summary: {} },
+    errors: ['inventory', 'unification', 'organism', 'evolution', 'switchboard'].filter(key => !reports[key]).map(key => `${key} recorded manifest unavailable.`),
+  };
 }

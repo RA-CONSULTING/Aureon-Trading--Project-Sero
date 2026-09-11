@@ -1,3 +1,6 @@
+import { useReadOnlyPoller } from "./hooks/useReadOnlyPoller";
+import { operationalSnapshotStore, type OperationalRead } from "./services/operationalSnapshot";
+import { formatLegacyNumber, legacyNumber, legacyReadiness, legacyRuntimeEvidence, legacyReportsStore, currentLegacyReport } from "./services/legacyConsoleEvidence";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -44,7 +47,7 @@ import {
   CapabilitySwitchboardManifest,
   FrontendScreenPlan,
   FrontendEvolutionQueueManifest,
-  loadUnifiedFrontendState,
+  unifiedFrontendStateFromReports,
   OrganismDomainPulse,
   SaaSInventoryManifest,
   SaaSInventorySummary,
@@ -53,17 +56,10 @@ import {
 } from "@/services/aureonAutonomousFrontend";
 
 const queryClient = new QueryClient();
-const ENV_LOCAL_TERMINAL_ENDPOINT = import.meta.env.VITE_LOCAL_TERMINAL_URL as string | undefined;
-const DEFAULT_RUNTIME_ENDPOINTS = [
-  ENV_LOCAL_TERMINAL_ENDPOINT,
-  "/api/terminal-state", // production: nginx proxies /api to the gateway
-  "http://127.0.0.1:8791/api/terminal-state",
-  "http://127.0.0.1:8790/api/terminal-state",
-].filter((value): value is string => Boolean(value));
 const MANIFEST_REFRESH_MS = 15000;
-const RUNTIME_REFRESH_MS = 2500;
-const FAST_PANEL_REFRESH_MS = 5000;
-const MARKET_PANEL_REFRESH_MS = 7500;
+const RUNTIME_REFRESH_MS = 8000;
+const FAST_PANEL_REFRESH_MS = 15000;
+const MARKET_PANEL_REFRESH_MS = 15000;
 const UI_CLOCK_REFRESH_MS = 5000;
 
 interface RuntimeObservation {
@@ -352,12 +348,6 @@ interface HNCPacketSecurityComparison {
     aureon_fit?: string;
     limitation?: string;
   }>;
-}
-
-interface WakeUpManifest {
-  runtime_feed_url?: string;
-  runtime_flight_test_url?: string;
-  runtime_reboot_advice_url?: string;
 }
 
 interface LiveGoalTradeAudit {
@@ -1804,123 +1794,12 @@ function asRecordArray(value: unknown): Array<Record<string, unknown>> {
     : [];
 }
 
-function formatCompact(value: unknown): string {
-  return asNumber(value).toLocaleString();
-}
+const formatCompact = formatLegacyNumber;
 
-function readinessPercent(summary: SaaSInventoryManifest["summary"]): number {
-  const total = Math.max(1, asNumber(summary?.surface_count));
-  const blockers = asNumber(summary?.security_blocker_count);
-  const orphaned = asNumber(summary?.orphaned_frontend_count);
-  const weightedGaps = blockers * 25 + orphaned * 0.12;
-  return Math.max(0, Math.min(100, Math.round(100 - (weightedGaps / total) * 100)));
-}
+const readinessPercent = legacyReadiness;
 
 function uniqueStrings(values: Array<string | undefined>): string[] {
   return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
-}
-
-async function fetchJsonOrNull<T>(url: string, signal?: AbortSignal): Promise<T | null> {
-  try {
-    const response = await fetch(url, { cache: "no-store", signal });
-    if (!response.ok) return null;
-    return (await response.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-async function loadWakeUpManifest(signal?: AbortSignal): Promise<WakeUpManifest | null> {
-  return fetchJsonOrNull<WakeUpManifest>("/aureon_wake_up_manifest.json", signal);
-}
-
-async function loadTradingIntelligenceChecklist(signal?: AbortSignal): Promise<TradingIntelligenceChecklist | null> {
-  return fetchJsonOrNull<TradingIntelligenceChecklist>("/aureon_trading_intelligence_checklist.json", signal);
-}
-
-async function loadExchangeMonitoringChecklist(signal?: AbortSignal): Promise<ExchangeMonitoringChecklist | null> {
-  return fetchJsonOrNull<ExchangeMonitoringChecklist>("/aureon_exchange_monitoring_checklist.json", signal);
-}
-
-async function loadExchangeDataCapabilityMatrix(signal?: AbortSignal): Promise<ExchangeDataCapabilityMatrix | null> {
-  return fetchJsonOrNull<ExchangeDataCapabilityMatrix>("/aureon_exchange_data_capability_matrix.json", signal);
-}
-
-async function loadGlobalFinancialCoverageMap(signal?: AbortSignal): Promise<GlobalFinancialCoverageMap | null> {
-  return fetchJsonOrNull<GlobalFinancialCoverageMap>("/aureon_global_financial_coverage_map.json", signal);
-}
-
-async function loadHNCPacketSecurityComparison(signal?: AbortSignal): Promise<HNCPacketSecurityComparison | null> {
-  return fetchJsonOrNull<HNCPacketSecurityComparison>("/aureon_hnc_packet_security_comparison.json", signal);
-}
-
-async function loadLiveGoalTradeAudit(signal?: AbortSignal): Promise<LiveGoalTradeAudit | null> {
-  return fetchJsonOrNull<LiveGoalTradeAudit>("/aureon_live_goal_trade_audit.json", signal);
-}
-
-async function loadOrderLifecycleStressAudit(signal?: AbortSignal): Promise<OrderLifecycleStressAudit | null> {
-  return fetchJsonOrNull<OrderLifecycleStressAudit>("/aureon_order_lifecycle_stress_audit.json", signal);
-}
-
-async function loadCapitalEcosystemIntelligence(signal?: AbortSignal): Promise<CapitalEcosystemIntelligenceCompany | null> {
-  return fetchJsonOrNull<CapitalEcosystemIntelligenceCompany>("/aureon_capital_ecosystem_intelligence_company.json", signal);
-}
-
-async function loadCapitalRevenueLogicStressAudit(signal?: AbortSignal): Promise<CapitalRevenueLogicStressAudit | null> {
-  return fetchJsonOrNull<CapitalRevenueLogicStressAudit>("/aureon_capital_revenue_logic_stress_audit.json", signal);
-}
-
-async function loadCapitalRevenueLiveGateReadinessAudit(signal?: AbortSignal): Promise<CapitalRevenueLiveGateReadinessAudit | null> {
-  return fetchJsonOrNull<CapitalRevenueLiveGateReadinessAudit>("/aureon_capital_revenue_live_gate_readiness_audit.json", signal);
-}
-
-async function loadCapitalThreePLiveExecutionCertificationAudit(signal?: AbortSignal): Promise<CapitalThreePLiveExecutionCertificationAudit | null> {
-  return fetchJsonOrNull<CapitalThreePLiveExecutionCertificationAudit>("/aureon_capital_3p_live_execution_certification_audit.json", signal);
-}
-
-async function loadCapitalThreePBlockerBurndownAudit(signal?: AbortSignal): Promise<CapitalThreePBlockerBurndownAudit | null> {
-  return fetchJsonOrNull<CapitalThreePBlockerBurndownAudit>("/aureon_capital_3p_blocker_burndown_audit.json", signal);
-}
-
-async function loadPerformanceReadinessAudit(signal?: AbortSignal): Promise<PerformanceReadinessAudit | null> {
-  return fetchJsonOrNull<PerformanceReadinessAudit>("/aureon_performance_readiness_audit.json", signal);
-}
-
-async function loadAureonMurgeUnityBridge(signal?: AbortSignal): Promise<AureonMurgeUnityBridge | null> {
-  return fetchJsonOrNull<AureonMurgeUnityBridge>("/aureon_murge_unity_bridge.json", signal);
-}
-
-async function loadAureonMurgeRuntimeActivationStressAudit(signal?: AbortSignal): Promise<AureonMurgeRuntimeActivationStressAudit | null> {
-  return fetchJsonOrNull<AureonMurgeRuntimeActivationStressAudit>("/aureon_murge_runtime_activation_stress_audit.json", signal);
-}
-
-async function loadLiveTradeSignalFabric(signal?: AbortSignal): Promise<LiveTradeSignalFabric | null> {
-  return fetchJsonOrNull<LiveTradeSignalFabric>("/aureon_live_trade_signal_fabric.json", signal);
-}
-
-async function loadLiveTradeSignalFabricStressAudit(signal?: AbortSignal): Promise<LiveTradeSignalFabricStressAudit | null> {
-  return fetchJsonOrNull<LiveTradeSignalFabricStressAudit>("/aureon_live_trade_signal_fabric_stress_audit.json", signal);
-}
-
-async function loadSwarmSearchMappingStressAudit(signal?: AbortSignal): Promise<SwarmSearchMappingStressAudit | null> {
-  return fetchJsonOrNull<SwarmSearchMappingStressAudit>("/aureon_swarm_search_mapping_stress_audit.json", signal);
-}
-
-async function loadParallelStrategyUnity(signal?: AbortSignal): Promise<ParallelStrategyUnity | null> {
-  return fetchJsonOrNull<ParallelStrategyUnity>("/aureon_parallel_strategy_unity.json", signal);
-}
-
-async function loadParallelStrategyUnityStressAudit(signal?: AbortSignal): Promise<ParallelStrategyUnityStressAudit | null> {
-  return fetchJsonOrNull<ParallelStrategyUnityStressAudit>("/aureon_parallel_strategy_unity_stress_audit.json", signal);
-}
-
-async function loadCapitalLiveDryStressAudit(signal?: AbortSignal): Promise<CapitalEcosystemLiveDryStressAudit | null> {
-  return fetchJsonOrNull<CapitalEcosystemLiveDryStressAudit>("/aureon_capital_ecosystem_live_dry_stress_audit.json", signal);
-}
-
-function flightTestUrlFor(endpoint: string, manifest?: WakeUpManifest | null): string {
-  if (manifest?.runtime_flight_test_url) return manifest.runtime_flight_test_url;
-  return endpoint.replace(/\/api\/terminal-state$/, "/api/flight-test");
 }
 
 function runtimeStatusLines(data: any, flight: any): string[] {
@@ -1981,12 +1860,12 @@ function runtimeDetails(data: any, flight: any): Array<{ label: string; value: s
     { label: "tick age", value: watchdog?.last_tick_age_sec !== undefined ? `${formatCompact(watchdog.last_tick_age_sec)}s` : "unknown" },
     { label: "stale reason", value: String(data?.stale_reason || watchdog?.tick_stale_reason || "none") },
     { label: "reboot", value: String(advice?.decision || "unknown") },
-    { label: "positions", value: formatCompact(data?.combined?.open_positions || 0) },
+    { label: "positions", value: formatCompact(data?.combined?.open_positions) },
   ];
   if (actionPlan?.venue_count !== undefined || Object.keys(venues).length) {
     details.push({
       label: "venues ready",
-      value: `${formatCompact(actionPlan?.ready_venue_count || 0)}/${formatCompact(actionPlan?.venue_count || Object.keys(venues).length)}`,
+      value: `${formatCompact(actionPlan?.ready_venue_count)}/${formatCompact(actionPlan?.venue_count ?? (Object.keys(venues).length || undefined))}`,
     });
   }
   if (actionPlan?.mode) {
@@ -1998,54 +1877,54 @@ function runtimeDetails(data: any, flight: any): Array<{ label: string; value: s
   if (modelCoverage?.available_model_count !== undefined || modelCoverage?.ready_route_count !== undefined) {
     details.push({
       label: "models",
-      value: `${formatCompact(modelCoverage?.available_model_count || 0)} linked / ${formatCompact(modelCoverage?.ready_route_count || 0)} routes`,
+      value: `${formatCompact(modelCoverage?.available_model_count)} linked / ${formatCompact(modelCoverage?.ready_route_count)} routes`,
     });
   }
   if (latestIntents?.intent_count !== undefined || actionPlan?.order_intents_published !== undefined) {
     details.push({
       label: "order intents",
-      value: formatCompact(latestIntents?.intent_count || actionPlan?.order_intents_published || 0),
+      value: formatCompact(latestIntents?.intent_count ?? actionPlan?.order_intents_published),
     });
   }
   if (latestExecution?.submitted_count !== undefined || latestExecution?.blocked_count !== undefined) {
     details.push({
       label: "executor",
-      value: `${formatCompact(latestExecution?.submitted_count || 0)} sent / ${formatCompact(latestExecution?.delegated_count || 0)} delegated / ${formatCompact(latestExecution?.held_count ?? latestExecution?.blocked_count ?? 0)} held`,
+      value: `${formatCompact(latestExecution?.submitted_count)} sent / ${formatCompact(latestExecution?.delegated_count)} delegated / ${formatCompact(latestExecution?.held_count ?? latestExecution?.blocked_count)} held`,
     });
   }
   if (shadowTrading?.shadow_count !== undefined || shadowTrading?.active_shadow_count !== undefined) {
     details.push({
       label: "shadow trades",
-      value: `${formatCompact(shadowTrading?.shadow_opened_count || 0)} opened / ${formatCompact(shadowTrading?.active_shadow_count || 0)} active`,
+      value: `${formatCompact(shadowTrading?.shadow_opened_count)} opened / ${formatCompact(shadowTrading?.active_shadow_count)} active`,
     });
   }
   if (shadowTrading?.validated_shadow_count !== undefined || shadowTrading?.self_measurement?.agent_average_score !== undefined) {
     details.push({
       label: "shadow proof",
-      value: `${formatCompact(shadowTrading?.validated_shadow_count || 0)} validated / ${Math.round(asNumber(shadowTrading?.self_measurement?.agent_average_score) * 100)}% agent score`,
+      value: `${formatCompact(shadowTrading?.validated_shadow_count)} validated / ${formatCompact(legacyNumber(shadowTrading?.self_measurement?.agent_average_score) === null ? null : legacyNumber(shadowTrading?.self_measurement?.agent_average_score)! * 100)}% agent score`,
     });
   }
   if (hncProof?.step_count !== undefined || hncProof?.passed_count !== undefined) {
     details.push({
       label: "HNC flow",
-      value: `${formatCompact(hncProof?.passed_count || 0)}/${formatCompact(hncProof?.step_count || 0)} ${String(hncProof?.status || "checking")}`,
+      value: `${formatCompact(hncProof?.passed_count)}/${formatCompact(hncProof?.step_count)} ${String(hncProof?.status || "checking")}`,
     });
   }
   if (hncProof?.auris_nodes?.node_count !== undefined || hncProof?.auris_nodes?.coherence !== undefined) {
     details.push({
       label: "Auris nodes",
-      value: `${formatCompact(hncProof?.auris_nodes?.node_count || 0)} nodes / ${Math.round(asNumber(hncProof?.auris_nodes?.coherence) * 100)}% coherence`,
+      value: `${formatCompact(hncProof?.auris_nodes?.node_count)} nodes / ${formatCompact(legacyNumber(hncProof?.auris_nodes?.coherence) === null ? null : legacyNumber(hncProof?.auris_nodes?.coherence)! * 100)}% coherence`,
     });
   }
   if (hncProof?.master_formula?.score !== undefined) {
     details.push({
       label: "master formula",
-      value: `${Math.round(asNumber(hncProof?.master_formula?.score) * 100)}% ${hncProof?.master_formula?.passed ? "passing" : "attention"}`,
+      value: `${formatCompact(legacyNumber(hncProof?.master_formula?.score) === null ? null : legacyNumber(hncProof?.master_formula?.score)! * 100)}% ${hncProof?.master_formula?.passed ? "passing" : "attention"}`,
     });
   }
   for (const name of ["kraken", "capital", "alpaca", "binance"]) {
     if (governor?.[name]?.utilization !== undefined) {
-      details.push({ label: `${name} api`, value: `${Math.round(asNumber(governor[name].utilization) * 100)}%` });
+      details.push({ label: `${name} api`, value: `${formatCompact(legacyNumber(governor[name].utilization) === null ? null : legacyNumber(governor[name].utilization)! * 100)}%` });
     }
   }
   return details;
@@ -2062,73 +1941,34 @@ function runtimeModeLabel(data: any): string {
   return String(data?.trading_mode || data?.queen_state || "observe");
 }
 
-async function loadRuntimeObservation(): Promise<RuntimeObservation> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10000);
+function buildRuntimeObservation(snapshot: OperationalRead | null, error: string | null, receivedAt: number | null, now: number): RuntimeObservation {
+  const { freshness, data } = legacyRuntimeEvidence(snapshot, error, receivedAt, now);
+  if (!data) return {
+    connected: false, clearancePending: false, stale: freshness.status === "stale",
+    staleReason: freshness.reason, generatedAt: freshness.sourceTimestamp ?? undefined,
+    endpoint: "/api/terminal-state", statusLines: [freshness.reason], metrics: [], clearances: [], details: [],
+  };
+  const flight = snapshot?.flight;
+  const clearances = runtimeClearances(data, flight);
+  const actionPlan = asRecord(data.exchange_action_plan);
+  const goldRuntimeTradeProof = asRecord(data.gold_runtime_trade_proof ?? actionPlan.gold_runtime_trade_proof);
+  return {
+    connected: true, clearancePending: clearances.length > 0,
+    endpoint: "/api/terminal-state", generatedAt: freshness.sourceTimestamp ?? undefined,
+    stale: false, staleReason: "", statusLines: runtimeStatusLines(data, flight),
+    metrics: [
+      { label: "portfolio valuation", value: "Unavailable: no common-currency valuation receipt" },
+      { label: "open positions", value: formatCompact(data.combined?.open_positions) },
+      { label: "trades", value: formatCompact(data.total_trades) },
+      { label: "mode", value: runtimeModeLabel(data) },
+    ],
+    clearances, details: runtimeDetails(data, flight), data, flight: flight ?? undefined,
+    goldRuntimeTradeProof: Object.keys(goldRuntimeTradeProof).length ? goldRuntimeTradeProof : undefined,
+  };
+}
 
-  try {
-    const manifest = await loadWakeUpManifest(controller.signal);
-    const endpoints = uniqueStrings([manifest?.runtime_feed_url, ...DEFAULT_RUNTIME_ENDPOINTS]);
-    for (const endpoint of endpoints) {
-      const data = await fetchJsonOrNull<any>(endpoint, controller.signal);
-      if (!data) continue;
-      const flight = await fetchJsonOrNull<any>(flightTestUrlFor(endpoint, manifest), controller.signal);
-      const clearances = runtimeClearances(data, flight);
-      const actionPlan = data?.exchange_action_plan || {};
-      const goldRuntimeTradeProof = (
-        (data?.gold_runtime_trade_proof && typeof data.gold_runtime_trade_proof === "object" ? data.gold_runtime_trade_proof : null) ||
-        (actionPlan?.gold_runtime_trade_proof && typeof actionPlan.gold_runtime_trade_proof === "object" ? actionPlan.gold_runtime_trade_proof : null)
-      ) as Record<string, unknown> | null;
-      const freshGoldSource = (
-        goldRuntimeTradeProof?.fresh_gold_data_source && typeof goldRuntimeTradeProof.fresh_gold_data_source === "object"
-          ? goldRuntimeTradeProof.fresh_gold_data_source as Record<string, unknown>
-          : null
-      );
-      const runtimeObservationReady = Boolean(
-        data?.runtime_observation_ready ||
-        (goldRuntimeTradeProof?.gold_runtime_candidate_ready && freshGoldSource?.ready)
-      );
-      return {
-        connected: true,
-        clearancePending: !runtimeObservationReady && (data?.ok === false || clearances.length > 0),
-        endpoint,
-        generatedAt: String(data?.generated_at || data?.dashboard_generated_at || new Date().toISOString()),
-        stale: Boolean(data?.stale || data?.runtime_watchdog?.tick_stale),
-        staleReason: String(data?.stale_reason || data?.runtime_watchdog?.tick_stale_reason || ""),
-        statusLines: runtimeStatusLines(data, flight),
-        metrics: [
-          { label: "portfolio", value: formatCompact(data?.portfolio_value || data?.combined?.equity || data?.combined?.capital_equity_gbp || 0) },
-          { label: "open positions", value: formatCompact(data?.combined?.open_positions || data?.positions?.length || 0) },
-          { label: "trades", value: formatCompact(data?.total_trades || 0) },
-          { label: "mode", value: runtimeModeLabel(data) },
-        ],
-        clearances,
-        details: runtimeDetails(data, flight),
-        data,
-        flight: flight || undefined,
-        goldRuntimeTradeProof: goldRuntimeTradeProof || undefined,
-      };
-    }
-    return {
-      connected: false,
-      clearancePending: false,
-      statusLines: ["Runtime feed unavailable. Start Aureon ignition to stream live status."],
-      metrics: [],
-      clearances: [],
-      details: [],
-    };
-  } catch {
-    return {
-      connected: false,
-      clearancePending: false,
-      statusLines: ["Runtime feed unavailable. The unified shell is showing manifest/audit state only."],
-      metrics: [],
-      clearances: [],
-      details: [],
-    };
-  } finally {
-    window.clearTimeout(timeout);
-  }
+function MissingRecordedReport({ title }: { title: string }) {
+  return <Card className="bg-card/80"><CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">Recorded report unavailable: the request failed, or its original source timestamp is missing or expired. No current metrics are supplied.</CardContent></Card>;
 }
 
 function Pill({ label, tone = "outline" }: { label: string; tone?: string }) {
@@ -2307,7 +2147,7 @@ function CapitalEcosystemIntelligencePanel({ ecosystem }: { ecosystem: CapitalEc
           <div className="flex flex-wrap gap-1">
             <Pill label={ready ? "ecosystem ready" : "ecosystem attention"} tone={ready ? statusTone.wired : statusTone.orphaned} />
             <Pill label={`${formatCompact(summary.active_watchlist_count)}/${formatCompact(summary.active_watchlist_limit || 40)} active`} tone="border-primary/30 bg-primary/10 text-primary" />
-            <Pill label={`${formatCompact(summary.bench_watchlist_count)}/${formatCompact(summary.bench_watchlist_limit || 100)} bench`} tone="border-border bg-muted/20 text-muted-foreground" />
+            <Pill label={`${formatCompact(summary.bench_watchlist_count)}/${formatCompact(summary.bench_watchlist_limit)} bench`} tone="border-border bg-muted/20 text-muted-foreground" />
             <Pill label="/aureon_capital_ecosystem_intelligence_company.json" tone="border-primary/30 bg-primary/10 text-primary" />
           </div>
         </CardTitle>
@@ -2488,7 +2328,7 @@ function CapitalThreePMissionPanel({
             ["Intent eligible", revenueSummary.three_p_intent_eligible_count ?? revenueSummary.intent_eligible_candidate_count],
             ["False rejects", revenueSummary.false_positive_reject_count],
             ["Active watchlist", `${formatCompact(ecosystemSummary.active_watchlist_count)}/${formatCompact(ecosystemSummary.active_watchlist_limit || 40)}`],
-            ["Bench", `${formatCompact(ecosystemSummary.bench_watchlist_count)}/${formatCompact(ecosystemSummary.bench_watchlist_limit || 100)}`],
+            ["Bench", `${formatCompact(ecosystemSummary.bench_watchlist_count)}/${formatCompact(ecosystemSummary.bench_watchlist_limit)}`],
             ["Open positions", liveDrySummary.recovered_position_count ?? ecosystemSummary.active_capital_position_count],
             ["Close first", revenueSummary.three_p_close_opportunity_count ?? ecosystemSummary.close_first_opportunity_count],
             ["Duplicate blocks", revenueSummary.duplicate_route_blocked_count ?? ecosystemSummary.duplicate_route_blocked_count],
@@ -2864,7 +2704,7 @@ function CapitalThreePBlockerBurndownPanel({ audit }: { audit: CapitalThreePBloc
                 ["duplicate rule", String(duplicate.clearance_rule || "broker absence/outcome")],
                 ["recovered chain", String(recovered.recovered_close_chain_status || "unknown").replace(/_/g, " ")],
                 ["live gates", runtime.live_gates_armed ? "armed" : "held"],
-                ["external live rows", formatCompact((guard.external_live_rows as unknown[] | undefined)?.length || 0)],
+                ["external live rows", formatCompact((guard.external_live_rows as unknown[] | undefined)?.length)],
                 ["shadow rows", formatCompact(summary.shadow_confirmation_count)],
                 ["artifact match", runtime.runtime_artifact_mismatch ? "attention" : "ok"],
               ].map(([label, value]) => (
@@ -5783,7 +5623,7 @@ function CapitalRevenueLogicStressPanel({ audit }: { audit: CapitalRevenueLogicS
           <div className="rounded-md border border-border/40 bg-black/20 p-3 text-xs">
             <div className="mb-2 flex items-center justify-between gap-2">
               <span className="uppercase text-muted-foreground">Order-intent readiness</span>
-              <Pill label={readiness.live_gates_blocking ? "gated" : "clear"} tone={readiness.live_gates_blocking ? statusTone.orphaned : statusTone.wired} />
+              <Pill label={readiness.live_gates_blocking === true ? "recorded: gated" : readiness.live_gates_blocking === false ? "recorded: clear" : "gate observation unavailable"} tone={statusTone.unknown} />
             </div>
             <div className="truncate text-muted-foreground">candidate-ready {formatCompact(readiness.candidate_level_eligible_count)}</div>
             <div className="mt-1 truncate text-muted-foreground">runtime blockers {formatCompact(blockerLabels(readiness.runtime_gate_blockers).length)}</div>
@@ -6267,37 +6107,33 @@ function CapitalLiveDryStressPanel({ audit }: { audit: CapitalEcosystemLiveDrySt
 }
 
 function AppShell() {
-  const [state, setState] = useState<UnifiedFrontendState | null>(null);
-  const [runtime, setRuntime] = useState<RuntimeObservation>({
-    connected: false,
-    clearancePending: false,
-    statusLines: ["Runtime feed pending."],
-    metrics: [],
-    clearances: [],
-    details: [],
-  });
-  const [tradingChecklist, setTradingChecklist] = useState<TradingIntelligenceChecklist | null>(null);
-  const [exchangeChecklist, setExchangeChecklist] = useState<ExchangeMonitoringChecklist | null>(null);
-  const [exchangeDataMatrix, setExchangeDataMatrix] = useState<ExchangeDataCapabilityMatrix | null>(null);
-  const [globalCoverageMap, setGlobalCoverageMap] = useState<GlobalFinancialCoverageMap | null>(null);
-  const [hncSecurityComparison, setHncSecurityComparison] = useState<HNCPacketSecurityComparison | null>(null);
-  const [liveGoalTradeAudit, setLiveGoalTradeAudit] = useState<LiveGoalTradeAudit | null>(null);
-  const [orderLifecycleStressAudit, setOrderLifecycleStressAudit] = useState<OrderLifecycleStressAudit | null>(null);
-  const [capitalEcosystemIntelligence, setCapitalEcosystemIntelligence] = useState<CapitalEcosystemIntelligenceCompany | null>(null);
-  const [capitalRevenueLogicStressAudit, setCapitalRevenueLogicStressAudit] = useState<CapitalRevenueLogicStressAudit | null>(null);
-  const [capitalRevenueLiveGateReadinessAudit, setCapitalRevenueLiveGateReadinessAudit] = useState<CapitalRevenueLiveGateReadinessAudit | null>(null);
-  const [capitalThreePLiveExecutionCertificationAudit, setCapitalThreePLiveExecutionCertificationAudit] = useState<CapitalThreePLiveExecutionCertificationAudit | null>(null);
-  const [capitalThreePBlockerBurndownAudit, setCapitalThreePBlockerBurndownAudit] = useState<CapitalThreePBlockerBurndownAudit | null>(null);
-  const [performanceReadinessAudit, setPerformanceReadinessAudit] = useState<PerformanceReadinessAudit | null>(null);
-  const [aureonMurgeUnityBridge, setAureonMurgeUnityBridge] = useState<AureonMurgeUnityBridge | null>(null);
-  const [aureonMurgeRuntimeActivation, setAureonMurgeRuntimeActivation] = useState<AureonMurgeRuntimeActivationStressAudit | null>(null);
-  const [liveTradeSignalFabric, setLiveTradeSignalFabric] = useState<LiveTradeSignalFabric | null>(null);
-  const [liveTradeSignalFabricStressAudit, setLiveTradeSignalFabricStressAudit] = useState<LiveTradeSignalFabricStressAudit | null>(null);
-  const [swarmSearchMappingStressAudit, setSwarmSearchMappingStressAudit] = useState<SwarmSearchMappingStressAudit | null>(null);
-  const [parallelStrategyUnity, setParallelStrategyUnity] = useState<ParallelStrategyUnity | null>(null);
-  const [parallelStrategyUnityStressAudit, setParallelStrategyUnityStressAudit] = useState<ParallelStrategyUnityStressAudit | null>(null);
-  const [capitalLiveDryStressAudit, setCapitalLiveDryStressAudit] = useState<CapitalEcosystemLiveDryStressAudit | null>(null);
-  const [loading, setLoading] = useState(true);
+  const operationalRead = useReadOnlyPoller(operationalSnapshotStore, RUNTIME_REFRESH_MS, 8_000);
+  const reportRead = useReadOnlyPoller(legacyReportsStore, MANIFEST_REFRESH_MS, 8_000);
+  const clockNow = Date.now();
+  const state = operationalRead.data ? unifiedFrontendStateFromReports(operationalRead.data.data, operationalRead.data.loadedAt) : null;
+  const runtime = buildRuntimeObservation(operationalRead.data, operationalRead.error, operationalRead.lastReceivedAt, clockNow);
+  const loading = operationalRead.loading || reportRead.loading;
+  const tradingChecklist = currentLegacyReport<TradingIntelligenceChecklist>(reportRead.data?.tradingChecklist, clockNow, 90);
+  const exchangeChecklist = currentLegacyReport<ExchangeMonitoringChecklist>(reportRead.data?.exchangeChecklist, clockNow, 90);
+  const exchangeDataMatrix = currentLegacyReport<ExchangeDataCapabilityMatrix>(reportRead.data?.exchangeDataMatrix, clockNow, 120);
+  const globalCoverageMap = currentLegacyReport<GlobalFinancialCoverageMap>(reportRead.data?.globalCoverageMap, clockNow, 300);
+  const hncSecurityComparison = currentLegacyReport<HNCPacketSecurityComparison>(reportRead.data?.hncSecurityComparison, clockNow, 86400);
+  const liveGoalTradeAudit = currentLegacyReport<LiveGoalTradeAudit>(reportRead.data?.liveGoalTradeAudit, clockNow, 90);
+  const orderLifecycleStressAudit = currentLegacyReport<OrderLifecycleStressAudit>(reportRead.data?.orderLifecycleStressAudit, clockNow, 900);
+  const capitalEcosystemIntelligence = currentLegacyReport<CapitalEcosystemIntelligenceCompany>(reportRead.data?.capitalEcosystemIntelligence, clockNow, 120);
+  const capitalRevenueLogicStressAudit = currentLegacyReport<CapitalRevenueLogicStressAudit>(reportRead.data?.capitalRevenueLogicStressAudit, clockNow, 120);
+  const capitalRevenueLiveGateReadinessAudit = currentLegacyReport<CapitalRevenueLiveGateReadinessAudit>(reportRead.data?.capitalRevenueLiveGateReadinessAudit, clockNow, 120);
+  const capitalThreePLiveExecutionCertificationAudit = currentLegacyReport<CapitalThreePLiveExecutionCertificationAudit>(reportRead.data?.capitalThreePLiveExecutionCertificationAudit, clockNow, 120);
+  const capitalThreePBlockerBurndownAudit = currentLegacyReport<CapitalThreePBlockerBurndownAudit>(reportRead.data?.capitalThreePBlockerBurndownAudit, clockNow, 120);
+  const performanceReadinessAudit = currentLegacyReport<PerformanceReadinessAudit>(reportRead.data?.performanceReadinessAudit, clockNow, 900);
+  const aureonMurgeUnityBridge = currentLegacyReport<AureonMurgeUnityBridge>(reportRead.data?.aureonMurgeUnityBridge, clockNow, 1800);
+  const aureonMurgeRuntimeActivation = currentLegacyReport<AureonMurgeRuntimeActivationStressAudit>(reportRead.data?.aureonMurgeRuntimeActivation, clockNow, 180);
+  const liveTradeSignalFabric = currentLegacyReport<LiveTradeSignalFabric>(reportRead.data?.liveTradeSignalFabric, clockNow, 120);
+  const liveTradeSignalFabricStressAudit = currentLegacyReport<LiveTradeSignalFabricStressAudit>(reportRead.data?.liveTradeSignalFabricStressAudit, clockNow, 120);
+  const swarmSearchMappingStressAudit = currentLegacyReport<SwarmSearchMappingStressAudit>(reportRead.data?.swarmSearchMappingStressAudit, clockNow, 300);
+  const parallelStrategyUnity = currentLegacyReport<ParallelStrategyUnity>(reportRead.data?.parallelStrategyUnity, clockNow, 120);
+  const parallelStrategyUnityStressAudit = currentLegacyReport<ParallelStrategyUnityStressAudit>(reportRead.data?.parallelStrategyUnityStressAudit, clockNow, 120);
+  const capitalLiveDryStressAudit = currentLegacyReport<CapitalEcosystemLiveDryStressAudit>(reportRead.data?.capitalLiveDryStressAudit, clockNow, 120);
   const [now, setNow] = useState(() => Date.now());
   const [active, setActive] = useState("overview");
   const [dashboardTab, setDashboardTabState] = useState<DashboardTabId>(() =>
@@ -6320,18 +6156,7 @@ function AppShell() {
     }
   };
 
-  const refresh = async () => {
-    setLoading(true);
-    const loaded = await loadUnifiedFrontendState();
-    setState(loaded);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    refresh();
-    const timer = window.setInterval(refresh, MANIFEST_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
+  const refresh = () => { operationalRead.refresh(); reportRead.refresh(); };
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), UI_CLOCK_REFRESH_MS);
@@ -6346,160 +6171,6 @@ function AppShell() {
     return () => window.removeEventListener("hashchange", syncHash);
   }, []);
 
-  useEffect(() => {
-    const refreshRuntime = async () => setRuntime(await loadRuntimeObservation());
-    refreshRuntime();
-    const timer = window.setInterval(refreshRuntime, RUNTIME_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshChecklist = async () => setTradingChecklist(await loadTradingIntelligenceChecklist());
-    refreshChecklist();
-    const timer = window.setInterval(refreshChecklist, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshExchangeChecklist = async () => setExchangeChecklist(await loadExchangeMonitoringChecklist());
-    refreshExchangeChecklist();
-    const timer = window.setInterval(refreshExchangeChecklist, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshExchangeDataMatrix = async () => setExchangeDataMatrix(await loadExchangeDataCapabilityMatrix());
-    refreshExchangeDataMatrix();
-    const timer = window.setInterval(refreshExchangeDataMatrix, MARKET_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshGlobalCoverage = async () => setGlobalCoverageMap(await loadGlobalFinancialCoverageMap());
-    refreshGlobalCoverage();
-    const timer = window.setInterval(refreshGlobalCoverage, MARKET_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshLiveGoalTradeAudit = async () => setLiveGoalTradeAudit(await loadLiveGoalTradeAudit());
-    refreshLiveGoalTradeAudit();
-    const timer = window.setInterval(refreshLiveGoalTradeAudit, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshOrderLifecycleStressAudit = async () => setOrderLifecycleStressAudit(await loadOrderLifecycleStressAudit());
-    refreshOrderLifecycleStressAudit();
-    const timer = window.setInterval(refreshOrderLifecycleStressAudit, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshCapitalEcosystem = async () => setCapitalEcosystemIntelligence(await loadCapitalEcosystemIntelligence());
-    refreshCapitalEcosystem();
-    const timer = window.setInterval(refreshCapitalEcosystem, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshCapitalRevenueLogic = async () => setCapitalRevenueLogicStressAudit(await loadCapitalRevenueLogicStressAudit());
-    refreshCapitalRevenueLogic();
-    const timer = window.setInterval(refreshCapitalRevenueLogic, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshCapitalRevenueLiveGate = async () => setCapitalRevenueLiveGateReadinessAudit(await loadCapitalRevenueLiveGateReadinessAudit());
-    refreshCapitalRevenueLiveGate();
-    const timer = window.setInterval(refreshCapitalRevenueLiveGate, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshCapitalThreePExecution = async () => setCapitalThreePLiveExecutionCertificationAudit(await loadCapitalThreePLiveExecutionCertificationAudit());
-    refreshCapitalThreePExecution();
-    const timer = window.setInterval(refreshCapitalThreePExecution, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshCapitalThreePBurndown = async () => setCapitalThreePBlockerBurndownAudit(await loadCapitalThreePBlockerBurndownAudit());
-    refreshCapitalThreePBurndown();
-    const timer = window.setInterval(refreshCapitalThreePBurndown, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshPerformanceReadiness = async () => setPerformanceReadinessAudit(await loadPerformanceReadinessAudit());
-    refreshPerformanceReadiness();
-    const timer = window.setInterval(refreshPerformanceReadiness, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshMurgeUnity = async () => setAureonMurgeUnityBridge(await loadAureonMurgeUnityBridge());
-    refreshMurgeUnity();
-    const timer = window.setInterval(refreshMurgeUnity, MANIFEST_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshMurgeRuntimeActivation = async () => setAureonMurgeRuntimeActivation(await loadAureonMurgeRuntimeActivationStressAudit());
-    refreshMurgeRuntimeActivation();
-    const timer = window.setInterval(refreshMurgeRuntimeActivation, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshLiveTradeSignalFabric = async () => setLiveTradeSignalFabric(await loadLiveTradeSignalFabric());
-    refreshLiveTradeSignalFabric();
-    const timer = window.setInterval(refreshLiveTradeSignalFabric, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshLiveTradeSignalFabricStress = async () => setLiveTradeSignalFabricStressAudit(await loadLiveTradeSignalFabricStressAudit());
-    refreshLiveTradeSignalFabricStress();
-    const timer = window.setInterval(refreshLiveTradeSignalFabricStress, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshSwarmSearchMapping = async () => setSwarmSearchMappingStressAudit(await loadSwarmSearchMappingStressAudit());
-    refreshSwarmSearchMapping();
-    const timer = window.setInterval(refreshSwarmSearchMapping, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshParallelStrategyUnity = async () => setParallelStrategyUnity(await loadParallelStrategyUnity());
-    refreshParallelStrategyUnity();
-    const timer = window.setInterval(refreshParallelStrategyUnity, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshParallelStrategyUnityStress = async () => setParallelStrategyUnityStressAudit(await loadParallelStrategyUnityStressAudit());
-    refreshParallelStrategyUnityStress();
-    const timer = window.setInterval(refreshParallelStrategyUnityStress, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshCapitalLiveDryStress = async () => setCapitalLiveDryStressAudit(await loadCapitalLiveDryStressAudit());
-    refreshCapitalLiveDryStress();
-    const timer = window.setInterval(refreshCapitalLiveDryStress, FAST_PANEL_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const refreshSecurity = async () => setHncSecurityComparison(await loadHNCPacketSecurityComparison());
-    refreshSecurity();
-    const timer = window.setInterval(refreshSecurity, MANIFEST_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-
   const inventory = (state?.inventory || {}) as SaaSInventoryManifest;
   const plan = state?.plan || {};
   const organism = state?.organism || {};
@@ -6512,15 +6183,15 @@ function AppShell() {
   const switchboardSummary = switchboard.summary || {};
   const planSummary = plan.summary || {};
   const percent = readinessPercent(summary);
-  const securityBlockers = asNumber(summary.security_blocker_count);
-  const blindSpotCount = asNumber(organismSummary.blind_spot_count);
-  const highBlindSpotCount = asNumber(organismSummary.high_blind_spot_count);
+  const securityBlockers = legacyNumber(summary.security_blocker_count);
+  const blindSpotCount = legacyNumber(organismSummary.blind_spot_count);
+  const highBlindSpotCount = legacyNumber(organismSummary.high_blind_spot_count);
   const manualActions = Object.entries(plan.safety_contract || {}).filter(([, value]) => Boolean(value));
   const activeScreen = screens.find((screen) => screen.id === active) || screens[0];
   const tradingScreen = screens.find((screen) => screen.id === "trading") || activeScreen;
   const securityScreen = screens.find((screen) => screen.id === "saas_security") || activeScreen;
   const selectedDashboardTab = dashboardTabs.find((tab) => tab.id === dashboardTab) || dashboardTabs[0];
-  const statusLines = organism.status_lines?.length ? organism.status_lines : runtime.statusLines;
+  const statusLines = runtime.statusLines;
   const allSecurityBlockers = Object.values(screenSecurityBlockers).flat();
   const filteredSecurityBlockers = allSecurityBlockers.filter((blocker) => matchesBlockerFilter(blocker, blockerFilter));
   const tradingSecurityBlockers = (screenSecurityBlockers.trading || []).filter((blocker) =>
@@ -6568,17 +6239,17 @@ function AppShell() {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-semibold tracking-normal">Aureon Unified Autonomous Console</h1>
-                <Badge variant={securityBlockers ? "destructive" : "success"}>
-                  {securityBlockers ? `${securityBlockers} blockers` : "clear"}
+                <Badge variant={securityBlockers ? "destructive" : "outline"}>
+                  {securityBlockers === null ? "blocker count unavailable" : `${securityBlockers} recorded blockers`}
                 </Badge>
-                <Badge variant={highBlindSpotCount ? "destructive" : blindSpotCount ? "outline" : "success"}>
-                  {blindSpotCount ? `${blindSpotCount} blind spots` : "fresh pulse"}
+                <Badge variant={highBlindSpotCount ? "destructive" : "outline"}>
+                  {blindSpotCount === null ? "domain observations unavailable" : `${blindSpotCount} recorded blind spots`}
                 </Badge>
                 <Badge variant="outline">{plan.status || "manifest pending"}</Badge>
                 <Badge variant="secondary">{selectedDashboardTab.title}</Badge>
               </div>
               <p className="mt-1 max-w-4xl text-sm text-muted-foreground">
-                Aureon works through its trading, accounting, research, vault, cognition, SaaS security, and self-audit systems while this shell exposes evidence, blockers, and manual-only boundaries.
+                Canonical runtime observations use their original completed-tick clock. The other panels show recorded structure and dated audit reports; those reports do not attest current provider health or live execution. Missing or expired reports are unavailable.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -6587,8 +6258,8 @@ function AppShell() {
                 Refresh now
               </Button>
               <Pill
-                label={runtime.connected ? (runtime.clearancePending ? "runtime feed checking" : "runtime feed live") : "runtime feed offline"}
-                tone={runtime.connected ? (runtime.clearancePending ? statusTone.orphaned : statusTone.wired) : statusTone.security_blocker}
+                label={runtime.connected ? (runtime.clearancePending ? "runtime feed checking" : "runtime feed live") : loading ? "loading runtime observations" : "runtime observations unavailable"}
+                tone={runtime.connected ? (runtime.clearancePending ? statusTone.orphaned : statusTone.wired) : statusTone.partial}
               />
               <Pill label={`view ${selectedDashboardTab.title}`} tone="border-primary/30 bg-primary/10 text-primary" />
               <Pill label={`checked ${formatFreshnessAge(timestampAgeSeconds(state?.loadedAt, now))} ago`} tone="border-border bg-muted/20 text-muted-foreground" />
@@ -6598,7 +6269,7 @@ function AppShell() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <MetricTile label="SaaS surfaces" value={formatCompact(summary.surface_count)} icon={Database} />
             <MetricTile label="Frontend surfaces" value={formatCompact(summary.frontend_surface_count)} icon={Activity} />
-            <MetricTile label="Fresh domains" value={`${formatCompact(organismSummary.fresh_domain_count)}/${formatCompact(organismSummary.domain_count)}`} icon={Server} />
+            <MetricTile label="Recorded fresh-domain count" value={`${formatCompact(organismSummary.fresh_domain_count)}/${formatCompact(organismSummary.domain_count)}`} icon={Server} />
             <MetricTile label="Evolution queue" value={formatCompact(evolutionSummary.queue_count)} icon={ShieldCheck} tone={asNumber(evolutionSummary.blocked_count) ? "text-warning" : "text-success"} />
             <MetricTile label="Capability modes" value={formatCompact(switchboardSummary.capability_count)} icon={Brain} tone={asNumber(switchboardSummary.blocker_count) ? "text-warning" : "text-success"} />
           </div>
@@ -6672,9 +6343,9 @@ function AppShell() {
               onFilterChange={setBlockerFilter}
               maxItems={3}
             />
-            <OrganismPulsePanel organism={organism} runtimeConnected={runtime.connected} />
-            <AureonMurgeUnityPanel bridge={aureonMurgeUnityBridge} />
-            <AureonMurgeRuntimeActivationPanel audit={aureonMurgeRuntimeActivation} />
+            {state?.organismSource !== "unavailable" && state?.organism.generated_at ? <OrganismPulsePanel organism={organism} runtimeConnected={runtime.connected} /> : <MissingRecordedReport title="Recorded Organism Pulse" />}
+            {aureonMurgeUnityBridge ? (<AureonMurgeUnityPanel bridge={aureonMurgeUnityBridge} />) : <MissingRecordedReport title="Aureon Murge Unity" />}
+            {aureonMurgeRuntimeActivation ? (<AureonMurgeRuntimeActivationPanel audit={aureonMurgeRuntimeActivation} />) : <MissingRecordedReport title="Aureon Murge Runtime Activation" />}
             <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
               <RuntimeMirrorPanel runtime={runtime} statusLines={statusLines} />
               <SafetyBoundariesPanel manualActions={manualActions} percent={percent} summary={summary} />
@@ -6714,27 +6385,27 @@ function AppShell() {
               runtimeClearancePending={runtime.clearancePending}
               runtimeStaleReason={runtime.staleReason}
             />
-            <CapitalThreePMissionPanel
+            {capitalEcosystemIntelligence || capitalLiveDryStressAudit || capitalRevenueLiveGateReadinessAudit || capitalRevenueLogicStressAudit ? (<CapitalThreePMissionPanel
               ecosystem={capitalEcosystemIntelligence}
               revenue={capitalRevenueLogicStressAudit}
               liveGate={capitalRevenueLiveGateReadinessAudit}
               liveDry={capitalLiveDryStressAudit}
-            />
-            <CapitalThreePLiveExecutionCertificationPanel audit={capitalThreePLiveExecutionCertificationAudit} />
-            <CapitalThreePBlockerBurndownPanel audit={capitalThreePBlockerBurndownAudit} />
-            <PerformanceReadinessPanel audit={performanceReadinessAudit} />
-            <AureonMurgeUnityPanel bridge={aureonMurgeUnityBridge} />
-            <AureonMurgeRuntimeActivationPanel audit={aureonMurgeRuntimeActivation} />
-            <ParallelTradingSystemsPanel unity={parallelStrategyUnity} stress={parallelStrategyUnityStressAudit} />
-            <SwarmSearchMappingPanel audit={swarmSearchMappingStressAudit} />
-            <LiveSignalFabricPanel fabric={liveTradeSignalFabric} stress={liveTradeSignalFabricStressAudit} audit={liveGoalTradeAudit} />
-            <CapitalEcosystemIntelligencePanel ecosystem={capitalEcosystemIntelligence} />
-            <CapitalRevenueLogicStressPanel audit={capitalRevenueLogicStressAudit} />
-            <CapitalRevenueLiveGateReadinessPanel audit={capitalRevenueLiveGateReadinessAudit} />
-            <CapitalLiveDryStressPanel audit={capitalLiveDryStressAudit} />
-            <LiveGoalTradeAuditPanel audit={liveGoalTradeAudit} runtime={runtime} />
-            <OrderLifecyclePanel audit={liveGoalTradeAudit} runtime={runtime} />
-            <OrderLifecycleStressPanel stressAudit={orderLifecycleStressAudit} audit={liveGoalTradeAudit} />
+            />) : <MissingRecordedReport title="Capital Three PMission" />}
+            {capitalThreePLiveExecutionCertificationAudit ? (<CapitalThreePLiveExecutionCertificationPanel audit={capitalThreePLiveExecutionCertificationAudit} />) : <MissingRecordedReport title="Capital Three PLive Execution Certification" />}
+            {capitalThreePBlockerBurndownAudit ? (<CapitalThreePBlockerBurndownPanel audit={capitalThreePBlockerBurndownAudit} />) : <MissingRecordedReport title="Capital Three PBlocker Burndown" />}
+            {performanceReadinessAudit ? (<PerformanceReadinessPanel audit={performanceReadinessAudit} />) : <MissingRecordedReport title="Performance Readiness" />}
+            {aureonMurgeUnityBridge ? (<AureonMurgeUnityPanel bridge={aureonMurgeUnityBridge} />) : <MissingRecordedReport title="Aureon Murge Unity" />}
+            {aureonMurgeRuntimeActivation ? (<AureonMurgeRuntimeActivationPanel audit={aureonMurgeRuntimeActivation} />) : <MissingRecordedReport title="Aureon Murge Runtime Activation" />}
+            {parallelStrategyUnity || parallelStrategyUnityStressAudit ? (<ParallelTradingSystemsPanel unity={parallelStrategyUnity} stress={parallelStrategyUnityStressAudit} />) : <MissingRecordedReport title="Parallel Trading Systems" />}
+            {swarmSearchMappingStressAudit ? (<SwarmSearchMappingPanel audit={swarmSearchMappingStressAudit} />) : <MissingRecordedReport title="Swarm Search Mapping" />}
+            {liveGoalTradeAudit || liveTradeSignalFabric || liveTradeSignalFabricStressAudit ? (<LiveSignalFabricPanel fabric={liveTradeSignalFabric} stress={liveTradeSignalFabricStressAudit} audit={liveGoalTradeAudit} />) : <MissingRecordedReport title="Live Signal Fabric" />}
+            {capitalEcosystemIntelligence ? (<CapitalEcosystemIntelligencePanel ecosystem={capitalEcosystemIntelligence} />) : <MissingRecordedReport title="Capital Ecosystem Intelligence" />}
+            {capitalRevenueLogicStressAudit ? (<CapitalRevenueLogicStressPanel audit={capitalRevenueLogicStressAudit} />) : <MissingRecordedReport title="Capital Revenue Logic Stress" />}
+            {capitalRevenueLiveGateReadinessAudit ? (<CapitalRevenueLiveGateReadinessPanel audit={capitalRevenueLiveGateReadinessAudit} />) : <MissingRecordedReport title="Capital Revenue Live Gate Readiness" />}
+            {capitalLiveDryStressAudit ? (<CapitalLiveDryStressPanel audit={capitalLiveDryStressAudit} />) : <MissingRecordedReport title="Capital Live Dry Stress" />}
+            {liveGoalTradeAudit || runtime.connected ? (<LiveGoalTradeAuditPanel audit={liveGoalTradeAudit} runtime={runtime} />) : <MissingRecordedReport title="Live Goal Trade Audit" />}
+            {liveGoalTradeAudit || runtime.connected ? (<OrderLifecyclePanel audit={liveGoalTradeAudit} runtime={runtime} />) : <MissingRecordedReport title="Order Lifecycle" />}
+            {liveGoalTradeAudit || orderLifecycleStressAudit ? (<OrderLifecycleStressPanel stressAudit={orderLifecycleStressAudit} audit={liveGoalTradeAudit} />) : <MissingRecordedReport title="Order Lifecycle Stress" />}
             {tradingScreen ? (
               <ScreenPanel
                 screen={tradingScreen}
@@ -6743,10 +6414,10 @@ function AppShell() {
                 surfaceFilter={surfaceFilter}
               />
             ) : null}
-            <GlobalFinancialCoveragePanel coverage={globalCoverageMap} />
-            <ExchangeDataCapabilityMatrixPanel matrix={exchangeDataMatrix} />
-            <ExchangeMonitoringChecklistPanel checklist={exchangeChecklist} />
-            <TradingIntelligenceChecklistPanel checklist={tradingChecklist} />
+            {globalCoverageMap ? (<GlobalFinancialCoveragePanel coverage={globalCoverageMap} />) : <MissingRecordedReport title="Global Financial Coverage" />}
+            {exchangeDataMatrix ? (<ExchangeDataCapabilityMatrixPanel matrix={exchangeDataMatrix} />) : <MissingRecordedReport title="Exchange Data Capability Matrix" />}
+            {exchangeChecklist ? (<ExchangeMonitoringChecklistPanel checklist={exchangeChecklist} />) : <MissingRecordedReport title="Exchange Monitoring Checklist" />}
+            {tradingChecklist ? (<TradingIntelligenceChecklistPanel checklist={tradingChecklist} />) : <MissingRecordedReport title="Trading Intelligence Checklist" />}
           </TabsContent>
 
           <TabsContent value="security" className="mt-0 space-y-5" data-testid="dashboard-content-security">
@@ -6757,7 +6428,7 @@ function AppShell() {
               filter={blockerFilter}
               onFilterChange={setBlockerFilter}
             />
-            <SaaSCredentialManagementPanel comparison={hncSecurityComparison} />
+            {hncSecurityComparison ? (<SaaSCredentialManagementPanel comparison={hncSecurityComparison} />) : <MissingRecordedReport title="Saa SCredential Management" />}
             {securityScreen ? (
               <ScreenPanel
                 screen={securityScreen}
@@ -6813,7 +6484,7 @@ function AppShell() {
         </Tabs>
 
         <div className="mt-5 text-xs text-muted-foreground">
-          Sources: {state?.inventorySource || "pending"}, {state?.planSource || "pending"}, {state?.organismSource || "pending"}, {state?.evolutionSource || "pending"}, and {state?.switchboardSource || "pending"}. Generated screens: {formatCompact(planSummary.screen_count)}. Readiness signal: {percent}%.
+          Sources: {state?.inventorySource || "pending"}, {state?.planSource || "pending"}, {state?.organismSource || "pending"}, {state?.evolutionSource || "pending"}, and {state?.switchboardSource || "pending"}. Generated screens: {formatCompact(planSummary.screen_count)}. Recorded inventory heuristic: {percent === null ? "Unavailable" : `${percent}%`}.
         </div>
       </main>
     </div>
@@ -6829,9 +6500,9 @@ function DashboardStatusBanner({
 }: {
   tab: DashboardTabConfig;
   runtime: RuntimeObservation;
-  securityBlockers: number;
-  blindSpotCount: number;
-  percent: number;
+  securityBlockers: number | null;
+  blindSpotCount: number | null;
+  percent: number | null;
 }) {
   const Icon = tab.icon;
   return (
@@ -6862,8 +6533,8 @@ function DashboardStatusBanner({
             <div className="mt-1 text-sm font-semibold">{formatCompact(blindSpotCount)}</div>
           </div>
           <div className="rounded-md border border-border/40 bg-muted/10 p-3">
-            <div className="text-[11px] uppercase text-muted-foreground">readiness</div>
-            <div className="mt-1 text-sm font-semibold">{percent}%</div>
+            <div className="text-[11px] uppercase text-muted-foreground">recorded inventory score</div>
+            <div className="mt-1 text-sm font-semibold">{percent === null ? "Unavailable" : `${percent}%`}</div>
           </div>
         </div>
       </CardContent>
@@ -6895,7 +6566,7 @@ function timestampAgeSeconds(timestamp?: string | number, nowMs = Date.now()): n
   const parsed = typeof timestamp === "number" ? timestamp : Date.parse(String(timestamp));
   if (!Number.isFinite(parsed)) return null;
   const ms = typeof timestamp === "number" && timestamp < 10_000_000_000 ? timestamp * 1000 : parsed;
-  return Math.max(0, Math.round((nowMs - ms) / 1000));
+  return ms > nowMs + 5_000 ? null : Math.max(0, Math.round((nowMs - ms) / 1000));
 }
 
 function formatFreshnessAge(seconds: number | null): string {
@@ -7018,7 +6689,7 @@ function buildFreshnessItems({
       ageSeconds,
       cadence: formatCadence(cadenceMs),
       source,
-      detail: statusText || "manifest loaded",
+      detail: `Recorded report: ${statusText || "loaded"}. Generation age does not attest underlying input freshness.`,
     });
   };
 
@@ -7048,11 +6719,11 @@ function buildFreshnessItems({
   addManifest("hnc-security", "HNC security", hncSecurityComparison?.generated_at, hncSecurityComparison?.status, "/hnc_packet_security_comparison.json", MANIFEST_REFRESH_MS, 3600, 86400);
 
   (state?.organism.domains || []).slice(0, 16).forEach((domain) => {
-    const ageSeconds = domain.age_seconds ?? timestampAgeSeconds(domain.generated_at, now);
+    const ageSeconds = timestampAgeSeconds(domain.generated_at, now);
     addFreshnessItem(items, {
       id: `domain-${domain.id}`,
       label: domain.label || domain.domain || domain.id,
-      status: freshnessStatusFromText(domain.status, statusFromAge(ageSeconds, 300, 3600)),
+      status: ageSeconds === null ? "missing" : statusFromAge(ageSeconds, 300, 3600),
       ageSeconds,
       cadence: "observer",
       source: domain.source_path || "organism domain",
@@ -7083,9 +6754,9 @@ function OperatorBriefingPanel({
   runtime: RuntimeObservation;
   organism: UnifiedFrontendState["organism"];
   freshnessItems: FreshnessItem[];
-  securityBlockers: number;
-  blindSpotCount: number;
-  percent: number;
+  securityBlockers: number | null;
+  blindSpotCount: number | null;
+  percent: number | null;
   loading: boolean;
   onRefresh: () => void;
 }) {
@@ -7098,12 +6769,12 @@ function OperatorBriefingPanel({
     organism.next_actions?.[0] ||
     runtime.statusLines.find((line) => line.trim()) ||
     "Watch the selected tab, then use the prompt lane or evidence links for the next client job.";
-  const runtimePhrase = runtime.connected
+  const runtimePhrase = loading && !runtime.connected ? "Runtime observations are loading." : runtime.connected
     ? runtime.clearancePending
       ? "Runtime is reachable but still checking gates."
       : "Runtime feed is live."
-    : "Runtime feed is offline; manifest evidence is still visible.";
-  const blockerPhrase = securityBlockers
+    : "Current runtime observations are unavailable; recorded reports have their own source dates.";
+  const blockerPhrase = securityBlockers === null ? "Security blocker observations are unavailable." : securityBlockers
     ? `${securityBlockers} authority blocker(s) need review before unsafe controls can appear.`
     : "No security blockers are reported in the loaded inventory.";
 
@@ -7118,7 +6789,7 @@ function OperatorBriefingPanel({
             </span>
             <div className="flex flex-wrap gap-2">
               <Pill label={`view ${tab.title}`} tone="border-primary/30 bg-primary/10 text-primary" />
-              <Pill label={`${percent}% ready`} tone={percent >= 80 ? statusTone.wired : statusTone.partial} />
+              <Pill label={percent === null ? "Recorded inventory score unavailable" : `${percent}% recorded inventory score`} tone={percent !== null && percent >= 80 ? statusTone.wired : statusTone.partial} />
               <Pill label={`${freshCount}/${Math.max(1, freshnessItems.length)} fresh`} tone={staleCount ? statusTone.orphaned : statusTone.wired} />
             </div>
           </CardTitle>
@@ -7130,7 +6801,7 @@ function OperatorBriefingPanel({
                 <Radio className="h-3.5 w-3.5" />
                 runtime
               </div>
-              <div className="mt-1 text-sm font-semibold">{runtime.connected ? (runtime.clearancePending ? "checking" : "live") : "offline"}</div>
+              <div className="mt-1 text-sm font-semibold">{runtime.connected ? (runtime.clearancePending ? "checking" : "live") : loading ? "loading" : "unavailable"}</div>
               <div className="mt-1 text-[11px] text-muted-foreground">{runtime.generatedAt ? `${formatFreshnessAge(timestampAgeSeconds(runtime.generatedAt))} old` : "no timestamp"}</div>
             </div>
             <div className="rounded-md border border-border/40 bg-black/20 p-3">
@@ -7384,7 +7055,7 @@ function SafetyBoundariesPanel({
   summary,
 }: {
   manualActions: Array<[string, unknown]>;
-  percent: number;
+  percent: number | null;
   summary: SaaSInventorySummary;
 }) {
   return (
@@ -7407,10 +7078,10 @@ function SafetyBoundariesPanel({
         </div>
         <div>
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Inventory readiness</span>
-            <span>{percent}%</span>
+            <span>Recorded inventory heuristic</span>
+            <span>{percent === null ? "Unavailable" : `${percent}%`}</span>
           </div>
-          <Progress value={percent} className="h-2" />
+          {percent !== null ? <Progress value={percent} className="h-2" /> : null}
         </div>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="rounded-md border border-border/40 bg-muted/10 p-3">
@@ -7837,12 +7508,12 @@ function OrganismPulsePanel({
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
             <Brain className="h-4 w-4 text-primary" />
-            Organism Pulse
+            Recorded Organism Report
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Pill label={organism.status || "pulse pending"} tone={freshnessTone((organism.status || "").includes("blind") ? "attention" : "fresh")} />
+            <Pill label={`recorded: ${organism.status || "status unavailable"}`} tone="border-border bg-muted/20 text-muted-foreground" />
             <Pill label={`mode ${organism.mode || "safe_observation"}`} tone="border-primary/30 bg-primary/10 text-primary" />
             <Pill label={runtimeConnected ? "runtime feed connected" : "runtime feed offline"} tone={runtimeConnected ? statusTone.wired : statusTone.partial} />
             <Pill label={`updated ${organism.generated_at ? new Date(organism.generated_at).toLocaleTimeString() : "pending"}`} tone="border-border bg-muted/20 text-muted-foreground" />
@@ -7860,7 +7531,7 @@ function OrganismPulsePanel({
             <div className="rounded-md border border-border/40 bg-muted/10 p-3">
               <div className="text-[11px] uppercase text-muted-foreground">stale/missing</div>
               <div className="mt-1 text-lg font-semibold text-warning">
-                {formatCompact(asNumber(summary.stale_domain_count) + asNumber(summary.missing_domain_count))}
+                {formatCompact(legacyNumber(summary.stale_domain_count) === null || legacyNumber(summary.missing_domain_count) === null ? null : summary.stale_domain_count! + summary.missing_domain_count!)}
               </div>
             </div>
             <div className="rounded-md border border-border/40 bg-muted/10 p-3">
@@ -7879,8 +7550,8 @@ function OrganismPulsePanel({
                       <div className="mt-1 font-mono text-[11px] text-muted-foreground">{domain.source_path}</div>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      <Pill label={domain.status} tone={freshnessTone(domain.status)} />
-                      <Pill label={formatAge(domain.age_seconds)} tone="border-border bg-muted/20 text-muted-foreground" />
+                      <Pill label={`recorded: ${domain.status}`} tone="border-border bg-muted/20 text-muted-foreground" />
+                      <Pill label={formatAge(timestampAgeSeconds(domain.generated_at))} tone="border-border bg-muted/20 text-muted-foreground" />
                     </div>
                   </div>
                   {domain.blind_spots?.length ? (
@@ -7916,7 +7587,7 @@ function OrganismPulsePanel({
                 ))
               ) : (
                 <div className="rounded-md border border-success/30 bg-success/10 p-4 text-sm text-success">
-                  No blind spots in the current organism pulse.
+                  No blind-spot rows in this recorded report. This does not establish current operational coverage.
                 </div>
               )}
             </div>

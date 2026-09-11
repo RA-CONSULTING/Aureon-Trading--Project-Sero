@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from datetime import datetime, timezone
@@ -10,6 +11,7 @@ from unittest.mock import patch
 
 
 os.environ.setdefault("AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS", "1")
+os.environ.setdefault("UNIFIED_KRAKEN_SPOT_COST_BASIS_PROBE", "1")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXCHANGES_DIR = REPO_ROOT / "aureon" / "exchanges"
@@ -25,6 +27,18 @@ def _provider_payload(**values):
         "source_timestamp": time.time() - 0.01,
         "truth_status": "real_observed",
         "generated_values": False,
+    }
+
+
+def _market_source(source="binance", *, timestamp=None, provider=None):
+    stamp = time.time() - 0.01 if timestamp is None else timestamp
+    return {
+        "source": source, "ready": True, "actionable": True, "data_status": "live",
+        "symbols": {"BTCUSD": {
+            "symbol": "BTCUSD", "source": provider or source, "confidence": 0.8,
+            "side": "BUY", "price": 50000.0, "change_pct": 1.1,
+            "source_timestamp": stamp, "data_status": "live", "actionable": True,
+        }},
     }
 
 
@@ -116,6 +130,7 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         trader.start_time = time.time()
         trader._runtime_instance_id = "test-runtime"
         trader.kraken_ready = False
+        trader.kraken_margin_ready = False
         trader.capital_ready = False
         trader.kraken_error = ""
         trader.capital_error = ""
@@ -129,6 +144,7 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         trader._central_beat_at = 0.0
         trader._central_beat_layers = {"trader": {}, "probe": {}, "merged": {}}
         trader._central_beat_history = []
+        trader._qgita_gate_price_history = {}
         trader._central_source_memory = {}
         trader._stream_cache_health = {}
         trader._orderbook_pressure_cache = {}
@@ -206,6 +222,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
 
     def test_central_beat_merges_sources_into_symbol_metrics(self):
         trader = self._make_trader()
+        trader._extract_alpaca_source_snapshot = lambda watchlist: _market_source("alpaca")
+        trader._extract_binance_source_snapshot = lambda watchlist: _market_source("binance")
         kraken_payload = {
             "ok": True,
             "candidate_snapshot": [{"symbol": "XBT/USD", "side": "buy", "score": 0.8}],
@@ -219,7 +237,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
 
         beat = trader._build_central_beat_feed(kraken_payload, capital_payload)
 
-        self.assertEqual(beat["source_count"], 2)
+        self.assertTrue({"kraken", "capital", "alpaca", "binance"}.issubset({source["source"] for source in beat["sources"]}))
+        self.assertEqual(beat["actionable_source_count"], 2)
         self.assertIn("BTCUSD", beat["symbols"])
         self.assertEqual(beat["symbols"]["BTCUSD"]["side"], "BUY")
         self.assertGreaterEqual(beat["symbols"]["BTCUSD"]["support_count"], 2)
@@ -285,6 +304,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
 
     def test_historical_waveform_memory_feeds_central_beat_and_mesh(self):
         trader = self._make_trader()
+        trader._extract_alpaca_source_snapshot = lambda watchlist: _market_source("alpaca")  # type: ignore[method-assign]
+        trader._extract_binance_source_snapshot = lambda watchlist: _market_source("binance")  # type: ignore[method-assign]
         trader._build_asset_waveform_models = lambda normalized_symbols, sources: {  # type: ignore[method-assign]
             "schema_version": 1,
             "enabled": True,
@@ -343,27 +364,20 @@ class UnifiedMarketTraderTests(unittest.TestCase):
 
     def test_central_beat_reuses_recent_source_when_probe_drops_out(self):
         trader = self._make_trader()
-        trader._extract_alpaca_source_snapshot = lambda watchlist: {  # type: ignore[method-assign]
-            "source": "alpaca",
-            "ready": True,
-            "symbols": {"BTCUSD": {"symbol": "BTCUSD", "raw_symbol": "BTC/USD", "confidence": 0.6, "side": "BUY"}},
-            "top_symbol": "BTCUSD",
-            "top_side": "BUY",
-            "top_confidence": 0.6,
-        }
+        trader._extract_alpaca_source_snapshot = lambda watchlist: _market_source("alpaca")
         trader._extract_binance_source_snapshot = lambda watchlist: {}  # type: ignore[method-assign]
 
         beat1 = trader._build_central_beat_feed({"ok": False}, {"ok": False})
-        self.assertEqual(beat1["source_count"], 1)
-        self.assertFalse(beat1["sources"][0]["stale"])
+        first_alpaca = next(source for source in beat1["sources"] if source["source"] == "alpaca")
+        self.assertFalse(first_alpaca["stale"])
 
         trader._central_beat_at = 0.0
         trader._extract_alpaca_source_snapshot = lambda watchlist: {}  # type: ignore[method-assign]
         beat2 = trader._build_central_beat_feed({"ok": False}, {"ok": False})
 
-        self.assertEqual(beat2["source_count"], 1)
-        self.assertTrue(beat2["sources"][0]["stale"])
-        self.assertEqual(beat2["sources"][0]["source"], "alpaca")
+        cached_alpaca = next(source for source in beat2["sources"] if source["source"] == "alpaca")
+        self.assertTrue(cached_alpaca["stale"])
+        self.assertEqual(beat2["actionable_source_count"], 0)
 
     def test_stream_cache_snapshot_feeds_fresh_websocket_symbols(self):
         trader = self._make_trader()
@@ -404,6 +418,152 @@ class UnifiedMarketTraderTests(unittest.TestCase):
 
         self.assertEqual(trader._estimate_route_price("kraken", "XBTUSD"), 123.45)
 
+    def test_stream_cache_applies_advertised_five_second_age_not_gold_budget(self):
+        trader = self._make_trader()
+        now = time.time()
+        requested_ages = []
+        def tickers(max_age):
+            requested_ages.append(max_age)
+            return {
+                base: trader_mod.SimpleNamespace(symbol=base, price=100, change_24h=1, volume_24h=1000,
+                    source="binance_ws", timestamp=now - age, pair=f"{base}USDT")
+                for base, age in [("BTC", 1), ("ETH", 75)]
+            }
+        cache = trader_mod.SimpleNamespace(get_all_tickers=tickers)
+        with patch.object(trader_mod, "STREAM_CACHE_MAX_AGE_SEC", 5.0), patch.object(trader_mod.time, "time", return_value=now), \
+                patch("aureon.data_feeds.unified_market_cache.get_market_cache", return_value=cache):
+            source = trader_mod.UnifiedMarketTrader._extract_stream_cache_source_snapshot(trader, [])
+        self.assertEqual(requested_ages, [5.0])
+        self.assertEqual(set(source["symbols"]), {"BTCUSD"})
+        self.assertLessEqual(source["stream_health"]["oldest_selected_age_sec"], source["stream_health"]["max_age_sec"])
+
+    def test_model_signal_preserves_zero_change_and_rejects_missing_market_values(self):
+        trader = self._make_trader()
+        seen = []
+        class CapturingEngine:
+            def process(self, opportunities, **kwargs):
+                seen.extend(opportunities)
+                return trader_mod.SimpleNamespace(signals=[], summary_lines=[])
+        sources = [{"source": "binance_ws", "symbols": {
+            "BTCUSD": {"confidence": 0.8, "price": 100, "change_pct": 0, "side": "BUY"},
+            "ETHUSD": {"confidence": 0.8, "price": 100},
+            "SOLUSD": {"confidence": 0.8, "change_pct": 2},
+        }}]
+        with patch.dict(sys.modules, {"aureon.trading.unified_signal_engine": trader_mod.SimpleNamespace(UnifiedSignalEngine=CapturingEngine)}):
+            result = trader._build_model_signal_feed(sources, {})
+        self.assertEqual(result["opportunity_count"], 1)
+        self.assertEqual(seen[0].change_pct, 0.0)
+        self.assertEqual(seen[0].price, 100.0)
+        missing = trader._build_model_signal_feed([{"source": "binance_ws", "symbols": {"BTCUSD": {"confidence": 0.8}}}], {})
+        self.assertFalse(missing["used"])
+        self.assertEqual(missing["data_status"], "no_data")
+        self.assertEqual(missing["reason"], "no_source_opportunities")
+
+    def test_partial_cycle_retains_completed_hnc_with_original_timestamp(self):
+        trader = self._make_trader()
+        original_time = datetime.fromtimestamp(time.time() - 90).isoformat()
+        completed = {"generated_at": original_time, "hnc_cognitive_proof": {"generated_at": original_time, "passed": True, "real_data": {"passed": True}}}
+        trader._store_dashboard_snapshot(completed, completed=True)
+        trader._store_dashboard_snapshot({"partial": True, "generated_at": datetime.now().isoformat()}, completed=False)
+        self.assertEqual(trader._latest_dashboard_payload["generated_at"], original_time)
+        self.assertEqual(trader._latest_dashboard_payload["hnc_cognitive_proof"], completed["hnc_cognitive_proof"])
+        self.assertTrue(trader._latest_dashboard_payload["analysis_update"]["in_progress"])
+        health = trader.get_runtime_health()
+        self.assertFalse(health["analysis_snapshot"]["fresh"])
+        self.assertTrue(health["analysis_snapshot"]["completed_snapshot_retained"])
+
+    def test_tick_phase_durations_record_actual_elapsed_work(self):
+        trader = self._make_trader()
+        with patch.object(trader_mod.time, "time", side_effect=[10.0, 15.0, 21.0]), patch.object(trader_mod.logger, "info"):
+            trader._set_tick_phase("first")
+            trader._set_tick_phase("second")
+            trader._set_tick_phase("idle")
+        self.assertEqual(trader._last_tick_phase_durations_sec, {"first": 5.0, "second": 6.0})
+
+    def test_model_availability_reuse_is_build_scoped_and_descriptors_are_independent(self):
+        trader = self._make_trader()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "common.py").write_text("", encoding="utf-8")
+            (root / "route.py").write_text("", encoding="utf-8")
+            descriptors = [{"name": "common", "path": "common.py"}]
+            route_descriptors = {"capital_cfd": [{"name": "route", "path": "route.py"}]}
+            available = {}
+            original_exists = Path.exists
+            with patch.object(trader_mod, "REPO_ROOT", root), \
+                 patch.object(trader_mod, "COMMON_MODEL_STACK", descriptors), \
+                 patch.object(trader_mod, "EXCHANGE_MODEL_STACKS", route_descriptors), \
+                 patch.object(Path, "exists", autospec=True, side_effect=original_exists) as exists:
+                first = trader._model_stack_for_route("capital", "cfd", availability_cache=available)
+                second = trader._model_stack_for_route("capital", "cfd", availability_cache=available)
+                self.assertEqual(exists.call_count, 2)
+                self.assertEqual(first, second)
+                first["models"][0]["available"] = False
+                self.assertTrue(second["models"][0]["available"])
+                (root / "route.py").unlink()
+                next_build = trader._model_stack_for_route("capital", "cfd", availability_cache={})
+                self.assertEqual(exists.call_count, 4)
+                self.assertEqual(next_build["available_count"], 1)
+                self.assertFalse(next_build["models"][1]["available"])
+
+    def test_order_flow_does_not_reuse_model_availability_across_builds(self):
+        trader = self._make_trader()
+        trader._kraken_tradable_symbols = lambda: {}
+        trader._kraken_spot_tradable_symbols = lambda: {}
+        trader._capital_tradable_symbols = lambda: {"BTCUSD": "BTCUSD", "ETHUSD": "ETHUSD"}
+        trader._alpaca_tradable_symbols = lambda: {}
+        trader._binance_tradable_symbols = lambda: {}
+        trader._attach_orderbook_fast_money_pressure = lambda *args, **kwargs: {}
+        central = {"symbols": {symbol: {"side": "SELL"} for symbol in ("BTCUSD", "ETHUSD")}}
+        shared = {"symbols": {"BTCUSD": 0.8, "ETHUSD": 0.7}}
+        original_stack = trader._model_stack_for_route
+        caches = []
+        def record_stack(venue, market_type, *, availability_cache=None):
+            caches.append(availability_cache)
+            return original_stack(venue, market_type, availability_cache=availability_cache)
+        with patch.object(trader, "_model_stack_for_route", side_effect=record_stack):
+            first = trader._build_global_order_flow_feed({}, {}, central, shared)
+            second = trader._build_global_order_flow_feed({}, {}, central, shared)
+        self.assertEqual(first["active_order_flow_count"], 2)
+        self.assertEqual(second["active_order_flow_count"], 2)
+        self.assertEqual(len(caches), 4)
+        self.assertIs(caches[0], caches[1])
+        self.assertIs(caches[2], caches[3])
+        self.assertIsNot(caches[0], caches[2])
+
+    def test_runtime_status_atomic_replace_preserves_last_document_until_ready(self):
+        trader = self._make_trader()
+        trader._refresh_runtime_writer_lock = lambda force=False: True
+        trader.get_runtime_health = lambda: {"ok": True, "fresh": True}
+        with tempfile.TemporaryDirectory() as directory:
+            status_path = Path(directory) / "runtime.json"
+            status_path.write_text('{"previous": true}', encoding="utf-8")
+            original_replace = os.replace
+            def verify_replace(source, target):
+                self.assertEqual(json.loads(status_path.read_text(encoding="utf-8")), {"previous": True})
+                self.assertTrue(json.loads(Path(source).read_text(encoding="utf-8"))["ok"])
+                original_replace(source, target)
+            with patch.object(trader_mod, "RUNTIME_STATUS_PATH", status_path), patch.object(trader_mod.os, "replace", side_effect=verify_replace):
+                trader._write_runtime_status_file()
+            self.assertTrue(json.loads(status_path.read_text(encoding="utf-8"))["ok"])
+            self.assertEqual(list(Path(directory).glob("*.tmp")), [])
+
+    def test_runtime_health_refreshes_cache_separately_from_stalled_analysis(self):
+        trader = self._make_trader()
+        now = time.time()
+        trader._latest_dashboard_payload = {"generated_at": datetime.fromtimestamp(now - 100).isoformat(), "live_stream_cache": {"fresh": False}}
+        trader._last_tick_completed_at = now - 100
+        trader._last_tick_started_at = now - 60
+        fresh = {"fresh": True, "usable_for_decision": True, "symbol_count": 1, "max_age_sec": 5, "oldest_selected_age_sec": 1}
+        trader._extract_stream_cache_source_snapshot = lambda watchlist: {"stream_health": fresh}
+        health = trader.get_runtime_health()
+        self.assertTrue(health["runtime_observation_ready"])
+        self.assertTrue(health["live_stream_cache"]["fresh"])
+        self.assertTrue(health["stale"])
+        self.assertFalse(health["ok"])
+        self.assertFalse(health["analysis_snapshot"]["fresh"])
+        self.assertEqual(trader._latest_dashboard_payload["generated_at"], datetime.fromtimestamp(now - 100).isoformat())
+
     def test_shared_order_flow_preserves_sell_direction_from_central_beat(self):
         trader = self._make_trader()
         trader._kraken_tradable_symbols = lambda: {"BTCUSD": "XXBTZUSD"}  # type: ignore[method-assign]
@@ -429,6 +589,7 @@ class UnifiedMarketTraderTests(unittest.TestCase):
     def test_multi_exchange_order_flow_routes_all_four_venues(self):
         trader = self._make_trader()
         trader.kraken_ready = True
+        trader.kraken_margin_ready = True
         trader.capital_ready = True
         trader._binance_diag = {"network_ok": True, "account_ok": True, "margin_available": True, "uk_mode": False}
         trader._kraken_tradable_symbols = lambda: {"BTCUSD": "XXBTZUSD"}  # type: ignore[method-assign]
@@ -1836,7 +1997,7 @@ class UnifiedMarketTraderTests(unittest.TestCase):
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_count": 4,
             "sources": [
-                {"source": source, "ready": True, "actionable": True, "data_status": "live"}
+                _market_source(source)
                 for source in ["kraken", "capital", "alpaca", "binance"]
             ],
             "symbols": {
@@ -1848,6 +2009,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
                     "reference_price": 50000.0,
                     "change_pct": 1.1,
                     "model_alignment": True,
+                    "data_status": "live", "actionable": True,
+                    "market_observations": [{"feed": "binance", "source_timestamp": time.time()}],
                 }
             },
         }
@@ -1861,6 +2024,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
                     "reference_price": 50000.0,
                     "change_pct": 1.1,
                     "model_alignment": True,
+                    "data_status": "live", "actionable": True,
+                    "market_observations": [{"feed": "binance", "source_timestamp": time.time()}],
                     "execution_routes": [
                         {"venue": "kraken", "market_type": "spot", "symbol": "XBTUSD", "ready": True},
                         {"venue": "kraken", "market_type": "margin", "symbol": "XXBTZUSD", "ready": True},
@@ -1959,6 +2124,7 @@ class UnifiedMarketTraderTests(unittest.TestCase):
 
     def test_capital_tick_timeout_does_not_block_unified_runtime(self):
         trader = self._make_trader()
+        trader._capital_lightweight_tick_active = lambda: False  # type: ignore[method-assign]
         old_timeout = trader_mod.CAPITAL_TICK_TIMEOUT_SEC
         trader_mod.CAPITAL_TICK_TIMEOUT_SEC = 0.05
 
@@ -2058,6 +2224,315 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         self.assertTrue(health["runtime_watchdog"]["tick_stale"])
         self.assertTrue(health["runtime_watchdog"]["file_heartbeat_is_not_market_freshness"])
 
+    def test_cached_trader_context_cannot_establish_live_market_evidence(self):
+        trader = self._make_trader()
+        old_stamp = time.time() - 600
+        source = trader._extract_trader_source_snapshot("kraken", {
+            "ok": True, "served_from_cache": True, "source_timestamp": old_stamp,
+            "dashboard_fetch_state": "cached", "positions": [{"symbol": "BTCUSD", "side": "LONG"}],
+        })
+        self.assertEqual(source["source_timestamp"], old_stamp)
+        self.assertTrue(source["served_from_cache"])
+        self.assertFalse(source["ready"])
+        self.assertFalse(source["actionable"])
+        beat = trader._build_central_beat_feed({"ok": True, "positions": [{"symbol": "BTCUSD"}]}, {})
+        self.assertFalse(beat["actionable"])
+        self.assertFalse(beat["symbols"])
+
+    def test_orderbook_wait_is_bounded_and_reuses_one_inflight_request(self):
+        trader = self._make_trader()
+        release = threading.Event()
+        calls = []
+        source_stamp = time.time() - 2
+
+        class SlowIntel:
+            _cache_times = {}
+
+            def analyze_orderbook(self, symbol):
+                calls.append(symbol)
+                release.wait(2)
+                self._cache_times[f"depth_{symbol}"] = source_stamp
+                return {"bid_depth_usd": 1200, "ask_depth_usd": 1000, "best_bid": 100, "best_ask": 101}
+
+        trader.kraken.intel = SlowIntel()
+        trader.alpaca = None
+        item = {"symbol": "BTCUSD", "binance_symbol": "BTCUSDT", "side": "BUY"}
+        try:
+            with patch.object(trader_mod, "ORDERBOOK_PROBE_WAIT_SEC", 0.02):
+                started = time.monotonic()
+                first = trader._orderbook_pressure_snapshot(item)
+                self.assertLess(time.monotonic() - started, 0.5)
+                self.assertFalse(first["available"])
+                self.assertEqual(first["data_status"], "no_data")
+                self.assertEqual(first["reason"], "orderbook_probe_wait_timeout")
+                second = trader._orderbook_pressure_snapshot(item)
+                other = trader._orderbook_pressure_snapshot({"symbol": "ETHUSD", "side": "BUY"})
+                self.assertEqual(second["reason"], "orderbook_probe_inflight")
+                self.assertEqual(other["reason"], "orderbook_probe_inflight")
+                self.assertEqual(calls, ["BTCUSDT"])
+                release.set()
+                deadline = time.monotonic() + 2
+                while trader._orderbook_probe_inflight.get("running") and time.monotonic() < deadline:
+                    time.sleep(0.005)
+                cached = trader._orderbook_pressure_snapshot(item)
+                self.assertTrue(cached["available"])
+                self.assertTrue(cached["from_cache"])
+                self.assertEqual(cached["source_timestamp"], source_stamp)
+                self.assertEqual(calls, ["BTCUSDT"])
+        finally:
+            release.set()
+
+    def test_orderbook_nested_provider_cache_cannot_renew_an_old_observation(self):
+        trader = self._make_trader()
+        old_stamp = time.time() - trader_mod.ORDERBOOK_PROBE_STALE_TTL_SEC - 1
+        trader.kraken.intel = trader_mod.SimpleNamespace(
+            _cache_times={"depth_BTCUSDT": old_stamp},
+            analyze_orderbook=lambda symbol: {"bid_depth_usd": 1000, "ask_depth_usd": 1100, "best_bid": 100, "best_ask": 101},
+        )
+        trader.alpaca = None
+        result = trader._fetch_orderbook_pressure_snapshot({"symbol": "BTCUSD", "binance_symbol": "BTCUSDT", "side": "BUY"})
+        self.assertFalse(result["available"])
+        self.assertEqual(result["data_status"], "no_data")
+
+    def test_orderbook_alpaca_preserves_native_timestamp_and_expires_on_cache_read(self):
+        trader = self._make_trader()
+        source_stamp = time.time() - 2
+        trader.alpaca = trader_mod.SimpleNamespace(get_crypto_orderbook=lambda symbol, depth: {
+            "bids": [{"p": 100, "s": 2}], "asks": [{"p": 101, "s": 3}],
+            "t": datetime.fromtimestamp(source_stamp, timezone.utc).isoformat(),
+        })
+        result = trader._fetch_orderbook_pressure_snapshot({"symbol": "BTCUSD", "alpaca_symbol": "BTC/USD", "side": "BUY"})
+        self.assertTrue(result["available"])
+        self.assertAlmostEqual(result["source_timestamp"], source_stamp, places=5)
+        with patch.object(trader_mod.time, "time", return_value=source_stamp + trader_mod.ORDERBOOK_PROBE_STALE_TTL_SEC + 1):
+            self.assertIsNone(trader._cached_orderbook_pressure("BTCUSD:BUY"))
+
+    def test_orderbook_unavailable_result_observes_retry_interval(self):
+        trader = self._make_trader()
+        calls = []
+        def unavailable(item):
+            calls.append(item)
+            return {"available": False, "data_status": "no_data"}
+        trader._fetch_orderbook_pressure_snapshot = unavailable
+        item = {"symbol": "BTCUSD", "side": "BUY"}
+        trader._orderbook_pressure_snapshot(item)
+        result = trader._orderbook_pressure_snapshot(item)
+        self.assertFalse(result["available"])
+        self.assertEqual(result["reason"], "orderbook_probe_retry_interval")
+        self.assertEqual(len(calls), 1)
+
+    def test_source_stabilization_preserves_stale_and_original_observation_clock(self):
+        trader = self._make_trader()
+        now = time.time()
+        original = _market_source(timestamp=now - 1)
+        original["source_timestamp"] = now - 1
+        with patch.object(trader_mod.time, "time", return_value=now):
+            first = trader._stabilize_sources("probe", [original])[0]
+        self.assertFalse(first["stale"])
+        self.assertEqual(first["_seen_at"], now - 1)
+        with patch.object(trader_mod.time, "time", return_value=now + trader_mod.PROBE_SYMBOL_STALE_TTL_SEC + 1):
+            expired = trader._stabilize_sources("probe", [first])[0]
+        self.assertTrue(expired["stale"])
+        self.assertFalse(expired["actionable"])
+        self.assertEqual(expired["source_timestamp"], now - 1)
+        self.assertEqual(expired["captured_at"], first["captured_at"])
+        original["stale"] = True
+        self.assertTrue(trader._stabilize_sources("probe", [original])[0]["stale"])
+
+    def test_hnc_requires_original_market_clocks_and_explicit_readiness(self):
+        trader = self._make_trader()
+        now = time.time()
+        source = _market_source(timestamp=now - 1)
+        row = {
+            "symbol": "BTCUSD", "confidence": 0.8, "support_count": 1,
+            "reference_price": 50000.0, "change_pct": 0.0,
+            "data_status": "live", "actionable": True,
+            "market_observations": [{"feed": "binance", "source_timestamp": now - 1}],
+        }
+        beat = {"generated_at": now, "sources": [source], "symbols": {"BTCUSD": row}}
+        self.assertTrue(trader._hnc_source_metrics(beat, {})["passed"])
+        del source["symbols"]["BTCUSD"]["source_timestamp"]
+        self.assertFalse(trader._hnc_source_metrics(beat, {})["passed"])
+        source["symbols"]["BTCUSD"]["source_timestamp"] = now - 1
+        for key in ("ready", "actionable", "data_status"):
+            value = source.pop(key)
+            self.assertFalse(trader._hnc_source_metrics(beat, {})["passed"], key)
+            source[key] = value
+        with patch.object(trader_mod.time, "time", return_value=now + trader_mod.PROBE_SYMBOL_STALE_TTL_SEC + 1):
+            beat["generated_at"] = trader_mod.time.time()
+            self.assertFalse(trader._hnc_source_metrics(beat, {})["passed"])
+
+    def test_hnc_distinguishes_contributing_feeds_from_native_providers(self):
+        trader = self._make_trader()
+        now = time.time()
+        beat = {"generated_at": now, "sources": [
+            _market_source("live_stream_cache", timestamp=now, provider="binance"),
+            _market_source("binance", timestamp=now),
+        ], "symbols": {"BTCUSD": {
+            "confidence": 0.8, "support_count": 2, "reference_price": 50000.0,
+            "change_pct": 1.1, "data_status": "live", "actionable": True,
+            "market_observations": [{"feed": "live_stream_cache", "source_timestamp": now}],
+        }}}
+        metrics = trader._hnc_source_metrics(beat, {})
+        self.assertTrue(metrics["passed"])
+        self.assertEqual(metrics["source_count"], 2)
+        self.assertEqual(metrics["provider_count"], 1)
+        self.assertEqual(metrics["provider_names"], ["binance"])
+        with patch.object(trader_mod.time, "time", return_value=now + trader_mod.STREAM_CACHE_MAX_AGE_SEC + 1):
+            self.assertTrue(trader._hnc_source_metrics(beat, {})["passed"])
+        with patch.object(trader_mod.time, "time", return_value=now + trader_mod.PROBE_SYMBOL_STALE_TTL_SEC + 1):
+            self.assertFalse(trader._hnc_source_metrics(beat, {})["passed"])
+
+    def test_hnc_uses_current_central_symbols_when_active_flow_rows_are_stale(self):
+        trader = self._make_trader()
+        now = time.time()
+        beat = {"generated_at": now, "sources": [
+            _market_source("live_stream_cache", timestamp=now, provider="binance"),
+        ], "symbols": {"BTCUSD": {
+            "symbol": "BTCUSD",
+            "confidence": 0.8,
+            "support_count": 1,
+            "reference_price": 50000.0,
+            "change_pct": 1.1,
+            "data_status": "live",
+            "actionable": True,
+            "market_observations": [{"feed": "live_stream_cache", "source_timestamp": now}],
+        }}}
+        stale_flow = {"active_order_flow": [{
+            "symbol": "BTCUSD",
+            "confidence": 0.8,
+            "support_count": 1,
+            "reference_price": 50000.0,
+            "change_pct": 1.1,
+            "data_status": "live",
+            "actionable": True,
+            "market_observations": [{
+                "feed": "live_stream_cache",
+                "source_timestamp": now - trader_mod.STREAM_CACHE_MAX_AGE_SEC - 1,
+            }],
+        }]}
+
+        metrics = trader._hnc_source_metrics(beat, stale_flow)
+
+        self.assertTrue(metrics["passed"])
+        self.assertEqual(metrics["symbol_count"], 1)
+        self.assertEqual(metrics["active_signal_count"], 0)
+
+    def test_lighthouse_event_log_becomes_gate_measurement_without_policy(self):
+        trader = self._make_trader()
+        now = time.time()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            event_path = Path(temp_dir) / "lighthouse_event.jsonl"
+            event_path.write_text(
+                json.dumps({
+                    "type": "lighthouse.phase_reset",
+                    "timestamp": now - 1,
+                    "severity": 0.2,
+                    "symbols": ["BTCUSDT"],
+                })
+                + "\n"
+                + json.dumps({
+                    "type": "lighthouse.harmonic_convergence",
+                    "timestamp": now - 0.5,
+                    "severity": 0.64,
+                    "symbols": ["BTCUSDT", "ETHUSDT"],
+                })
+                + "\n",
+                encoding="utf-8",
+            )
+            with patch.object(trader_mod, "LIGHTHOUSE_EVENT_LOG_PATH", event_path):
+                evidence = trader._read_lighthouse_event_evidence(now_epoch=now)
+
+        self.assertTrue(evidence["available"])
+        self.assertEqual(evidence["truth_status"], "real_derived")
+        self.assertFalse(evidence["generated_values"])
+        self.assertEqual(evidence["confidence"], 0.64)
+        self.assertTrue(evidence["is_lhe"])
+        self.assertIn("lighthouse.harmonic_convergence", evidence["event_types"])
+
+    def test_hnc_uses_fresh_source_rows_when_central_symbols_are_empty(self):
+        trader = self._make_trader()
+        now = time.time()
+        beat = {
+            "generated_at": now,
+            "sources": [
+                _market_source("live_stream_cache", timestamp=now, provider="binance"),
+            ],
+            "symbols": {},
+        }
+
+        metrics = trader._hnc_source_metrics(beat, {})
+
+        self.assertTrue(metrics["passed"])
+        self.assertEqual(metrics["source_count"], 1)
+        self.assertEqual(metrics["provider_names"], ["binance"])
+        self.assertEqual(metrics["symbol_count"], 1)
+        self.assertEqual(metrics["price_count"], 1)
+        self.assertEqual(metrics["active_signal_count"], 0)
+
+    def test_qgita_gate_measurement_uses_provider_timed_same_symbol_history(self):
+        trader = self._make_trader()
+        now = time.time()
+        history = []
+        for index in range(12):
+            timestamp = now - (22 - index * 2)
+            source = _market_source("binance", timestamp=timestamp)
+            source["symbols"]["BTCUSD"]["price"] = 100.0 + index * 0.01
+            source["symbols"]["BTCUSD"]["change_pct"] = 0.01
+            history.append({"generated_at": timestamp, "sources": [source], "symbols": {}})
+        trader._central_beat_history = history
+
+        with patch.object(trader_mod.time, "time", return_value=now):
+            evidence = trader._build_qgita_gate_evidence(history[-1], now_epoch=now)
+
+        self.assertTrue(evidence["available"])
+        self.assertEqual(evidence["truth_status"], "real_derived")
+        self.assertFalse(evidence["generated_values"])
+        self.assertEqual(evidence["symbol"], "BTCUSD")
+        self.assertEqual(evidence["sample_count"], 12)
+        self.assertEqual(evidence["analysis_status"], "complete")
+        self.assertIn(evidence["tier"], {"Gold", "Blue", "Red"})
+        self.assertIsNotNone(evidence["source_timestamp"])
+        self.assertIn("lighthouse_confidence", evidence)
+        self.assertGreaterEqual(evidence["lighthouse_confidence"], 0.0)
+        self.assertLessEqual(evidence["lighthouse_confidence"], 1.0)
+        self.assertIn("lighthouse_intensity", evidence)
+        self.assertGreaterEqual(evidence["lighthouse_intensity"], 0.0)
+        self.assertIn("lighthouse_threshold", evidence)
+        self.assertGreater(evidence["lighthouse_threshold"], 0.0)
+        self.assertIn("lhe_count", evidence)
+        self.assertGreaterEqual(evidence["lhe_count"], 0)
+
+    def test_qgita_gate_measurement_refuses_cross_symbol_sample_substitution(self):
+        trader = self._make_trader()
+        now = time.time()
+        source = {
+            "source": "binance",
+            "ready": True,
+            "actionable": True,
+            "data_status": "live",
+            "symbols": {},
+        }
+        for index in range(12):
+            source["symbols"][f"SYM{index}USD"] = {
+                "symbol": f"SYM{index}USD",
+                "source": "binance",
+                "confidence": 0.8,
+                "side": "BUY",
+                "price": 100.0 + index,
+                "change_pct": 0.1,
+                "source_timestamp": now - 1,
+                "data_status": "live",
+                "actionable": True,
+            }
+        trader._central_beat_history = [{"generated_at": now - 1, "sources": [source], "symbols": {}}]
+
+        evidence = trader._build_qgita_gate_evidence(trader._central_beat_history[-1], now_epoch=now)
+
+        self.assertFalse(evidence["available"])
+        self.assertEqual(evidence["reason"], "qgita_real_price_history_insufficient")
+        self.assertLess(evidence["sample_count"], trader_mod.QGITA_GATE_MIN_SAMPLES)
+
     def test_open_positions_are_first_class_central_beat_symbols(self):
         trader = self._make_trader()
         source = trader._extract_trader_source_snapshot(
@@ -2075,6 +2550,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         self.assertIn("BTCUSD", source["symbols"])
         self.assertEqual(source["symbols"]["SOLUSD"]["reason"], "open_position")
         self.assertEqual(source["top_confidence"], 1.0)
+        self.assertFalse(source["actionable"])
+        self.assertEqual(source["symbols"]["SOLUSD"]["confidence_kind"], "watchlist_priority")
 
     def test_quote_probes_use_cache_before_second_api_call(self):
         trader = self._make_trader()
@@ -2251,6 +2728,100 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         emitted = captured.get("payload", {})
         self.assertAlmostEqual(float(emitted.get("confidence", -1.0)), 0.80, places=6)
         self.assertFalse([a for a in audits if a[0] == "fast_money_gate_rank_separation"])
+
+    def test_decision_batch_flushes_delivered_receipts_when_later_candidate_raises(self):
+        trader = self._make_trader()
+        trader._central_feed_targets = lambda: []  # type: ignore[method-assign]
+        payload = {
+            "active_order_flow": [
+                {
+                    "symbol": "VALID",
+                    "side": "BUY",
+                    "confidence": 0.8,
+                    "execution_routes": [
+                        {"venue": "capital", "market_type": "cfd", "symbol": "VALID"}
+                    ],
+                },
+                {"symbol": "INVALID", "side": "BUY", "confidence": "invalid"},
+            ]
+        }
+        published = []
+        flushed = []
+
+        def fake_publish(phase, event_payload, **kwargs):
+            event = {
+                "schema_version": "aureon-live-trade-signal-fabric-v1",
+                "phase": phase,
+                **event_payload,
+            }
+            published.append(event)
+            return event
+
+        def fake_flush(events):
+            flushed.append(list(events))
+            return {}
+
+        with patch.object(trader_mod, "publish_trade_flow_event", side_effect=fake_publish), \
+             patch.object(trader_mod, "write_trade_flow_event_batch", side_effect=fake_flush):
+            with self.assertRaises(ValueError):
+                trader._feed_shared_order_flow_to_decision_logic(payload)
+
+        self.assertEqual([event["phase"] for event in published], ["counter_intel_passed", "signal_generated"])
+        self.assertEqual(len(flushed), 1)
+        self.assertEqual(flushed[0], published)
+
+    def test_candidate_batch_flushes_collected_events_when_later_candidate_raises(self):
+        trader = self._make_trader()
+        captured = []
+        trader._record_order_lifecycle_events = lambda events: captured.append(list(events))  # type: ignore[method-assign]
+        payload = {
+            "active_order_flow": [
+                {
+                    "symbol": "VALID",
+                    "side": "BUY",
+                    "confidence": 0.8,
+                    "execution_routes": [
+                        {"venue": "capital", "market_type": "cfd", "symbol": "VALID"}
+                    ],
+                },
+                {"symbol": "INVALID", "sources": 1},
+            ]
+        }
+
+        with self.assertRaises(TypeError):
+            trader._record_order_flow_lifecycle_candidates(payload)
+
+        self.assertEqual(len(captured), 1)
+        self.assertEqual([event["event_type"] for event in captured[0]], ["market_snapshot", "candidate_ready"])
+
+    def test_lifecycle_batch_flushes_prepared_prefix_when_proof_enrichment_raises(self):
+        trader = self._make_trader()
+        flushed = []
+        calls = 0
+
+        def enrich(event_type, status, fields):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise RuntimeError("later proof failure")
+            return dict(fields)
+
+        def fake_append(events, **kwargs):
+            flushed.append(list(events))
+            return list(events)
+
+        events = [
+            {"event_type": "candidate_ready", "status": "candidate_ready", "lifecycle_id": "life-1"},
+            {"event_type": "candidate_ready", "status": "candidate_ready", "lifecycle_id": "life-2"},
+        ]
+        with patch.object(trader, "_order_lifecycle_enabled_now", return_value=True), \
+             patch.object(trader, "_with_lifecycle_proof_defaults", side_effect=enrich), \
+             patch.object(trader_mod, "append_order_lifecycle_events", side_effect=fake_append):
+            with self.assertRaisesRegex(RuntimeError, "later proof failure"):
+                trader._record_order_lifecycle_events(events)
+
+        self.assertEqual(len(flushed), 1)
+        self.assertEqual([event["lifecycle_id"] for event in flushed[0]], ["life-1"])
 
 
 if __name__ == "__main__":

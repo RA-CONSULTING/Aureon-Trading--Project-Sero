@@ -48,6 +48,15 @@ SELF_DIALOGUE_RELEASE_HOLD = (
     "self_dialogue_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("self_dialogue"):
+        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+
 
 class SelfDialogueEngine:
     """
@@ -81,7 +90,7 @@ class SelfDialogueEngine:
         self._thought_bus_supplied = thought_bus is not None
 
     def _wire_thought_bus(self) -> None:
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         try:
             from aureon.core.aureon_thought_bus import get_thought_bus
 
@@ -94,7 +103,7 @@ class SelfDialogueEngine:
         Run one turn of self-dialogue. Returns the full Utterance or
         None if the choice gate said stay silent.
         """
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         with self._lock:
             self._total_decisions += 1
 
@@ -190,7 +199,7 @@ class SelfDialogueEngine:
         built from the whole system rather than from a single isolated
         persona.
         """
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         message = (message or "").strip()
         if not message:
             return None
@@ -289,7 +298,7 @@ class SelfDialogueEngine:
         composed prompt. This is done by temporarily monkey-patching the
         voice's `_compose_prompt_lines` for one call.
         """
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         original = voice._compose_prompt_lines
         original_max_tokens = getattr(voice, "max_tokens", 240)
         target_max_tokens = 160 if synthesis_mode else 72
@@ -340,7 +349,7 @@ class SelfDialogueEngine:
         return next(iter(self.voices.keys()), "vault")
 
     def _run_human_chorus(self, human_message: str) -> List[VoiceStatement]:
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         chorus: List[VoiceStatement] = []
         for voice_name, voice in self.voices.items():
             statement = self._speak_with_human_context(
@@ -367,7 +376,7 @@ class SelfDialogueEngine:
         Force a specific voice to speak right now, bypassing the gate.
         Useful for UI buttons.
         """
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         if voice_name not in self.voices:
             return None
 
@@ -416,7 +425,7 @@ class SelfDialogueEngine:
             return utterance
 
     def _feedback_into_vault(self, voice_name: str, statement: VoiceStatement) -> None:
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         try:
             self.vault.ingest(
                 topic=f"vault.voice.{voice_name}",
@@ -433,7 +442,7 @@ class SelfDialogueEngine:
             logger.debug("feedback into vault failed: %s", e)
 
     def _publish(self, utterance: Utterance, decision: ChoiceGateDecision) -> None:
-        raise RuntimeError(SELF_DIALOGUE_RELEASE_HOLD)
+        _require_release()
         if not self._thought_bus:
             return
         try:

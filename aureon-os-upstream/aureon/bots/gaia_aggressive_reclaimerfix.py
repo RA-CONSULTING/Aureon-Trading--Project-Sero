@@ -133,6 +133,8 @@ except Exception:
 
 sys.path.append(os.getcwd())
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Sacred Constants
 PHI = (1 + math.sqrt(5)) / 2
 SCHUMANN = 7.83
@@ -4236,6 +4238,8 @@ class AggressiveReclaimer:
     
     def binance_scan_and_trade(self):
         """Scan Binance positions - take any profit - deploy all cash"""
+        if no_external_api_calls():
+            return
         if not self.binance:
             return
         try:
@@ -4396,6 +4400,8 @@ class AggressiveReclaimer:
     
     def alpaca_scan_and_trade(self):
         """Scan Alpaca - take profits - deploy cash"""
+        if no_external_api_calls():
+            return
         try:
             target_symbol, target_mom, target_kind = self.coordinator.get_target()
             with ThreadPoolExecutor(max_workers=3) as ex:
@@ -5009,6 +5015,8 @@ class AggressiveReclaimer:
     
     def kraken_scan_and_trade(self):
         """Scan Kraken - take profits - deploy USD"""
+        if no_external_api_calls():
+            return
         if not self.kraken:
             return
         try:
@@ -5195,6 +5203,8 @@ class AggressiveReclaimer:
     
     def run_cycle(self):
         """Run one aggressive cycle across all platforms"""
+        if no_external_api_calls():
+            return
         self.coordinator.update_target()
         try:
             bases = []
@@ -5460,6 +5470,9 @@ class AggressiveReclaimer:
     
     def run(self):
         """RUN FOREVER - TAKE EVERYTHING"""
+        if no_external_api_calls():
+            print("AGGRESSIVE MODE HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print()
         print("AGGRESSIVE MODE: break-even floor; any positive outcome")
         print("NO GATES - Just profits")

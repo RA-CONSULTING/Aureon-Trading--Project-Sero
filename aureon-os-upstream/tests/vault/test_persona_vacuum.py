@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import math
 import random
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -15,6 +17,27 @@ from aureon.vault.voice.persona_vacuum import (
     _softmax,
     get_persona_vacuum,
 )
+
+
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Default every test in this file to HOLD via a missing record path."""
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
+@pytest.fixture
+def released(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    record_dir = tmp_path / "record"
+    record_dir.mkdir()
+    record = record_dir / "dispatch_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["persona_vacuum", "persona_action"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("GOAL_DISPATCH_RELEASE_RECORD", str(record))
+    return record
 
 
 class _Trap:
@@ -121,3 +144,64 @@ def test_private_provider_publish_and_vault_helpers_are_held() -> None:
     for call in calls:
         with pytest.raises(RuntimeError, match="persona_vacuum_hold"):
             call()
+
+
+# ─── Released path ───────────────────────────────────────────────────────────
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.handlers: dict = {}
+        self.published: list = []
+
+    def subscribe(self, topic: str, handler) -> None:
+        self.handlers.setdefault(topic, []).append(handler)
+
+    def publish(self, *args: Any, **kwargs: Any) -> None:
+        self.published.append(args[0] if args else kwargs)
+
+
+@pytest.fixture
+def fusion_approved(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The vacuum's actuator gate needs a readable conscience hook (or a
+    wired conscience) before dispatch proceeds."""
+    import sys, types
+    fake_hook = types.ModuleType("aureon_fusion.conscience_hook")
+    fake_hook.evaluate = lambda *_a, **_k: {  # type: ignore[attr-defined]
+        "verdict": "APPROVED", "reasoning": "probe"}
+    pkg = types.ModuleType("aureon_fusion")
+    monkeypatch.setitem(sys.modules, "aureon_fusion", pkg)
+    monkeypatch.setitem(sys.modules, "aureon_fusion.conscience_hook", fake_hook)
+
+
+def test_released_status_reports_released(released: Path) -> None:
+    vacuum = PersonaVacuum(rng=random.Random(4))
+    status = vacuum.status()
+    assert status["status"] == "RELEASED"
+    assert status["production_ready"] is True
+    assert status["effect_enabled"] is True
+
+
+def test_released_start_subscribes_trigger_topics(released: Path) -> None:
+    bus = _Bus()
+    vacuum = PersonaVacuum(personas=build_aureon_personas(), thought_bus=bus)
+    vacuum.start()
+    for topic in ("dj.track.drop", "queen.source_law.cognition",
+                  "persona.observe", "symbolic.life.pulse"):
+        assert topic in bus.handlers
+    assert vacuum.status()["subscribed"] is True
+
+
+def test_released_observe_collapses_and_publishes(
+    released: Path, fusion_approved: None
+) -> None:
+    bus = _Bus()
+    vacuum = PersonaVacuum(
+        personas=build_aureon_personas(), thought_bus=bus, rng=random.Random(9))
+    statement = vacuum.observe()
+    assert vacuum.collapse_count == 1
+    assert vacuum.last_winner in vacuum.persona_names
+    topics = [getattr(t, "topic", None) for t in bus.published]
+    assert "persona.collapse" in topics
+    assert "persona.thought" in topics
+    assert statement is None or statement.voice == vacuum.last_winner

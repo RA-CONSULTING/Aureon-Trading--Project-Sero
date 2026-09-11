@@ -46,6 +46,8 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # 🚌 Communication Buses
 try:
     from aureon.core.aureon_thought_bus import ThoughtBus, Thought
@@ -290,6 +292,10 @@ class StrategicWarfareScanner:
 
     def fetch_klines(self, symbol: str, interval: str, limit: int) -> List[Dict]:
         """Fetch klines from Binance."""
+        if no_external_api_calls():
+            logger.info("Strategic Warfare Scanner fetch_klines blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         url = "https://api.binance.com/api/v3/klines"
         params = {
             'symbol': symbol.replace('/', ''),
@@ -635,7 +641,11 @@ class StrategicWarfareScanner:
     
     def run_full_intelligence_sweep(self, max_entities: int = 25):
         """Execute full strategic intelligence sweep on all entities."""
-        
+
+        if no_external_api_calls():
+            logger.info("Strategic Warfare Scanner blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print("\n" + "="*80)
         print("🎖️⚡ STRATEGIC WARFARE INTELLIGENCE SWEEP ⚡🎖️")
         print("="*80)

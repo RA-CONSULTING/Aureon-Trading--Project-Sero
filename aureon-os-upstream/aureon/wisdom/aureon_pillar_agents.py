@@ -51,6 +51,8 @@ try:
 except Exception:
     pass
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 
@@ -174,6 +176,12 @@ class PillarAgent:
     TOOLS: list = []
 
     def __init__(self, adapter: Optional[LLMAdapter] = None):
+        if no_external_api_calls():
+            logger.info("PillarAgent initialisation blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.adapter = None
+            self._snapshot: Dict[str, Any] = {}
+            return
+
         # Build in-house adapter — no external API keys needed
         if adapter:
             self.adapter = adapter
@@ -245,6 +253,18 @@ class PillarAgent:
         Main entry point.  Subclasses may override this.
         `context` is whatever Samuel passes (market data, bus state, etc.)
         """
+        if no_external_api_calls():
+            logger.info(f"{self.PILLAR_NAME}.analyse blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return PillarResult(
+                pillar=self.PILLAR_NAME,
+                signal="HOLD",
+                confidence=0.0,
+                coherence=0.0,
+                frequency_hz=432.0,
+                analysis="AUREON_NO_EXTERNAL_API_CALLS: outbound API calls are disabled.",
+                data={"reason": "AUREON_NO_EXTERNAL_API_CALLS"},
+            )
+
         task = self._build_task(context)
         raw = self._run_agentic_loop(task)
         return self._parse_result(raw)
@@ -855,6 +875,10 @@ ALL_PILLARS: Dict[str, type] = {
 
 def build_all_pillars(adapter: Optional[LLMAdapter] = None) -> Dict[str, PillarAgent]:
     """Instantiate all six pillar agents using in-house AI and return as a dict."""
+    if no_external_api_calls():
+        logger.info("build_all_pillars blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {}
+
     shared_adapter = adapter or _build_default_adapter()
     return {name: cls(adapter=shared_adapter) for name, cls in ALL_PILLARS.items()}
 

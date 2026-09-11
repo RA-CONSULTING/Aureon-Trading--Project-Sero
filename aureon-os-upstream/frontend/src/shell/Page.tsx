@@ -30,11 +30,10 @@ export function LiveDataNotice() {
   return (
     <Alert className="mb-4 border-border/60">
       <Wifi className="h-4 w-4" />
-      <AlertTitle>Live surface</AlertTitle>
+      <AlertTitle>Source data</AlertTitle>
       <AlertDescription>
-        This view streams from the running Aureon backend (gateway / bridge /
-        Supabase feed). With no backend connected it renders with empty or stale
-        data — that is honest, not broken.
+        Check the source and observation time for each reading. An unavailable
+        or expired source has no current measurement.
       </AlertDescription>
     </Alert>
   );

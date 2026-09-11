@@ -30,6 +30,9 @@ from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple, Any
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+OPERATIONAL_CORE_SNAPSHOT_FILE = REPO_ROOT / "state" / "operational_core_snapshot.json"
+
 # ═══════════════════════════════════════════════════════════════════════════
 # WINDOWS UTF-8 FIX
 # ═══════════════════════════════════════════════════════════════════════════
@@ -612,6 +615,13 @@ class StatePulse:
         self._write_count = 0
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _position_attr(pos: Any, name: str, default: Any = 0) -> Any:
+        """Read position attributes from objects or dicts."""
+        if isinstance(pos, dict):
+            return pos.get(name, default)
+        return getattr(pos, name, default)
+
     def pulse(self, positions: Dict, tracker_stats: Dict,
               signal_gate_stats: Dict = None,
               circuit_breaker_status: Dict = None):
@@ -625,11 +635,11 @@ class StatePulse:
             'positions': {
                 sym: {
                     'symbol': sym,
-                    'entry_price': getattr(pos, 'entry_price', 0),
-                    'quantity': getattr(pos, 'quantity', 0),
-                    'entry_value': getattr(pos, 'entry_value', 0),
-                    'exchange': getattr(pos, 'exchange', 'unknown'),
-                    'entry_time': getattr(pos, 'entry_time', 0),
+                    'entry_price': self._position_attr(pos, 'entry_price', 0),
+                    'quantity': self._position_attr(pos, 'quantity', 0),
+                    'entry_value': self._position_attr(pos, 'entry_value', 0),
+                    'exchange': self._position_attr(pos, 'exchange', 'unknown'),
+                    'entry_time': self._position_attr(pos, 'entry_time', 0),
                 }
                 for sym, pos in positions.items()
             },
@@ -668,7 +678,7 @@ class StatePulse:
         now = time.time()
         last = self._last_write.get('state', 0)
         return {
-            'last_write': datetime.fromtimestamp(last).isoformat() if last > 0 else 'NEVER',
+            'last_write': datetime.fromtimestamp(last, tz=timezone.utc).isoformat() if last > 0 else 'NEVER',
             'age_seconds': now - last if last > 0 else float('inf'),
             'is_stale': (now - last > self._stale_threshold) if last > 0 else True,
             'write_count': self._write_count,
@@ -913,7 +923,7 @@ class AureonOperationalCore:
             health = 'degraded' if health == 'healthy' else health
             issues.append(f"State stale: {state_freshness['age_seconds']:.0f}s old")
 
-        return {
+        health_payload = {
             'status': health,
             'uptime': time.time() - self._initialized_at,
             'issues': issues,
@@ -923,6 +933,14 @@ class AureonOperationalCore:
             'execution': self.execution_confirmer.get_stats(),
             'reconciliation': self.reconciler.get_status(),
         }
+        # Publish a cross-process snapshot whenever health is computed in the
+        # process that owns the singleton. Failures are logged, never raised.
+        if _ops_core is self:
+            try:
+                publish_operational_core_snapshot(core=self)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("operational core snapshot publish failed: %s", exc)
+        return health_payload
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -930,6 +948,40 @@ class AureonOperationalCore:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _ops_core: Optional[AureonOperationalCore] = None
+
+def publish_operational_core_snapshot(core: AureonOperationalCore = None,
+                                              path: Path = None) -> dict:
+    """Lightweight publisher: write the core's health snapshot to disk.
+
+    The gateway process reads this file in aureon.saas.status so it can report
+    operational health without needing _ops_core to exist in its own process.
+    The snapshot carries the same fields as get_health() plus published_at.
+    """
+    if core is None:
+        core = _ops_core
+    if core is None:
+        return {"available": False, "reason": "operational_core_not_initialized"}
+    snapshot = core.get_health()
+    snapshot["published_at"] = time.time()
+    snapshot["schema_version"] = "aureon-operational-core-snapshot-v1"
+    snapshot["available"] = True
+    target = path or OPERATIONAL_CORE_SNAPSHOT_FILE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f"{target.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, indent=2, ensure_ascii=False, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(str(tmp), str(target))
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    return snapshot
+
 
 def get_operational_core(phase_detector=None, solar_monitor=None) -> AureonOperationalCore:
     """Get or create the operational core singleton."""

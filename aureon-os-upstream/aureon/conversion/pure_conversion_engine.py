@@ -45,6 +45,7 @@ from enum import Enum
 import math
 
 import logging
+from aureon.core.no_external_calls import no_external_api_calls
 logger = logging.getLogger(__name__)
 
 
@@ -962,7 +963,11 @@ class PureConversionEngine:
     
     async def find_conversion_opportunities(self) -> List[ConversionOpportunity]:
         """Find all conversion opportunities (for display/testing)"""
-        
+
+        if no_external_api_calls():
+            logger.warning("PureConversionEngine.find_conversion_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         # Fetch initial prices if not loaded
         if not self.prices:
             await self._fetch_initial_prices()
@@ -1409,6 +1414,10 @@ class PureConversionEngine:
     
     async def run(self):
         """Main run loop"""
+        if no_external_api_calls():
+            logger.warning("PureConversionEngine.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self.banner()
 
         await self._fetch_initial_prices()
@@ -1450,6 +1459,10 @@ class PureConversionEngine:
 
 async def main():
     """Entry point"""
+    if no_external_api_calls():
+        logger.warning("pure_conversion_engine.main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     import argparse
     parser = argparse.ArgumentParser(description='Pure Conversion Engine')
     parser.add_argument('--dry-run', action='store_true', help='Run without real trades')

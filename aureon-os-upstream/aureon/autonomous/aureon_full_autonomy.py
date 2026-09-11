@@ -49,6 +49,8 @@ from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     import aiohttp
     AIOHTTP_AVAILABLE = True
@@ -1800,8 +1802,13 @@ class AutonomyExecutor:
 
     async def fetch_live_prices(self) -> Dict:
         """Fetch REAL live prices from public APIs (no API key needed)."""
+        if no_external_api_calls():
+            logger.warning("fetch_live_prices blocked: AUREON_NO_EXTERNAL_API_CALLS is set")
+            self._latest_prices = {}
+            return {}
+
         prices = {}
-        
+
         # Binance public API — all liquid trading pairs (>$5M 24h volume)
         # USDT pairs are more liquid; we normalise the base symbol after fetching
         TRACKED_BASES = [

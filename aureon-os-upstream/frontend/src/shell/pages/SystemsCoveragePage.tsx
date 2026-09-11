@@ -9,12 +9,18 @@
  * the filesystem scan. Nothing is fabricated; a dormant domain shows no rollup.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { GlassPageHeader } from "@/shell/GlassPage";
 import { Boxes, CircleCheck, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LiveDataNotice } from "@/shell/Page";
+import { Button } from "@/components/ui/button";
+import { api } from "@/services/apiClient";
+import { createReadOnlyPoller } from "@/services/readOnlyPoller";
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { validateCoveragePayload } from "@/lib/coverageEvidence";
 
 interface DomainHealth {
   system_count: number;
@@ -105,21 +111,24 @@ function DomainRow({ d }: { d: CoverageDomain }) {
       </td>
       <td className="px-2 text-right tabular-nums">{h ? h.total_loc.toLocaleString() : "—"}</td>
       <td className="hidden px-3 text-right text-xs text-muted-foreground md:table-cell">
-        {h ? h.capabilities.length : 0}
+        {h ? h.capabilities.length : "—"}
       </td>
     </tr>
   );
 }
 
-export default function SystemsCoveragePage() {
-  const [data, setData] = useState<CoveragePayload | null | undefined>(undefined);
+const coverageStore = createReadOnlyPoller<CoveragePayload>({
+  read: async options => {
+    const result = await api.get<CoveragePayload>("/api/coverage", options);
+    validateCoveragePayload(result);
+    return result;
+  },
+  receiptMaxAgeMs: 360_000,
+});
 
-  useEffect(() => {
-    fetch("/api/coverage")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
-      .catch(() => setData(null));
-  }, []);
+export default function SystemsCoveragePage() {
+  const coverage = useReadOnlyPoller(coverageStore, 300_000, 30_000);
+  const data = coverage.loading ? undefined : coverage.data;
 
   const domains = useMemo(
     () => (data ? [...data.domains].sort((a, b) => (b.health?.system_count ?? 0) - (a.health?.system_count ?? 0)) : []),
@@ -128,17 +137,12 @@ export default function SystemsCoveragePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Boxes className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Systems & Coverage</h1>
-          <p className="text-sm text-muted-foreground">
-            Live repo-wide coverage — every <span className="font-mono">aureon/</span> package reconciled
-            against the SaaS taxonomy, each domain with its real operational health. Derived from the
-            filesystem scan; nothing fabricated.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader icon={Boxes} eyebrow="System inventory" title="Systems & Coverage"
+          description={<>
+            Structural coverage of <span className="font-mono">aureon/</span> packages against the
+            SaaS taxonomy. The filesystem inventory shows recorded integrations; individual systems
+            report their own runtime observations.
+          </>} />
 
       <LiveDataNotice />
 
@@ -153,10 +157,11 @@ export default function SystemsCoveragePage() {
       {data === null && (
         <Card>
           <CardHeader>
-            <CardTitle>Gateway offline</CardTitle>
+            <CardTitle>Coverage report unavailable</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Start the operator to load the live <span className="font-mono">/api/coverage</span> surface.
+            <p>{coverage.error || "No current coverage response has been received."}</p>
+            <Button className="mt-3" variant="outline" size="sm" onClick={coverage.refresh}>Refresh coverage</Button>
           </CardContent>
         </Card>
       )}
@@ -205,9 +210,9 @@ export default function SystemsCoveragePage() {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-base">Benchmark coverage — the march to 100%</CardTitle>
+                  <CardTitle className="text-base">Recorded benchmark coverage</CardTitle>
                   <Badge variant={data.benchmark_coverage.ratchet?.ok ? "success" : "secondary"}>
-                    ratchet {data.benchmark_coverage.ratchet?.ok ? "holding" : "regressed"}
+                    ratchet {data.benchmark_coverage.ratchet?.ok === true ? "holding" : data.benchmark_coverage.ratchet?.ok === false ? "regressed" : "unknown"}
                   </Badge>
                 </div>
               </CardHeader>
@@ -242,7 +247,7 @@ export default function SystemsCoveragePage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Per-domain operational health</CardTitle>
+              <CardTitle className="text-base">Per-domain integration inventory</CardTitle>
             </CardHeader>
             <CardContent className="px-0">
               <div className="overflow-x-auto">

@@ -52,6 +52,16 @@ def test_schumann_reuses_complete_shared_space_weather_reading(monkeypatch):
         "_fetch_usgs_magnetometer",
         lambda self: None,
     )
+    monkeypatch.setattr(
+        schumann.SchumannResonanceBridge,
+        "_fetch_local_station_state",
+        lambda self: None,
+    )
+    monkeypatch.setattr(
+        schumann.SchumannResonanceBridge,
+        "_fetch_gfz_archive",
+        lambda self: None,
+    )
     monkeypatch.setenv("AUREON_ALLOW_SIM_FALLBACK", "0")
 
     reading = schumann.SchumannResonanceBridge().get_live_data(force_refresh=True)

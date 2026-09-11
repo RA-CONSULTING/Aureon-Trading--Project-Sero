@@ -61,6 +61,8 @@ from dataclasses import dataclass, field
 from collections import deque
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +101,9 @@ class FearGreedFetcher:
             'fresh': bool,
         }
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.FearGreedFetcher.fetch blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         now = time.time()
         with self._lock:
             if self._cache and (now - self._cache_time) < self.CACHE_TTL_SEC:
@@ -426,6 +431,9 @@ class ChamberOfEmotion:
                 pass
 
     def read(self, market_data: Dict[str, Any] = None) -> ChamberReading:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.ChamberOfEmotion.read blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self._load()
         score = 0.5
         frequency = 432.0  # Default: peace/harmony
@@ -677,6 +685,9 @@ class ChamberOfHarmony:
                 pass
 
     def read(self, positions: Dict = None, ticker_cache: Dict = None, wave_ctx: dict = None) -> ChamberReading:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.ChamberOfHarmony.read blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self._load()
         scores = []
         frequency = LOVE_FREQUENCY
@@ -862,6 +873,9 @@ class ChamberOfVoice:
                 pass
 
     def read(self) -> ChamberReading:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.ChamberOfVoice.read blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self._load()
         score = 0.5
         frequency = 639.0  # Connection frequency
@@ -937,6 +951,9 @@ class ChamberOfSolfeggio:
     """
 
     def read(self, positions: Dict = None, ticker_cache: Dict = None) -> ChamberReading:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.ChamberOfSolfeggio.read blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         score = 0.5
         frequency = LOVE_FREQUENCY
         phase = "DORMANT"
@@ -1025,6 +1042,9 @@ class ChamberOfSpirit:
     """
 
     def read(self, market_data: Dict[str, Any] = None) -> ChamberReading:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.ChamberOfSpirit.read blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         score = 0.5
         frequency = UNIVERSAL_A  # 432Hz default
         phase = "NEUTRAL"
@@ -1107,6 +1127,9 @@ class TheLyre:
                 harmony: ChamberReading, voice: ChamberReading,
                 solfeggio: ChamberReading, spirit: ChamberReading) -> LyraResonance:
 
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.TheLyre.combine blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         w = LYRA_CONFIG
         unified = (
             emotion.score  * w["WEIGHT_EMOTION"] +
@@ -1413,6 +1436,9 @@ class AureonLyra:
         }
 
     def generate_report(self) -> str:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra.AureonLyra.generate_report blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         r = self.latest_resonance
         if not r:
             return "Lyra has not yet felt the frequencies. Call feel() first."

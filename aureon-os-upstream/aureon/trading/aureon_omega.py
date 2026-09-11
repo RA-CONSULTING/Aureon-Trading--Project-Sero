@@ -50,6 +50,9 @@ This is the COMPLETE integration of ALL TSX systems into a unified Python trader
 ═══════════════════════════════════════════════════════════════════════════════
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import math
@@ -205,13 +208,22 @@ class BinanceClient:
             return {"error": str(e)}
             
     def get_ticker(self, symbol: str) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.BinanceClient.get_ticker blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self._request("GET", "/api/v3/ticker/24hr", {"symbol": symbol})
         
     def get_balance(self) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.BinanceClient.get_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self._request("GET", "/api/v3/account", signed=True)
         
     def get_btc_pairs(self) -> List[str]:
         """Get all BTC trading pairs"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.BinanceClient.get_btc_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         info = self._request("GET", "/api/v3/exchangeInfo")
         if "symbols" in info:
             return [s["symbol"] for s in info["symbols"] 
@@ -220,6 +232,9 @@ class BinanceClient:
         
     def place_order(self, symbol: str, side: str, quantity: float, order_type: str = "MARKET") -> dict:
         """Place order on BTC pair"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.BinanceClient.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not symbol.endswith("BTC"):
             return {"error": f"TRD_GRP_039: Only BTC pairs allowed, got {symbol}"}
             
@@ -256,6 +271,9 @@ class OmegaEquation:
         Compute Ψ(t) - Potential field from 9 Auris Nodes
         Returns: (psi_value, node_responses, dominant_node)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.OmegaEquation.compute_psi blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         node_responses = {}
         
         # Simulate node responses based on market data
@@ -336,6 +354,9 @@ class OmegaEquation:
         Full tensor product followed by trace operation
         """
         # Step 1: Compute Ψ(t)
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.OmegaEquation.compute_omega blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         psi, node_responses, dominant = self.compute_psi(market_data)
         
         # Step 2: Compute ℒ(t)
@@ -938,6 +959,9 @@ class AureonOmega:
         - volume: trading volume
         - trend: trend direction (-1 to 1)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega.AureonOmega.process_tick blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         self.tick += 1
         timestamp = time.time()
         

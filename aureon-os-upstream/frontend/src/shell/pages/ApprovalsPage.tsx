@@ -8,7 +8,8 @@
  * replying to the email Aureon sends.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useRef, useState } from "react";
+import { GlassPageHeader } from "@/shell/GlassPage";
 import { ListChecks, ShieldCheck, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -16,72 +17,46 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LiveDataNotice } from "@/shell/Page";
+import { api } from "@/services/apiClient";
+import { createReadOnlyPoller } from "@/services/readOnlyPoller";
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { parseApprovalDesk, requirePendingApproval, type ApprovalDesk as Desk } from "@/lib/approvalDesk";
 
-interface Item {
-  id: string;
-  kind: string;
-  summary: string;
-  prepared_by: string;
-  risk: string;
-  status: "pending" | "approved" | "rejected";
-  note?: string;
-}
-
-interface Desk {
-  pending: Item[];
-  recent: Item[];
-  counts?: Record<string, number>;
-}
+const deskStore = createReadOnlyPoller<Desk>({
+  read: async (options) => parseApprovalDesk(await api.get("/api/approvals", options)),
+  receiptMaxAgeMs: 15_000,
+});
 
 export default function ApprovalsPage() {
-  const [data, setData] = useState<Desk | null | undefined>(undefined);
+  const desk = useReadOnlyPoller(deskStore, 5_000, 8_000);
+  const data = desk.loading ? undefined : desk.data;
   const [busy, setBusy] = useState<string | null>(null);
-
-  const poll = useCallback(async () => {
-    try {
-      const r = await fetch("/api/approvals");
-      if (!r.ok) throw new Error(String(r.status));
-      setData(await r.json());
-    } catch {
-      setData((p) => (p === undefined ? null : p));
-    }
-  }, []);
-
-  useEffect(() => {
-    poll();
-    const t = window.setInterval(poll, 5000);
-    return () => window.clearInterval(t);
-  }, [poll]);
+  const deciding = useRef(false);
 
   async function decide(id: string, decision: "approve" | "reject") {
+    const current = deskStore.getSnapshot();
+    if (deciding.current || !current.isReceiptCurrent || !current.data || current.error) return;
+    deciding.current = true;
     setBusy(id);
     try {
-      const r = await fetch(`/api/approvals/${id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      if (!r.ok) throw new Error(String(r.status));
-      toast.success(`Recorded: ${decision}d`);
-      await poll();
-    } catch {
-      toast.error("Could not record the decision");
+      const latest = parseApprovalDesk(await api.get("/api/approvals", { timeoutMs: 8_000 }));
+      requirePendingApproval(latest, id);
+      const saved = await api.post<{ ok?: boolean }>(`/api/approvals/${encodeURIComponent(id)}`, { decision });
+      if (saved?.ok !== true) throw new Error("The server did not confirm this decision. Refresh the desk to check its recorded state.");
+      toast.success(decision === "approve" ? "Approval recorded" : "Rejection recorded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not record the decision");
     } finally {
+      deskStore.invalidate();
+      deciding.current = false;
       setBusy(null);
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <ListChecks className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Approvals</h1>
-          <p className="text-sm text-muted-foreground">
-            The director's desk — the big plays Aureon prepared and is holding for your call.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader icon={ListChecks} eyebrow="Director's desk" title="Approvals"
+        description="Prepared proposals and their recorded decisions. Approval records do not execute the proposed move." />
 
       <LiveDataNotice />
 
@@ -98,15 +73,18 @@ export default function ApprovalsPage() {
         <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}</div>
       )}
       {data === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Start the operator and retry — this page polls /api/approvals.</CardContent></Card>
+        <Card><CardHeader><CardTitle>Current approval queue unavailable</CardTitle></CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>{desk.error || "The queue has not been confirmed. Decisions require a current read."}</p>
+            <Button variant="outline" size="sm" onClick={desk.refresh}>Refresh queue</Button>
+          </CardContent></Card>
       )}
 
       {data && data.pending?.length === 0 && (
         <Card>
           <CardHeader><CardTitle className="text-base">Desk clear</CardTitle></CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Nothing awaiting your decision. Aureon runs the day-to-day itself and will place any big play here.
+            The current queue contains no pending decisions.
           </CardContent>
         </Card>
       )}
@@ -125,10 +103,10 @@ export default function ApprovalsPage() {
           <CardContent className="space-y-3">
             <p className="text-sm">{it.summary}</p>
             <div className="flex gap-2">
-              <Button size="sm" disabled={busy === it.id} onClick={() => decide(it.id, "approve")}>
+              <Button size="sm" disabled={busy !== null || !desk.isReceiptCurrent || Boolean(desk.error)} onClick={() => decide(it.id, "approve")}>
                 <Check className="mr-1 h-4 w-4" /> Approve
               </Button>
-              <Button size="sm" variant="outline" disabled={busy === it.id} onClick={() => decide(it.id, "reject")}>
+              <Button size="sm" variant="outline" disabled={busy !== null || !desk.isReceiptCurrent || Boolean(desk.error)} onClick={() => decide(it.id, "reject")}>
                 <X className="mr-1 h-4 w-4" /> Reject
               </Button>
             </div>

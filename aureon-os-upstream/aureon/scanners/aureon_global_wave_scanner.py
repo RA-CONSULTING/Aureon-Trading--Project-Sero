@@ -46,6 +46,8 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 🐦 CHIRP BUS INTEGRATION - kHz-Speed Scanner Signals
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -647,6 +649,10 @@ class GlobalWaveScanner:
         Build the complete universe of all symbols from all exchanges.
         This is the foundation for A-Z/Z-A sweeps.
         """
+        if no_external_api_calls():
+            logger.info("GlobalWaveScanner.build_universe blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         logger.info("🌍 Building global symbol universe...")
         
         all_symbols = []
@@ -760,6 +766,10 @@ class GlobalWaveScanner:
         Perform a full A-Z sweep of all symbols.
         Returns batches of scanned symbols with wave classifications.
         """
+        if no_external_api_calls():
+            logger.info("GlobalWaveScanner.full_az_sweep blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         start = time.time()
         self.total_scans += 1
         self.batches = []
@@ -831,8 +841,12 @@ class GlobalWaveScanner:
         Perform a full Z-A sweep (reverse order) for pattern confirmation.
         Validates A-Z findings and catches fast-moving symbols.
         """
+        if no_external_api_calls():
+            logger.info("GlobalWaveScanner.full_za_sweep blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         start = time.time()
-        
+
         # Use Z-A sorted list
         symbols = self.sorted_symbols_za
         za_batches = []
@@ -1264,6 +1278,12 @@ class GlobalWaveScanner:
         Deep dive into live candles for a specific symbol.
         Analyzes candle patterns, volume, and micro-trends.
         """
+        if no_external_api_calls():
+            logger.info("GlobalWaveScanner.deep_dive_candles blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            denial = _no_data("AUREON_NO_EXTERNAL_API_CALLS", symbol=symbol, exchange=exchange)
+            self.last_no_data[symbol] = denial
+            return denial
+
         try:
             raw_candles = await self._fetch_candles(symbol, exchange, limit=30)
             candles = _normalise_provider_bars(raw_candles)
@@ -1653,10 +1673,19 @@ class GlobalWaveScanner:
 async def run_bee_sweep(scanner: GlobalWaveScanner, ticker_cache: Dict = None):
     """
     🐝 BEE SWEEP: Systematic A-Z then Z-A coverage
-    
+
     Like bees pollinating every flower, we scan EVERY symbol
     in alphabetical order, then reverse for confirmation.
     """
+    if no_external_api_calls():
+        logger.info("run_bee_sweep blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {
+            "az_batches": 0,
+            "za_batches": 0,
+            "top_opportunities": 0,
+            "wave_allocation": scanner.get_wave_allocation() if hasattr(scanner, 'get_wave_allocation') else {},
+        }
+
     print("\n🐝 STARTING BEE SWEEP - Full A-Z/Z-A Coverage...")
     
     # Build universe if not done

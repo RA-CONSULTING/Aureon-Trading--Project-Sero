@@ -17,6 +17,9 @@ interface GasTankState {
 
 export const useGasTank = (userId: string | null) => {
   const { toast } = useToast();
+  const [receipt, setReceipt] = useState<{ observed: boolean; userId: string | null; receivedAt: number | null; reason: string }>({
+    observed: false, userId: null, receivedAt: null, reason: 'Account receipt unavailable',
+  });
   const [state, setState] = useState<GasTankState>({
     balance: 0,
     initialBalance: 0,
@@ -32,6 +35,8 @@ export const useGasTank = (userId: string | null) => {
 
   // Fetch initial gas tank data
   useEffect(() => {
+    let cancelled = false;
+    setReceipt({ observed: false, userId, receivedAt: null, reason: userId ? 'Reading account' : 'Sign in to view account' });
     if (!userId) {
       setState(prev => ({ ...prev, isLoading: false }));
       return;
@@ -44,13 +49,17 @@ export const useGasTank = (userId: string | null) => {
         .eq('user_id', userId)
         .single();
 
+      if (cancelled) return;
+
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching gas tank:', error);
+        setReceipt({ observed: false, userId, receivedAt: null, reason: 'Account query failed' });
         setState(prev => ({ ...prev, isLoading: false }));
         return;
       }
 
       if (data) {
+        setReceipt({ observed: true, userId, receivedAt: Date.now(), reason: 'Successful account row read' });
         setState({
           balance: parseFloat(data.balance as any),
           initialBalance: parseFloat(data.initial_balance as any),
@@ -64,11 +73,13 @@ export const useGasTank = (userId: string | null) => {
           isLoading: false,
         });
       } else {
+        setReceipt({ observed: false, userId, receivedAt: null, reason: 'Account row unavailable' });
         setState(prev => ({ ...prev, isLoading: false }));
       }
     };
 
     fetchGasTank();
+    return () => { cancelled = true; };
   }, [userId]);
 
   // Subscribe to real-time updates
@@ -88,8 +99,14 @@ export const useGasTank = (userId: string | null) => {
         (payload) => {
           console.log('Gas tank updated:', payload);
           const data = payload.new as any;
+
+          if (payload.eventType === 'DELETE') {
+            setReceipt({ observed: false, userId, receivedAt: null, reason: 'Account row removed' });
+            return;
+          }
           
           if (data) {
+            setReceipt({ observed: true, userId, receivedAt: Date.now(), reason: 'Account row update received' });
             const newState = {
               balance: parseFloat(data.balance),
               initialBalance: parseFloat(data.initial_balance),
@@ -212,6 +229,7 @@ export const useGasTank = (userId: string | null) => {
 
   return {
     ...state,
+    receipt: { ...receipt, observed: receipt.observed && receipt.userId === userId },
     topUp,
   };
 };

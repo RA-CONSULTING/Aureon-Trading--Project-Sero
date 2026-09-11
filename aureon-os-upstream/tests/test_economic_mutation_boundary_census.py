@@ -724,7 +724,7 @@ def test_fail_closed_migration_batches_are_disjoint_and_complete(
 ) -> None:
     batches = census["migration_batches"]
     assert [batch["batch"] for batch in batches] == [
-        "REDACTED_USE_CLOUD_SECRET",
+        "01-quarantine-live-test-clis",
         "02-gate-supabase-provider-functions",
         "03-guard-provider-client-chokepoints",
         "04-migrate-direct-http-bypasses",

@@ -92,6 +92,13 @@ class FakeNewsSignal:
     themes = ["rate-cut", "oil", "conflict"]
 
 
+class FakeNewsGeoDigest:
+    geo_risk = 0.35
+    risk_level = "ELEVATED"
+    themes = ["tariffs", "asia", "energy"]
+    headline = "Trade tension flares in Asian markets"
+
+
 def _full_fakes() -> dict:
     return {
         "dr_auris":       lambda: FakeCosmicState(),
@@ -100,6 +107,7 @@ def _full_fakes() -> dict:
         "space_weather":  lambda: FakeSpaceWeatherReading(),
         "financial":      lambda: FakeMacroSnapshot(),
         "news":           lambda: FakeNewsSignal(),
+        "news_geo_digest": lambda: FakeNewsGeoDigest(),
     }
 
 
@@ -128,8 +136,10 @@ def test_snapshot_aggregates_all_sources():
     check(state.geo_risk == 0.42, "news geo_risk surfaced")
     check(state.news_risk_level == "ELEVATED", "news risk level surfaced")
     check("rate-cut" in state.dominant_themes, "themes surfaced")
-    check(set(state.sources_ok) >= {"dr_auris", "schumann", "earth_gate", "space_weather", "financial", "news"},
-          f"all six sources OK (got {state.sources_ok})")
+    check(state.news_geo_risk == 0.35, f"news_geo risk surfaced ({state.news_geo_risk})")
+    check("tariffs" in state.news_geo_themes, "news_geo themes surfaced")
+    check(set(state.sources_ok) >= {"dr_auris", "schumann", "earth_gate", "space_weather", "financial", "news", "news_geo_digest"},
+          f"all seven sources OK (got {state.sources_ok})")
     check(state.sources_failed == [], f"no failures (got {state.sources_failed})")
 
 

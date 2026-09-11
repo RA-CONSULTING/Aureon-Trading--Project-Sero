@@ -329,7 +329,7 @@ CACHE_VERSION = 6
 POSTING_ENCODING = "uint32-le-zlib-base64-v1"
 
 
-def _encode_posting_values(values: List[int]) -> str:
+def _encode_posting_values(values: Sequence[int]) -> str:
     packed = array("I", values)
     if packed.itemsize != 4:
         raise ValueError("posting cache requires 32-bit unsigned integers")
@@ -339,7 +339,7 @@ def _encode_posting_values(values: List[int]) -> str:
     return base64.b64encode(compressed).decode("ascii")
 
 
-def _decode_posting_values(encoded: object) -> List[int] | None:
+def _decode_posting_values(encoded: object) -> array | None:
     if not isinstance(encoded, str):
         return None
     try:
@@ -355,7 +355,7 @@ def _decode_posting_values(encoded: object) -> List[int] | None:
     unpacked.frombytes(raw)
     if sys.byteorder != "little":
         unpacked.byteswap()
-    return unpacked.tolist()
+    return unpacked
 
 
 class ResearchCorpusIndex:
@@ -390,8 +390,9 @@ class ResearchCorpusIndex:
         # repeated path string.
         self._doc_ids: List[str] = []
         # Values are flat triples: doc ordinal, paragraph index, term count.
-        # A flat list avoids millions of per-row Python/JSON containers.
-        self._postings: Dict[str, List[int]] = {}
+        # Keep the cache's uint32 representation in memory too: expanding it
+        # into Python integers/list pointers multiplies the retained footprint.
+        self._postings: Dict[str, array] = {}
         self._idf: Dict[str, float] = {}  # token → idf weight
         self._built = False
         self._lock = threading.RLock()
@@ -459,7 +460,11 @@ class ResearchCorpusIndex:
 
                 for idx, para in enumerate(paragraphs):
                     for tok, count in Counter(_tokenize(para)).items():
-                        self._postings.setdefault(tok, []).extend((doc_idx, idx, count))
+                        postings = self._postings.get(tok)
+                        if postings is None:
+                            postings = array("I")
+                            self._postings[tok] = postings
+                        postings.extend((doc_idx, idx, count))
 
             self._compute_idf()
             self._built = True
@@ -775,7 +780,7 @@ class ResearchCorpusIndex:
             return False
         if payload.get("posting_encoding") != POSTING_ENCODING:
             return False
-        compact_postings: Dict[str, List[int]] = {}
+        compact_postings: Dict[str, array] = {}
         posting_value_count = 0
         for tok, encoded_postings in raw_postings.items():
             postings = _decode_posting_values(encoded_postings)

@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping, Protocol
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 MAX_AGE_SECONDS = 300.0
 FUTURE_SKEW_SECONDS = 5.0
 STATE_SCHEMA_VERSION = 1
@@ -927,6 +930,9 @@ def execute_profit_trade(
 ) -> dict[str, Any]:
     """Serialize and advance one submission or one bounded read-back."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_limit_profit_trades.execute_profit_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     path = Path(state_path).expanduser().resolve()
     try:
         with _state_lock(path):

@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Cache file paths
-CACHE_DIR = os.getenv('MARKET_CACHE_DIR', 'ws_cache')
+CACHE_DIR = os.getenv('MARKET_CACHE_DIR', str(Path(__file__).resolve().parents[2] / 'ws_cache'))
 UNIFIED_CACHE_PATH = os.path.join(CACHE_DIR, 'unified_prices.json')
 WS_PRICE_CACHE_PATH = os.getenv('WS_PRICE_CACHE_PATH', os.path.join(CACHE_DIR, 'ws_prices.json'))
 BINANCE_CACHE_PATH = os.path.join(CACHE_DIR, 'binance_ws_prices.json')
@@ -91,10 +91,13 @@ class CachedTicker:
     source: str           # 'binance_ws', 'kraken_rest', 'alpaca_rest'
     timestamp: float      # Unix timestamp
     pair: str             # Original pair: BTCUSDT, XXBTZUSD, BTC/USD
+    timestamp_kind: str = "cache_timestamp"
+    received_at: float = 0.0
+    provider_timestamp: Optional[float] = None
     
     def is_fresh(self, max_age: float = CACHE_TTL_SECONDS) -> bool:
         """Check if data is fresh enough to use"""
-        return (time.time() - self.timestamp) <= max_age
+        return self.timestamp > 0 and -5.0 <= (time.time() - self.timestamp) <= max_age
 
 
 class UnifiedMarketCache:
@@ -202,7 +205,9 @@ class UnifiedMarketCache:
                     
                     # Skip if we already have fresher data
                     existing = self._tickers.get(symbol)
-                    ticker_ts = _as_timestamp(t.get('timestamp'), file_ts)
+                    exchange_health = source_health.get(str(t.get('exchange', '')), {}) if isinstance(source_health, dict) else {}
+                    observed_at = _as_timestamp(exchange_health.get('last_success_at') or exchange_health.get('generated_at'), file_ts) if isinstance(exchange_health, dict) else file_ts
+                    ticker_ts = _as_timestamp(t.get('timestamp'), observed_at)
                     if existing and existing.timestamp > ticker_ts:
                         continue
                     
@@ -211,13 +216,16 @@ class UnifiedMarketCache:
                         ticker = CachedTicker(
                             symbol=symbol,
                             price=float(t.get('price', 0) or 0),
-                            bid=float(t.get('bid', t.get('price', 0)) or 0),
-                            ask=float(t.get('ask', t.get('price', 0)) or 0),
+                            bid=float(t.get('bid', 0) or 0),
+                            ask=float(t.get('ask', 0) or 0),
                             change_24h=float(t.get('change24h', t.get('change_24h', 0)) or 0),
                             volume_24h=float(t.get('volume', t.get('volume_24h', 0)) or 0),
                             source=t.get('source', source),
                             timestamp=ticker_ts,
-                            pair=t.get('pair', key)
+                            pair=t.get('pair', key),
+                            timestamp_kind=str(t.get('timestamp_kind') or 'cache_timestamp'),
+                            received_at=_as_timestamp(t.get('received_at'), 0.0),
+                            provider_timestamp=_as_timestamp(t.get('provider_timestamp'), 0.0) or None,
                         )
                         if ticker.price > 0:
                             with self._cache_lock:
@@ -284,8 +292,10 @@ class UnifiedMarketCache:
                 if not isinstance(item, dict):
                     continue
                 copied = dict(item)
-                ts = _as_timestamp(copied.get("generated_at") or copied.get("file_generated_at"), 0.0)
+                ts = _as_timestamp(copied.get("data_timestamp", copied.get("last_success_at") or copied.get("generated_at") or copied.get("file_generated_at")), 0.0)
                 copied["age_sec"] = max(0.0, now - ts) if ts > 0 else copied.get("age_sec", None)
+                copied["data_age_sec"] = now - ts if ts > 0 else None
+                copied["fresh"] = bool(copied.get("active") and ts > 0 and -5.0 <= now - ts <= CACHE_TTL_SECONDS)
                 health[source_key] = copied
             return health
     

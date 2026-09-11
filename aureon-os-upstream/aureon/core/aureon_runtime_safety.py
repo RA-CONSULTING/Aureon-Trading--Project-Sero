@@ -20,6 +20,9 @@ SAFE_RUNTIME_ENV = {
     "AUREON_DRY_RUN": "1",
     "DRY_RUN": "1",
     "LIVE": "0",
+    # KRAKEN_DRY_RUN is intentionally omitted so that private READS can be
+    # provider-backed while order mutations remain blocked by the economic
+    # dispatch gate and the four terminal safety holds.
 }
 
 LIVE_RUNTIME_ENV = {
@@ -32,7 +35,10 @@ LIVE_RUNTIME_ENV = {
     "DRY_RUN": "1",
     "LIVE": "0",
     "CONFIRM_LIVE": "no",
-    "KRAKEN_DRY_RUN": "true",
+    # Exchange dry-run/paper flags are intentionally omitted from the terminal
+    # HOLD profile. Private READS (balances, positions) are allowed to be
+    # provider-backed; exchange mutations remain blocked by the four safety
+    # holds and the per-venue economic-dispatch gates.
     "BINANCE_DRY_RUN": "true",
     "ALPACA_DRY_RUN": "true",
     "ALPACA_PAPER": "true",

@@ -12,6 +12,9 @@ from aureon.trading.capital_market_evidence import (
 )
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 class CapitalEvidenceReadClient(Protocol):
     def get_ticker(self, symbol: str) -> Mapping[str, Any]: ...
 
@@ -81,6 +84,9 @@ def collect_capital_market_evidence(
 ) -> dict[str, Any]:
     """Read the five Capital surfaces and bind caller-fetched official context."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence_collector.collect_capital_market_evidence blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     quote = client.get_ticker(symbol)
     if (
         not isinstance(quote, Mapping)

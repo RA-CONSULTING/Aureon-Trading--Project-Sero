@@ -57,6 +57,8 @@ except ImportError:
     WIKIPEDIA_AVAILABLE = False
     wikipedia = None
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 
 # 📚 CORE TRADING CONCEPTS TO LEARN
 CORE_TRADING_TOPICS = [
@@ -352,6 +354,10 @@ class TradingEducationSystem:
         Returns:
             LearnedConcept if successful
         """
+        if no_external_api_calls():
+            print("TradingEducationSystem.learn_from_wikipedia blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if not WIKIPEDIA_AVAILABLE:
             print("⚠️ Wikipedia library not installed. Run: pip install wikipedia")
             return None
@@ -419,6 +425,16 @@ class TradingEducationSystem:
         Returns:
             Summary of learning session
         """
+        if no_external_api_calls():
+            print("TradingEducationSystem.learn_all_core_topics blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                "learned": [],
+                "failed": [],
+                "total_concepts": len(self.learned_concepts),
+                "total_rules": len(self.trading_rules),
+                "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+            }
+
         print("\n" + "=" * 70)
         print("👑📚 QUEEN'S WIKIPEDIA LEARNING SESSION 📚👑")
         print("=" * 70)
@@ -559,9 +575,13 @@ class TradingEducationSystem:
         
         Free API, no key required!
         """
+        if no_external_api_calls():
+            print("TradingEducationSystem.learn_from_coingecko blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {"source": "CoinGecko API", "blocked": True, "reason": "AUREON_NO_EXTERNAL_API_CALLS"}
+
         if not REQUESTS_AVAILABLE:
             return {"error": "requests library not available"}
-        
+
         self.stats["api_queries"] += 1
         
         knowledge = {
@@ -611,9 +631,13 @@ class TradingEducationSystem:
         
         This tells us market sentiment!
         """
+        if no_external_api_calls():
+            print("TradingEducationSystem.learn_from_fear_greed_index blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {"blocked": True, "reason": "AUREON_NO_EXTERNAL_API_CALLS"}
+
         if not REQUESTS_AVAILABLE:
             return {"error": "requests library not available"}
-        
+
         self.stats["api_queries"] += 1
         
         try:
@@ -665,9 +689,13 @@ class TradingEducationSystem:
         """
         📊 Learn about market conditions from Binance.
         """
+        if no_external_api_calls():
+            print("TradingEducationSystem.learn_from_binance_market blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {"blocked": True, "reason": "AUREON_NO_EXTERNAL_API_CALLS"}
+
         if not REQUESTS_AVAILABLE:
             return {"error": "requests library not available"}
-        
+
         self.stats["api_queries"] += 1
         
         insights = []
@@ -934,10 +962,14 @@ def create_trading_education_system() -> TradingEducationSystem:
 
 
 if __name__ == "__main__":
+    if no_external_api_calls():
+        print("Trading education main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        sys.exit(0)
+
     print("\n" + "=" * 70)
     print("👑📚 QUEEN SERO's TRADING EDUCATION SYSTEM 📚👑")
     print("=" * 70)
-    
+
     # Create system
     edu = TradingEducationSystem()
     

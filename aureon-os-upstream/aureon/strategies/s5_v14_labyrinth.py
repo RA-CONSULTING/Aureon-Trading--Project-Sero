@@ -31,6 +31,8 @@ from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict, deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     import websockets
 except ImportError:
@@ -251,6 +253,9 @@ class V14LabyrinthEngine:
     
     def load_holdings(self) -> bool:
         """Load current holdings from Kraken"""
+        if no_external_api_calls():
+            print("V14LabyrinthEngine.load_holdings blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("\n   🐙 Loading holdings from Kraken...")
         
         if self.dry_run or not self.kraken:
@@ -717,7 +722,9 @@ class V14LabyrinthEngine:
     
     async def run(self):
         """Main run loop"""
-        
+        if no_external_api_calls():
+            print("V14LabyrinthEngine.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         self.banner()
         
         if not self.load_holdings():

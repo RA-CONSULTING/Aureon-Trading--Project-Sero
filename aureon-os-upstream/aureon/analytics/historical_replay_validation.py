@@ -60,10 +60,15 @@ artifact out.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "REPLAY_BOUNDARY",
@@ -632,6 +637,10 @@ def compute_replay_validation(
 def refresh_datasets(data_dir: Path | None = None,
                      intervals: tuple[int, ...] = INTERVALS) -> list[str]:
     """Re-fetch the open Kraken OHLC datasets (public endpoint, no API key)."""
+    if no_external_api_calls():
+        logger.info("refresh_datasets blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     import urllib.request
 
     out_dir = data_dir or DATA_DIR

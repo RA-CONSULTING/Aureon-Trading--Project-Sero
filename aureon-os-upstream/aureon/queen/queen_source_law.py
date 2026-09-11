@@ -176,10 +176,18 @@ class NineAurisProcess:
             topics[topic] += 1
             sources[source] += 1
             if isinstance(payload, dict):
-                c = payload.get("confidence") or payload.get("coherence") or payload.get("score")
+                # Explicit None-handling: a 0.0 confidence is a real reading and
+                # must not fall through to coherence/score via `or` chaining.
+                c = payload.get("confidence")
+                if c is None:
+                    c = payload.get("coherence")
+                if c is None:
+                    c = payload.get("score")
                 if isinstance(c, (int, float)):
                     confidences.append(float(c))
-                coh = payload.get("coherence_gamma") or payload.get("coherence")
+                coh = payload.get("coherence_gamma")
+                if coh is None:
+                    coh = payload.get("coherence")
                 if isinstance(coh, (int, float)):
                     coherences.append(float(coh))
 
@@ -367,11 +375,17 @@ class CognitionOutput:
                 result.consciousness_psi = ls.consciousness_psi
                 result.consciousness_level = ls.consciousness_level
             except Exception:
+                # Synthetic fallback — node averages are NOT Lambda Engine output.
+                # Mark it so downstream readers can tell this gamma did not come
+                # from the field; unmarked it would present as a real coherence.
                 result.coherence_gamma = avg_value
                 result.consciousness_psi = avg_conf
+                result.reasoning.append("lambda_engine_unavailable: gamma/psi are node-average stand-ins")
         else:
+            # No Lambda Engine — node-average stand-ins, explicitly marked.
             result.coherence_gamma = avg_value
             result.consciousness_psi = avg_conf
+            result.reasoning.append("lambda_engine_absent: gamma/psi are node-average stand-ins")
 
         # Determine action
         result.confidence = avg_conf

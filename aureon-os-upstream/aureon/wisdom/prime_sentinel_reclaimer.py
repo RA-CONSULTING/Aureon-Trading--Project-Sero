@@ -32,6 +32,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 import traceback
+from aureon.core.no_external_calls import no_external_api_calls
 
 # Force unbuffered output
 os.environ['PYTHONUNBUFFERED'] = '1'
@@ -78,17 +79,22 @@ class PrimeSentinelReclaimer:
         log("=" * 70)
         log("🌍⚡ PRIME SENTINEL OF GAIA - INITIALIZING ⚡🌍")
         log("=" * 70)
-        
+
         self.cycle_count = 0
         self.total_reclaimed = 0.0
         self.trades_executed = 0
         self.start_time = time.time()
         self.last_prices = {}
         self.energy_pools = {}
-        
+
+        if no_external_api_calls():
+            log("PrimeSentinelReclaimer initialisation blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.exchanges = {}
+            return
+
         # Initialize exchange clients
         self._init_exchanges()
-        
+
         log(f"✅ Sentinel initialized - scanning every second")
         log(f"📍 Sacred constants: PHI={PHI:.6f}, SCHUMANN={SCHUMANN}Hz")
         
@@ -122,8 +128,12 @@ class PrimeSentinelReclaimer:
             
     def get_all_energy(self) -> Dict[str, List[GaiaEnergy]]:
         """Scan ALL platforms for energy"""
+        if no_external_api_calls():
+            log("PrimeSentinelReclaimer.get_all_energy blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         all_energy = {}
-        
+
         # ALPACA - using direct methods (not .api attribute)
         if 'alpaca' in self.exchanges:
             try:
@@ -307,7 +317,10 @@ class PrimeSentinelReclaimer:
             
     def find_best_opportunity(self) -> Optional[Dict]:
         """Find the best opportunity across ALL assets"""
-        
+        if no_external_api_calls():
+            log("PrimeSentinelReclaimer.find_best_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         # Crypto assets to scan on Alpaca
         crypto_symbols = ['BTC', 'ETH', 'SOL', 'AVAX', 'DOGE', 'SHIB', 'PEPE', 'LINK', 'DOT', 'MATIC']
         
@@ -362,9 +375,13 @@ class PrimeSentinelReclaimer:
         
     def execute_rotation(self, from_asset: str, to_asset: str, amount_usd: float) -> bool:
         """Execute asset rotation"""
+        if no_external_api_calls():
+            log(f"PrimeSentinelReclaimer.execute_rotation({from_asset} -> {to_asset}) blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
+
         if 'alpaca' not in self.exchanges:
             return False
-            
+
         client = self.exchanges['alpaca']
         
         try:
@@ -430,8 +447,12 @@ class PrimeSentinelReclaimer:
             
     def run_cycle(self):
         """Run one scanning cycle"""
+        if no_external_api_calls():
+            log("PrimeSentinelReclaimer.run_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self.cycle_count += 1
-        
+
         # Get all energy
         energy = self.get_all_energy()
         
@@ -487,6 +508,10 @@ class PrimeSentinelReclaimer:
                 
     def run_forever(self):
         """Run the sentinel forever - smart rate limiting"""
+        if no_external_api_calls():
+            log("PrimeSentinelReclaimer.run_forever blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         log("")
         log("🔥" * 35)
         log("⚡ PRIME SENTINEL ACTIVATED - CONTINUOUS RECLAMATION ⚡")

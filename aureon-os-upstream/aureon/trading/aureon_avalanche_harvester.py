@@ -31,6 +31,8 @@ Gary Leckey & GitHub Copilot | 2026
 ═══════════════════════════════════════════════════════════════════════════════
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -133,6 +135,9 @@ class TreasuryState:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'TreasuryState':
         """Create from dictionary."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_avalanche_harvester.TreasuryState.from_dict blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         return cls(
             total_usd=data.get('total_usd', 0.0),
             reserves=data.get('reserves', {}),
@@ -234,6 +239,9 @@ class AvalancheHarvester:
     @property
     def alpaca_client(self):
         """Lazy load Alpaca client."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_avalanche_harvester.AvalancheHarvester.alpaca_client blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self._alpaca_client is None:
             try:
                 from aureon.exchanges.alpaca_client import AlpacaClient
@@ -260,6 +268,9 @@ class AvalancheHarvester:
     @property
     def capital_client(self):
         """Lazy load Capital.com client."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_avalanche_harvester.AvalancheHarvester.capital_client blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self._capital_client is None:
             try:
                 from aureon.exchanges.capital_client import CapitalClient
@@ -866,6 +877,9 @@ class AvalancheHarvester:
         Returns:
             List of HarvestOpportunity sorted by priority score (highest first)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_avalanche_harvester.AvalancheHarvester.scan_positions_for_harvest blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         # Scan Kraken
@@ -1143,6 +1157,9 @@ class AvalancheHarvester:
         Returns:
             Dict with cycle results
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_avalanche_harvester.AvalancheHarvester.run_harvest_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         cycle_start = time.time()
         logger.info("=" * 80)
         logger.info(f"{'[DRY-RUN] ' if dry_run else ''}Starting Avalanche Harvest Cycle")
@@ -1232,6 +1249,9 @@ class AvalancheHarvester:
             max_cycles: Maximum number of cycles (None = infinite)
             dry_run: If True, simulate without executing
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_avalanche_harvester.AvalancheHarvester.run_continuous blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("=" * 80)
         logger.info(f"{'[DRY-RUN] ' if dry_run else ''}Aureon Avalanche Harvester - Continuous Mode")
         logger.info("=" * 80)
@@ -1294,6 +1314,9 @@ class AvalancheHarvester:
 
 def main():
     """Command-line interface for Avalanche Harvester."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_avalanche_harvester.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser(
         description="Aureon Avalanche Harvester - Continuous Profit Scraping System"
     )

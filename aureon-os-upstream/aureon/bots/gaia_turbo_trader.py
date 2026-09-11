@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Adjust path to find modules
 sys.path.append(os.getcwd())
 
@@ -67,6 +69,8 @@ class GaiaTurboTrader:
 
     def get_binance_data(self) -> Tuple[List[Position], float]:
         """Fetch Binance positions and USDC balance in one go"""
+        if no_external_api_calls():
+            return [], 0.0
         positions = []
         usdc_bal = 0.0
         try:
@@ -96,6 +100,8 @@ class GaiaTurboTrader:
 
     def get_alpaca_data(self) -> Tuple[List[Position], float]:
         """Fetch Alpaca positions and cash"""
+        if no_external_api_calls():
+            return [], 0.0
         positions = []
         cash_bal = 0.0
         try:
@@ -121,6 +127,8 @@ class GaiaTurboTrader:
 
     def get_kraken_data(self) -> Tuple[List[Position], float]:
         """Fetch Kraken positions and USD/USDC in one call logic"""
+        if no_external_api_calls():
+            return [], 0.0
         positions = []
         usd_bal = 0.0
         try:
@@ -164,6 +172,8 @@ class GaiaTurboTrader:
 
     def find_best_buy(self, platform: str) -> tuple:
         """Find best asset to buy based on momentum"""
+        if no_external_api_calls():
+            return None, -99
         # We use Binance data for momentum across all platforms typically
         pairs = ['SOLUSDC', 'BTCUSDC', 'ETHUSDC', 'AVAXUSDC', 'DOGEUSDC']
         best, best_ch = None, -99
@@ -196,6 +206,8 @@ class GaiaTurboTrader:
 
     def execute_trade(self, platform: str, action: str, **kwargs) -> bool:
         """Unified execution wrapper"""
+        if no_external_api_calls():
+            return False
         try:
             if platform == 'binance':
                 if action == 'SELL':
@@ -222,6 +234,8 @@ class GaiaTurboTrader:
 
     def process_profit_taking(self, pos: Position):
         """Take profit and rotate logic"""
+        if no_external_api_calls():
+            return
         if pos.pnl_pct < self.min_profit_pct:
             return
 
@@ -308,6 +322,8 @@ class GaiaTurboTrader:
                                 self.entries[key] = new_entry
 
     def deploy_idle_cash(self, platform: str, amount: float):
+        if no_external_api_calls():
+            return
         if amount <= 2: return # Too small
         
         # Check if we should deploy? Always yes in Turbo mode
@@ -341,6 +357,8 @@ class GaiaTurboTrader:
                  except: pass
 
     def run_cycle(self):
+        if no_external_api_calls():
+            return [], (0.0, 0.0, 0.0)
         # Parallel fetch
         with ThreadPoolExecutor(max_workers=3) as executor:
             future_bin = executor.submit(self.get_binance_data)
@@ -397,6 +415,9 @@ class GaiaTurboTrader:
             self.log(line + " | ".join(items))
 
     def run(self):
+        if no_external_api_calls():
+            print("🔥 GAIA TURBO HELD - AUREON_NO_EXTERNAL_API_CALLS is set 🔥")
+            return
         print("🔥 GAIA TURBO STARTED - FAST MODE 🔥")
         
         cycle = 0

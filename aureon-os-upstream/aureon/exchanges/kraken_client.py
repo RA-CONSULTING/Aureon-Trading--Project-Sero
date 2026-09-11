@@ -2,6 +2,7 @@ import os, time, json, hmac, hashlib, base64, threading, logging, math
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 from decimal import Decimal
+from aureon.exchanges.provider_ui_observations import begin_provider_http_observation, fail_provider_http_observation, record_provider_http_observation
 
 from aureon.governance.economic_boundary import (
     EconomicGovernanceBlocked,
@@ -687,7 +688,9 @@ class KrakenClient:
                         path=path,
                         body_digest=authorized_body_digest,
                     )
+                ui_observation_token = None
                 try:
+                    ui_observation_token = begin_provider_http_observation(self, "kraken", "POST", path, now=time.time())
                     r = self._private_http_post(
                         path,
                         data=wire_data,
@@ -695,13 +698,23 @@ class KrakenClient:
                         timeout=15,
                         _economic_dispatch=dispatch,
                     )
+                    ui_received_at = time.time()
+                except Exception:
+                    if ui_observation_token is not None:
+                        fail_provider_http_observation(self, "kraken", "POST", path, refresh_token=ui_observation_token)
+                    raise
                 finally:
                     self._discard_economic_dispatch(dispatch)
-                r.raise_for_status()
-                res = r.json()
+                try:
+                    r.raise_for_status()
+                    res = r.json()
+                    errors = res.get("error", [])
+                except Exception:
+                    fail_provider_http_observation(self, "kraken", "POST", path, refresh_token=ui_observation_token)
+                    raise
                 
-                errors = res.get("error", [])
                 if errors:
+                    fail_provider_http_observation(self, "kraken", "POST", path, refresh_token=ui_observation_token)
                     error_str = str(errors)
                     # Handle rate limit errors with exponential backoff
                     if "EAPI:Rate limit exceeded" in error_str or "EGeneral:Too many requests" in error_str:
@@ -739,7 +752,12 @@ class KrakenClient:
                     self._balance_cache = {}
                     self._balance_cache_time = 0.0
                 
-                return res.get("result", {})
+                result = res.get("result", {})
+                record_provider_http_observation(self, "kraken", "POST", path, res.get("result"),
+                    headers=getattr(r, "headers", {}), received_at=ui_received_at,
+                    live_endpoint=self.base == KRAKEN_BASE and not getattr(self, "use_testnet", True),
+                    refresh_token=ui_observation_token)
+                return result
 
     # ──────────────────────────────────────────────────────────────────────
     # Public helpers and Binance-like interface
@@ -3782,6 +3800,7 @@ class KrakenClient:
         result = self._private("/0/private/OpenPositions", params)
 
         positions = []
+        received_at = time.time()
         for pos_id, pos_data in result.items():
             base, quote = self._pair_base_quote(pos_data.get("pair", ""))
             positions.append({
@@ -3802,6 +3821,11 @@ class KrakenClient:
                 "terms": pos_data.get("terms", ""),
                 "open_time": float(pos_data.get("time", 0)),
                 "misc": pos_data.get("misc", ""),
+                "truth_status": "real_observed",
+                "generated_values": False,
+                "source_id": f"kraken_open_positions:{pos_id}",
+                "source_timestamp": float(pos_data.get("time", 0)) or received_at,
+                "received_at": received_at,
             })
 
         return positions

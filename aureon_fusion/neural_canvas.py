@@ -73,6 +73,8 @@ HEARTBEAT_S = 15.0
 SPARK_MAX = 120
 EVENTS_MAX = 600
 SQLITE_CACHE_S = 30.0
+JSONL_TAIL_BLOCK_BYTES = 64 * 1024
+JSONL_TAIL_MAX_BYTES = 1024 * 1024
 
 AURIS_LABELS = ["panda", "deer", "heart", "prism", "bond", "A6", "A7", "A8", "A9"]
 SATELLITES = ["doors", "learning", "research", "conscience", "memory", "dream"]
@@ -92,23 +94,83 @@ def _read_json(path: Path, default):
     return default
 
 
-def _tail_jsonl(path: Path, limit: int) -> list:
+def _tail_jsonl(path: Path, limit: int, *, status: dict | None = None) -> list:
+    """Parse the last ``limit`` physical lines within a bounded byte window.
+
+    Blank and malformed lines still consume a line in the requested window.
+    A line crossing the byte ceiling is omitted, never parsed as a fragment.
+    ``status`` distinguishes an incomplete window from missing or unreadable
+    input; record contents and source timestamps are never changed.
+    """
+    if status is None:
+        status = {}
+    status.clear()
+    status.update({"status": "ok", "requested_lines": limit,
+                   "max_bytes": JSONL_TAIL_MAX_BYTES, "bytes_read": 0,
+                   "file_size_bytes": None, "selected_lines": 0,
+                   "parsed_records": 0, "malformed_lines": 0,
+                   "truncated": False})
+    if limit <= 0:
+        return []
     try:
-        if not path.exists():
-            return []
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.read().splitlines()
+        # Unbuffered binary reads enforce the byte ceiling without read-ahead.
+        # Capture EOF once so an append cannot expand this poll's read window.
+        with open(path, "rb", buffering=0) as f:
+            position = f.seek(0, os.SEEK_END)
+            status["file_size_bytes"] = position
+            chunks = []
+            newlines = 0
+            while (position > 0 and newlines <= limit
+                   and status["bytes_read"] < JSONL_TAIL_MAX_BYTES):
+                size = min(JSONL_TAIL_BLOCK_BYTES, position,
+                           JSONL_TAIL_MAX_BYTES - status["bytes_read"])
+                position -= size
+                f.seek(position)
+                chunk = f.read(size)
+                status["bytes_read"] += len(chunk)
+                if len(chunk) != size:
+                    status.update(status="unavailable",
+                                  reason="file_changed_during_read")
+                    return []
+                newlines += (chunk.count(b"\n") + chunk.count(b"\r")
+                             - chunk.count(b"\r\n"))
+                if chunks and chunk.endswith(b"\r") and chunks[-1].startswith(b"\n"):
+                    newlines -= 1  # a CRLF pair spanning two blocks
+                chunks.append(chunk)
+        data = b"".join(reversed(chunks))
+        if position > 0:
+            # The first bytes may be the end of a much larger JSON record.
+            # Discard them even if they happen to resemble valid JSON.
+            boundaries = [i for i in (data.find(b"\n"), data.find(b"\r")) if i >= 0]
+            if boundaries:
+                boundary = min(boundaries)
+                width = 2 if data[boundary:boundary + 2] == b"\r\n" else 1
+                data = data[boundary + width:]
+            else:
+                data = b""
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        status["truncated"] = position > 0 and len(lines) < limit
+        if status["truncated"]:
+            status.update(status="truncated", reason="byte_budget_exhausted")
+        selected = lines[-limit:]
+        status["selected_lines"] = len(selected)
         out = []
-        for line in lines[-limit:]:
+        for line in selected:
             line = line.strip()
             if not line:
                 continue
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
+                status["malformed_lines"] += 1
                 continue  # partial trailing line from a concurrent append
+        status["parsed_records"] = len(out)
         return out
-    except OSError:
+    except FileNotFoundError:
+        status.update(status="missing", reason="file_not_found")
+        return []
+    except OSError as exc:
+        status.update(status="unavailable", reason=type(exc).__name__)
         return []
 
 
@@ -150,6 +212,7 @@ class Hub:
         self.counters: dict = {}
         self._counters_at = 0.0
         self.absent: list = []
+        self.tail_reads: dict = {}
         self._last_cycle = None
         self._loop = None
         self._subscribers: set = set()
@@ -214,6 +277,7 @@ class Hub:
                 "spark_psi": list(self.spark_psi),
                 "counters": self.counters,
                 "absent": list(self.absent),
+                "tail_reads": self.tail_reads,
             }
 
 
@@ -243,9 +307,10 @@ class Collector(threading.Thread):
     def collect(self) -> None:
         hub = self.hub
         absent = []
+        tail_reads = {name: {} for name in ("reports", "doors", "learning")}
 
         # ── queen_mind reports (the heartbeat) ────────────────────────────
-        reports = _tail_jsonl(REPORTS_FILE, 40)
+        reports = _tail_jsonl(REPORTS_FILE, 40, status=tail_reads["reports"])
         if not reports and not REPORTS_FILE.exists():
             absent.append("reports")
         latest = reports[-1] if reports else {}
@@ -358,7 +423,8 @@ class Collector(threading.Thread):
                          gamma=gamma, psi=psi)
 
         # ── events: door journal tail (veto drama as it is journaled) ─────
-        for rec in _tail_jsonl(DOORS_JOURNAL_FILE, 30):
+        for rec in _tail_jsonl(DOORS_JOURNAL_FILE, 30,
+                               status=tail_reads["doors"]):
             if not isinstance(rec, dict):
                 continue
             key = "dj:" + hashlib.sha1(json.dumps(rec, sort_keys=True,
@@ -385,7 +451,8 @@ class Collector(threading.Thread):
                     extra={"door": rec.get("door"), "action": event})
 
         # ── events: learning will journal tail ────────────────────────────
-        for rec in _tail_jsonl(LEARNING_JOURNAL_FILE, 20):
+        for rec in _tail_jsonl(LEARNING_JOURNAL_FILE, 20,
+                               status=tail_reads["learning"]):
             if not isinstance(rec, dict):
                 continue
             key = "lw:" + hashlib.sha1(json.dumps(rec, sort_keys=True,
@@ -399,6 +466,8 @@ class Collector(threading.Thread):
                 key, kind, f"learning {outcome or 'considered'}",
                 topic or str(rec.get("detail") or "")[:160],
                 gamma=gamma, psi=psi, extra={"outcome": outcome})
+        with hub.lock:
+            hub.tail_reads = tail_reads
 
 
 # ───────────────────────── HTTP handlers ───────────────────────────────────
@@ -630,8 +699,12 @@ function applyState(st){
   document.getElementById('cIns').textContent=c.insights??'—';
   document.getElementById('cTho').textContent=c.thoughts??'—';
   document.getElementById('cKno').textContent=c.knowledge??'—';
+  const tailStatus=Object.entries(st.tail_reads||{})
+    .filter(([,r])=>r.status!=='ok')
+    .map(([name,r])=>r.truncated?name+': tail incomplete (read limit)'
+      :name+': '+r.status);
   document.getElementById('dark').textContent=(S.absent||[])
-    .map(z=>'zone dark: '+z).join('  ·  ');
+    .map(z=>'zone dark: '+z).concat(tailStatus).join('  ·  ');
   (st.events||[]).slice(-15).forEach(ticker);
 }
 fetch('/state').then(r=>r.json()).then(applyState).catch(()=>{});
@@ -730,11 +803,12 @@ def probe() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    reports = _tail_jsonl(REPORTS_FILE, 40)
+    tail_reads = {name: {} for name in ("reports", "doors", "learning")}
+    reports = _tail_jsonl(REPORTS_FILE, 40, status=tail_reads["reports"])
     hnc = _read_json(HNC_STATE_FILE, {})
     lam = _read_json(LAMBDA_HISTORY_FILE, {})
-    doors = _tail_jsonl(DOORS_JOURNAL_FILE, 30)
-    learn = _tail_jsonl(LEARNING_JOURNAL_FILE, 20)
+    doors = _tail_jsonl(DOORS_JOURNAL_FILE, 30, status=tail_reads["doors"])
+    learn = _tail_jsonl(LEARNING_JOURNAL_FILE, 20, status=tail_reads["learning"])
     oreg = _read_json(ORGAN_REGISTRY_FILE, {})
     conv = _read_json(CONVERSATION_FILE, {})
     out = {
@@ -747,6 +821,7 @@ def probe() -> int:
         "lambda_points": len(lam.get("history") or []),
         "door_events": len(doors),
         "learning_events": len(learn),
+        "tail_reads": tail_reads,
         "organs": len(oreg.get("organs") or {}),
         "conversation_turns": len(((conv.get("threads") or [{}])[0])
                                   .get("turns") or []),

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hmac
 import ipaddress
+import math
 import os
 import threading
 import time
@@ -122,8 +123,8 @@ class SecurityConfig:
             raise ValueError(
                 "AUREON_OPERATOR_ENV must be one of: development, test, production"
             )
-        if self.rate_rps < 0:
-            raise ValueError("AUREON_OPERATOR_RATE_RPS must be >= 0")
+        if not math.isfinite(self.rate_rps) or self.rate_rps < 0:
+            raise ValueError("AUREON_OPERATOR_RATE_RPS must be finite and >= 0")
         if self.burst < 1:
             raise ValueError("AUREON_OPERATOR_RATE_BURST must be >= 1")
         if self.max_body_bytes < 1:

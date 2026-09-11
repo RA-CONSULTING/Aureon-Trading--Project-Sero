@@ -84,6 +84,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("MoversShakers")
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Sacred Constants
 PHI = (1 + math.sqrt(5)) / 2  # 1.618 Golden Ratio
 LOVE_FREQUENCY = 528  # Hz
@@ -348,8 +350,12 @@ class MoversShakersScanner:
     
     async def scan_exchange(self, exchange: str) -> List[Dict]:
         """Scan a single exchange for activity."""
+        if no_external_api_calls():
+            logger.info("MoversShakersScanner.scan_exchange blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         activities = []
-        
+
         if exchange == "kraken" and self.kraken:
             try:
                 # Get recent trades for key pairs
@@ -443,6 +449,10 @@ class MoversShakersScanner:
     
     def scan(self) -> List[MoverShaker]:
         """Synchronous scan entry point for ORCA."""
+        if no_external_api_calls():
+            logger.info("MoversShakersScanner.scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         logger.info("🌊 Scan requested by ORCA")
         try:
             loop = asyncio.get_event_loop()
@@ -494,8 +504,12 @@ class MoversShakersScanner:
 
     async def scan_all_exchanges(self) -> List[MoverShaker]:
         """Scan all exchanges and identify movers."""
+        if no_external_api_calls():
+            logger.info("MoversShakersScanner.scan_all_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         all_activities = []
-        
+
         # Parallel exchange scanning
         tasks = [
             self.scan_exchange("kraken"),
@@ -723,8 +737,16 @@ class MoversShakersScanner:
     
     async def run_scan(self) -> WaveReport:
         """Run a complete scan and return the report."""
+        if no_external_api_calls():
+            logger.info("MoversShakersScanner.run_scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return WaveReport(
+                timestamp=time.time(),
+                total_movers=0,
+                total_volume_usd=0.0,
+            )
+
         logger.info("🌊 Starting Movers & Shakers scan...")
-        
+
         # Get movers from all sources
         all_movers = []
         
@@ -750,11 +772,15 @@ class MoversShakersScanner:
 
 async def main():
     """Main entry point."""
+    if no_external_api_calls():
+        logger.info("movers_shakers_scanner main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print("\n🌊🦈🐋 AUREON MOVERS & SHAKERS SCANNER 🐋🦈🌊")
     print("=" * 50)
     print("Initializing whale detection systems...")
     print()
-    
+
     scanner = MoversShakersScanner(lookback_minutes=15)
     
     # Run continuous scans

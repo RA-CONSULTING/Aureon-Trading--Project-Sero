@@ -46,6 +46,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Set
 from collections import deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -835,17 +837,21 @@ class AdaptiveConversionCommando:
     def discover_full_universe(self) -> Dict[str, List[str]]:
         """
         🔥 ZERO FEAR: Discover ALL tradeable pairs on ALL connected exchanges.
-        
+
         This includes:
           📈 BINANCE  - All spot pairs
-          📈 KRAKEN   - All spot pairs  
+          📈 KRAKEN   - All spot pairs
           📈 ALPACA   - ALL crypto/USD pairs (BTC, ETH, SOL, AVAX, LINK, DOGE, SHIB, UNI, AAVE, LTC, BCH, DOT, ATOM, MATIC, and MORE)
           📈 CAPITAL  - CFDs when available
-        
+
         Returns: {exchange: [list of all pairs]}
         """
+        if no_external_api_calls():
+            logger.warning("AdaptiveConversionCommando.discover_full_universe blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         universe: Dict[str, List[str]] = {}
-        
+
         if not self.client:
             # Even without client, log that we WANT all pairs
             logger.info("🔥 ZERO FEAR: Ready to connect to ALL exchanges (Binance, Kraken, Alpaca, Capital)")
@@ -912,11 +918,15 @@ class AdaptiveConversionCommando:
     def get_alpaca_pairs(self) -> List[str]:
         """
         🔥 Get ALL Alpaca crypto pairs - NO LIMITS!
-        
+
         Alpaca supports these and more:
-          BTC, ETH, SOL, AVAX, LINK, DOGE, SHIB, UNI, AAVE, 
+          BTC, ETH, SOL, AVAX, LINK, DOGE, SHIB, UNI, AAVE,
           LTC, BCH, DOT, ATOM, MATIC, XRP, ADA, ALGO, and growing...
         """
+        if no_external_api_calls():
+            logger.warning("AdaptiveConversionCommando.get_alpaca_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         pairs = []
         if not self.client:
             return pairs
@@ -1073,7 +1083,7 @@ class AdaptiveConversionCommando:
     ) -> Optional[CommandoMission]:
         """
         Execute one commando step.
-        
+
         This method:
           1. Scans ALL pairs for opportunities (like Mycelium agents)
             preferred_assets=preferred_assets,
@@ -1084,6 +1094,10 @@ class AdaptiveConversionCommando:
         
         Returns a CommandoMission if a decision was made.
         """
+        if no_external_api_calls():
+            logger.warning("AdaptiveConversionCommando.step blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if not self.ladder:
             return None
 

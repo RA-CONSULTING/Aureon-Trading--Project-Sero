@@ -28,6 +28,8 @@ from typing import Callable, Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     from aureon.exchanges.binance_client import get_binance_client
 except ImportError:
@@ -318,6 +320,9 @@ class ProbabilityCollector:
         
     def collect_snapshot(self) -> List[DataPoint]:
         """Collects a snapshot of current market state and probability readings"""
+        if no_external_api_calls():
+            logger.info("ProbabilityCollector.collect_snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         collected: List[DataPoint] = []
         get_ticker = getattr(self.binance, "get_24h_ticker", None)
         if not callable(get_ticker):

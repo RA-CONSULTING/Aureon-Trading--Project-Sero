@@ -2,13 +2,26 @@
 PersonaAction & PersonaActuator — turn persona collapses into real actions
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CURRENT RELEASE: the design below is unreleased. Every dispatch and built-in
-handler hard-HOLDs before bus, vault, filesystem, goal, or skill effects until
-the production Magic Star release and receipt-backed governance exist.
+RELEASE STATE: released by owner decree 2026-09-06 (Gary Leckey), recorded
+in ``aureon_fusion/state/goals/dispatch_release.json`` and read through
+``_goal_release`` (fail-closed: absent/invalid record or the module missing
+from the record's modules list → dispatch and every built-in handler still
+raise ``PERSONA_ACTION_RELEASE_HOLD``).
 
-The compatibility types and handler registry remain available for callers,
-but this release does not execute persona intentions. Five historical action
-kinds remain registered only so API inspection is stable:
+On the released path ``dispatch`` is conscience-gated, fail-closed. An
+optional wired ``conscience`` (``ask_why``) is the enforceable primary
+gate: a VETO, a failing ``ask_why``, or a missing ``ask_why`` refuses the
+action (a refused ActionExecution is recorded; the handler never runs).
+Independently, the fused organism's 4th-pass veto
+(``aureon_fusion.conscience_hook``, when importable) is consulted: its
+VETO refuses, and because this module ships no other enforceable gate of
+its own, an unreadable hook (import failure or evaluation error) is treated
+as a refusal too — conscience gating never fails open here. A refused
+action is recorded with ``ok=False`` and a ``conscience_gate_*`` reason so
+the refusal is visible in ``history()`` rather than silent.
+
+The compatibility types and handler registry remain available for callers.
+Five action kinds are registered so API inspection is stable:
 
     bus.publish    — emit a Thought on the ThoughtBus, with a chosen topic
                      and payload, so every subsystem that subscribes can
@@ -21,8 +34,9 @@ kinds remain registered only so API inspection is stable:
     skill.request  — emit ``skill.author.request`` for the Code Architect
                      to pick up, carrying a short natural-language brief.
 
-``dispatch`` and every direct built-in handler raise the same release HOLD
-before invoking callbacks, publishing, writing, or mutating downstream state.
+``goal.submit`` requests flow onward into the goal pipeline, where
+``GoalDispatchBridge`` enforces its own fail-closed conscience gate before
+any engine executes them.
 
 Gary Leckey · Aureon Institute — April 2026
 """
@@ -104,6 +118,15 @@ PERSONA_ACTION_RELEASE_HOLD = (
     "persona_action_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("persona_action"):
+        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+
 
 class PersonaActuator:
     """Registry of action handlers. Dispatches PersonaActions from the vacuum."""
@@ -115,10 +138,12 @@ class PersonaActuator:
         thought_bus: Any = None,
         history_size: int = 256,
         file_root: Optional[str] = None,
+        conscience: Any = None,
     ):
         self.vault = vault
         self.thought_bus = thought_bus
         self.file_root = file_root
+        self._conscience = conscience
         self._history: Deque[ActionExecution] = deque(maxlen=int(history_size))
         self._handlers: Dict[str, HandlerFn] = {}
         self._lock = threading.Lock()
@@ -158,7 +183,7 @@ class PersonaActuator:
         state: Optional[Dict[str, Any]] = None,
     ) -> Optional[ActionExecution]:
         """Execute an action. Records the outcome in history regardless of success."""
-        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+        _require_release()
         if action is None:
             return None
         state_dict = dict(state or {})
@@ -169,6 +194,14 @@ class PersonaActuator:
             ok=False,
             dry_run=False,
         )
+        allowed, refusal = self._conscience_allows(str(persona), action, state_dict)
+        if not allowed:
+            # Fail-closed: the conscience refused (or could not be read).
+            # Record the refusal so it is visible in history() — never run
+            # the handler past a conscience gate that did not pass.
+            exec_record.error = refusal
+            self._record(exec_record)
+            return exec_record
         handler = self.handler(action.kind)
         if handler is None:
             exec_record.error = f"no handler registered for kind={action.kind!r}"
@@ -184,6 +217,76 @@ class PersonaActuator:
         self._record(exec_record)
         return exec_record
 
+    def _conscience_allows(
+        self,
+        persona: str,
+        action: PersonaAction,
+        state: Dict[str, Any],
+    ) -> tuple:
+        """Fail-closed conscience gate ahead of every dispatch.
+
+        Returns (allowed, refusal_reason). A wired ``conscience``'s
+        ``ask_why`` is the enforceable primary gate (VETO / error / missing
+        entry point all refuse). The fused organism's ``conscience_hook``
+        is consulted as well: its VETO always refuses; when no primary
+        conscience is wired an unreadable hook (import failure or
+        evaluation error) is itself a refusal, because this module has no
+        other enforceable gate. When the primary gate already passed, an
+        unavailable hook is logged and skipped (mirroring the
+        GoalDispatchBridge precedent).
+        """
+        primary_passed = False
+        if self._conscience is not None:
+            if not hasattr(self._conscience, "ask_why"):
+                return False, "conscience_gate_unavailable: conscience has no ask_why"
+            desc = f"persona action {action.kind}: {action.topic or action.reason}"
+            try:
+                whisper = self._conscience.ask_why(desc, {
+                    "persona": persona,
+                    "kind": action.kind,
+                    "urgency": action.urgency,
+                    **{k: state[k] for k in ("symbolic_life_score",)
+                       if k in state},
+                })
+            except Exception as e:
+                return False, f"conscience_gate_error: {e}"
+            verdict = getattr(whisper, "verdict", None)
+            name = getattr(verdict, "name", "") if verdict is not None else ""
+            if not name and verdict is not None:
+                name = str(verdict).rsplit(".", 1)[-1]
+            if str(name).upper() == "VETO":
+                reason = (getattr(whisper, "message", "")
+                          or getattr(whisper, "why_it_matters", "")
+                          or "conscience vetoed the action")
+                return False, f"conscience_veto: {reason}"
+            primary_passed = True
+
+        try:
+            from aureon_fusion.conscience_hook import evaluate  # type: ignore
+        except Exception as e:
+            if primary_passed:
+                logger.debug("PersonaActuator: fusion conscience hook not "
+                             "importable (%s); primary gate already applied", e)
+                return True, ""
+            return False, ("conscience_gate_unavailable: fusion conscience "
+                           f"hook not importable ({e})")
+        desc = f"persona action {action.kind}: {action.topic or action.reason}"
+        try:
+            verdict_d = evaluate(desc, {"persona": persona, "kind": action.kind})
+        except Exception as e:
+            if primary_passed:
+                logger.debug("PersonaActuator: fusion conscience hook "
+                             "evaluation failed (%s); primary gate already applied", e)
+                return True, ""
+            # Unreadable-as-veto: with no primary gate, an erroring hook
+            # must not silently open the action.
+            return False, f"conscience_gate_error: fusion hook unreadable ({e})"
+        v = str((verdict_d or {}).get("verdict", "")).upper()
+        if v == "VETO":
+            return False, ("fusion conscience veto: "
+                           + str((verdict_d or {}).get("reasoning", "")))
+        return True, ""
+
     def _record(self, exec_record: ActionExecution) -> None:
         with self._lock:
             self._history.append(exec_record)
@@ -193,7 +296,7 @@ class PersonaActuator:
     # ─────────────────────────────────────────────────────────────────────
 
     def _handle_bus_publish(self, action: PersonaAction, state: Dict[str, Any]) -> Dict[str, Any]:
-        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return {"ok": False, "reason": "no thought_bus"}
         if not action.topic:
@@ -217,7 +320,7 @@ class PersonaActuator:
         return {"ok": True, "topic": action.topic}
 
     def _handle_vault_ingest(self, action: PersonaAction, state: Dict[str, Any]) -> Dict[str, Any]:
-        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+        _require_release()
         if self.vault is None or not hasattr(self.vault, "ingest"):
             return {"ok": False, "reason": "vault has no ingest"}
         topic = action.topic or "persona.action.vault"
@@ -225,7 +328,7 @@ class PersonaActuator:
         return {"ok": True, "topic": topic}
 
     def _handle_file_append(self, action: PersonaAction, state: Dict[str, Any]) -> Dict[str, Any]:
-        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+        _require_release()
         raw_path = action.target or action.topic
         if not raw_path:
             return {"ok": False, "reason": "action.target/topic missing"}
@@ -256,7 +359,7 @@ class PersonaActuator:
           - stage 4.3 can insert a human-approval gate between this
             publication and the engine's intake
         """
-        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return {"ok": False, "reason": "no thought_bus"}
         goal_text = action.topic or action.reason
@@ -285,7 +388,7 @@ class PersonaActuator:
         return {"ok": True, "topic": topic, "goal_text": goal_text}
 
     def _handle_skill_request(self, action: PersonaAction, state: Dict[str, Any]) -> Dict[str, Any]:
-        raise RuntimeError(PERSONA_ACTION_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return {"ok": False, "reason": "no thought_bus"}
         try:
@@ -325,14 +428,16 @@ class PersonaActuator:
             return self._history[-1].to_dict()
 
     def status(self) -> Dict[str, Any]:
+        gate = _release.release_status("persona_action")
         with self._lock:
             history_size = len(self._history)
             handler_count = len(self._handlers)
         return {
-            "status": "HOLD",
-            "reason_code": "production_magic_star_release_unavailable",
-            "production_ready": False,
-            "effect_enabled": False,
+            "status": "RELEASED" if gate["released"] else "HOLD",
+            "reason_code": (None if gate["released"]
+                            else "production_magic_star_release_unavailable"),
+            "production_ready": gate["released"],
+            "effect_enabled": gate["released"],
             "history_size": history_size,
             "registered_handler_count": handler_count,
         }

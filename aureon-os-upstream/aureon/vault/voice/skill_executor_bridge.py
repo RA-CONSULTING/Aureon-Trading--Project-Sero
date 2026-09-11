@@ -2,9 +2,17 @@
 SkillExecutorBridge — the system actually builds things
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CURRENT RELEASE: the execution design below is unreleased. Subscription,
-conscience calls, threads, executors, CodeArchitect calls, bus publication,
-vault ingest, and the fallback file writer all hard-HOLD before any effect.
+RELEASE STATE: released by owner decree 2026-09-06 (Gary Leckey), recorded
+in ``aureon_fusion/state/goals/dispatch_release.json`` and read through
+``_goal_release`` (fail-closed: absent/invalid record or the module missing
+from the record's modules list → every effect method still raises
+``SKILL_EXECUTOR_RELEASE_HOLD``). On the released path the conscience gate
+is enforceable, not advisory: a missing conscience, a failing ``ask_why``,
+or a VETO all refuse execution (publish ``goal.abandoned``, the executor is
+never called) — a missing or failing conscience never fails open. A second
+opinion from ``aureon_fusion.conscience_hook`` (when importable) can only
+tighten: its VETO refuses execution; an unavailable or erroring hook is
+logged and skipped because the primary gate is already enforceable.
 
 Operator directive: *"we need to ensure that it's building things and
 not just talking."*
@@ -32,10 +40,11 @@ disk. A CodeArchitect adapter can be passed to route into the real
 skill library.
 
 Safety: the QueenConscience 4th-pass veto from the HNC white paper is
-the only gate on this bridge. When ``conscience`` is attached, every
-aligned request passes through ``ask_why`` before any skill runs; a
-VETO short-circuits to ``goal.abandoned`` with the substrate-coherence
-reason. No other rails.
+the enforceable gate on this bridge. When ``conscience`` is attached,
+every aligned request passes through ``ask_why`` before any skill runs;
+a VETO short-circuits to ``goal.abandoned`` with the substrate-coherence
+reason. On the released path the gate is fail-closed: no conscience, a
+failing ``ask_why``, or an unreadable verdict all refuse execution.
 
 Publishes per execution:
   skill.execution.started   {goal_id, skill_name, params}
@@ -68,6 +77,15 @@ SKILL_EXECUTOR_RELEASE_HOLD = (
     "skill_executor_bridge_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("skill_executor_bridge"):
+        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Default file-writing executor — the minimum proof of "building things"
@@ -88,7 +106,7 @@ def _default_file_executor(
     supplied in params) an ``intent_text`` and ``persona``. A real
     CodeArchitect adapter can replace this with actual code/image/pdf
     output — the contract stays {ok, artefacts, result, error}."""
-    raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+    _require_release()
     try:
         output_root.mkdir(parents=True, exist_ok=True)
         safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in skill_name)
@@ -125,7 +143,7 @@ def code_architect_adapter(code_architect: Any) -> Callable:
     """Wrap an existing CodeArchitect instance to conform to the
     executor contract the bridge expects."""
     def _exec(skill_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         try:
             result = code_architect.execute_skill(skill_name, params=params)
             # SkillExecutionResult has (ok, artefacts, error) conceptually
@@ -192,13 +210,16 @@ class SkillExecutorBridge:
 
     def _build_default_executor(self) -> Callable:
         def _exec(skill_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
-            raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+            _require_release()
+            return _default_file_executor(
+                skill_name, params, output_root=self.output_root,
+            )
         return _exec
 
     # ─── lifecycle ───────────────────────────────────────────────────────
 
     def start(self) -> None:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         if self._subscribed or self.thought_bus is None:
             return
         try:
@@ -212,7 +233,7 @@ class SkillExecutorBridge:
     # ─── handler ─────────────────────────────────────────────────────────
 
     def _on_aligned_request(self, thought: Any) -> None:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         if not isinstance(payload, dict):
             return
@@ -255,9 +276,18 @@ class SkillExecutorBridge:
         persona: str,
         payload: Dict[str, Any],
     ) -> bool:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
+        # Conscience gate — enforceable, fail-closed. A missing conscience,
+        # a failing ask_why, or a VETO all refuse execution: the executor is
+        # never called and the causal line closes with goal.abandoned.
+        goal_id = str(payload.get("goal_id") or "")
         if self.conscience is None or not hasattr(self.conscience, "ask_why"):
-            return False
+            self._publish_abandoned(
+                goal_id,
+                reason="conscience_gate_unavailable: no conscience wired",
+                text=text, persona=persona,
+            )
+            return True
         try:
             whisper = self.conscience.ask_why(text, {
                 "persona": persona,
@@ -266,15 +296,52 @@ class SkillExecutorBridge:
             })
         except Exception as e:
             logger.debug("SkillExecutorBridge: conscience failed: %s", e)
-            return False
+            self._publish_abandoned(
+                goal_id,
+                reason=f"conscience_gate_error: {e}",
+                text=text, persona=persona,
+            )
+            return True
         verdict = getattr(whisper, "verdict", None)
         name = getattr(verdict, "name", "") if verdict is not None else ""
+        if not name and verdict is not None:
+            name = str(verdict).rsplit(".", 1)[-1]
         if str(name).upper() == "VETO":
             reason = (getattr(whisper, "message", "")
                       or getattr(whisper, "why_it_matters", "")
                       or "substrate_coherence: conscience vetoed")
-            self._publish_abandoned(str(payload.get("goal_id") or ""),
+            self._publish_abandoned(goal_id,
                                     reason=reason, text=text, persona=persona)
+            return True
+        # Second opinion from the fused organism's 4th-pass veto
+        # (aureon_fusion.conscience_hook) when importable. Advisory-
+        # additive: only a VETO can act — the primary ask_why gate above
+        # is enforceable, so an unavailable or erroring hook is logged and
+        # skipped, never silently opening anything.
+        try:
+            from aureon_fusion.conscience_hook import evaluate  # type: ignore
+        except Exception as e:
+            logger.debug("SkillExecutorBridge: fusion conscience hook "
+                         "not importable (%s); primary gate already applied", e)
+            return False
+        try:
+            verdict_d = evaluate(
+                f"skill execution: {text}",
+                {"persona": persona, "goal_id": goal_id,
+                 "skills": list(payload.get("recommended_skills") or [])},
+            )
+        except Exception as e:
+            logger.debug("SkillExecutorBridge: fusion conscience hook "
+                         "evaluation failed (%s); primary gate already applied", e)
+            return False
+        v = str((verdict_d or {}).get("verdict", "")).upper()
+        if v == "VETO":
+            self._publish_abandoned(
+                goal_id,
+                reason="fusion conscience veto: "
+                       + str((verdict_d or {}).get("reasoning", "")),
+                text=text, persona=persona,
+            )
             return True
         return False
 
@@ -290,7 +357,7 @@ class SkillExecutorBridge:
         """Run each skill in the chain in order. Any failure aborts the
         chain and closes the goal with goal.abandoned. All success →
         goal.completed with a result_summary listing every artefact."""
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         all_artefacts: List[str] = []
         for skill_name in skills:
             started_payload = {
@@ -303,8 +370,9 @@ class SkillExecutorBridge:
             self._publish("skill.execution.started", started_payload)
 
             params = {"intent_text": text, "persona": persona, "goal_id": goal_id}
+            executor = self._executor or self._build_default_executor()
             try:
-                result = self._executor(skill_name, params)
+                result = executor(skill_name, params)
             except Exception as e:
                 result = {"ok": False, "artefacts": [], "result": None,
                           "error": f"{type(e).__name__}: {e}"}
@@ -377,7 +445,7 @@ class SkillExecutorBridge:
         text: str = "",
         persona: str = "",
     ) -> None:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         with self._lock:
             self._stats["abandoned"] += 1
         self._publish("goal.abandoned", {
@@ -387,7 +455,7 @@ class SkillExecutorBridge:
         })
 
     def _publish(self, topic: str, payload: Dict[str, Any]) -> None:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return
         try:
@@ -406,7 +474,7 @@ class SkillExecutorBridge:
         skill_name: str,
         artefacts: List[str],
     ) -> None:
-        raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+        _require_release()
         if self.vault is None or not hasattr(self.vault, "ingest"):
             return
         for path in artefacts:
@@ -427,13 +495,15 @@ class SkillExecutorBridge:
     # ─── introspection ───────────────────────────────────────────────────
 
     def stats(self) -> Dict[str, Any]:
+        gate = _release.release_status("skill_executor_bridge")
         with self._lock:
             return dict(
                 self._stats,
-                status="HOLD",
-                reason_code="production_magic_star_release_unavailable",
-                production_ready=False,
-                effect_enabled=False,
+                status="RELEASED" if gate["released"] else "HOLD",
+                reason_code=(None if gate["released"]
+                             else "production_magic_star_release_unavailable"),
+                production_ready=gate["released"],
+                effect_enabled=gate["released"],
                 subscribed=self._subscribed,
                 output_root=str(self.output_root),
             )
@@ -466,7 +536,7 @@ def get_skill_executor_bridge(
     executor: Optional[Callable] = None,
     conscience: Any = None,
 ) -> SkillExecutorBridge:
-    raise RuntimeError(SKILL_EXECUTOR_RELEASE_HOLD)
+    _require_release()
     global _singleton
     with _singleton_lock:
         if _singleton is None:

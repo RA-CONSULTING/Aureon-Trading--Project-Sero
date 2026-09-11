@@ -245,16 +245,27 @@ class SmokeTestPhaseValidator {
    */
   private async validateExchangeData(phase: PhaseValidation): Promise<void> {
     console.log('🔌 SMOKE TEST: Validating exchange data connectivity...');
+
+    const supabaseUrl = this.getSupabaseUrl();
+    const supabaseKey = this.getSupabaseAnonKey();
+    if (!supabaseUrl || !supabaseKey) {
+      phase.status = 'FAILED';
+      phase.exchangeDataStatus = 'OFFLINE';
+      phase.errorMessage = 'Supabase not configured; exchange verification unavailable (no external API calls)';
+      console.warn('⚠️ SMOKE TEST: Supabase not configured; skipping exchange verification');
+      this.notifyListeners();
+      return;
+    }
     
     try {
       // Call the verification endpoint
       const response = await fetch(
-        `${this.getSupabaseUrl()}/functions/v1/verify-exchange-connectivity`,
+        `${supabaseUrl}/functions/v1/verify-exchange-connectivity`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': this.getSupabaseAnonKey(),
+            'apikey': supabaseKey,
           },
         }
       );
@@ -315,21 +326,13 @@ class SmokeTestPhaseValidator {
   }
 
   private getSupabaseUrl(): string {
-    // Browser environment
-    if (typeof window !== 'undefined' && (window as any).__SUPABASE_URL__) {
-      return (window as any).__SUPABASE_URL__;
-    }
-    // Fallback to hardcoded (replace in production)
-    return 'https://owfeyxrfyhprpcgqwxqh.supabase.co';
+    // No hard-coded fallback; Supabase is only used when explicitly configured.
+    return (import.meta.env.VITE_SUPABASE_URL as string) ?? '';
   }
 
   private getSupabaseAnonKey(): string {
-    // Browser environment
-    if (typeof window !== 'undefined' && (window as any).__SUPABASE_ANON_KEY__) {
-      return (window as any).__SUPABASE_ANON_KEY__;
-    }
-    // Fallback to hardcoded (replace in production)
-    return 'REDACTED_USE_CLOUD_SECRET';
+    // No hard-coded fallback; Supabase is only used when explicitly configured.
+    return (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) ?? '';
   }
 
   /**

@@ -16,6 +16,7 @@ import os
 import threading
 import time
 from dataclasses import asdict, dataclass
+from urllib.parse import urlsplit
 from typing import Any, Callable, Dict, Iterable, Mapping
 
 from aureon.integrations.ollama.ollama_bridge import OllamaBridge
@@ -26,6 +27,11 @@ PHI_INV = 1.0 / PHI
 LIGHTHOUSE_THRESHOLD = 0.945
 ACTIVE_THRESHOLD = 0.80
 HNC_ROUTE_SCHEMA = "aureon-ollama-hnc-nerve-route-v1"
+OLLAMA_CLOUD_PROVIDER_MODE = "ollama_cloud_primary"
+OLLAMA_LOCAL_LOOPBACK_PROVIDER_MODE = "ollama_local_hnc_protected"
+SUPPORTED_HNC_PROVIDER_MODES = frozenset(
+    {OLLAMA_CLOUD_PROVIDER_MODE, OLLAMA_LOCAL_LOOPBACK_PROVIDER_MODE}
+)
 LANE_ENV = {
     "coding": "AUREON_OLLAMA_CODING_MODEL",
     "architecture": "AUREON_OLLAMA_ARCHITECTURE_MODEL",
@@ -152,6 +158,37 @@ def _routing_causal(receipt: HNCModelRoutingReceipt) -> Dict[str, Any]:
     return payload
 
 
+def _provider_mode_for_base_url(base_url: str) -> str | None:
+    parsed = urlsplit(str(base_url or "").strip())
+    hostname = (parsed.hostname or "").lower()
+    path = parsed.path.rstrip("/")
+    if (
+        parsed.scheme == "https"
+        and hostname == "ollama.com"
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+    ):
+        return OLLAMA_CLOUD_PROVIDER_MODE
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme == "http"
+        and hostname in {"127.0.0.1", "localhost", "::1"}
+        and port == 11434
+        and path in {"", "/v1"}
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+    ):
+        return OLLAMA_LOCAL_LOOPBACK_PROVIDER_MODE
+    return None
+
+
 def validate_hnc_model_routing_receipt(receipt: HNCModelRoutingReceipt) -> bool:
     if not isinstance(receipt, HNCModelRoutingReceipt) or receipt.schema_version != HNC_ROUTE_SCHEMA:
         return False
@@ -159,7 +196,11 @@ def validate_hnc_model_routing_receipt(receipt: HNCModelRoutingReceipt) -> bool:
         return False
     if receipt.action_eligible is not False or receipt.economic_eligible is not False:
         return False
-    if not receipt.nerve_id or receipt.lane not in LANES or receipt.provider_mode != "ollama_cloud_primary":
+    if (
+        not receipt.nerve_id
+        or receipt.lane not in LANES
+        or receipt.provider_mode not in SUPPORTED_HNC_PROVIDER_MODES
+    ):
         return False
     if type(receipt.catalog_size) is not int or receipt.catalog_size < 0:
         return False
@@ -277,7 +318,17 @@ class OllamaModelSwitchboard:
 
         return [name for _, name in sorted(enumerate(catalog), key=score, reverse=True)]
 
-    def _hold_route(self, *, nerve_id: str, lane: str, reason: str) -> HNCModelRoutingReceipt:
+    def _provider_mode(self) -> str | None:
+        return _provider_mode_for_base_url(getattr(self.bridge, "base_url", ""))
+
+    def _hold_route(
+        self,
+        *,
+        nerve_id: str,
+        lane: str,
+        reason: str,
+        provider_mode: str | None = None,
+    ) -> HNCModelRoutingReceipt:
         receipt = HNCModelRoutingReceipt(
             schema_version=HNC_ROUTE_SCHEMA,
             decision="HOLD",
@@ -285,7 +336,7 @@ class OllamaModelSwitchboard:
             nerve_id=nerve_id,
             lane=lane,
             model="",
-            provider_mode="ollama_cloud_primary",
+            provider_mode=provider_mode or OLLAMA_CLOUD_PROVIDER_MODE,
             hnc_receipt_id="",
             hnc_source_timestamp=None,
             coherence_gamma=None,
@@ -343,8 +394,13 @@ class OllamaModelSwitchboard:
             hold = self._hold_route(nerve_id=nerve, lane=lane_name, reason="fresh_canonical_hnc_field_required")
             self._last_nerve_routes[nerve] = hold
             return self.select(lane_name), hold
-        if not getattr(self.bridge, "base_url", "").startswith("https://ollama.com"):
-            hold = self._hold_route(nerve_id=nerve, lane=lane_name, reason="ollama_cloud_primary_required")
+        provider_mode = self._provider_mode()
+        if provider_mode is None:
+            hold = self._hold_route(
+                nerve_id=nerve,
+                lane=lane_name,
+                reason="hnc_protected_ollama_endpoint_required",
+            )
             self._last_nerve_routes[nerve] = hold
             return self.select(lane_name), hold
         ranked_models = self._hnc_ranked_models(lane_name, float(gamma))
@@ -355,13 +411,14 @@ class OllamaModelSwitchboard:
             phase = int(_sha256(f"{nerve}|{hnc_receipt_id}|{lane_name}")[:8], 16) % len(candidates)
             candidates = candidates[phase:] + candidates[:phase]
         candidates.extend(model for model in ranked_models if model not in candidates)
+        provider_source = "hnc" if provider_mode == OLLAMA_CLOUD_PROVIDER_MODE else "hnc_local_loopback"
         selected: OllamaModelSelection | None = None
         selected_rank: int | None = None
         for index, model in enumerate(candidates[: max(1, int(max_attempts))], start=1):
             candidate = OllamaModelSelection(
                 lane=lane_name,
                 model=model,
-                source=f"hnc_{band}:ranked_live_catalog",
+                source=f"{provider_source}_{band}:ranked_live_catalog",
                 catalog_size=len(self._catalog),
                 endpoint_reachable=self._reachable,
                 catalog_refreshed_at=self._refreshed_at,
@@ -377,17 +434,22 @@ class OllamaModelSwitchboard:
                 selected_rank = index
                 break
         if selected is None:
-            hold = self._hold_route(nerve_id=nerve, lane=lane_name, reason="no_callable_hnc_ranked_cloud_model")
+            hold = self._hold_route(
+                nerve_id=nerve,
+                lane=lane_name,
+                reason="no_callable_hnc_ranked_provider_model",
+                provider_mode=provider_mode,
+            )
             self._last_nerve_routes[nerve] = hold
             return self.select(lane_name), hold
         receipt = HNCModelRoutingReceipt(
             schema_version=HNC_ROUTE_SCHEMA,
             decision="ROUTE",
-            reason="callable_cloud_model_selected_by_hnc_nerve_profile",
+            reason="callable_hnc_protected_model_selected_by_hnc_nerve_profile",
             nerve_id=nerve,
             lane=lane_name,
             model=selected.model,
-            provider_mode="ollama_cloud_primary",
+            provider_mode=provider_mode,
             hnc_receipt_id=hnc_receipt_id,
             hnc_source_timestamp=float(source_timestamp),
             coherence_gamma=float(gamma),
@@ -754,6 +816,9 @@ class OllamaModelSwitchboard:
 __all__ = [
     "ACTIVE_THRESHOLD",
     "HNC_ROUTE_SCHEMA",
+    "OLLAMA_CLOUD_PROVIDER_MODE",
+    "OLLAMA_LOCAL_LOOPBACK_PROVIDER_MODE",
+    "SUPPORTED_HNC_PROVIDER_MODES",
     "LIGHTHOUSE_THRESHOLD",
     "LANES",
     "LANE_ENV",

@@ -20,11 +20,14 @@ import os
 import sys
 import time
 import math
+import logging
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 from collections import deque
+
+logger = logging.getLogger(__name__)
 
 # Force LIVE mode
 os.environ['LIVE'] = '1'
@@ -34,6 +37,8 @@ os.environ['DRY_RUN'] = '0'
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
 from aureon.harmonic.earth_resonance_engine import EarthResonanceEngine
 from aureon.strategies.hnc_imperial_predictability import CosmicStateEngine, PredictabilityEngine, CosmicPhase
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 # ═══════════════════════════════════════════════════════════════
 # CONSTANTS
@@ -111,16 +116,20 @@ class IntegratedForecastTrader:
     
     def __init__(self):
         print("\n🌳 Initializing Integrated Forecast Trader...")
-        
+
         # Initialize all engines
-        self.client = get_binance_client()
+        if no_external_api_calls():
+            logger.info("IntegratedForecastTrader blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.client = None
+        else:
+            self.client = get_binance_client()
         self.earth_engine = EarthResonanceEngine()
         self.cosmic_engine = CosmicStateEngine()
         self.predictability_engine = PredictabilityEngine()
-        
+
         # Price history for forecasting
         self.price_history: Dict[str, deque] = {}
-        
+
         print("   ✅ Binance Client")
         print("   ✅ Earth Resonance Engine")
         print("   ✅ Cosmic State Engine")
@@ -129,6 +138,11 @@ class IntegratedForecastTrader:
     
     def _get_price(self, symbol: str) -> float:
         """Get current price"""
+        if no_external_api_calls():
+            logger.info("IntegratedForecastTrader._get_price blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0.0
+        if self.client is None:
+            return 0.0
         resp = self.client.session.get(
             f"{self.client.base}/api/v3/ticker/price",
             params={"symbol": symbol}
@@ -179,6 +193,10 @@ class IntegratedForecastTrader:
         LAYER 1: Check all cosmic gates.
         Returns (gates_open, gate_details)
         """
+        if no_external_api_calls():
+            logger.info("IntegratedForecastTrader.check_cosmic_gates blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False, {}
+
         details = {}
         
         # 1A. Earth Resonance Gate
@@ -470,10 +488,15 @@ class IntegratedForecastTrader:
         """
         LAYER 3: Execute trade based on forecast.
         """
+        if no_external_api_calls():
+            logger.info("IntegratedForecastTrader.execute_trade held by AUREON_NO_EXTERNAL_API_CALLS")
+            print("\n⏸️ LAYER 3: EXTERNAL CALLS DISABLED - trade held")
+            return False, 0.0
+
         if not forecast.should_trade:
             print(f"\n   ⏸️ Trade not executed: {forecast.reason}")
             return False, 0
-        
+
         symbol = forecast.symbol
         position_size = base_amount * forecast.position_multiplier
         
@@ -569,10 +592,18 @@ class IntegratedForecastTrader:
         3. Generate forecast
         4. Execute if all systems align
         """
+        if no_external_api_calls():
+            logger.info("IntegratedForecastTrader.run_integrated_trade held by AUREON_NO_EXTERNAL_API_CALLS")
+            print(f"\n{'='*70}")
+            print(f"🌳🎯 INTEGRATED FORECAST TRADE: {symbol}")
+            print(f"{'='*70}")
+            print("\n⏸️ EXTERNAL CALLS DISABLED - trade held")
+            return False, 0.0
+
         print(f"\n{'='*70}")
         print(f"🌳🎯 INTEGRATED FORECAST TRADE: {symbol}")
         print(f"{'='*70}")
-        
+
         # LAYER 1: Check cosmic gates
         print(f"\n📡 LAYER 1: CHECKING COSMIC GATES...")
         gates_open, gate_details = self.check_cosmic_gates()

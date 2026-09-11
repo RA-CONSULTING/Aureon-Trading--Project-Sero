@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any, Tuple
 from pathlib import Path
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # Sacred constants
@@ -508,14 +510,17 @@ class RealMomentumScanner:
         
     def _init_scanners(self):
         """Initialize momentum scanners if available"""
+        if no_external_api_calls():
+            logger.info("RealMomentumScanner._init_scanners blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         if not _MOMENTUM_SCANNERS_AVAILABLE:
             logger.warning("⚠️ Momentum scanners not available - using fallback")
             return
-            
+
         try:
             from aureon.exchanges.alpaca_client import AlpacaClient
             from aureon.bridges.aureon_alpaca_scanner_bridge import AlpacaScannerBridge
-            
+
             # Initialize Alpaca client
             alpaca = AlpacaClient()
             bridge = AlpacaScannerBridge(alpaca)
@@ -533,13 +538,22 @@ class RealMomentumScanner:
     
     def scan_all_momentum(self) -> Dict[str, List[MomentumOpportunity]]:
         """Run all momentum scanners and return opportunities"""
+        if no_external_api_calls():
+            logger.info("RealMomentumScanner.scan_all_momentum blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                'wolf': [],
+                'lion': [],
+                'ants': [],
+                'hummingbird': []
+            }
+
         results = {
             'wolf': [],
             'lion': [],
             'ants': [],
             'hummingbird': []
         }
-        
+
         self.scan_count += 1
         
         if self.wolf:

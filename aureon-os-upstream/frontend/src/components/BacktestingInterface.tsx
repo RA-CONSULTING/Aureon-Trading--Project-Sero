@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useRef, useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,72 +7,134 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Play, RotateCcw, Download, Save, AlertCircle } from "lucide-react";
+import { Play, RotateCcw, Download, Save, AlertCircle, History, RefreshCw } from "lucide-react";
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { GlassPageHeader } from "@/shell/GlassPage";
+import { backtestReportCsv, backtestServiceAvailable, createBacktestScope, readBacktestReport, type BacktestConfig, type BacktestReport } from "@/lib/backtestEvidence";
+import { api } from "@/services/apiClient";
 
 // Input validation schema
 const backtestConfigSchema = z.object({
   symbol: z.string().min(1, "Symbol is required").max(20, "Symbol too long"),
   startDate: z.string().refine((date) => !isNaN(Date.parse(date)), "Invalid start date"),
   endDate: z.string().refine((date) => !isNaN(Date.parse(date)), "Invalid end date"),
-  initialCapital: z.number().min(10, "Minimum capital is $10").max(1000000000, "Capital too large"),
+  initialCapital: z.number().min(10, "Minimum capital is 10 quote units").max(1000000000, "Capital too large"),
   tradeSize: z.number().min(0.01, "Minimum 0.01").max(1, "Maximum 1 (100%)"),
   stopLoss: z.number().min(0.1, "Minimum 0.1%").max(50, "Maximum 50%"),
   takeProfit: z.number().min(0.1, "Minimum 0.1%").max(100, "Maximum 100%"),
-  coherenceThreshold: z.number().min(0.1, "Minimum 0.1").max(1, "Maximum 1"),
-  kellySafety: z.number().min(0.1, "Minimum 0.1").max(1, "Maximum 1"),
-  lighthouseConfidence: z.number().min(0.1, "Minimum 0.1").max(1, "Maximum 1"),
-  minPrismLevel: z.number().int().min(1, "Minimum 1").max(5, "Maximum 5"),
-  requireLHE: z.boolean(),
+  strategy: z.literal('momentum_next_open_v1'),
+  intervalMinutes: z.union([z.literal(60), z.literal(1440)]),
+  lookbackPeriods: z.number().int().min(2).max(100),
+  feeBps: z.number().min(0).max(1000),
+  slippageBps: z.number().min(0).max(1000),
 });
 
-type BacktestConfig = z.infer<typeof backtestConfigSchema>;
+const defaultConfig = (): BacktestConfig => {
+  const end = new Date();
+  end.setUTCDate(end.getUTCDate() - 1);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - 6);
+  return { symbol: "BTCUSD", startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10),
+    initialCapital: 10000, tradeSize: 0.5, stopLoss: 2, takeProfit: 5,
+    strategy: 'momentum_next_open_v1', intervalMinutes: 60, lookbackPeriods: 24, feeBps: 40, slippageBps: 5 };
+};
 
-interface BacktestResults {
-  totalTrades: number;
-  winRate: number;
-  totalReturn: number;
-  sharpeRatio: number;
-  maxDrawdown: number;
-  profitFactor: number;
-  avgWin: number;
-  avgLoss: number;
-  equityCurve: Array<{ date: string; equity: number }>;
-  trades: Array<any>;
+type Capability = { payload: unknown; receivedAt: number | null; reason: string; loading: boolean };
+const EMPTY_CAPABILITY: Capability = { payload: null, receivedAt: null, reason: 'Checking the historical replay service…', loading: true };
+
+/** Downloads are local artifacts, never a database-save receipt. */
+function downloadReport(contents: string, type: string, name: string) {
+  const url = URL.createObjectURL(new Blob([contents], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+async function readCapability(signal: AbortSignal): Promise<Capability> {
+  const data = await api.get<Record<string, unknown>>('/api/trading/backtest/capabilities', { signal, timeoutMs: 8_000 });
+  const receivedAt = Date.now();
+  return { payload: data, receivedAt, loading: false,
+    reason: backtestServiceAvailable(data, receivedAt) ? 'Historical replay capability received. The requested provider dataset is checked when a replay is admitted.'
+      : typeof data.reason === 'string' ? data.reason : 'Historical replay unavailable: the operator has not confirmed authenticated replay dispatch.' };
 }
 
 export function BacktestingInterface() {
   const { toast } = useToast();
   const [isRunning, setIsRunning] = useState(false);
-  const [results, setResults] = useState<BacktestResults | null>(null);
+  const [report, setReport] = useState<BacktestReport | null>(null);
+  const results = report?.results ?? null;
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [runError, setRunError] = useState<string | null>(null);
+  const [capability, setCapability] = useState<Capability>(EMPTY_CAPABILITY);
+  const [probeVersion, setProbeVersion] = useState(0);
+  const [now, setNow] = useState(Date.now);
+  const running = useRef(false);
+  const scope = useRef(createBacktestScope());
+  const mounted = useRef(true);
+  const serviceAvailable = backtestServiceAvailable(capability.payload, capability.receivedAt, now);
+
+  useEffect(() => {
+    const requests = scope.current;
+    let accountId: string | null | undefined;
+    mounted.current = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const nextAccount = session?.user?.id ?? null;
+      const accountChanged = accountId !== undefined && accountId !== nextAccount;
+      accountId = nextAccount;
+      if (event === 'INITIAL_SESSION') return;
+      requests.reset();
+      running.current = false;
+      setIsRunning(false);
+      setReport(null);
+      setCapability(EMPTY_CAPABILITY);
+      setErrors({});
+      setRunError(null);
+      if (event === 'SIGNED_OUT' || accountChanged) setConfig(defaultConfig());
+      // No Supabase calls inside the auth callback; the effect performs the new safe GET.
+      setProbeVersion(value => value + 1);
+    });
+    return () => { mounted.current = false; requests.reset(); subscription.unsubscribe(); };
+  }, []);
+  useEffect(() => {
+    const requests = scope.current;
+    const ticket = requests.begin();
+    setCapability(EMPTY_CAPABILITY);
+    void readCapability(ticket.controller.signal).then(value => {
+      if (requests.current(ticket)) { setCapability(value); setNow(Date.now()); }
+    }).catch(error => {
+      if (requests.current(ticket)) setCapability({ payload: null, receivedAt: null, loading: false,
+        reason: error instanceof Error ? `Historical replay capability unavailable: ${error.message}` : 'Historical replay service check failed. Retry the service check.' });
+    }).finally(() => requests.finish(ticket));
+    return () => { ticket.controller.abort(); requests.finish(ticket); };
+  }, [probeVersion]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Configuration state
-  const [config, setConfig] = useState<BacktestConfig>({
-    symbol: "BTCUSDT",
-    startDate: "2024-01-01",
-    endDate: "2024-11-01",
-    initialCapital: 10000,
-    tradeSize: 0.98,
-    stopLoss: 2.0,
-    takeProfit: 5.0,
-    coherenceThreshold: 0.945,
-    kellySafety: 0.5,
-    lighthouseConfidence: 0.7,
-    minPrismLevel: 3,
-    requireLHE: true,
-  });
+  const [config, setConfig] = useState<BacktestConfig>(defaultConfig);
 
   const validateConfig = (): boolean => {
     try {
       backtestConfigSchema.parse(config);
       
       // Additional validation: end date must be after start date
-      if (new Date(config.endDate) <= new Date(config.startDate)) {
-        setErrors({ endDate: "End date must be after start date" });
+      if (new Date(config.endDate) < new Date(config.startDate)) {
+        setErrors({ endDate: "End date must be on or after start date" });
+        return false;
+      }
+      const end = Date.parse(config.endDate) + 86_400_000;
+      const bars = (end - Date.parse(config.startDate)) / (config.intervalMinutes * 60_000);
+      if (end > Date.now() || bars > 672 || bars + config.lookbackPeriods + 1 > 719) {
+        setErrors({ endDate: 'Choose completed UTC days within 672 candles, leaving room for the look-back window.' });
         return false;
       }
       
@@ -93,6 +155,7 @@ export function BacktestingInterface() {
   };
 
   const runBacktest = async () => {
+    if (running.current || !serviceAvailable) return;
     if (!validateConfig()) {
       toast({
         title: "Invalid Configuration",
@@ -102,150 +165,90 @@ export function BacktestingInterface() {
       return;
     }
 
+    const submittedConfig = { ...config, symbol: config.symbol.trim() };
+    running.current = true;
     setIsRunning(true);
-    setResults(null);
+    setReport(null);
+    setRunError(null);
+    const requests = scope.current;
+    const ticket = requests.begin();
+    const controller = ticket.controller;
 
     try {
-      // Call edge function to run backtest
-      const { data, error } = await supabase.functions.invoke('run-backtest', {
-        body: {
-          config: {
-            symbol: config.symbol.trim(),
-            startDate: config.startDate,
-            endDate: config.endDate,
-            initialCapital: config.initialCapital,
-            tradeSize: config.tradeSize,
-            stopLoss: config.stopLoss,
-            takeProfit: config.takeProfit,
-            coherenceThreshold: config.coherenceThreshold,
-            kellySafety: config.kellySafety,
-            lighthouseConfidence: config.lighthouseConfidence,
-            minPrismLevel: config.minPrismLevel,
-            requireLHE: config.requireLHE,
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      // LIVE DATA ONLY - Use real results from edge function
-      if (!data || !data.results) {
-        throw new Error('LIVE_DATA_REQUIRED: Backtest edge function did not return results. No simulation allowed.');
-      }
-
-      const realResults: BacktestResults = {
-        totalTrades: data.results.totalTrades || 0,
-        winRate: data.results.winRate || 0,
-        totalReturn: data.results.totalReturn || 0,
-        sharpeRatio: data.results.sharpeRatio || 0,
-        maxDrawdown: data.results.maxDrawdown || 0,
-        profitFactor: data.results.profitFactor || 0,
-        avgWin: data.results.avgWin || 0,
-        avgLoss: data.results.avgLoss || 0,
-        equityCurve: data.results.equityCurve || [],
-        trades: data.results.trades || [],
-      };
-
-      setResults(realResults);
-
+      // Re-read the capability before a user-requested replay, including after session changes.
+      const current = await readCapability(controller.signal);
+      if (!mounted.current || !requests.current(ticket)) return;
+      setCapability(current);
+      if (!backtestServiceAvailable(current.payload, current.receivedAt)) throw new Error(current.reason);
+      const requestId = crypto.randomUUID();
+      const accountScope = (current.payload as { account_scope: string }).account_scope;
+      const data = await api.post('/api/trading/backtest', { config: submittedConfig, request_id: requestId, account_scope: accountScope },
+        { signal: controller.signal, timeoutMs: 30_000 });
+      if (!mounted.current || !requests.current(ticket)) return;
+      const completed = readBacktestReport(data, submittedConfig, Date.now(), { requestId, accountScope });
+      setReport(completed);
       toast({
-        title: "Backtest Complete",
-        description: `Analyzed ${realResults.totalTrades} trades with ${realResults.winRate.toFixed(1)}% win rate`,
+        title: "Historical replay received",
+        description: `${completed.results.totalTrades} replay trade records. Dataset source and dates are included in the report.`,
       });
     } catch (error) {
-      console.error('Backtest error:', error);
+      if (!mounted.current || !requests.current(ticket)) return;
+      const message = error instanceof Error ? error.message : 'The historical replay service did not return a usable report.';
+      setRunError(message);
       toast({
-        title: "Backtest Failed",
-        description: "An error occurred during backtesting",
+        title: "Historical replay unavailable",
+        description: message,
         variant: "destructive",
       });
     } finally {
-      setIsRunning(false);
+      if (requests.current(ticket)) {
+        running.current = false;
+        if (mounted.current) setIsRunning(false);
+      }
+      requests.finish(ticket);
     }
   };
 
-  const saveResults = async () => {
-    if (!results) return;
-
-    try {
-      const { error } = await supabase.from('backtest_results').insert({
-        symbol: config.symbol.trim(),
-        start_date: config.startDate,
-        end_date: config.endDate,
-        initial_capital: config.initialCapital,
-        final_capital: results.equityCurve[results.equityCurve.length - 1].equity,
-        total_trades: results.totalTrades,
-        winning_trades: Math.round(results.totalTrades * results.winRate / 100),
-        losing_trades: results.totalTrades - Math.round(results.totalTrades * results.winRate / 100),
-        win_rate: results.winRate,
-        total_return: results.totalReturn,
-        max_drawdown: results.maxDrawdown,
-        sharpe_ratio: results.sharpeRatio,
-        profit_factor: results.profitFactor,
-        config: config,
-        trades: results.trades,
-        equity_curve: results.equityCurve,
-        status: 'completed',
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Results Saved",
-        description: "Backtest results saved to database",
-      });
-    } catch (error) {
-      console.error('Save error:', error);
-      toast({
-        title: "Save Failed",
-        description: "Could not save results",
-        variant: "destructive",
-      });
-    }
+  const saveResults = () => {
+    if (report) downloadReport(JSON.stringify(report, null, 2), 'application/json', 'aureon-backtest-report.json');
   };
 
   const resetConfig = () => {
-    setConfig({
-      symbol: "BTCUSDT",
-      startDate: "2024-01-01",
-      endDate: "2024-11-01",
-      initialCapital: 10000,
-      tradeSize: 0.98,
-      stopLoss: 2.0,
-      takeProfit: 5.0,
-      coherenceThreshold: 0.945,
-      kellySafety: 0.5,
-      lighthouseConfidence: 0.7,
-      minPrismLevel: 3,
-      requireLHE: true,
-    });
-    setResults(null);
+    setConfig(defaultConfig());
+    setReport(null);
+    setRunError(null);
     setErrors({});
   };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
   };
+  const metric = (key: string, value: number | null, digits = 2) => {
+    if (value === null) return 'Unavailable';
+    const unit = report?.metricUnits[key];
+    return `${value.toFixed(digits)}${unit === 'percent' ? '%' : unit ? ` ${unit}` : ['sharpeRatio', 'profitFactor'].includes(key) ? '' : ' (unit unreported)'}`;
+  };
 
   return (
+    <div className="space-y-6">
+      <GlassPageHeader icon={History} eyebrow="Historical evidence" title="Backtesting"
+        description="Replay strategies against recorded provider data. Results describe a historical replay and do not establish live trading performance."
+        actions={<Button variant="outline" disabled={capability.loading || isRunning} onClick={() => setProbeVersion(value => value + 1)}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${capability.loading ? 'animate-spin' : ''}`} />{capability.loading ? 'Checking service…' : 'Check replay service'}
+        </Button>} />
+      <Card><CardContent className="pt-6 space-y-2" aria-live="polite">
+        <Badge variant="outline">{capability.loading ? 'Checking capability' : serviceAvailable ? 'Replay service observed' : 'Replay unavailable'}</Badge>
+        <p className="text-sm text-muted-foreground">{!serviceAvailable && capability.payload && backtestServiceAvailable(capability.payload, capability.receivedAt, capability.receivedAt ?? 0)
+          ? 'The service capability receipt expired. Check the replay service again before running.' : capability.reason}</p>
+        <p className="text-xs text-muted-foreground">Service: operator historical replay. {capability.receivedAt && `Capability read ${new Date(capability.receivedAt).toISOString()}. `}Capability reads expire after one minute and do not attest a dataset or release a protected request.</p>
+        <p className="text-xs text-muted-foreground">Cloud saving is unavailable in this workspace. Configuration and completed reports can be downloaded locally.</p>
+        {runError && <p role="alert" className="text-sm text-destructive">{runError}</p>}
+      </CardContent></Card>
     <Card className="bg-card/50 backdrop-blur border-border/50">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-xl font-bold">Backtesting Interface</CardTitle>
-            <CardDescription>Test strategies on historical data with custom parameters</CardDescription>
-          </div>
-          <Badge variant="outline" className="text-primary">
-            AUREON Engine
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <Tabs defaultValue="config" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="config">Configuration</TabsTrigger>
@@ -265,16 +268,16 @@ export function BacktestingInterface() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="BTCUSDT">BTCUSDT</SelectItem>
-                    <SelectItem value="ETHUSDT">ETHUSDT</SelectItem>
-                    <SelectItem value="BNBUSDT">BNBUSDT</SelectItem>
+                    <SelectItem value="BTCUSD">BTC/USD · Kraken</SelectItem>
+                    <SelectItem value="ETHUSD">ETH/USD · Kraken</SelectItem>
+                    <SelectItem value="SOLUSD">SOL/USD · Kraken</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.symbol && <p className="text-xs text-destructive">{errors.symbol}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="capital">Initial Capital ($)</Label>
+                <Label htmlFor="capital">Initial Capital (quote units)</Label>
                 <Input
                   id="capital"
                   type="number"
@@ -357,91 +360,39 @@ export function BacktestingInterface() {
               </div>
             </div>
 
-            {/* AUREON Parameters */}
             <div className="space-y-4 p-4 bg-primary/5 rounded-lg border border-primary/30">
-              <h4 className="text-sm font-semibold text-foreground">AUREON Field Parameters</h4>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Coherence Threshold (Γ min)</Label>
-                  <Badge variant="outline" className="font-mono">
-                    {config.coherenceThreshold.toFixed(3)}
-                  </Badge>
+              <h2 className="text-sm font-semibold">Momentum replay method</h2>
+              <p className="text-sm text-muted-foreground">A long/flat baseline uses completed close-to-close momentum and enters at the next open. Fresh Kraken candles are required; missing dates are never replaced or interpolated.</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2"><Label htmlFor="replayInterval">Candle interval</Label>
+                  <Select value={String(config.intervalMinutes)} onValueChange={value => setConfig({ ...config, intervalMinutes: Number(value) as 60 | 1440 })}>
+                    <SelectTrigger id="replayInterval"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="60">Hourly</SelectItem><SelectItem value="1440">Daily</SelectItem></SelectContent>
+                  </Select>
                 </div>
-                <Slider
-                  value={[config.coherenceThreshold]}
-                  onValueChange={([value]) => setConfig({ ...config, coherenceThreshold: value })}
-                  min={0.1}
-                  max={1}
-                  step={0.001}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Kelly Safety Factor (φ)</Label>
-                  <Badge variant="outline" className="font-mono">
-                    {config.kellySafety.toFixed(2)}
-                  </Badge>
+                <div className="space-y-2"><Label htmlFor="lookbackPeriods">Momentum look-back (candles)</Label>
+                  <Input id="lookbackPeriods" type="number" min={2} max={100} step={1} value={config.lookbackPeriods} onChange={event => setConfig({ ...config, lookbackPeriods: Number(event.target.value) })} />
+                  {errors.lookbackPeriods && <p className="text-xs text-destructive">{errors.lookbackPeriods}</p>}
                 </div>
-                <Slider
-                  value={[config.kellySafety]}
-                  onValueChange={([value]) => setConfig({ ...config, kellySafety: value })}
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Lighthouse Confidence</Label>
-                  <Badge variant="outline" className="font-mono">
-                    {config.lighthouseConfidence.toFixed(2)}
-                  </Badge>
+                <div className="space-y-2"><Label htmlFor="feeBps">Assumed fee per side (basis points)</Label>
+                  <Input id="feeBps" type="number" min={0} max={1000} value={config.feeBps} onChange={event => setConfig({ ...config, feeBps: Number(event.target.value) })} />
+                  {errors.feeBps && <p className="text-xs text-destructive">{errors.feeBps}</p>}
                 </div>
-                <Slider
-                  value={[config.lighthouseConfidence]}
-                  onValueChange={([value]) => setConfig({ ...config, lighthouseConfidence: value })}
-                  min={0.1}
-                  max={1}
-                  step={0.05}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Minimum Prism Level</Label>
-                  <Badge variant="outline" className="font-mono">
-                    {config.minPrismLevel}
-                  </Badge>
+                <div className="space-y-2"><Label htmlFor="slippageBps">Assumed slippage per side (basis points)</Label>
+                  <Input id="slippageBps" type="number" min={0} max={1000} value={config.slippageBps} onChange={event => setConfig({ ...config, slippageBps: Number(event.target.value) })} />
+                  {errors.slippageBps && <p className="text-xs text-destructive">{errors.slippageBps}</p>}
                 </div>
-                <Slider
-                  value={[config.minPrismLevel]}
-                  onValueChange={([value]) => setConfig({ ...config, minPrismLevel: Math.round(value) })}
-                  min={1}
-                  max={5}
-                  step={1}
-                />
               </div>
-
-              <div className="flex items-center justify-between p-3 bg-background/50 rounded">
-                <Label htmlFor="requireLHE">Require LHE (Lighthouse Event)</Label>
-                <input
-                  id="requireLHE"
-                  type="checkbox"
-                  checked={config.requireLHE}
-                  onChange={(e) => setConfig({ ...config, requireLHE: e.target.checked })}
-                  className="h-4 w-4 accent-primary"
-                />
-              </div>
+              <p className="text-xs text-muted-foreground">Costs are editable analysis assumptions, not a verified account fee tier. One basis point is 0.01%. Replay fills are hypothetical; the input candles come from the provider.</p>
+              <details className="rounded-lg border p-3 text-sm text-muted-foreground"><summary className="cursor-pointer">Advanced HNC replay · unavailable</summary>
+                <p className="mt-2">Coherence, Kelly optimization, Lighthouse confidence, Prism level and Lighthouse Event gates require their own timestamped historical signal records. They are not inferred from candles or applied by this momentum baseline.</p>
+              </details>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Button
                 onClick={runBacktest}
-                disabled={isRunning}
+                  disabled={isRunning || !serviceAvailable}
                 className="flex-1"
               >
                 {isRunning ? (
@@ -452,13 +403,16 @@ export function BacktestingInterface() {
                 ) : (
                   <>
                     <Play className="h-4 w-4 mr-2" />
-                    Run Backtest
+                    {serviceAvailable ? 'Run historical replay' : 'Replay service unavailable'}
                   </>
                 )}
               </Button>
-              <Button onClick={resetConfig} variant="outline">
+              <Button onClick={resetConfig} variant="outline" disabled={isRunning}>
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Reset
+              </Button>
+              <Button variant="outline" onClick={() => downloadReport(JSON.stringify({ schema: 'aureon.backtest-configuration.v1', config }, null, 2), 'application/json', 'aureon-backtest-configuration.json')}>
+                <Download className="h-4 w-4 mr-2" /> Export configuration
               </Button>
             </div>
 
@@ -474,8 +428,15 @@ export function BacktestingInterface() {
           </TabsContent>
 
           <TabsContent value="results" className="space-y-6 mt-6">
-            {results && (
+            {results && report && (
               <>
+                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                  <p>Historical replay: {report.config.symbol} · {report.config.startDate} to {report.config.endDate} · initial capital {formatCurrency(report.config.initialCapital)} {report.currency ?? '(currency unreported)'}</p>
+                  <p className="text-muted-foreground">Dataset: {report.source} · source timestamp {new Date(report.sourceAt).toISOString()}</p>
+                  <p className="text-xs text-muted-foreground">Fetched {report.fetchedAt === null ? 'unreported' : new Date(report.fetchedAt).toISOString()} · dataset SHA256 {report.datasetHash ?? 'unreported'}</p>
+                  <p className="text-xs text-muted-foreground">Report received {new Date(report.receivedAt).toISOString()}. Changing configuration does not change this saved report.</p>
+                  {report.assumptions.length > 0 && <details><summary className="cursor-pointer">Replay method and assumptions</summary><ul className="mt-2 list-disc space-y-1 pl-5">{report.assumptions.map(note => <li key={note}>{note}</li>)}</ul></details>}
+                </div>
                 {/* Performance Metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-4 bg-muted/30 rounded-lg border border-border/30">
@@ -484,21 +445,21 @@ export function BacktestingInterface() {
                   </div>
                   <div className="p-4 bg-muted/30 rounded-lg border border-border/30">
                     <p className="text-xs text-muted-foreground mb-1">Win Rate</p>
-                    <p className="text-2xl font-bold font-mono text-success">{results.winRate.toFixed(1)}%</p>
+                    <p className="text-2xl font-bold font-mono text-success">{metric('winRate', results.winRate, 1)}</p>
                   </div>
                   <div className="p-4 bg-muted/30 rounded-lg border border-border/30">
                     <p className="text-xs text-muted-foreground mb-1">Total Return</p>
-                    <p className="text-2xl font-bold font-mono text-primary">{results.totalReturn.toFixed(1)}%</p>
+                    <p className="text-2xl font-bold font-mono text-primary">{metric('totalReturn', results.totalReturn, 1)}</p>
                   </div>
                   <div className="p-4 bg-muted/30 rounded-lg border border-border/30">
                     <p className="text-xs text-muted-foreground mb-1">Sharpe Ratio</p>
-                    <p className="text-2xl font-bold font-mono text-foreground">{results.sharpeRatio.toFixed(2)}</p>
+                    <p className="text-2xl font-bold font-mono text-foreground">{metric('sharpeRatio', results.sharpeRatio)}</p>
                   </div>
                 </div>
 
                 {/* Equity Curve */}
                 <div className="p-4 bg-muted/30 rounded-lg border border-border/30">
-                  <h4 className="text-sm font-semibold mb-4 text-foreground">Equity Curve</h4>
+                  <h4 className="text-sm font-semibold mb-4 text-foreground">Equity Curve · {report.currency ?? 'currency unreported'}</h4>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={results.equityCurve}>
@@ -517,7 +478,7 @@ export function BacktestingInterface() {
                         <YAxis 
                           stroke="hsl(var(--muted-foreground))"
                           style={{ fontSize: '12px' }}
-                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                          tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
                         />
                         <Tooltip 
                           contentStyle={{ 
@@ -525,10 +486,10 @@ export function BacktestingInterface() {
                             border: '1px solid hsl(var(--border))',
                             borderRadius: '8px'
                           }}
-                          formatter={(value: number) => [`${formatCurrency(value)}`, 'Equity']}
+                          formatter={(value: number) => [`${formatCurrency(value)} ${report.currency ?? '(currency unreported)'}`, 'Equity']}
                         />
                         <Area 
-                          type="monotone" 
+                          type="linear"
                           dataKey="equity" 
                           stroke="hsl(var(--primary))"
                           strokeWidth={2}
@@ -544,29 +505,29 @@ export function BacktestingInterface() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 bg-background/50 rounded border border-border/30">
                     <p className="text-xs text-muted-foreground">Max Drawdown</p>
-                    <p className="text-lg font-bold font-mono text-destructive">-{results.maxDrawdown.toFixed(1)}%</p>
+                    <p className="text-lg font-bold font-mono text-destructive">{metric('maxDrawdown', results.maxDrawdown, 1)}</p>
                   </div>
                   <div className="p-3 bg-background/50 rounded border border-border/30">
                     <p className="text-xs text-muted-foreground">Profit Factor</p>
-                    <p className="text-lg font-bold font-mono text-foreground">{results.profitFactor.toFixed(2)}</p>
+                    <p className="text-lg font-bold font-mono text-foreground">{metric('profitFactor', results.profitFactor)}</p>
                   </div>
                   <div className="p-3 bg-background/50 rounded border border-border/30">
                     <p className="text-xs text-muted-foreground">Avg Win</p>
-                    <p className="text-lg font-bold font-mono text-success">+{results.avgWin.toFixed(2)}%</p>
+                    <p className="text-lg font-bold font-mono text-success">{metric('avgWin', results.avgWin)}</p>
                   </div>
                   <div className="p-3 bg-background/50 rounded border border-border/30">
                     <p className="text-xs text-muted-foreground">Avg Loss</p>
-                    <p className="text-lg font-bold font-mono text-destructive">-{results.avgLoss.toFixed(2)}%</p>
+                    <p className="text-lg font-bold font-mono text-destructive">{metric('avgLoss', results.avgLoss)}</p>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <Button onClick={saveResults} className="flex-1">
                     <Save className="h-4 w-4 mr-2" />
-                    Save Results
+                    Save report JSON
                   </Button>
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => downloadReport(backtestReportCsv(report), 'text/csv;charset=utf-8', 'aureon-backtest-report.csv')}>
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
                   </Button>
@@ -577,5 +538,6 @@ export function BacktestingInterface() {
         </Tabs>
       </CardContent>
     </Card>
+    </div>
   );
 }

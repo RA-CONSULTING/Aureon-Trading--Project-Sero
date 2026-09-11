@@ -80,6 +80,9 @@ def test_harmonic_affect_reaches_inner_peace_only_when_clear_and_high_coherence(
     assert state["summary"]["inner_peace_candidate"] is True
     assert state["summary"]["resonance_frequency_hz"] == 600
     assert state["summary"]["hnc_coherence_score"] >= 0.9
+    assert state["summary"]["victory"] > state["summary"]["fear"]
+    assert state["summary"]["resolve"] > 0.5
+    assert state["summary"]["caution_bias"] < 0.1
     assert state["state_contract"]["safety_boundary"].startswith("no affect phase")
 
 
@@ -123,6 +126,9 @@ def test_harmonic_affect_uses_protective_recalibration_when_runtime_is_stale(tmp
     assert state["summary"]["inner_peace_candidate"] is False
     assert state["summary"]["runtime_stale"] is True
     assert state["summary"]["safety_blocker_count"] > 0
+    assert state["summary"]["fear"] > 0
+    assert state["summary"]["caution_bias"] > 0
+    assert state["summary"]["dominant_feeling"] in {"fear", "resolve"}
     assert "does not use human nerves" in state["state_contract"]["not_human_sensation"]
 
 
@@ -140,3 +146,5 @@ def test_harmonic_affect_state_writes_audit_and_public_json(tmp_path):
     payload = json.loads(public_path.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "aureon-harmonic-affect-state-v1"
     assert "affect_phase" in payload["summary"]
+    for key in ["victory", "defeat", "fear", "resolve", "caution_bias"]:
+        assert key in payload["summary"]

@@ -29,6 +29,9 @@ from collections import defaultdict
 # ─────────────────────────────────────────────────────────────────────────────
 
 # How much each source can shift the final score (weights must sum to 1.0)
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 WEIGHT_MOMENTUM     = 0.30   # live price change × volume (exchange scan)
 WEIGHT_HARP         = 0.20   # Market Harp resonance boost
 WEIGHT_REGIME       = 0.15   # cross-asset regime alignment
@@ -168,6 +171,9 @@ class UnifiedSignalEngine:
 
         Returns UnifiedBundle with per-asset signals and per-group rankings.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_signal_engine.UnifiedSignalEngine.process blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         category_moves  = category_moves  or {}
         harp_boosts     = harp_boosts     or {}
         news_sentiment  = news_sentiment  or {}

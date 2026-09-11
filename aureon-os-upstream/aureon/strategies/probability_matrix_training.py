@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from typing import Dict, List
 from pathlib import Path
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, '/workspaces/aureon-trading')
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
 
@@ -74,6 +76,9 @@ class SymbolStats:
 
 
 def fetch_momentum_pairs(client: KrakenClient) -> List[Dict]:
+    if no_external_api_calls():
+        print("fetch_momentum_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
     tickers = client.get_24h_tickers()
     pairs = []
     for t in tickers:
@@ -92,6 +97,9 @@ def fetch_momentum_pairs(client: KrakenClient) -> List[Dict]:
 
 
 def simulate_training(trades_per_run: int = 200) -> Dict[str, SymbolStats]:
+    if no_external_api_calls():
+        print("simulate_training blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {}
     client = get_kraken_client()
     momentum_pairs = fetch_momentum_pairs(client)
     if not momentum_pairs:

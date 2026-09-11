@@ -23,11 +23,16 @@ from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_lin
 import sys
 import json
 import time
+import logging
 import requests
 import numpy as np
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, asdict, field
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ⚙️ CONFIG & DATA STRUCTURES
@@ -61,8 +66,12 @@ class HistoricalBot:
 
 def fetch_klines(symbol: str, interval: str, days: int) -> List[Dict]:
     """Fetch historical klines from Binance public API with pagination."""
+    if no_external_api_calls():
+        logger.info("fetch_klines blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     print(f"📥 Fetching {days} days of {interval} data for {symbol}...")
-    
+
     end_time = int(time.time() * 1000)
     start_time = int((datetime.now() - timedelta(days=days)).timestamp() * 1000)
     

@@ -48,6 +48,15 @@ BUS_FLIGHT_CHECK_RELEASE_HOLD = (
     "bus_flight_check_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("bus_flight_check"):
+        raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Activity tracker
@@ -116,7 +125,7 @@ class BusFlightCheck:
 
     def start(self) -> None:
         """Subscribe to the wildcard so we see every publication."""
-        raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+        _require_release()
         if self._subscribed or self.thought_bus is None:
             return
         try:
@@ -127,7 +136,7 @@ class BusFlightCheck:
 
     def start_watching(self) -> None:
         """Start the background daemon that publishes flight.check.pulse."""
-        raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+        _require_release()
         if self._running:
             return
         self._running = True
@@ -144,7 +153,7 @@ class BusFlightCheck:
     # ─── observer ────────────────────────────────────────────────────────
 
     def _on_any_thought(self, thought: Any) -> None:
-        raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+        _require_release()
         topic = getattr(thought, "topic", "") or ""
         source = getattr(thought, "source", "") or ""
         if not topic:
@@ -273,7 +282,7 @@ class BusFlightCheck:
     # ─── watch loop ──────────────────────────────────────────────────────
 
     def _watch_loop(self) -> None:
-        raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+        _require_release()
         while self._running:
             try:
                 report = self.standing_wave_report()
@@ -283,7 +292,7 @@ class BusFlightCheck:
             time.sleep(self.watch_interval_s)
 
     def _publish_pulse(self, report: Dict[str, Any]) -> None:
-        raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return
         # Compact payload for the bus — trim per-topic arrays so we don't
@@ -375,7 +384,7 @@ _singleton_lock = threading.Lock()
 
 
 def get_bus_flight_check(thought_bus: Any = None) -> BusFlightCheck:
-    raise RuntimeError(BUS_FLIGHT_CHECK_RELEASE_HOLD)
+    _require_release()
     global _singleton
     with _singleton_lock:
         if _singleton is None and thought_bus is not None:

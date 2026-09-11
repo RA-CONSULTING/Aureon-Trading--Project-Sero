@@ -5,12 +5,34 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import json
+
 import pytest
 
 from aureon.vault.voice.symbolic_life_bridge import (
     SYMBOLIC_LIFE_RELEASE_HOLD,
     SymbolicLifeBridge,
 )
+
+
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
+@pytest.fixture
+def released(monkeypatch, tmp_path):
+    record_dir = tmp_path / "record"
+    record_dir.mkdir()
+    record = record_dir / "dispatch_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["symbolic_life_bridge"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("GOAL_DISPATCH_RELEASE_RECORD", str(record))
+    return record
 
 
 class _Trap:
@@ -97,3 +119,84 @@ def test_payload_translation_remains_pure() -> None:
     payload = SymbolicLifeBridge._state_to_payload(state, [])
     assert payload["symbolic_life_score"] == 0.5
     assert SYMBOLIC_LIFE_RELEASE_HOLD.startswith("symbolic_life_bridge_hold:")
+
+
+# ─── Released path ───────────────────────────────────────────────────────────
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.handlers: dict = {}
+        self.published: list = []
+
+    def subscribe(self, topic: str, handler: Any) -> None:
+        self.handlers.setdefault(topic, []).append(handler)
+
+    def publish(self, *args: Any, **kwargs: Any) -> None:
+        self.published.append(args[0] if args else kwargs)
+
+
+class _FakeEngine:
+    def __init__(self) -> None:
+        self.calls: list = []
+
+    def step(self, *, readings: Any, volatility: float, vault: Any) -> Any:
+        self.calls.append({"readings": list(readings), "volatility": volatility})
+        return SimpleNamespace(
+            lambda_t=1.0,
+            consciousness_psi=0.5,
+            consciousness_level=2,
+            coherence_gamma=0.9,
+            coherence_phi=0.8,
+            symbolic_life_score=0.7,
+        )
+
+
+class _Thought:
+    def __init__(self, topic: str, payload: Any) -> None:
+        self.topic = topic
+        self.payload = payload
+
+
+def test_released_start_subscribes_and_callbacks_bump_rolling(released) -> None:
+    bus = _Bus()
+    bridge = SymbolicLifeBridge(thought_bus=bus, lambda_engine=_FakeEngine())
+    bridge.start()
+    for topic in SymbolicLifeBridge.TOPICS:
+        assert topic in bus.handlers
+    assert bridge._subscribed is True
+    bridge._on_persona_collapse(_Thought("persona.collapse", {
+        "winner": "artist", "probabilities": {"artist": 0.9},
+    }))
+    bridge._on_goal_request(_Thought("goal.submit.request", {"urgency": 0.8}))
+    summary = bridge.rolling_summary()
+    assert summary["persona_collapse"]["count"] == 1.0
+    assert summary["chorus_coherence"]["count"] == 1.0
+    assert summary["goal_commitment"]["count"] == 1.0
+
+
+def test_released_pulse_steps_engine_and_publishes_symbolic_life_pulse(
+    released,
+) -> None:
+    bus = _Bus()
+    engine = _FakeEngine()
+    bridge = SymbolicLifeBridge(thought_bus=bus, lambda_engine=engine)
+    bridge._on_persona_collapse(_Thought("persona.collapse", {
+        "winner": "artist", "probabilities": {"artist": 0.9},
+    }))
+    state = bridge.pulse()
+    assert state is not None
+    assert state.symbolic_life_score == 0.7
+    assert bridge.pulse_count == 1
+    assert bridge.last_state is state
+    assert len(engine.calls) == 1
+    readings = engine.calls[0]["readings"]
+    assert {r.name for r in readings} == set(SymbolicLifeBridge.SUBSYSTEMS)
+    pulses = [
+        t for t in bus.published
+        if getattr(t, "topic", None) == "symbolic.life.pulse"
+    ]
+    assert len(pulses) == 1
+    assert pulses[0].payload["symbolic_life_score"] == 0.7
+    assert pulses[0].payload["lambda_t"] == 1.0
+    assert len(pulses[0].payload["readings"]) == len(SymbolicLifeBridge.SUBSYSTEMS)

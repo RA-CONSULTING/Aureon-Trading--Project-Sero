@@ -11,6 +11,8 @@ Based on Quantum Quackers realMoneyLive.ts:
 This is the FAST trader - no waiting around!
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -60,6 +62,9 @@ def round_step(qty: float, step: float) -> float:
 
 def get_opportunity(client: BinanceClient, symbol: str) -> Optional[Dict]:
     """Check if symbol has a good entry opportunity"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_quantum_rapid.get_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     try:
         resp = client.session.get(
             f'{client.base}/api/v3/ticker/24hr',
@@ -147,6 +152,9 @@ class QuantumRapidTrader:
     
     def scan_opportunities(self) -> List[Dict]:
         """Scan all pairs for opportunities"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_quantum_rapid.QuantumRapidTrader.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         for symbol in PAIRS:
             opp = get_opportunity(self.client, symbol)
@@ -231,6 +239,9 @@ class QuantumRapidTrader:
     
     def run(self, max_trades: int = 20, interval_ms: int = TRADE_INTERVAL_MS):
         """Run the rapid trading loop"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_quantum_rapid.QuantumRapidTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.starting_capital = self.get_total_value()
         trade_count = 0
         

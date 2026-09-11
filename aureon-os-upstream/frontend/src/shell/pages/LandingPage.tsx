@@ -126,15 +126,18 @@ export default function LandingPage() {
       <div className="mx-auto max-w-6xl px-4">
         {/* Trust strip — credibility with chrome, not flat gray text */}
         <section className="grid grid-cols-2 gap-3 py-8 lg:grid-cols-4">
-          {TRUST.map((t) => (
-            <div key={t.label} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
-              <t.icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">{t.label}</span>
-                <span className="text-xs text-muted-foreground">{t.detail}</span>
+          {TRUST.map((t) => {
+            const honest = t.label.startsWith("Honest");
+            return (
+              <div key={t.label} className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+                <t.icon className={`mt-0.5 h-5 w-5 shrink-0 ${honest ? "text-cyan-400" : "text-primary"}`} />
+                <div className="flex flex-col">
+                  <span className={`text-sm font-medium ${honest ? "text-cyan-300" : "text-foreground"}`}>{t.label}</span>
+                  <span className="text-xs text-muted-foreground">{t.detail}</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
 
       {/* Pillars */}

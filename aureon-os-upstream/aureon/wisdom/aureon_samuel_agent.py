@@ -67,6 +67,7 @@ from aureon.inhouse_ai.llm_adapter import (
     LLMAdapter,
 )
 from aureon.plumber.os_protection import AdmittedHNC, LocalOSProtectionBoundary
+from aureon.core.no_external_calls import no_external_api_calls
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Logging
@@ -699,6 +700,19 @@ class SamuelHarmonicEntity:
     """Observation-only reasoning facade with fail-closed effect tools."""
 
     def __init__(self, adapter: LLMAdapter | None = None, mode: str = "hybrid"):
+        if no_external_api_calls():
+            logger.info("SamuelHarmonicEntity initialisation blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.adapter = None
+            self._lock = threading.Lock()
+            self._running = False
+
+            # Snapshot/no-data facades; none constructs a live effect subsystem.
+            self.queen = QueenConnector()
+            self.king = KingConnector()
+            self.lyra = LyraConnector()
+            self.bus = SamuelThoughtBus()
+            return
+
         self.adapter = adapter or _build_samuel_adapter(mode)
         self._lock = threading.Lock()
         self._running = False
@@ -939,6 +953,10 @@ class SamuelHarmonicEntity:
     def reason(self, prompt: str, max_turns: int = 25, stream_text: bool = True) -> str:
         """Full agentic loop: think → call tools → think → … → answer.
         Now powered by in-house AI — zero external dependencies."""
+        if no_external_api_calls():
+            logger.info("SamuelHarmonicEntity.reason blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return "AUREON_NO_EXTERNAL_API_CALLS: outbound API calls are disabled."
+
         messages = [{"role": "user", "content": prompt}]
         turn = 0
 
@@ -1019,6 +1037,10 @@ class SamuelHarmonicEntity:
     # ── High-level modes ───────────────────────────────────────────────────
 
     def autonomous_cycle(self) -> str:
+        if no_external_api_calls():
+            logger.info("SamuelHarmonicEntity.autonomous_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return "AUREON_NO_EXTERNAL_API_CALLS: outbound API calls are disabled."
+
         ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         prompt = (
             f"OBSERVATION CYCLE — {ts}\n\n"
@@ -1036,6 +1058,10 @@ class SamuelHarmonicEntity:
 
     def handle_command(self, command: str) -> str:
         """Handle a real-time user command."""
+        if no_external_api_calls():
+            logger.info("SamuelHarmonicEntity.handle_command blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return "AUREON_NO_EXTERNAL_API_CALLS: outbound API calls are disabled."
+
         ts = datetime.utcnow().strftime("%H:%M:%S")
         prompt = (
             f"[{ts}] USER COMMAND: {command}\n\n"
@@ -1047,6 +1073,10 @@ class SamuelHarmonicEntity:
 
     def run_loop(self, interval: int = 60):
         """Continuous autonomous loop."""
+        if no_external_api_calls():
+            logger.info("SamuelHarmonicEntity.run_loop blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self._running = True
         logger.info(f"Samuel entering autonomous loop (interval={interval}s)")
         while self._running:
@@ -1277,6 +1307,10 @@ class SamuelHarmonicEntity:
 
     def chat_session(self):
         """Interactive terminal chat."""
+        if no_external_api_calls():
+            print("AUREON_NO_EXTERNAL_API_CALLS: outbound API calls are disabled.")
+            return
+
         history: List[Dict] = []
         print("\n" + "═" * 60)
         print("  SAMUEL — OBSERVATION-ONLY INTERACTIVE TERMINAL")
@@ -1400,6 +1434,10 @@ class SamuelHarmonicEntity:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def main():
+    if no_external_api_calls():
+        logger.info("Samuel main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     _load_local_env()
     parser = argparse.ArgumentParser(
         description="Samuel - AUREON observation-only reasoning surface"

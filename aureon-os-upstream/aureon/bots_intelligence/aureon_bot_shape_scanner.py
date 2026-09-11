@@ -55,6 +55,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Internal imports
 from aureon.exchanges.binance_ws_client import BinanceWebSocketClient, WSTrade, WSOrderBook
+from aureon.core.no_external_calls import no_external_api_calls
 try:
     from aureon.core.aureon_thought_bus import ThoughtBus, Thought
     THOUGHT_BUS_AVAILABLE = True
@@ -416,6 +417,10 @@ class BotShapeScanner:
         
     def start(self):
         """Start the Quantum Telescope"""
+        if no_external_api_calls():
+            logger.info("Bot Shape Scanner blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         logger.info(f"🔭 Starting AUREON BOT SHAPE SCANNER on {len(self.symbols)} assets...")
         
         # Build streams: trades, depth, tickers

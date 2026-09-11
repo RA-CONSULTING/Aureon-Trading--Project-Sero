@@ -21,6 +21,8 @@
 ╚═══════════════════════════════════════════════════════════════════════════════════╝
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -270,6 +272,9 @@ class LabyrinthSnowball:
         
     async def fetch_prices(self):
         """Fetch all prices from Binance"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.fetch_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         import aiohttp
         
         try:
@@ -299,10 +304,16 @@ class LabyrinthSnowball:
             
     def get_price(self, asset: str) -> float:
         """Get USD price for asset"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.get_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         return self.prices.get(asset.upper(), 0.0)
         
     def calculate_portfolio_value(self) -> float:
         """Calculate current portfolio value"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.calculate_portfolio_value blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total = 0.0
         for asset, amount in self.state.holdings.items():
             price = self.get_price(asset)
@@ -311,6 +322,9 @@ class LabyrinthSnowball:
         
     def get_v14_score(self, from_asset: str, to_asset: str) -> int:
         """Get V14 score for a conversion"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.get_v14_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         if not self.v14:
             return 5  # Default neutral
             
@@ -335,6 +349,9 @@ class LabyrinthSnowball:
             
     def get_hub_signal(self, from_asset: str, to_asset: str) -> Tuple[float, List[str]]:
         """Get unified signal from Mycelium Hub"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.get_hub_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not self.hub:
             return 0.5, []
             
@@ -373,6 +390,9 @@ class LabyrinthSnowball:
         
         Returns: (to_amount, to_value_usd, net_gain_usd)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.calculate_conversion_value blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         from_price = self.get_price(from_asset)
         to_price = self.get_price(to_asset)
         
@@ -403,6 +423,9 @@ class LabyrinthSnowball:
         
         Returns: (from_asset, to_asset, from_amount, v14_score, hub_score, systems)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.find_labyrinth_path blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         best = None
         best_combined_score = 0
         
@@ -445,6 +468,9 @@ class LabyrinthSnowball:
                                       from_amount: float, v14_score: int,
                                       hub_score: float, systems: List[str]) -> bool:
         """Execute a step through the labyrinth"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.execute_labyrinth_step blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         from_price = self.get_price(from_asset)
         to_price = self.get_price(to_asset)
         from_value = from_amount * from_price
@@ -549,6 +575,9 @@ class LabyrinthSnowball:
     async def initialize(self, starting_holdings: Dict[str, float] = None):
         """Initialize the labyrinth journey"""
         # Fetch initial prices
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n📊 Fetching market prices...")
         await self.fetch_prices()
         print(f"   ✅ {len(self.prices)} assets priced")
@@ -593,6 +622,9 @@ class LabyrinthSnowball:
         Keep scanning for conversion opportunities using V14 + all systems.
         Execute when V14 score >= 8 and hub consensus is favorable.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.labyrinth_snowball_engine.LabyrinthSnowball.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         await self.initialize()
         
         self.running = True
@@ -705,6 +737,9 @@ class LabyrinthSnowball:
 
 
 async def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.labyrinth_snowball_engine.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description='Labyrinth Snowball Engine')

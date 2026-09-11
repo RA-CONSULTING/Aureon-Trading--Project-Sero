@@ -26,6 +26,8 @@ Gary Leckey & GitHub Copilot | January 2026
 "Trade the olive for a bean, the bean for a carrot..."
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -199,6 +201,9 @@ class BarterNavigator:
     
     def load_all_exchanges(self):
         """Load tradeable pairs from all exchanges."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.load_all_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "=" * 70)
         print("🫒🔄 LOADING BARTER GRAPH FROM ALL EXCHANGES")
         print("=" * 70)
@@ -553,6 +558,9 @@ class BarterNavigator:
         The labyrinth has already loaded all pairs from exchanges.
         Use that data instead of creating new clients that fail.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.populate_from_labyrinth_data blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "=" * 70)
         print("🫒🔄 POPULATING BARTER GRAPH FROM LABYRINTH DATA")
         print("=" * 70)
@@ -656,6 +664,9 @@ class BarterNavigator:
 
     def load_cache(self) -> bool:
         """Load graph from cache. Returns False if cache is empty or invalid."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.load_cache blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         cache_path = os.path.join(self.base_path, 'barter_graph_cache.json')
         try:
             if os.path.exists(cache_path):
@@ -712,6 +723,9 @@ class BarterNavigator:
         Returns:
             BarterPath with the optimal route, or None if no path exists
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.find_path blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         source = source.upper()
         destination = destination.upper()
         
@@ -816,6 +830,9 @@ class BarterNavigator:
         
         Returns up to max_paths different routes, sorted by total rate.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.find_all_paths blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         source = source.upper()
         destination = destination.upper()
         
@@ -877,6 +894,9 @@ class BarterNavigator:
         Returns:
             Best BarterOpportunity or None
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.find_best_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         have_asset = have_asset.upper()
         
         # Get price of what we have
@@ -941,6 +961,9 @@ class BarterNavigator:
         Returns:
             List of profitable circular paths
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.find_arbitrage blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         start_asset = start_asset.upper()
         
         profitable_cycles = []
@@ -963,6 +986,9 @@ class BarterNavigator:
     
     def get_asset_connectivity(self, asset: str) -> Dict:
         """Get connectivity info for an asset."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_barter_navigator.BarterNavigator.get_asset_connectivity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         asset = asset.upper()
         
         direct_edges = self.graph.get(asset, [])
@@ -1039,6 +1065,9 @@ _navigator: Optional[BarterNavigator] = None
 
 def get_navigator() -> BarterNavigator:
     """Get or create the barter navigator singleton."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_barter_navigator.get_navigator blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     global _navigator
     if _navigator is None:
         _navigator = BarterNavigator()
@@ -1050,6 +1079,9 @@ def get_navigator() -> BarterNavigator:
 
 def find_barter_path(from_asset: str, to_asset: str) -> Optional[BarterPath]:
     """Find barter path for labyrinth use."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_barter_navigator.find_barter_path blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     nav = get_navigator()
     return nav.find_path(from_asset, to_asset)
 
@@ -1060,6 +1092,9 @@ def get_barter_score(from_asset: str, to_asset: str) -> Tuple[float, str]:
     
     Returns (score 0-1, reason string)
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_barter_navigator.get_barter_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     nav = get_navigator()
     path = nav.find_path(from_asset, to_asset)
     
@@ -1088,6 +1123,9 @@ def get_barter_score(from_asset: str, to_asset: str) -> Tuple[float, str]:
 
 def main():
     """Demo the barter navigator."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_barter_navigator.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "=" * 70)
     print("🫒🔄 AUREON BARTER NAVIGATOR - TRADE UP TO YOUR GOAL 🔄🫒")
     print("=" * 70)

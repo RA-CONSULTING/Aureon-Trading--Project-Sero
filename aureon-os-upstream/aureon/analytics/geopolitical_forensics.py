@@ -44,6 +44,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 PUBLIC_RECORD_CUTOFF = '2026-03-06'
@@ -519,6 +521,20 @@ def fetch_stake_concentration(
     Uses public Polygonscan / Etherscan tokenholderlist endpoint.
     No wallet-to-identity linkage is performed.
     """
+    if no_external_api_calls():
+        logger.info("fetch_stake_concentration blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return StakeConcentrationResult(
+            contract_address=contract_address,
+            chain=chain,
+            top_n=0,
+            total_supply_sampled=0.0,
+            top_n_share=0.0,
+            gini_coefficient=0.0,
+            herfindahl_index=0.0,
+            source='no_source',
+            fetched_at=datetime.now(timezone.utc).isoformat(),
+        )
+
     if chain == 'polygon':
         base_url = _POLYGON_TOP_HOLDERS_URL
         source = 'polygonscan'

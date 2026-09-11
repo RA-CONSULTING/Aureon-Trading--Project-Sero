@@ -37,6 +37,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Queue, Empty
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Windows UTF-8 fix
 if sys.platform == 'win32':
     os.environ['PYTHONIOENCODING'] = 'utf-8'
@@ -174,6 +176,8 @@ class BaseOrca:
     
     def get_market_data(self, symbol: str) -> dict:
         """Get market data for analysis"""
+        if no_external_api_calls():
+            return {}
         try:
             resp = requests.get(
                 f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit=12",
@@ -370,6 +374,8 @@ class OrcaCompetition:
     
     def get_positions_with_costs(self) -> List[Dict]:
         """Get all positions with their cost basis"""
+        if no_external_api_calls():
+            return []
         positions = []
         acct = self.client.account()
         
@@ -413,6 +419,8 @@ class OrcaCompetition:
     
     def run_race(self, position: Dict) -> Optional[CompetitionResult]:
         """Run a race on a single position - all Orcas compete"""
+        if no_external_api_calls():
+            return None
         if not position.get('cost_known'):
             print(f"   ⚠️ {position['asset']}: cost basis unknown - no sell/decision")
             return None
@@ -476,6 +484,8 @@ class OrcaCompetition:
     
     def scan_for_buys(self) -> Optional[CompetitionResult]:
         """Scan for buy opportunities - Orcas compete to find best entry"""
+        if no_external_api_calls():
+            return None
         usdc = self.client.get_free_balance('USDC')
         available = usdc - CASH_RESERVE
         
@@ -537,6 +547,9 @@ class OrcaCompetition:
     
     def run_competition(self, rounds: int = 50):
         """Run the full competition"""
+        if no_external_api_calls():
+            print("🦈🏆 ORCA PRIME COMPETITION HELD - AUREON_NO_EXTERNAL_API_CALLS is set 🏆🦈")
+            return
         print("=" * 70)
         print("🦈🏆 ORCA PRIME COMPETITION - PARALLEL ORCAS RACING FOR PROFIT 🏆🦈")
         print("=" * 70)

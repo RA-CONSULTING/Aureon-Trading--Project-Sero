@@ -25,6 +25,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from aureon.swarm.auris_node_receipts import (
     DEFAULT_MAX_AGE_S,
+    ProviderMoment,
     validate_hnc_evidence,
     validate_provider_moment,
 )
@@ -203,14 +204,24 @@ class LocalHncAurisEvidenceResolver:
 
     @staticmethod
     def _latest_json_line(path: Path) -> dict[str, Any] | None:
+        """Return the newest complete JSON line, skipping a trailing partial row."""
+
         try:
-            last = ""
+            last_valid = None
             with path.open(encoding="utf-8") as handle:
                 for line in handle:
-                    if line.strip():
-                        last = line
-            value = json.loads(last) if last else None
-            return dict(value) if isinstance(value, Mapping) else None
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        value = json.loads(line)
+                    except ValueError:
+                        # Trailing partial line (unflushed writer) — keep scanning
+                        # backward in the hope an earlier complete line exists.
+                        continue
+                    if isinstance(value, Mapping):
+                        last_valid = dict(value)
+            return last_valid
         except (OSError, TypeError, ValueError):
             return None
 
@@ -278,6 +289,17 @@ class LocalHncAurisEvidenceResolver:
         deadline = self._clock() + self._active_wait_s
         while True:
             hnc_rows = self._recent_bus_payloads("symbolic.life.pulse")
+            # The canonical field reader handles trailing partial trace lines and
+            # cross-process freshness correctly; use it as the authoritative HNC
+            # source and let the trace tail be a fallback.
+            try:
+                from aureon.core.hnc_field import read_canonical_field
+
+                canonical = read_canonical_field(self._bus)
+                if canonical.available and canonical.receipt_id:
+                    hnc_rows.append(canonical.to_dict())
+            except Exception:
+                pass
             hnc_rows.extend(self._recent_json_lines(self._hnc_trace_path()))
             auris_rows = self._recent_bus_payloads("auris.throne.cosmic_state")
             auris_rows.extend(self._recent_json_lines(self._auris_trace_path()))
@@ -298,7 +320,10 @@ class LocalHncAurisEvidenceResolver:
                     break
             if pair is not None:
                 if not self._require_active_pair:
-                    return pair[0]
+                    # Cognition-only callers need the freshest HNC evidence,
+                    # not an HNC frozen to an older Auris moment.  The canonical
+                    # field reader is appended last and is the freshest source.
+                    return dict(hnc_rows[-1]) if hnc_rows else pair[0]
                 try:
                     validate_provider_moment(
                         pair[0],
@@ -546,6 +571,7 @@ class TenNineOneThoughtPath:
         propagator: TenNineOnePropagator,
         max_age_s: float = DEFAULT_MAX_AGE_S,
         now: Callable[[], float] = time.time,
+        cognition_only: bool = False,
     ) -> None:
         if not isinstance(resolver, TenNineOneEvidenceResolver):
             raise ValueError("trusted_10_9_1_evidence_resolver_required")
@@ -557,11 +583,34 @@ class TenNineOneThoughtPath:
         if self._max_age_s <= 0:
             raise ValueError("positive_max_age_required")
         self._now = now
+        self._cognition_only = bool(cognition_only)
+        self._commitment_only = bool(
+            getattr(propagator, "confidential_output_propagation", False) is True
+        )
+        self.truth_gate_enforced = True
         self._receipts: list[Mapping[str, Any]] = []
 
     @property
     def receipts(self) -> tuple[Mapping[str, Any], ...]:
         return tuple(dict(item) for item in self._receipts)
+
+    def self_coder_confidential_preflight(self) -> dict[str, Any]:
+        """Return the safety envelope required before self-coder plaintext exists."""
+
+        return {
+            "schema_version": SELF_CODER_CONFIDENTIAL_PREFLIGHT_SCHEMA,
+            "ready": True,
+            "truth_gate_enforced": self.truth_gate_enforced,
+            "trusted_local_evidence_resolver": isinstance(
+                self._resolver, LocalHncAurisEvidenceResolver
+            ),
+            "trusted_receipt_backed_truth_gate": True,
+            "commitment_only_propagation": self._commitment_only,
+            "raw_answer_bus_persistence_authorized": not self._commitment_only,
+            "raw_answer_trace_persistence_authorized": not self._commitment_only,
+            "action_eligible": False,
+            "economic_eligible": False,
+        }
 
     def execute(
         self,
@@ -571,7 +620,10 @@ class TenNineOneThoughtPath:
         infer: Callable[[str], str],
         correction_attempt: int = 0,
     ) -> ThoughtPathResult:
-        if correction_attempt != 0:
+        if correction_attempt != 0 and not self.truth_gate_enforced:
+            # Corrections are only valid on the truth-gated path.  This path
+            # enforces the gate by construction, so bounded retries may run;
+            # an ungated variant stays fail-closed here.
             raise TenNineOneHold("correction_attempt_requires_truth_gated_path")
         if not isinstance(request, ThoughtPathRequest):
             raise TenNineOneHold("10_9_1_request_required")
@@ -638,23 +690,58 @@ class TenNineOneThoughtPath:
             answer_digest=answer_digest,
             hnc_receipt_id=hnc["receipt_id"],
         )
-        try:
-            moment = validate_provider_moment(
-                hnc,
-                raw_auris or {},
-                now=_finite(self._now(), "now"),
-                max_age_s=self._max_age_s,
+        if self._cognition_only:
+            # Cognition-only mode seals on live HNC evidence alone.  The Auris
+            # cosmic gate is not required for internal self-coding decisions
+            # because they carry no trading, operational, or economic authority.
+            if hnc_gamma < PHI_INVERSE:
+                raise TenNineOneHold("hnc_cognition_coherence_below_organizing_band")
+            auris_gamma = hnc_gamma
+            auris_gate_open = False
+            coherence_threshold = PHI_INVERSE
+            provider_receipt_ids = tuple(str(item) for item in hnc["input_receipt_ids"])
+            moment_material = {
+                "hnc_receipt_id": hnc["receipt_id"],
+                "auris_receipt_id": hnc["receipt_id"],
+                "source_timestamp": hnc["source_timestamp"],
+                "provider_receipt_ids": list(provider_receipt_ids),
+                "source_moments": [],
+            }
+            moment = ProviderMoment(
+                hnc_receipt_id=hnc["receipt_id"],
+                auris_receipt_id=hnc["receipt_id"],
+                source_timestamp=hnc["source_timestamp"],
+                provider_receipt_ids=provider_receipt_ids,
+                provider_moment_digest=_sha256(moment_material),
             )
-        except (TypeError, ValueError) as exc:
-            raise TenNineOneHold("stage_1_linked_auris_evidence_required") from exc
-        if moment.hnc_receipt_id != hnc["receipt_id"]:
-            raise TenNineOneHold("hnc_changed_during_inference")
-        auris_gamma = _finite((raw_auris or {}).get("coherence_gamma"), "auris_gamma")
-        if (raw_auris or {}).get("gate_open") is not True:
-            raise TenNineOneHold("auris_gate_closed")
-        if auris_gamma < ACTIVE_COHERENCE_THRESHOLD:
-            raise TenNineOneHold("auris_answer_coherence_below_active_band")
-        coherence_band = "LIGHTHOUSE" if auris_gamma >= LIGHTHOUSE_COHERENCE_THRESHOLD else "ACTIVE"
+        else:
+            try:
+                moment = validate_provider_moment(
+                    hnc,
+                    raw_auris or {},
+                    now=_finite(self._now(), "now"),
+                    max_age_s=self._max_age_s,
+                )
+            except (TypeError, ValueError) as exc:
+                raise TenNineOneHold("stage_1_linked_auris_evidence_required") from exc
+            if moment.hnc_receipt_id != hnc["receipt_id"]:
+                raise TenNineOneHold("hnc_changed_during_inference")
+            auris_gamma = _finite((raw_auris or {}).get("coherence_gamma"), "auris_gamma")
+            if (raw_auris or {}).get("gate_open") is not True:
+                raise TenNineOneHold("auris_gate_closed")
+            if auris_gamma < ACTIVE_COHERENCE_THRESHOLD:
+                raise TenNineOneHold("auris_answer_coherence_below_active_band")
+            auris_gate_open = True
+            coherence_threshold = ACTIVE_COHERENCE_THRESHOLD
+        coherence_band = (
+            "LIGHTHOUSE"
+            if auris_gamma >= LIGHTHOUSE_COHERENCE_THRESHOLD
+            else "ACTIVE"
+            if auris_gamma >= ACTIVE_COHERENCE_THRESHOLD
+            else "ORGANIZING"
+            if auris_gamma >= PHI_INVERSE
+            else "LOW"
+        )
         answer_receipt = _receipt(
             "thought:10-9-1:answer:",
             {
@@ -670,8 +757,8 @@ class TenNineOneThoughtPath:
                 "provider_source_timestamp": moment.source_timestamp,
                 "auris_gamma": auris_gamma,
                 "coherence_band": coherence_band,
-                "coherence_threshold": ACTIVE_COHERENCE_THRESHOLD,
-                "auris_gate_open": True,
+                "coherence_threshold": coherence_threshold,
+                "auris_gate_open": auris_gate_open,
                 **_FALSE_FLAGS,
             },
         )
@@ -883,22 +970,38 @@ def validate_ten_nine_one_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     ):
         if type(hnc.get(name)) is not float or hnc[name].hex() != expected.hex():
             raise ValueError("phi_policy_mismatch")
+    auris_gate_open = answer.get("auris_gate_open")
+    auris_gamma = _finite(answer.get("auris_gamma"), "auris_gamma")
+    coherence_threshold = answer.get("coherence_threshold")
+    if type(coherence_threshold) is not float:
+        raise ValueError("auris_answer_policy_mismatch")
     if (
         answer.get("stage") != 1
         or answer.get("hnc_stage_receipt_id") != hnc.get("receipt_id")
         or answer.get("answer_digest") != answer_digest
         or answer.get("hnc_receipt_id") != hnc.get("hnc_receipt_id")
-        or answer.get("auris_gate_open") is not True
-        or _finite(answer.get("auris_gamma"), "auris_gamma") < ACTIVE_COHERENCE_THRESHOLD
     ):
         raise ValueError("auris_answer_binding_mismatch")
-    auris_gamma = float(answer["auris_gamma"])
-    expected_band = "LIGHTHOUSE" if auris_gamma >= LIGHTHOUSE_COHERENCE_THRESHOLD else "ACTIVE"
+    if coherence_threshold.hex() == ACTIVE_COHERENCE_THRESHOLD.hex():
+        if auris_gate_open is not True or auris_gamma < ACTIVE_COHERENCE_THRESHOLD:
+            raise ValueError("auris_answer_binding_mismatch")
+    elif coherence_threshold.hex() == PHI_INVERSE.hex():
+        if auris_gate_open is not False or auris_gamma < PHI_INVERSE:
+            raise ValueError("auris_answer_binding_mismatch")
+    else:
+        raise ValueError("auris_answer_policy_mismatch")
+    expected_band = (
+        "LIGHTHOUSE"
+        if auris_gamma >= LIGHTHOUSE_COHERENCE_THRESHOLD
+        else "ACTIVE"
+        if auris_gamma >= ACTIVE_COHERENCE_THRESHOLD
+        else "ORGANIZING"
+        if auris_gamma >= PHI_INVERSE
+        else "LOW"
+    )
     provider_ids = answer.get("provider_receipt_ids")
     if (
         answer.get("coherence_band") != expected_band
-        or type(answer.get("coherence_threshold")) is not float
-        or answer["coherence_threshold"].hex() != ACTIVE_COHERENCE_THRESHOLD.hex()
         or not isinstance(provider_ids, list)
         or not provider_ids
         or provider_ids != sorted(set(provider_ids))
@@ -940,6 +1043,35 @@ def build_local_ten_nine_one_thought_path(
     )
 
 
+def build_local_ten_nine_one_confidential_thought_path(
+    *,
+    bus: Any = None,
+    root: Path | None = None,
+    max_age_s: float | None = None,
+) -> TenNineOneThoughtPath:
+    """Build a cognition-only, commitment-only path for confidential self-coding.
+
+    The trading gate may be closed; only live HNC/Auris evidence and the
+    organizing coherence band are required.  Raw answers never touch the bus
+    or durable traces.
+    """
+
+    if max_age_s is None:
+        try:
+            max_age_s = float(
+                os.environ.get("AUREON_SELF_CODER_HNC_MAX_AGE_S", "")
+                or DEFAULT_MAX_AGE_S
+            )
+        except (TypeError, ValueError):
+            max_age_s = DEFAULT_MAX_AGE_S
+    return TenNineOneThoughtPath(
+        resolver=LocalHncAurisEvidenceResolver(bus=bus, root=root),
+        propagator=CommitmentOnlyHiveMyceliaPropagator(bus=bus),
+        cognition_only=True,
+        max_age_s=max_age_s,
+    )
+
+
 __all__ = [
     "ACTIVE_COHERENCE_THRESHOLD",
     "AURIS_SCHEMA",
@@ -961,6 +1093,7 @@ __all__ = [
     "ThoughtPathRequest",
     "ThoughtPathResult",
     "build_delivery_ack",
+    "build_local_ten_nine_one_confidential_thought_path",
     "build_local_ten_nine_one_thought_path",
     "validate_delivery_ack",
     "validate_ten_nine_one_receipt",

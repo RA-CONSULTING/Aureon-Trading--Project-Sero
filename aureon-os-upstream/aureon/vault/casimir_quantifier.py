@@ -13,6 +13,11 @@ High drift → system undergoing transformation (wide gap, force spikes)
 
 The quantifier wraps `aureon.utils.aureon_miner.CasimirEffectEngine`
 when available, and falls back to a pure-Python surrogate otherwise.
+
+Effect paths (`measure`, native-engine loading) are gated by the
+fail-closed core release record
+(`aureon_fusion/state/vault/core_release.json`); the `CasimirReading`
+data shape is a consumer contract and is unchanged by the gate.
 """
 
 from __future__ import annotations
@@ -29,6 +34,15 @@ logger = logging.getLogger("aureon.vault.casimir")
 CASIMIR_RELEASE_HOLD = (
     "casimir_quantifier_hold:production_magic_star_release_unavailable"
 )
+
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/vault/core_release.json) names this module.
+from aureon.vault import _core_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("casimir_quantifier"):
+        raise RuntimeError(CASIMIR_RELEASE_HOLD)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -70,7 +84,7 @@ class CasimirQuantifier:
 
     def __init__(self, tau_s: float = 30.0, *, use_native_engine: bool = False):
         if use_native_engine:
-            raise RuntimeError(CASIMIR_RELEASE_HOLD)
+            _require_release()
         self.tau_s = float(tau_s)
         self._engine: Any = None
         self._engine_kind: str = "stub"
@@ -79,7 +93,7 @@ class CasimirQuantifier:
             self._load_engine()
 
     def _load_engine(self) -> None:
-        raise RuntimeError(CASIMIR_RELEASE_HOLD)
+        _require_release()
         try:
             from aureon.utils.aureon_miner import CasimirEffectEngine
             self._engine = CasimirEffectEngine()
@@ -106,8 +120,18 @@ class CasimirQuantifier:
     def measure(self, vault: Any) -> CasimirReading:
         """
         Compute the Casimir force between the vault's present and past.
+
+        Gated by the fail-closed release record; when released, a fusion-
+        conscience VETO refuses the measurement (fail-closed). The reading
+        shape (forces bounded to [0, 10], 16-hex fingerprints, drift bits)
+        is a consumer contract and is unchanged by the gate.
         """
-        raise RuntimeError(CASIMIR_RELEASE_HOLD)
+        _require_release()
+        if not _release.conscience_permits(
+            "casimir_quantifier: measure vault drift (Casimir present/past)",
+            {"tau_s": self.tau_s, "engine_kind": self._engine_kind},
+        ):
+            raise RuntimeError("conscience_veto:casimir_quantifier.measure")
         present_fp = self._vault_fingerprint(vault)
         past_fp = self._vault_fingerprint_at_tau(vault, self.tau_s)
 
@@ -138,7 +162,7 @@ class CasimirQuantifier:
         past_fp: str,
         drift_bits: int,
     ) -> CasimirReading:
-        raise RuntimeError(CASIMIR_RELEASE_HOLD)
+        _require_release()
         # Emit a photon from each plate whose energy tracks the drift
         energy = float(max(1.0, min(255.0, drift_bits * 4.0)))
         nonce_present = int(present_fp[:8], 16)

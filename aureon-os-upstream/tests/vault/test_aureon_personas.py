@@ -40,6 +40,14 @@ from aureon.vault.voice.aureon_personas import (  # noqa: E402
 from aureon.vault.voice.vault_voice import VOICE_REGISTRY  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch, tmp_path) -> None:
+    """Default every test to the fail-closed HOLD: point the release
+    record at a path that does not exist."""
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
 class _StubAdapter:
     """Record-only adapter — returns a short canned response so speak() works."""
 

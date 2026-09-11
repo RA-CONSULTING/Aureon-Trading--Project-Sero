@@ -1,165 +1,459 @@
 /**
- * Get Started — the guided first run.
+ * Get Started — reviewed glass design (get_started_concept_v1), current account setup.
  *
- * The one surface that orients a brand-new user: connect a model, confirm it
- * responds, then start reasoning. Every step reflects the live account state
- * (useSetupStatus), so the checklist is honest — it ticks itself as the user
- * actually completes each step, and never claims readiness the backend can't back.
+ * Route: /start. Three-step onboarding: connect a model, test connection, open chat.
+ * Softs: Companies House · Innovate NI Silver · MIT License · Honest Provenance.
+ * Palette: zinc / gold / cyan only — no paint-green, no fake live chips.
+ * Provider setup uses the shared authenticated read owner; past tests retain their date.
  */
 
-import { CheckCircle2, Circle, KeyRound, MessageSquare, Rocket, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  ArrowRight,
+  Award,
+  CheckCircle2,
+  ExternalLink,
+  HelpCircle,
+  Info,
+  MessageSquare,
+  Network,
+  Play,
+  RefreshCw,
+  Scale,
+  ScrollText,
+  Shield,
+} from "lucide-react";
 import { Link } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useSetupStatus } from "@/hooks/useSetupStatus";
+import { useProviderConfiguration } from "@/hooks/useSetupStatus";
+import { configurationMessage, setupFromReceipt } from "@/lib/accountConfigurationEvidence";
+import { onboardingProviderEvidence } from "@/lib/onboardingEvidence";
+import { COMPANY, RECOGNITION } from "../companyFacts";
+
+const GOLD = "#FFB800";
+const CYAN = "#00E5FF";
+const BG = "#0e0e0e";
+const PANEL = "rgba(18, 18, 18, 0.78)";
+const BORDER = "#3f3f46";
+
+const CH_URL = `https://find-and-update.company-information.service.gov.uk/company/${COMPANY.companyNumber}`;
+const LICENSE_URL = `${COMPANY.repository}/blob/main/LICENSE`;
 
 type StepState = "done" | "current" | "todo";
 
-function StepRow({
-  index,
-  icon: Icon,
-  title,
-  description,
-  state,
-  action,
+function GlassCard({
+  children,
+  className = "",
+  active = false,
 }: {
-  index: number;
-  icon: typeof KeyRound;
-  title: string;
-  description: string;
-  state: StepState;
-  action?: { label: string; to: string };
+  children: ReactNode;
+  className?: string;
+  active?: boolean;
 }) {
   return (
     <div
-      className={
-        "flex gap-4 rounded-lg border p-4 transition-colors " +
-        (state === "current" ? "border-primary/40 bg-primary/5" : "border-border/60")
-      }
+      className={`flex h-full flex-col rounded-xl border p-5 backdrop-blur-md ${className}`}
+      style={{
+        background: PANEL,
+        borderColor: active ? `${GOLD}66` : BORDER,
+        boxShadow: active ? `0 0 0 1px ${GOLD}22 inset` : undefined,
+      }}
     >
-      <div className="mt-0.5 shrink-0">
-        {state === "done" ? (
-          <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-        ) : (
-          <span className="relative inline-flex h-6 w-6 items-center justify-center">
-            <Circle className={"h-6 w-6 " + (state === "current" ? "text-primary" : "text-muted-foreground/40")} />
-            <span className="absolute text-xs font-semibold tabular-nums">{index}</span>
-          </span>
-        )}
-      </div>
+      {children}
+    </div>
+  );
+}
+
+function Stepper({
+  steps,
+}: {
+  steps: Array<{ label: string; state: StepState }>;
+}) {
+  return (
+    <div className="relative mx-auto mb-8 max-w-3xl px-2">
+      <div
+        className="absolute left-[16.6%] right-[16.6%] top-4 h-px"
+        style={{ background: BORDER }}
+        aria-hidden
+      />
+      <ol className="relative grid grid-cols-3 gap-2">
+        {steps.map((s, i) => {
+          const active = s.state === "current" || s.state === "done";
+          return (
+            <li key={s.label} className="flex flex-col items-center text-center">
+              <span
+                className="relative z-[1] flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold"
+                style={
+                  active
+                    ? { background: GOLD, borderColor: GOLD, color: "#0a0a0a" }
+                    : { background: BG, borderColor: BORDER, color: "#a1a1aa" }
+                }
+              >
+                {s.state === "done" ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+              </span>
+              <span
+                className="mt-2 text-xs font-medium"
+                style={{ color: active ? GOLD : "#71717a" }}
+              >
+                {s.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function SoftChip({
+  icon: Icon,
+  title,
+  detail,
+  href,
+  accent = "gold",
+}: {
+  icon: typeof Shield;
+  title: string;
+  detail: string;
+  href?: string;
+  accent?: "gold" | "cyan";
+}) {
+  const color = accent === "cyan" ? CYAN : GOLD;
+  const inner = (
+    <>
+      <Icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color }} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <Icon className="h-4 w-4 text-muted-foreground" />
-          <h3 className="font-medium">{title}</h3>
-          {state === "done" && (
-            <Badge variant="success" className="text-[10px]">
-              done
-            </Badge>
-          )}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] font-medium text-zinc-100">{title}</span>
+          {href && <ExternalLink className="h-3 w-3 text-zinc-500" />}
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+        <p className="text-[10px] leading-snug text-zinc-500">{detail}</p>
       </div>
-      {action && state !== "done" && (
-        <div className="shrink-0 self-center">
-          <Button asChild size="sm" variant={state === "current" ? "default" : "outline"}>
-            <Link to={action.to}>{action.label}</Link>
-          </Button>
-        </div>
-      )}
+    </>
+  );
+  const className =
+    "flex items-start gap-2.5 rounded-lg border px-3 py-2.5 backdrop-blur-sm transition-colors hover:border-zinc-500";
+  const style = { background: PANEL, borderColor: BORDER };
+  if (href?.startsWith("http")) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className={className} style={style}>
+        {inner}
+      </a>
+    );
+  }
+  if (href) {
+    return (
+      <Link to={href} className={className} style={style}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <div className={className} style={style}>
+      {inner}
     </div>
   );
 }
 
 export default function GetStartedPage() {
-  const setup = useSetupStatus();
+  const configuration = useProviderConfiguration();
+  const setup = setupFromReceipt(configuration);
+  const providerEvidence = onboardingProviderEvidence(setup.known ? configuration.providers : null);
 
-  const step1: StepState = setup.hasProvider ? "done" : "current";
-  const step2: StepState = setup.liveProvider ? "done" : setup.hasProvider ? "current" : "todo";
-  const step3: StepState = setup.hasProvider ? "current" : "todo";
-  const ready = setup.hasProvider;
+  const step1: StepState = setup.hasProvider === true ? "done" : "current";
+  const step2: StepState =
+    providerEvidence.tested === true ? "done" : setup.hasProvider === true ? "current" : "todo";
+  const step3: StepState = providerEvidence.attached === true ? "current" : "todo";
+
+  const steppers = [
+    { label: "Connect a model", state: step1 === "done" ? ("done" as const) : ("current" as const) },
+    { label: "Test connection", state: step2 },
+    { label: "Open chat", state: step3 === "todo" ? ("todo" as const) : ("current" as const) },
+  ];
+
+  const modelConnected = setup.known && setup.hasProvider === true;
+  const modelTested = setup.known && providerEvidence.tested === true;
+  const chatReady = setup.known && providerEvidence.attached === true;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Rocket className="h-6 w-6 text-primary" />
+    <div className="min-h-full space-y-5 p-4 text-zinc-100 sm:p-6" style={{ background: BG }} data-page="get-started-v1">
+      {/* Honesty banner — SHIPPED GLASS */}
+      <div
+        className="rounded-md border px-3 py-2"
+        style={{ borderColor: `${GOLD}55`, background: `${GOLD}0d` }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>
+          Model setup · account configuration
+        </p>
+        <p className="mt-0.5 text-[10px] uppercase tracking-wide" style={{ color: `${GOLD}cc` }}>
+          Setup comes from the current account. Connection tests show their original recorded date.
+        </p>
+      </div>
+
+      <div
+        className="flex items-center gap-2 rounded-md border px-3 py-2"
+        style={{ borderColor: `${GOLD}44`, background: "#0a0a0a" }}
+      >
+        <Info className="h-3.5 w-3.5 shrink-0" style={{ color: CYAN }} />
+        <p className="flex-1 text-[11px] text-zinc-400">
+          {setup.lastReceivedAt ? `Configuration read: ${new Date(setup.lastReceivedAt).toLocaleString()}` : 'Waiting for account configuration.'}
+        </p>
+        <button type="button" onClick={() => configuration.refresh()} className="inline-flex items-center gap-1.5 text-xs" style={{ color: CYAN }}><RefreshCw className="h-3.5 w-3.5" />Refresh</button>
+      </div>
+
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Get Started</h1>
-          <p className="text-sm text-muted-foreground">
-            Three steps to your first grounded conversation with Aureon. The checklist ticks itself as
-            you go — nothing here is faked.
+          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Get Started</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            Connect a model, verify it works, and open a secure chat.
           </p>
         </div>
+        <Link
+          to="/legal"
+          className="inline-flex items-center gap-1.5 text-sm font-medium transition-colors hover:opacity-90"
+          style={{ color: GOLD }}
+        >
+          <HelpCircle className="h-4 w-4" />
+          Need help?
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
 
       {setup.loading && (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-64 animate-pulse rounded-xl border"
+              style={{ background: PANEL, borderColor: BORDER }}
+            />
           ))}
         </div>
       )}
 
-      {!setup.loading && setup.offline && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">The Aureon backend isn't reachable yet</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            This page needs the operator gateway running. If you're on the hosted app, give it a moment
-            and refresh; if you're running locally, start the operator service, then reload.
-          </CardContent>
-        </Card>
+      {!setup.loading && !setup.known && (
+        <GlassCard>
+          <div className="flex items-start gap-3">
+            <Info className="mt-0.5 h-5 w-5 shrink-0" style={{ color: GOLD }} />
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-100">Setup state unavailable</h2>
+              <p className="mt-1 text-sm text-zinc-400">{configurationMessage(setup.status, setup.error)}</p>
+              <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-500">
+                Fail-closed — no readiness claimed without a configuration receipt.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs" style={{ color: CYAN }}><Link to="/account">Open account and session</Link><Link to="/cognition/providers">Open model providers</Link></div>
+            </div>
+          </div>
+        </GlassCard>
       )}
 
-      {!setup.loading && !setup.offline && (
+      {!setup.loading && setup.known && (
         <>
-          {ready && (
-            <Card className="border-emerald-500/30 bg-emerald-500/5">
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                  <span className="text-sm font-medium">
-                    You're set up — {setup.providerCount} model
-                    {setup.providerCount === 1 ? "" : "s"} connected. Start a conversation.
-                  </span>
-                </div>
-                <Button asChild size="sm">
-                  <Link to="/cognition/operator">Open Operator Chat</Link>
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          <Stepper steps={steppers} />
 
-          <div className="space-y-3">
-            <StepRow
-              index={1}
-              icon={KeyRound}
-              title="Connect a model"
-              description="Paste an API key for any model (OpenAI, Anthropic, Gemini, Grok, or a local one) on the Providers page. Keys are encrypted at rest, masked on read, and — when you're signed in — scoped to your account alone."
-              state={step1}
-              action={{ label: setup.hasProvider ? "Manage keys" : "Add a key", to: "/cognition/providers" }}
-            />
-            <StepRow
-              index={2}
-              icon={ShieldCheck}
-              title="Test the connection"
-              description="Run a real round-trip from the Providers page to confirm your key works. An honest verdict — reachable or not — comes straight back; nothing is assumed."
-              state={step2}
-              action={{ label: "Test on Providers", to: "/cognition/providers" }}
-            />
-            <StepRow
-              index={3}
-              icon={MessageSquare}
-              title="Start reasoning"
-              description="Open Operator Chat and ask anything — from the repository to the cosmos. Answers show their provenance: repo grounding, tool calls, and the conscience verdict, never hidden."
-              state={step3}
-              action={{ label: "Open Operator Chat", to: "/cognition/operator" }}
-            />
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* 1 Connect a model */}
+            <GlassCard active={step1 === "current" || step1 === "done"}>
+              <h2
+                className="text-sm font-semibold"
+                style={{ color: GOLD }}
+              >
+                1 Connect a model
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                Select and configure a supported model provider or endpoint.
+              </p>
+              <div
+                className="mt-4 flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed px-4 py-8 text-center"
+                style={{ borderColor: BORDER, background: "#0a0a0a" }}
+              >
+                {modelConnected ? (
+                  <>
+                    <CheckCircle2 className="mb-2 h-8 w-8" style={{ color: CYAN }} />
+                    <p className="text-sm font-medium text-zinc-100">
+                      {setup.providerCount} model endpoint{setup.providerCount === 1 ? "" : "s"} configured
+                    </p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      {setup.liveProvider === true
+                        ? "An adapter is attached to the runtime."
+                        : "Runtime attachment is not confirmed."}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Network className="mb-2 h-8 w-8" style={{ color: CYAN }} />
+                    <p className="text-sm font-medium text-zinc-100">No model connected</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      Add a model provider or endpoint to begin.
+                    </p>
+                  </>
+                )}
+              </div>
+              <Link
+                to="/cognition/providers"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+                style={
+                  step1 === "done"
+                    ? { background: "transparent", color: GOLD, border: `1px solid ${GOLD}88` }
+                    : { background: GOLD, color: "#0a0a0a" }
+                }
+              >
+                {modelConnected ? "Manage Model" : "Add Model"}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </GlassCard>
+
+            {/* 2 Test connection */}
+            <GlassCard active={step2 === "current"}>
+              <h2
+                className="text-sm font-semibold"
+                style={{ color: step2 === "current" || step2 === "done" ? GOLD : "#a1a1aa" }}
+              >
+                2 Test connection
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                Verify the endpoint, authentication, and basic response.
+              </p>
+              <div
+                className="mt-4 flex flex-1 flex-col items-center justify-center rounded-lg border px-4 py-8 text-center"
+                style={{ borderColor: BORDER, background: "#0a0a0a" }}
+              >
+                {modelTested ? (
+                  <>
+                    <CheckCircle2 className="mb-2 h-8 w-8" style={{ color: CYAN }} />
+                    <p className="text-sm font-medium text-zinc-100">Successful test recorded</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      {providerEvidence.testedProvider}: {providerEvidence.testedAt}
+                      {' '}This records a past response; run a new test to check it now.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mb-2 h-8 w-8" style={{ color: CYAN }} />
+                    <p className="text-sm font-medium text-zinc-100">Not tested</p>
+                    {setup.testedProviderReason ? (
+                      <p className="mt-1 text-[11px] text-zinc-500">{setup.testedProviderReason}</p>
+                    ) : (
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        Run a real round-trip from Providers — nothing is assumed.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+              <Link
+                to="/cognition/providers"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md border px-4 py-2.5 text-sm font-medium text-zinc-200 transition-colors hover:border-zinc-500"
+                style={{
+                  borderColor: step2 === "current" ? `${GOLD}66` : BORDER,
+                  background: "#121212",
+                  opacity: 1,
+                  pointerEvents: "auto",
+                }}
+              >
+                <Play className="h-4 w-4" style={{ color: step2 === "current" ? GOLD : CYAN }} />
+                {modelTested ? "Retest on Providers" : "Run Test"}
+              </Link>
+            </GlassCard>
+
+            {/* 3 Open chat */}
+            <GlassCard active={step3 === "current"}>
+              <h2
+                className="text-sm font-semibold"
+                style={{ color: step3 === "current" ? GOLD : "#a1a1aa" }}
+              >
+                3 Open chat
+              </h2>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+                Once verified, open a secure chat and start working with evidence.
+              </p>
+              <div
+                className="mt-4 flex flex-1 flex-col items-center justify-center rounded-lg border px-4 py-8 text-center"
+                style={{ borderColor: BORDER, background: "#0a0a0a" }}
+              >
+                {chatReady ? (
+                  <>
+                    <MessageSquare className="mb-2 h-8 w-8" style={{ color: CYAN }} />
+                    <p className="text-sm font-medium text-zinc-100">Runtime model attached</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      Open Operator Chat to send a request through the current provider.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="mb-2 h-8 w-8" style={{ color: CYAN }} />
+                    <p className="text-sm font-medium text-zinc-100">Runtime attachment not confirmed</p>
+                    <p className="mt-1 text-[11px] text-zinc-500">
+                      Review Providers for connection and test details. Chat shows the response state for each request.
+                    </p>
+                  </>
+                )}
+              </div>
+                <Link
+                  to="/cognition/operator"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+                  style={chatReady ? { background: GOLD, color: "#0a0a0a" } : { background: '#121212', color: CYAN, border: `1px solid ${BORDER}` }}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Open Chat
+                </Link>
+            </GlassCard>
           </div>
         </>
       )}
+
+      {/* Softs / claim bar */}
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <SoftChip
+          icon={Shield}
+          title={`Companies House ${COMPANY.companyNumber}`}
+          detail="Registered company (NI) — verifiable public register"
+          href={CH_URL}
+        />
+        <SoftChip
+          icon={Award}
+          title="Innovate NI · Silver"
+          detail={`${RECOGNITION.issuer} · ${RECOGNITION.date}`}
+          href="/company"
+        />
+        <SoftChip
+          icon={Scale}
+          title="MIT License"
+          detail="Open-source MIT license — not a university affiliation"
+          href={LICENSE_URL}
+        />
+        <SoftChip
+          icon={ScrollText}
+          title="Honest Provenance"
+          detail="Inspect published evidence and its stated sources."
+          href="/evidence"
+          accent="cyan"
+        />
+      </div>
+
+      {/* Risk disclosure */}
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2.5"
+        style={{ borderColor: BORDER, background: "#0a0a0a" }}
+      >
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500" />
+          <p className="text-[11px] leading-snug text-zinc-400">
+            <span className="font-semibold text-zinc-300">Risk Disclosure:</span> Aureon Evidence OS
+            is not financial advice. Model outputs may be inaccurate or incomplete. Users are
+            responsible for independent verification and due diligence.
+          </p>
+        </div>
+        <Link
+          to="/legal#risk"
+          className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold transition-opacity hover:opacity-90"
+          style={{ color: GOLD }}
+        >
+          Read Full Risk Disclosure
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+      </div>
+
     </div>
   );
 }

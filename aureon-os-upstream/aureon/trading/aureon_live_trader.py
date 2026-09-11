@@ -5,6 +5,9 @@ AUREON LIVE TRADER - Active Trading System
 Trades BTC pairs using AUREON signals with proper position management.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import hmac
 import hashlib
@@ -46,17 +49,26 @@ def sign_request(params):
 
 def get_account():
     """Get account balances"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.get_account blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     query = sign_request({})
     url = f'https://api.binance.com/api/v3/account?{query}'
     return requests.get(url, headers={'X-MBX-APIKEY': API_KEY}).json()
 
 def get_prices():
     """Get all current prices"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.get_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     resp = requests.get('https://api.binance.com/api/v3/ticker/price').json()
     return {p['symbol']: float(p['price']) for p in resp}
 
 def get_24h_changes():
     """Get 24h price changes"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.get_24h_changes blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     resp = requests.get('https://api.binance.com/api/v3/ticker/24hr').json()
     return {t['symbol']: {
         'change': float(t['priceChangePercent']),
@@ -68,6 +80,9 @@ def get_24h_changes():
 
 def get_klines(symbol, interval='15m', limit=20):
     """Get candlestick data"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.get_klines blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     resp = requests.get(
         f'https://api.binance.com/api/v3/klines',
         params={'symbol': symbol, 'interval': interval, 'limit': limit}
@@ -82,6 +97,9 @@ def get_klines(symbol, interval='15m', limit=20):
 
 def get_symbol_info(symbol):
     """Get trading rules for a symbol"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.get_symbol_info blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     resp = requests.get('https://api.binance.com/api/v3/exchangeInfo', 
                        params={'symbol': symbol}).json()
     for s in resp.get('symbols', []):
@@ -104,6 +122,9 @@ def round_step(value, step):
 
 def place_order(symbol, side, quantity):
     """Place a market order"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     params = {
         'symbol': symbol,
         'side': side,
@@ -149,6 +170,9 @@ def save_positions(positions):
 
 def aureon_score(symbol, klines, ticker_24h):
     """Calculate AUREON trading score (0-100)"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.aureon_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if not klines or len(klines) < 15:
         return 0
     
@@ -203,6 +227,9 @@ def aureon_score(symbol, klines, ticker_24h):
 
 def find_opportunities(prices, tickers, btc_balance):
     """Find trading opportunities"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.find_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     opportunities = []
     
     # Top BTC pairs to scan
@@ -240,6 +267,9 @@ def find_opportunities(prices, tickers, btc_balance):
 
 def check_positions(prices, btc_price):
     """Check and manage open positions"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.check_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     positions = load_positions()
     closed = []
     
@@ -310,6 +340,9 @@ def check_positions(prices, btc_price):
 
 def run_trader():
     """Main trading loop"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live_trader.run_trader blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*60)
     print("🚀 AUREON LIVE TRADER - Starting")
     print("="*60)

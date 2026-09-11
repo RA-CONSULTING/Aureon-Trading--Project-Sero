@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import { useExchangeDataVerification } from '@/hooks/useExchangeDataVerification';
+import { useTerminalState } from '@/hooks/useTerminalState';
 
 interface DataSourceIndicatorProps {
   compact?: boolean;
@@ -75,9 +76,20 @@ export const DataSourceIndicator: React.FC<DataSourceIndicatorProps> = ({
 /**
  * Critical warning banner when live data unavailable
  * NO SIMULATION ALLOWED - Trading blocked
+ *
+ * This banner is gated by the local terminal-state stream first: when the
+ * runtime's own read-only feed is fresh, do not claim the whole stack is
+ * offline just because an auxiliary Supabase verification edge function is
+ * unavailable. Execution remains held by the terminal's exchange_action_plan
+ * regardless of this banner.
  */
 export const DemoModeWarningBanner: React.FC = () => {
   const { isLiveData, hasGhostData } = useExchangeDataVerification();
+  const { isStreamFresh, freshness } = useTerminalState();
+
+  // If the local runtime terminal-state stream is fresh, the live trading
+  // surface has current market observations; do not show a global banner.
+  if (isStreamFresh) return null;
 
   // Only show if NOT live data (no simulation fallback)
   if (isLiveData && !hasGhostData) return null;
@@ -87,7 +99,7 @@ export const DemoModeWarningBanner: React.FC = () => {
       <div className="flex items-center justify-center gap-2">
         <WifiOff className="h-4 w-4" />
         <span className="font-bold">
-          ⛔ TRADING BLOCKED - NO LIVE DATA CONNECTION - CHECK EXCHANGE CREDENTIALS ⛔
+          ⛔ TRADING BLOCKED - {freshness.reason || 'NO LIVE DATA CONNECTION'} - CHECK EXCHANGE CREDENTIALS ⛔
         </span>
         <WifiOff className="h-4 w-4" />
       </div>

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { SiteFooter } from "./SiteFooter";
 import { BrandMark } from "./Brand";
 import { PRODUCT } from "./companyFacts";
+import "./glass.css";
 
 const NAV = [
   { to: "/evidence", label: "Evidence" },
@@ -21,7 +22,7 @@ const NAV = [
 
 export default function PublicLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="aureon-glass-shell flex min-h-screen flex-col bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
           <Link to="/" className="flex items-center gap-2.5">

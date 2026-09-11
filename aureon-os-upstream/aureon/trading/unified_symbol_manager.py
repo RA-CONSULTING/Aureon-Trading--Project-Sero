@@ -15,6 +15,8 @@
 ║    - Minimum order validation                                                           ║
 ╚═══════════════════════════════════════════════════════════════════════════════════════╝
 """
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -244,6 +246,9 @@ class UnifiedSymbolManager:
     
     @property
     def alpaca(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.alpaca blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self._alpaca is None:
             try:
                 from aureon.exchanges.alpaca_client import AlpacaClient
@@ -254,6 +259,9 @@ class UnifiedSymbolManager:
     
     @property
     def capital(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.capital blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self._capital is None:
             try:
                 from aureon.exchanges.capital_client import CapitalClient
@@ -273,6 +281,9 @@ class UnifiedSymbolManager:
     
     def load_kraken_symbols(self, force_refresh: bool = False) -> Dict[str, SymbolInfo]:
         """Load all tradeable symbols from Kraken."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.load_kraken_symbols blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not force_refresh and self._is_cache_valid('kraken'):
             return self._symbol_cache['kraken']
         
@@ -355,6 +366,9 @@ class UnifiedSymbolManager:
     
     def load_binance_symbols(self, force_refresh: bool = False) -> Dict[str, SymbolInfo]:
         """Load all tradeable symbols from Binance."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.load_binance_symbols blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not force_refresh and self._is_cache_valid('binance'):
             return self._symbol_cache['binance']
         
@@ -439,6 +453,9 @@ class UnifiedSymbolManager:
     
     def load_alpaca_symbols(self, force_refresh: bool = False) -> Dict[str, SymbolInfo]:
         """Load all tradeable symbols from Alpaca."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.load_alpaca_symbols blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not force_refresh and self._is_cache_valid('alpaca'):
             return self._symbol_cache['alpaca']
         
@@ -516,6 +533,9 @@ class UnifiedSymbolManager:
     
     def load_capital_symbols(self, force_refresh: bool = False) -> Dict[str, SymbolInfo]:
         """Load all tradeable symbols from Capital.com."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.load_capital_symbols blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not force_refresh and self._is_cache_valid('capital'):
             return self._symbol_cache['capital']
         
@@ -580,6 +600,9 @@ class UnifiedSymbolManager:
     
     def load_all_symbols(self, force_refresh: bool = False) -> Dict[str, Dict[str, SymbolInfo]]:
         """Load symbols from all exchanges."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.load_all_symbols blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return {
             'kraken': self.load_kraken_symbols(force_refresh),
             'binance': self.load_binance_symbols(force_refresh),
@@ -620,6 +643,9 @@ class UnifiedSymbolManager:
     
     def to_exchange_format(self, symbol: str, exchange: str) -> str:
         """Convert a symbol to exchange-specific format."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.to_exchange_format blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         base, quote = self.parse_symbol(symbol)
         exchange = exchange.lower()
         
@@ -639,6 +665,9 @@ class UnifiedSymbolManager:
     
     def to_kraken(self, symbol: str) -> str:
         """Convert symbol to Kraken format."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.to_kraken blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         return self.to_exchange_format(symbol, 'kraken')
     
     def to_binance(self, symbol: str, prefer_usdc: bool = True) -> str:
@@ -679,6 +708,9 @@ class UnifiedSymbolManager:
     
     def get_symbol_info(self, symbol: str, exchange: str) -> Optional[SymbolInfo]:
         """Get symbol info for a specific exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.get_symbol_info blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         exchange = exchange.lower()
         
         # Load symbols if not cached
@@ -705,6 +737,9 @@ class UnifiedSymbolManager:
     
     def format_quantity(self, qty: float, symbol: str, exchange: str) -> str:
         """Format quantity to exchange's precision requirements."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.format_quantity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         info = self.get_symbol_info(symbol, exchange)
         
         if info:
@@ -732,6 +767,9 @@ class UnifiedSymbolManager:
     
     def validate_order(self, qty: float, symbol: str, exchange: str, price: float = 0.0) -> Tuple[bool, str]:
         """Validate order quantity against exchange limits."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.validate_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         info = self.get_symbol_info(symbol, exchange)
         
         if info:
@@ -746,6 +784,9 @@ class UnifiedSymbolManager:
     
     def get_all_symbols(self, exchange: str) -> List[str]:
         """Get all tradeable symbols for an exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.get_all_symbols blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         exchange = exchange.lower()
         
         if exchange == 'kraken':
@@ -771,6 +812,9 @@ class UnifiedSymbolManager:
     
     def find_best_pair(self, base: str, exchange: str, preferred_quotes: List[str] = None) -> Optional[str]:
         """Find the best available trading pair for a base asset."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.find_best_pair blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         exchange = exchange.lower()
         base = base.upper()
         
@@ -813,6 +857,9 @@ class UnifiedSymbolManager:
     
     def get_min_order_size(self, symbol: str, exchange: str, price: float = 0.0) -> float:
         """Get minimum order size for a symbol."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.get_min_order_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         info = self.get_symbol_info(symbol, exchange)
         
         if not info:
@@ -829,6 +876,9 @@ class UnifiedSymbolManager:
     
     def print_status(self) -> str:
         """Print symbol manager status."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_symbol_manager.UnifiedSymbolManager.print_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         lines = [
             "",
             "═" * 80,

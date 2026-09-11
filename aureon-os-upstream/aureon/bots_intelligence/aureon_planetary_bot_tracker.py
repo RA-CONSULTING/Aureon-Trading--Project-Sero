@@ -21,7 +21,7 @@ if sys.platform == 'win32':
     try:
         import io
         def _is_utf8_wrapper(stream):
-            return (isinstance(stream, io.TextIOWrapper) and 
+            return (isinstance(stream, io.TextIOWrapper) and
                     hasattr(stream, 'encoding') and stream.encoding and
                     stream.encoding.lower().replace('-', '') == 'utf8')
         if hasattr(sys.stdout, 'buffer') and not _is_utf8_wrapper(sys.stdout):
@@ -41,6 +41,8 @@ from typing import Dict, List, Set, Optional, Tuple
 from datetime import datetime, timezone
 from collections import defaultdict, deque
 import hashlib
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 # Sacred constants
 PHI = (1 + math.sqrt(5)) / 2  # 1.618 Golden ratio
@@ -482,8 +484,12 @@ class PlanetaryBotTracker:
     
     async def connect_to_bot_hunter(self, url: str = "ws://localhost:9999"):
         """Connect to Bot Hunter Dashboard WebSocket."""
+        if no_external_api_calls():
+            self.logger.info("Planetary Bot Tracker connect_to_bot_hunter blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self.logger.info(f"🌍 Connecting to Bot Hunter at {url}")
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(url) as ws:
@@ -536,15 +542,19 @@ async def main():
         format='%(asctime)s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    
+
+    if no_external_api_calls():
+        logging.getLogger(__name__).info("Planetary Bot Tracker blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     tracker = PlanetaryBotTracker()
-    
+
     print("🌍 AUREON PLANETARY BOT TRACKER 🌍")
     print("=" * 80)
     print("Mapping global bot movements as TIDAL WAVES")
     print("Tracking: Countries → Companies → Clans → Coordinated Battles")
     print("=" * 80)
-    
+
     # Connect to Bot Hunter
     await tracker.connect_to_bot_hunter()
 

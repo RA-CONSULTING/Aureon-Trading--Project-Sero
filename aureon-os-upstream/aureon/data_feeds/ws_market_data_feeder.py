@@ -7,7 +7,7 @@ Purpose:
 - Does NOT change trading logic; it only publishes data the trader can optionally consume.
 
 Current backends:
-- Binance: all-market tickers via !ticker@arr (free)
+- Binance: all-market tickers via !miniTicker@arr (free)
 - Kraken: public REST ticker snapshots (free, budgeted)
 - Alpaca: authenticated stock/crypto snapshots when credentials exist
 - Capital: authenticated CFD/stock snapshots when credentials exist
@@ -63,12 +63,18 @@ import asyncio
 import atexit
 import ctypes
 import json
+import math
 import subprocess
+import threading
 import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 try:
     import websockets
@@ -81,6 +87,14 @@ PUBLIC_DIR = REPO_ROOT / "frontend" / "public"
 LIVE_WAVEFORM_RECORDER_STATE_PATH = STATE_DIR / "aureon_live_waveform_recorder.json"
 LIVE_WAVEFORM_RECORDER_PUBLIC_PATH = PUBLIC_DIR / "aureon_live_waveform_recorder.json"
 DEFAULT_FEEDER_LOCK_PATH = STATE_DIR / "aureon_ws_market_data_feeder.lock"
+DEFAULT_PRICE_CACHE_PATH = REPO_ROOT / "ws_cache" / "ws_prices.json"
+BINANCE_TICKER_STREAM_URL = "wss://stream.binance.com:9443/ws/!miniTicker@arr"
+STREAM_DATA_MAX_AGE_SEC = float(os.getenv("MARKET_CACHE_TTL", "30"))
+STREAM_CLOCK_SKEW_SEC = 5.0
+PUBLIC_SNAPSHOT_PORT = int(os.getenv("AUREON_STREAM_PUBLIC_SNAPSHOT_PORT", "8794"))
+PUBLIC_SNAPSHOT_MAX_ROWS = 1000
+PUBLIC_SNAPSHOT_MAX_BYTES = 1024 * 1024
+PUBLIC_SNAPSHOT_MAX_AGE_SEC = 5.0
 
 KRAKEN_DEFAULT_PAIRS = [
     "XBTUSD",
@@ -140,6 +154,34 @@ def _fetch_binance_all_tickers_rest() -> List[Dict[str, Any]]:
     return payload if isinstance(payload, list) else []
 
 
+def _timestamp_seconds(value: Any) -> float:
+    """Normalize provider timestamps without substituting the current time."""
+    try:
+        timestamp = float(value)
+    except (ValueError, TypeError):
+        try:
+            timestamp = datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+        except (ValueError, TypeError):
+            return 0.0
+    if not math.isfinite(timestamp) or timestamp <= 0:
+        return 0.0
+    if timestamp >= 100_000_000_000_000:
+        return timestamp / 1_000_000
+    if timestamp >= 100_000_000_000:
+        return timestamp / 1_000
+    return timestamp
+
+
+def _refresh_source_freshness(health: Dict[str, Any], now: float) -> Dict[str, Any]:
+    health = dict(health)
+    timestamp = _timestamp_seconds(health.get("data_timestamp", health.get("last_success_at") or health.get("generated_at")))
+    age = now - timestamp if timestamp > 0 else None
+    health["data_age_sec"] = round(age, 3) if age is not None else None
+    health["freshness_limit_sec"] = STREAM_DATA_MAX_AGE_SEC
+    health["fresh"] = bool(health.get("active") and age is not None and -STREAM_CLOCK_SKEW_SEC <= age <= STREAM_DATA_MAX_AGE_SEC)
+    return health
+
+
 def _source_health(
     source_key: str,
     payload: Dict[str, Any],
@@ -154,17 +196,21 @@ def _source_health(
         generated_at_f = time.time()
     cache = payload.get("ticker_cache", {}) if isinstance(payload.get("ticker_cache"), dict) else {}
     count = int(ticker_count if ticker_count is not None else len(cache))
-    return {
+    timestamps = [_timestamp_seconds(entry.get("timestamp")) for entry in cache.values() if isinstance(entry, dict)]
+    data_timestamp = max(timestamps, default=0.0)
+    return _refresh_source_freshness({
         "source": payload.get("source") or source_key,
         "present": True,
         "active": count > 0,
         "fresh": count > 0,
         "ticker_count": count,
         "generated_at": generated_at_f,
+        "data_timestamp": data_timestamp,
+        "last_success_at": generated_at_f,
         "age_sec": round(max(0.0, time.time() - generated_at_f), 3),
         "mode": payload.get("mode", ""),
         "reason": reason or payload.get("reason", ""),
-    }
+    }, time.time())
 
 
 def _disabled_snapshot(source_key: str, reason: str) -> Dict[str, Any]:
@@ -220,6 +266,13 @@ def _cached_last_good_snapshot(source_key: str, payload: Dict[str, Any], reason:
     cached["generated_at"] = now
     cached["mode"] = "cached_last_good_during_provider_backoff"
     cached["reason"] = f"cached_last_good_due_to:{reason}" if reason else "cached_last_good"
+    # Older caches omitted entry timestamps. Freeze them at the original
+    # observation, so a fresh merged-file write cannot rejuvenate old prices.
+    cached["ticker_cache"] = {
+        key: {"timestamp": original_generated_at_f, **entry}
+        for key, entry in payload.get("ticker_cache", {}).items()
+        if isinstance(entry, dict)
+    }
     source_health = cached.get("source_health", {}) if isinstance(cached.get("source_health"), dict) else {}
     health = dict(source_health.get(source_key, {})) if isinstance(source_health.get(source_key), dict) else {}
     health.update(
@@ -237,7 +290,7 @@ def _cached_last_good_snapshot(source_key: str, payload: Dict[str, Any], reason:
             "reason": cached["reason"],
         }
     )
-    cached["source_health"] = {source_key: health}
+    cached["source_health"] = {source_key: _refresh_source_freshness(health, now)}
     return cached
 
 
@@ -364,7 +417,7 @@ def _merge_market_snapshots(snapshots: Dict[str, Dict[str, Any]]) -> Dict[str, A
         except Exception:
             health_at = time.time()
         health["age_sec"] = round(max(0.0, time.time() - health_at), 3)
-        source_health[key] = health
+        source_health[key] = _refresh_source_freshness(health, time.time())
         if health.get("active"):
             active_sources.append(str(health.get("source") or key))
 
@@ -423,6 +476,40 @@ class MarketSnapshotStore:
         self._snapshots: Dict[str, Dict[str, Any]] = {}
         self._lock = asyncio.Lock()
         self._history_recorder = history_recorder
+        self._memory_lock = threading.RLock()
+        self._memory_snapshots: Dict[str, Dict[str, Any]] = {}
+
+    def publish_memory(self, source_key: str, payload: Dict[str, Any]) -> None:
+        if source_key not in {"binance", "kraken", "alpaca", "capital"}:
+            return
+        with self._memory_lock:
+            previous = self._memory_snapshots.get(source_key, {})
+            self._memory_snapshots[source_key] = _coalesce_ticker_snapshots(source_key, previous, payload)
+
+    def public_quote_snapshot(self) -> Dict[str, Any]:
+        with self._memory_lock:
+            snapshots = dict(self._memory_snapshots)
+        return _public_quote_projection(snapshots, now=time.time())
+
+    async def _run_io(self, operation: Any, *args: Any) -> Any:
+        # Keep ownership of the async store lock until the worker finishes,
+        # even if its caller is cancelled. There remains exactly one writer.
+        job = asyncio.get_running_loop().run_in_executor(None, lambda: operation(*args))
+        cancelled = False
+        while not job.done():
+            try:
+                await asyncio.shield(job)
+            except asyncio.CancelledError:
+                cancelled = True
+            except Exception:
+                break
+        if cancelled:
+            try:
+                job.result()
+            except Exception:
+                pass
+            raise asyncio.CancelledError
+        return job.result()
 
     def _hydrate_from_existing_cache_unlocked(self) -> None:
         if len(self._snapshots) >= 4 or not self.out_path.exists():
@@ -438,34 +525,226 @@ class MarketSnapshotStore:
 
     async def last_good_snapshot(self, source_key: str) -> Optional[Dict[str, Any]]:
         async with self._lock:
-            self._hydrate_from_existing_cache_unlocked()
+            await self._run_io(self._hydrate_from_existing_cache_unlocked)
             payload = self._snapshots.get(source_key)
             if isinstance(payload, dict) and _ticker_count(payload) > 0:
                 return dict(payload)
         return None
 
     async def update(self, source_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self.publish_memory(source_key, payload)
         async with self._lock:
-            self._hydrate_from_existing_cache_unlocked()
-            self._snapshots[source_key] = dict(payload)
-            merged = _merge_market_snapshots(self._snapshots)
-            _atomic_write_json(self.out_path, merged)
-            if self._history_recorder is not None:
-                await asyncio.to_thread(self._history_recorder.record_if_due, merged)
-            return merged
+            return await self._run_io(self._update_unlocked, source_key, payload)
+
+    def _update_unlocked(self, source_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        self._hydrate_from_existing_cache_unlocked()
+        self._snapshots[source_key] = dict(payload)
+        merged = _merge_market_snapshots(self._snapshots)
+        _atomic_write_json(self.out_path, merged)
+        if self._history_recorder is not None:
+            self._history_recorder.record_if_due(merged)
+        return merged
 
     async def update_preserving_existing(self, source_key: str, payload: Dict[str, Any], existing: Dict[str, Any]) -> Dict[str, Any]:
+        self.publish_memory(source_key, payload)
         async with self._lock:
-            for existing_key, existing_payload in _snapshots_from_merged_cache(existing).items():
-                current = self._snapshots.get(existing_key)
-                if current is None or (_ticker_count(existing_payload) > 0 and _ticker_count(current) <= 0):
-                    self._snapshots[existing_key] = existing_payload
-            self._snapshots[source_key] = dict(payload)
-            merged = _merge_market_snapshots(self._snapshots)
-            _atomic_write_json(self.out_path, merged)
-            if self._history_recorder is not None:
-                await asyncio.to_thread(self._history_recorder.record_if_due, merged)
-            return merged
+            return await self._run_io(self._update_preserving_existing_unlocked, source_key, payload, existing)
+
+    def _update_preserving_existing_unlocked(self, source_key: str, payload: Dict[str, Any], existing: Dict[str, Any]) -> Dict[str, Any]:
+        for existing_key, existing_payload in _snapshots_from_merged_cache(existing).items():
+            current = self._snapshots.get(existing_key)
+            if current is None or (_ticker_count(existing_payload) > 0 and _ticker_count(current) <= 0):
+                self._snapshots[existing_key] = existing_payload
+        return self._update_unlocked(source_key, payload)
+
+
+def _coalesce_ticker_snapshots(source_key: str, previous: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep each symbol's latest source observation across incremental batches."""
+    previous_cache = previous.get("ticker_cache", {})
+    incoming_cache = incoming.get("ticker_cache", {})
+    cache = {key: dict(entry) for key, entry in previous_cache.items() if isinstance(entry, dict)}
+    for key, entry in incoming_cache.items():
+        if not isinstance(entry, dict):
+            continue
+        old = cache.get(key)
+        if old is None or _timestamp_seconds(entry.get("timestamp")) > _timestamp_seconds(old.get("timestamp")):
+            cache[key] = dict(entry)
+
+    def price_clocks(payload: Dict[str, Any]) -> Dict[str, float]:
+        result: Dict[str, float] = {}
+        prices = payload.get("prices", {})
+        for entry in payload.get("ticker_cache", {}).values():
+            if not isinstance(entry, dict):
+                continue
+            base = str(entry.get("base") or "")
+            if base and entry.get("price") == prices.get(base):
+                result[base] = max(result.get(base, 0.0), _timestamp_seconds(entry.get("timestamp")))
+        return result
+
+    prices = dict(previous.get("prices", {}))
+    previous_clocks, incoming_clocks = price_clocks(previous), price_clocks(incoming)
+    for base, price in incoming.get("prices", {}).items():
+        if base not in prices or incoming_clocks.get(base, 0.0) > previous_clocks.get(base, 0.0):
+            prices[base] = price
+    newest = incoming if _timestamp_seconds(incoming.get("generated_at")) >= _timestamp_seconds(previous.get("generated_at")) else previous
+    merged = {**newest, "ticker_cache": cache, "prices": prices}
+    merged["source_health"] = {source_key: _source_health(source_key, merged, ticker_count=len(cache))}
+    return merged
+
+
+class LatestSnapshotPublisher:
+    """A single bounded pending snapshot feeding the store's existing writer."""
+    def __init__(self, store: MarketSnapshotStore, source_key: str, *, quiet: bool = True):
+        self.store = store
+        self.source_key = source_key
+        self.quiet = quiet
+        self._latest: Dict[str, Any] = {}
+        self._pending: Optional[Dict[str, Any]] = None
+        self._task: Optional[asyncio.Task] = None
+        self.last_error = ""
+
+    def submit(self, payload: Dict[str, Any]) -> None:
+        self._latest = _coalesce_ticker_snapshots(self.source_key, self._latest, payload)
+        self.store.publish_memory(self.source_key, self._latest)
+        self._pending = self._latest
+        if self._task is None:
+            self._task = asyncio.create_task(self._drain())
+
+    async def _drain(self) -> None:
+        try:
+            while self._pending is not None:
+                payload, self._pending = self._pending, None
+                try:
+                    await self.store.update(self.source_key, payload)
+                    self.last_error = ""
+                except Exception as exc:
+                    self.last_error = str(exc)
+                    if not self.quiet:
+                        print(f"{self.source_key} snapshot write failed: {exc}")
+        finally:
+            self._task = None
+
+    async def flush(self) -> None:
+        while self._task is not None:
+            await asyncio.shield(self._task)
+
+
+def _public_quote_projection(snapshots: Dict[str, Dict[str, Any]], *, now: float) -> Dict[str, Any]:
+    """Project only public quote fields; never copy arbitrary provider payloads."""
+    candidates: Dict[str, Dict[str, Any]] = {}
+    known_sources = {
+        "binance_ws", "binance_rest_preflight", "binance_rest_ws_gap_fill", "binance_rest_fallback",
+        "kraken_public_rest", "alpaca_authenticated_rest", "capital_authenticated_rest",
+    }
+    for source_key, payload in snapshots.items():
+        if source_key not in {"binance", "kraken", "alpaca", "capital"}:
+            continue
+        cache = payload.get("ticker_cache", {}) if isinstance(payload, dict) else {}
+        for cache_key, entry in cache.items():
+            if not isinstance(entry, dict) or entry.get("exchange", source_key) != source_key:
+                continue
+            timestamp = _timestamp_seconds(entry.get("timestamp"))
+            try:
+                price = float(entry.get("price"))
+            except (ValueError, TypeError):
+                continue
+            if not math.isfinite(price) or price <= 0 or timestamp <= 0 or timestamp > now + STREAM_CLOCK_SKEW_SEC:
+                continue
+            symbol = str(entry.get("pair") or entry.get("symbol") or str(cache_key).split(":")[-1])[:64]
+            if not symbol or not all(char.isalnum() or char in "/_.:-" for char in symbol):
+                continue
+            key = f"{source_key}:{symbol}"
+            if key in candidates and timestamp <= _timestamp_seconds(candidates[key].get("timestamp")):
+                continue
+            source = str(entry.get("source") or source_key)
+            row: Dict[str, Any] = {"exchange": source_key, "source": source if source in known_sources else source_key, "pair": symbol, "price": price}
+            for field in ("base", "quote"):
+                value = str(entry.get(field) or "")[:24]
+                if value and value.isalnum():
+                    row[field] = value
+            for field in ("bid", "ask", "change24h", "volume"):
+                value = entry.get(field)
+                if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+                    if field not in {"bid", "ask"} or value > 0:
+                        row[field] = value
+            for field in ("timestamp", "provider_timestamp", "received_at"):
+                value = entry.get(field)
+                if isinstance(value, (str, int, float)) and not isinstance(value, bool) and _timestamp_seconds(value) > 0 and (not isinstance(value, str) or len(value) <= 64):
+                    row[field] = value
+            kind = entry.get("timestamp_kind")
+            if kind in {"provider_event", "provider_window_close", "received_at"}:
+                row["timestamp_kind"] = kind
+            candidates[key] = row
+    selected = dict(sorted(candidates.items(), key=lambda item: _timestamp_seconds(item[1].get("timestamp")), reverse=True)[:PUBLIC_SNAPSHOT_MAX_ROWS])
+    prices: Dict[str, float] = {}
+    health: Dict[str, Dict[str, Any]] = {}
+    for row in selected.values():
+        if row.get("base"):
+            prices.setdefault(row["base"], row["price"])
+    for source_key in sorted({row["exchange"] for row in selected.values()}):
+        rows = [row for row in selected.values() if row["exchange"] == source_key]
+        data_timestamp = max(_timestamp_seconds(row.get("timestamp")) for row in rows)
+        age = now - data_timestamp
+        health[source_key] = {
+            "source": source_key, "present": True, "active": True,
+            "fresh": -STREAM_CLOCK_SKEW_SEC <= age <= PUBLIC_SNAPSHOT_MAX_AGE_SEC,
+            "ticker_count": len(rows), "data_timestamp": data_timestamp,
+            "data_age_sec": round(age, 3), "freshness_limit_sec": PUBLIC_SNAPSHOT_MAX_AGE_SEC,
+        }
+    fresh = any(row["fresh"] for row in health.values())
+    return {
+        "schema_version": 1, "transport": "loopback_memory", "producer_pid": os.getpid(),
+        "generated_at": max((_timestamp_seconds(value.get("generated_at")) for value in snapshots.values()), default=0.0),
+        "source": "multi_exchange_stream_cache", "mode": "public_quote_snapshot",
+        "available": bool(selected), "fresh": fresh,
+        "data_status": "live" if fresh else ("stale" if selected else "no_data"),
+        "sources": sorted(health), "source_count": len(health),
+        "prices": prices, "ticker_cache": selected, "source_health": health,
+        "truncated": len(candidates) > len(selected), "max_rows": PUBLIC_SNAPSHOT_MAX_ROWS,
+    }
+
+
+def start_public_snapshot_server(store: MarketSnapshotStore, *, port: int = PUBLIC_SNAPSHOT_PORT) -> HTTPServer:
+    class QuoteHandler(BaseHTTPRequestHandler):
+        server_version = "AureonPublicQuotes"
+        sys_version = ""
+
+        def setup(self) -> None:
+            super().setup()
+            self.connection.settimeout(1.0)
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+        def _send(self, status: int, body: bytes) -> None:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:
+            if self.path != "/api/quotes":
+                self._send(404, b'{"error":"not_found"}')
+                return
+            snapshot = store.public_quote_snapshot()
+            body = json.dumps(snapshot, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("utf-8")
+            if len(body) > PUBLIC_SNAPSHOT_MAX_BYTES:
+                self._send(503, b'{"error":"public_snapshot_size_limit","data_status":"no_data"}')
+                return
+            self._send(200, body)
+
+        def _method_not_allowed(self) -> None:
+            self._send(405, b'{"error":"method_not_allowed"}')
+
+        do_POST = do_PUT = do_PATCH = do_DELETE = do_HEAD = do_OPTIONS = _method_not_allowed
+
+    server = HTTPServer(("127.0.0.1", int(port)), QuoteHandler)
+    threading.Thread(target=server.serve_forever, name="public-quote-snapshot-http", daemon=True).start()
+    return server
 
 
 def _build_binance_snapshot(
@@ -588,8 +867,8 @@ def _extract_prices_and_tickers(
     quote_priority = _binance_quote_priority(binance_uk_mode)
     generated_at = time.time()
 
-    # Binance !ticker@arr payload fields (common):
-    # s=symbol, c=last price, P=priceChangePercent, v=volume
+    # Binance miniTicker provides last/open prices; percentage change is
+    # derived from these actual observations. REST/full tickers provide P.
     for t in tickers:
         symbol = str(t.get('s') or t.get('symbol') or '').upper()
         if not symbol:
@@ -597,15 +876,24 @@ def _extract_prices_and_tickers(
 
         try:
             price = float(t.get('c') or t.get('lastPrice') or t.get('weightedAvgPrice') or 0)
+            bid = float(t.get('b') or t.get('bidPrice') or 0)
+            ask = float(t.get('a') or t.get('askPrice') or 0)
         except Exception:
             price = 0.0
         if price <= 0:
             continue
 
         try:
-            change = float(t.get('P') or t.get('priceChangePercent') or 0)
+            raw_change = t.get('P', t.get('priceChangePercent'))
+            if raw_change is not None:
+                change = float(raw_change)
+            else:
+                open_price = float(t.get('o') or t.get('openPrice') or 0)
+                if open_price <= 0:
+                    continue
+                change = (price - open_price) / open_price * 100.0
         except Exception:
-            change = 0.0
+            continue
 
         try:
             volume = float(t.get('q') or t.get('quoteVolume') or t.get('v') or t.get('volume') or 0)
@@ -627,15 +915,21 @@ def _extract_prices_and_tickers(
         if base not in prices:
             prices[base] = price
 
+        provider_timestamp = _timestamp_seconds(t.get('E') or t.get('closeTime'))
         entry = {
             'price': price,
+            'bid': bid,
+            'ask': ask,
             'change24h': change,
             'volume': volume,
             'base': base,
             'quote': matched_quote,
             'exchange': 'binance',
             'source': source_name,
-            'timestamp': generated_at,
+            'timestamp': provider_timestamp,
+            'provider_timestamp': provider_timestamp or None,
+            'received_at': generated_at,
+            'timestamp_kind': 'provider_event' if t.get('E') and provider_timestamp else ('provider_window_close' if provider_timestamp else 'missing_provider_timestamp'),
             'pair': symbol,
         }
         ticker_cache[symbol] = entry
@@ -685,8 +979,8 @@ def _extract_kraken_prices_and_tickers(result: Dict[str, Any]) -> tuple[Dict[str
             continue
         try:
             price = float((item.get("c") or [0])[0] or 0)
-            bid = float((item.get("b") or [price])[0] or price)
-            ask = float((item.get("a") or [price])[0] or price)
+            bid = float((item.get("b") or [0])[0] or 0)
+            ask = float((item.get("a") or [0])[0] or 0)
             open_price = float(item.get("o") or 0)
             base_volume = float((item.get("v") or [0, 0])[-1] or 0)
         except Exception:
@@ -709,6 +1003,8 @@ def _extract_kraken_prices_and_tickers(result: Dict[str, Any]) -> tuple[Dict[str
             "exchange": "kraken",
             "source": "kraken_public_rest",
             "timestamp": generated_at,
+            "received_at": generated_at,
+            "timestamp_kind": "received_at",
             "pair": str(pair),
         }
         ticker_cache[symbol] = entry
@@ -754,8 +1050,8 @@ def _build_generic_ticker_cache(
         base, quote = _extract_base_quote(raw_symbol)
         try:
             price = float(row.get("price") or row.get("lastPrice") or 0)
-            bid = float(row.get("bid") or row.get("bp") or price or 0)
-            ask = float(row.get("ask") or row.get("ap") or price or 0)
+            bid = float(row.get("bid") or row.get("bp") or 0)
+            ask = float(row.get("ask") or row.get("ap") or 0)
             change = float(row.get("change_pct") or row.get("priceChangePercent") or 0)
             volume = float(row.get("volume") or row.get("quoteVolume") or row.get("dailyVolume") or 0)
         except Exception:
@@ -765,17 +1061,21 @@ def _build_generic_ticker_cache(
         if base not in prices:
             prices[base] = price
         normalized_symbol = f"{base}{quote}"
+        provider_timestamp = _timestamp_seconds(row.get("provider_timestamp") or row.get("timestamp") or row.get("t"))
         entry = {
             "price": price,
-            "bid": bid if bid > 0 else price,
-            "ask": ask if ask > 0 else price,
+            "bid": bid,
+            "ask": ask,
             "change24h": change,
             "volume": volume,
             "base": base,
             "quote": quote,
             "exchange": exchange,
             "source": source,
-            "timestamp": generated_at,
+            "timestamp": provider_timestamp or generated_at,
+            "provider_timestamp": provider_timestamp or None,
+            "received_at": generated_at,
+            "timestamp_kind": "provider_event" if provider_timestamp else "received_at",
             "pair": raw_symbol,
             "epic": row.get("epic", ""),
         }
@@ -984,6 +1284,7 @@ async def _build_alpaca_snapshot(symbols: List[str]) -> Dict[str, Any]:
                     "ask": ticker.get("ask"),
                     "change_pct": raw.get("todaysChangePerc", ticker.get("change_pct", 0)),
                     "volume": raw.get("dailyVolume", 0),
+                    "provider_timestamp": ticker.get("provider_timestamp") or ticker.get("timestamp") or raw.get("t"),
                 }
             )
         return rows, "" if rows else "missing_credentials_or_no_snapshot_rows"
@@ -1121,8 +1422,10 @@ async def run_binance_all_tickers(
         )
         return
 
-    url = "wss://stream.binance.com:9443/ws/!ticker@arr"
+    # The former !ticker@arr stream was retired by Binance on 2026-03-26.
+    url = BINANCE_TICKER_STREAM_URL
     last_write = 0.0
+    publisher = LatestSnapshotPublisher(store, "binance", quiet=quiet)
 
     if not quiet:
         print(f"🌐 Binance WS feeder connecting: {url}")
@@ -1186,13 +1489,13 @@ async def run_binance_all_tickers(
                         source="binance_ws",
                         mode="websocket_all_market_ticker_stream",
                     )
-                    await store.update("binance", payload)
+                    publisher.submit(payload)
                     prices = payload.get("prices", {})
                     ticker_cache = payload.get("ticker_cache", {})
                     last_write = now
 
                     if not quiet:
-                        print(f"   🟡 wrote {len(prices)} base prices / {len(ticker_cache)} tickers")
+                        print(f"   🟡 queued {len(prices)} base prices / {len(ticker_cache)} tickers")
 
         except asyncio.CancelledError:
             raise
@@ -1206,7 +1509,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="WS market data feeder (free APIs)")
     parser.add_argument(
         "--out",
-        default=os.getenv("WS_PRICE_CACHE_PATH", "ws_cache/ws_prices.json"),
+        default=os.getenv("WS_PRICE_CACHE_PATH", str(DEFAULT_PRICE_CACHE_PATH)),
         help="Output JSON cache path (default: ws_cache/ws_prices.json)",
     )
     parser.add_argument(
@@ -1244,6 +1547,12 @@ def main() -> int:
         type=float,
         default=float(os.getenv("WS_FEED_WRITE_INTERVAL_S", "1.0")),
         help="Minimum seconds between cache writes (default: 1.0)",
+    )
+    parser.add_argument(
+        "--public-snapshot-port",
+        type=int,
+        default=PUBLIC_SNAPSHOT_PORT,
+        help="Loopback-only public quote GET port (default: 8794; 0 disables)",
     )
     parser.add_argument(
         "--kraken-interval-s",
@@ -1314,11 +1623,27 @@ def main() -> int:
         else None
     )
     store = MarketSnapshotStore(out_path, history_recorder=history_recorder)
+    if args.public_snapshot_port > 0:
+        try:
+            snapshot_server = start_public_snapshot_server(store, port=args.public_snapshot_port)
+            def close_public_snapshot_server() -> None:
+                snapshot_server.shutdown()
+                snapshot_server.server_close()
+            atexit.register(close_public_snapshot_server)
+            if not args.quiet:
+                print(f"Public quotes: http://127.0.0.1:{snapshot_server.server_port}/api/quotes")
+        except OSError as exc:
+            print(f"Loopback quote endpoint unavailable: {exc}; file cache remains enabled")
     kraken_pairs = _split_env_list(os.getenv("KRAKEN_STREAM_PAIRS", ""), KRAKEN_DEFAULT_PAIRS)
     alpaca_symbols = _split_env_list(os.getenv("ALPACA_STREAM_SYMBOLS", ""), ALPACA_DEFAULT_SYMBOLS)
     capital_symbols = _split_env_list(os.getenv("CAPITAL_STREAM_SYMBOLS", ""), CAPITAL_DEFAULT_SYMBOLS)
 
     async def _run() -> None:
+        if no_external_api_calls():
+            if args.binance and not args.quiet:
+                print("Binance feed held: no_external_api_calls")
+            args.binance = False
+            await store.update("binance", _disabled_snapshot("binance", "held: no_external_api_calls"))
         tasks = []
         if args.binance:
             tasks.append(

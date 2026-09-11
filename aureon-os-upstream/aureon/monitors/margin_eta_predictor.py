@@ -24,6 +24,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -46,10 +48,10 @@ class PositionETA:
     unrealized_pnl: float
     pct_to_breakeven: float
     pct_from_entry: float
-    hourly_volatility_pct: float
-    eta_minutes: float
-    bullish_eta_minutes: float
-    bearish_eta_minutes: float
+    hourly_volatility_pct: Optional[float]
+    eta_minutes: Optional[float]
+    bullish_eta_minutes: Optional[float]
+    bearish_eta_minutes: Optional[float]
     confidence: float
     # ── Unified system metrics (Nexus / Seer / Lyra) ──────────────────────
     coherence: float = 0.5
@@ -63,6 +65,8 @@ class PositionETA:
     lyra_exit_urgency: str = "none"
     eta_multiplier: float = 1.0   # how system alignment shifted raw ETA
     source: str = "unknown"
+    price_source: str = "none"    # which venue supplied the live price probe
+    error: str = ""               # non-empty => the ETA fields are null by fail-closed policy
     timestamp: str = ""
 
     def __post_init__(self):
@@ -82,29 +86,56 @@ def _fetch(url: str) -> Optional[dict]:
         return None
 
 
-def get_current_price(symbol: str) -> Optional[float]:
-    """Try Binance (USDT pair), then Kraken public ticker."""
+def probe_current_price(symbol: str) -> Optional[dict]:
+    """Probe live price with provenance. Returns None when no venue answers —
+    never substitute a cached/stale value for a fresh observation."""
+    if no_external_api_calls():
+        logger.info("probe_current_price blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     b_sym = symbol.upper().replace("USD", "USDT")
     d = _fetch(f"{BINANCE_TICKER_URL}?symbol={b_sym}")
     if d and "price" in d:
-        return float(d["price"])
+        try:
+            return {"price": float(d["price"]), "source": "binance"}
+        except (TypeError, ValueError):
+            pass
     # Kraken public fallback
     d = _fetch(f"{KRAKEN_TICKER_URL}?pair={symbol}")
     if d and d.get("result"):
         for ticker in d["result"].values():
-            return float(ticker["c"][0])
+            try:
+                return {"price": float(ticker["c"][0]), "source": "kraken"}
+            except (TypeError, ValueError, KeyError, IndexError):
+                pass
     return None
 
 
-def get_hourly_vol(symbol: str) -> float:
-    """Average absolute hourly return (%) over last 24 candles."""
+def get_current_price(symbol: str) -> Optional[float]:
+    """Live price only. None when no venue probe succeeds (no stale fallback)."""
+    probe = probe_current_price(symbol)
+    return probe["price"] if probe else None
+
+
+def probe_hourly_vol(symbol: str) -> Optional[float]:
+    """Average absolute hourly return (%) over last 24 candles, or None if the
+    probe fails (no fabricated default — consumers must treat ETA as unknown)."""
+    if no_external_api_calls():
+        logger.info("probe_hourly_vol blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     b_sym = symbol.upper().replace("USD", "USDT")
     data = _fetch(f"{BINANCE_KLINES_URL}?symbol={b_sym}&interval=1h&limit=24")
     if not data or len(data) < 2:
-        return 2.0
-    closes = [float(c[4]) for c in data]
+        return None
+    try:
+        closes = [float(c[4]) for c in data]
+    except (TypeError, ValueError, IndexError):
+        return None
     returns = [abs((closes[i] - closes[i-1]) / closes[i-1]) * 100 for i in range(1, len(closes))]
-    return max(sum(returns) / len(returns), 0.1) if returns else 2.0
+    if not returns:
+        return None
+    return max(sum(returns) / len(returns), 0.1)
 
 
 def calc_breakeven(entry: float, open_fee: float = 0.00376, close_fee: float = 0.0035) -> float:
@@ -130,6 +161,10 @@ def normalise_pair(pair: str) -> str:
 
 def load_from_kraken_api() -> List[dict]:
     """Fetch ALL live open margin positions via Kraken private API."""
+    if no_external_api_calls():
+        logger.info("load_from_kraken_api blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     try:
         from aureon.exchanges.kraken_client import KrakenClient
         client = KrakenClient()
@@ -394,11 +429,33 @@ def calculate_eta(pos: dict) -> Optional[PositionETA]:
         if ep <= 0:
             return None
 
-        current = get_current_price(symbol) or ep
+        # ── Live price probe: fail closed, never reuse entry price as "current" ──
+        price_probe = probe_current_price(symbol)
+        if price_probe is None:
+            logger.error(
+                f"ETA {symbol}: no live price from any venue; "
+                f"position reported with null price/ETA (no stale substitution)"
+            )
+            return PositionETA(
+                symbol=symbol, side=pos.get("side", "buy"), leverage=pos["leverage"],
+                entry_price=ep, current_price=None, breakeven_price=breakeven,
+                volume=pos["volume"], cost_basis=pos["cost"],
+                unrealized_pnl=pos.get("unrealized_pnl", 0),
+                pct_to_breakeven=None, pct_from_entry=None,
+                hourly_volatility_pct=None,
+                eta_minutes=None, bullish_eta_minutes=None, bearish_eta_minutes=None,
+                confidence=0.0,
+                source=pos.get("source", "unknown"),
+                error="live_price_unavailable",
+            )
+        current = price_probe["price"]
+        price_source = price_probe["source"]
+
         pct_from_entry   = ((current - ep) / ep) * 100
         pct_to_breakeven = ((breakeven - current) / current) * 100
 
-        hourly_vol_pct = get_hourly_vol(symbol)
+        hourly_vol_pct = probe_hourly_vol(symbol)
+        vol_error = "hourly_volatility_unavailable" if hourly_vol_pct is None else ""
 
         # ── Pull unified system metrics ────────────────────────────────────
         nm        = get_nexus_metrics(symbol)
@@ -433,6 +490,30 @@ def calculate_eta(pos: dict) -> Optional[PositionETA]:
                 lyra_exit_urgency=lyra["exit_urgency"],
                 eta_multiplier=eta_mult,
                 source=pos.get("source", "unknown"),
+                price_source=price_source,
+                error=vol_error,
+            )
+
+        if hourly_vol_pct is None:
+            # Price is live but volatility history is not: report position state,
+            # keep every ETA estimate null rather than inventing a number.
+            return PositionETA(
+                symbol=symbol, side=pos.get("side", "buy"), leverage=pos["leverage"],
+                entry_price=ep, current_price=current, breakeven_price=breakeven,
+                volume=pos["volume"], cost_basis=pos["cost"],
+                unrealized_pnl=pos.get("unrealized_pnl", 0),
+                pct_to_breakeven=pct_to_breakeven, pct_from_entry=pct_from_entry,
+                hourly_volatility_pct=None,
+                eta_minutes=None, bullish_eta_minutes=None, bearish_eta_minutes=None,
+                confidence=0.0,
+                coherence=coherence, clarity=clarity, chaos_trend=chaos,
+                seer_grade=seer["grade"], seer_score=seer["score"], seer_action=seer["action"],
+                lyra_action=lyra["action"], lyra_score=lyra["score"],
+                lyra_exit_urgency=lyra["exit_urgency"],
+                eta_multiplier=eta_mult,
+                source=pos.get("source", "unknown"),
+                price_source=price_source,
+                error=vol_error,
             )
 
         required = abs(pct_to_breakeven) / 100.0
@@ -466,6 +547,8 @@ def calculate_eta(pos: dict) -> Optional[PositionETA]:
             lyra_exit_urgency=lyra["exit_urgency"],
             eta_multiplier=eta_mult,
             source=pos.get("source", "unknown"),
+            price_source=price_source,
+            error=vol_error,
         )
     except Exception as e:
         logger.error(f"ETA calc {pos.get('symbol','?')}: {e}")
@@ -516,13 +599,20 @@ class MarginETAPredictor:
             src = "LIVE API" if eta.source == "kraken_api" else "STATE FILE"
             print(f"  [{src}] {eta.symbol}  |  {eta.side.upper()}  |  {eta.leverage:.0f}x leverage")
             print(f"    Entry:      {eta.entry_price:.4f}")
-            print(f"    Current:    {eta.current_price:.4f}  ({eta.pct_from_entry:+.2f}%)")
+            if eta.current_price is None:
+                print(f"    Current:    ⚠ no live price probe succeeded — null by fail-closed policy")
+                if eta.error:
+                    print(f"    Error:      {eta.error}")
+                continue
+            print(f"    Current:    {eta.current_price:.4f}  ({eta.pct_from_entry:+.2f}%)  [price source: {eta.price_source}]")
             print(f"    Breakeven:  {eta.breakeven_price:.4f}  ({eta.pct_to_breakeven:+.2f}% to go)")
             if eta.unrealized_pnl:
                 print(f"    Live P&L:   ${eta.unrealized_pnl:+.2f}")
             print()
             if eta.eta_minutes == 0:
                 print("    ✅  PROFITABLE NOW")
+            elif eta.eta_minutes is None:
+                print(f"    ⚠  ETA unknown: {eta.error or 'insufficient live data'}")
             else:
                 print(f"    📊  Hourly vol:  {eta.hourly_volatility_pct:.2f}%")
                 print(f"    ⏱   ETA (adj):   {eta.eta_minutes:.0f}m  ({eta.eta_minutes/60:.1f}h)  [×{eta.eta_multiplier:.2f}]")
@@ -534,10 +624,13 @@ class MarginETAPredictor:
         tc  = sum(e.cost_basis for e in etas)
         tp  = sum(e.unrealized_pnl for e in etas)
         ok  = sum(1 for e in etas if e.eta_minutes == 0)
+        err = sum(1 for e in etas if e.error)
         print("=" * 90)
         line = f"  {len(etas)} position(s)  |  {ok} profitable  |  Total cost: ${tc:.2f}"
         if tp:
             line += f"  |  Live P&L: ${tp:+.2f}"
+        if err:
+            line += f"  |  {err} with null fields (fail-closed)"
         print(line)
         print("=" * 90 + "\n")
 

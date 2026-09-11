@@ -30,6 +30,8 @@ from typing import Dict, List, Optional, Tuple
 from collections import deque
 from dotenv import load_dotenv
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 load_dotenv('/workspaces/aureon-trading/.env', override=True)
 
 logger = logging.getLogger(__name__)
@@ -765,6 +767,15 @@ class QueenMarketAwareness:
     
     def _fetch_btc_data(self) -> Dict:
         """Fetch current BTC data from multiple sources"""
+        if no_external_api_calls():
+            logger.info("Queen Market Awareness BTC fetch blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                'price': 0.0,
+                'change_24h': 0.0,
+                'change_from_jan_high': 0.0,
+                'source': 'no_source',
+                'reason': 'AUREON_NO_EXTERNAL_API_CALLS',
+            }
         try:
             # Try Binance first
             resp = requests.get('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT', timeout=5)

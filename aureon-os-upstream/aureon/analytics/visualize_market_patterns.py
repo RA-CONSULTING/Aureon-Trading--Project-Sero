@@ -15,6 +15,7 @@ Gary Leckey | December 2025
 
 import argparse
 import json
+import logging
 import math
 import time
 import numpy as np
@@ -24,6 +25,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Mapping, Optional
 from collections import deque
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 PROVIDER_MAX_AGE_SECONDS = 300.0
 SNAPSHOT_MAX_AGE_SECONDS = 900.0
@@ -280,6 +285,17 @@ class APIBufferMonitor:
     
     def test_all_apis(self) -> Dict[str, Dict]:
         """Run explicit read-only provider probes and return receipted status."""
+        if no_external_api_calls():
+            logger.info("APIBufferMonitor.test_all_apis blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                platform: _no_data_status(
+                    platform,
+                    'AUREON_NO_EXTERNAL_API_CALLS',
+                    received_at=self._now(),
+                )
+                for platform in ('binance', 'kraken', 'alpaca', 'capital')
+            }
+
         clients = self.clients if self.clients is not None else _load_provider_clients()
         results: Dict[str, Dict[str, Any]] = {}
 

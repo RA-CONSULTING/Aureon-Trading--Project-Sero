@@ -34,12 +34,15 @@ if sys.platform == 'win32':
         pass
 
 import json
+import logging
 import requests
 import time
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from datetime import datetime
 from pathlib import Path
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 # Load environment variables from .env file
 try:
@@ -108,8 +111,12 @@ class RisingStarBacktester:
         
     def fetch_historical_trades(self, limit: int = 100) -> List[HistoricalTrade]:
         """Fetch historical closed orders from Alpaca."""
+        if no_external_api_calls():
+            logging.info("fetch_historical_trades blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         print("📥 Fetching historical trades from Alpaca...")
-        
+
         url = f"{ALPACA_BASE_URL}/v2/orders"
         headers = {
             'APCA-API-KEY-ID': ALPACA_API_KEY,

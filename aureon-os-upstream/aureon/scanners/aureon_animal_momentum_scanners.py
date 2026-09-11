@@ -36,6 +36,8 @@ from aureon.bridges.aureon_alpaca_scanner_bridge import AlpacaScannerBridge
 logger = logging.getLogger(__name__)
 logging.getLogger('urllib3').setLevel(logging.WARNING)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ════════════════════════════════════════════════════════════════════════════════
 # 🐦 CHIRP BUS INTEGRATION - Listen to Orca whale hunting signals!
 # ════════════════════════════════════════════════════════════════════════════════
@@ -918,9 +920,13 @@ class AlpacaSwarmOrchestrator:
         """Run one orchestration cycle (dry-run safe).
 
         Returns a dict with results from each agent.
-        
+
         🚀 V2: All agents share the SAME cached batch data!
         """
+        if no_external_api_calls():
+            logger.info("AlpacaSwarmOrchestrator.run_once blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         logger.info("Orchestrator: running single pass")
         
         # Check what data source will be used
@@ -1008,6 +1014,20 @@ class AlpacaSwarmOrchestrator:
         Returns:
             Order result dict or None if dry-run / error
         """
+        if no_external_api_calls():
+            logger.info("AlpacaSwarmOrchestrator.execute_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                "status": "blocked",
+                "truth_status": "no_source",
+                "decision_status": "denied",
+                "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+                "provider_order_id": None,
+                "filled_qty": None,
+                "filled_avg_price": None,
+                "eligible_for_learning": False,
+                "generated_values": False,
+            }
+
         now = time.time()
         source_timestamp = _finite_float(opp.source_timestamp, positive=True)
         received_at = _finite_float(opp.received_at, positive=True)
@@ -1122,6 +1142,10 @@ class AlpacaSwarmOrchestrator:
 
 
 def main(dry_run: bool = True):
+    if no_external_api_calls():
+        logger.info("animal_momentum_scanners main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     alpaca = AlpacaClient()
     fee_tracker = AlpacaFeeTracker(alpaca)
     bridge = AlpacaScannerBridge(alpaca_client=alpaca, fee_tracker=fee_tracker, enable_sse=False, enable_stocks=False)
@@ -1156,12 +1180,16 @@ class AnimalMomentumScanners:
         self.ants = None
         self.hummingbird = None
         self.orchestrator = None
-        
+
+        if no_external_api_calls():
+            logger.info("AnimalMomentumScanners blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         # Try to initialize with clients if available
         try:
             from aureon.exchanges.alpaca_client import AlpacaClient
             from aureon.bridges.aureon_alpaca_scanner_bridge import AlpacaScannerBridge
-            
+
             alpaca = AlpacaClient()
             bridge = AlpacaScannerBridge(alpaca)
             
@@ -1182,8 +1210,12 @@ class AnimalMomentumScanners:
     
     def get_all_signals(self) -> dict:
         """Get signals from all animal scanners."""
+        if no_external_api_calls():
+            logger.info("AnimalMomentumScanners.get_all_signals blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         signals = {}
-        
+
         if self.wolf:
             try:
                 signals['wolf'] = self.wolf.scan()
@@ -1212,6 +1244,10 @@ class AnimalMomentumScanners:
     
     def run_swarm(self, max_positions: int = 3, capital: float = 100.0):
         """Run the full swarm orchestrator."""
+        if no_external_api_calls():
+            logger.info("AnimalMomentumScanners.run_swarm blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {'error': 'AUREON_NO_EXTERNAL_API_CALLS'}
+
         if self.orchestrator:
             return self.orchestrator.run_swarm_cycle(max_positions, capital)
         return {'error': 'Orchestrator not available'}
@@ -1240,12 +1276,16 @@ class AnimalMomentumScanners:
         self.ants = None
         self.hummingbird = None
         self.orchestrator = None
-        
+
+        if no_external_api_calls():
+            logger.info("AnimalMomentumScanners blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         # Try to initialize with clients if available
         try:
             from aureon.exchanges.alpaca_client import AlpacaClient
             from aureon.bridges.aureon_alpaca_scanner_bridge import AlpacaScannerBridge
-            
+
             alpaca = AlpacaClient()
             bridge = AlpacaScannerBridge(alpaca)
             
@@ -1266,8 +1306,12 @@ class AnimalMomentumScanners:
     
     def get_all_signals(self) -> dict:
         """Get signals from all animal scanners."""
+        if no_external_api_calls():
+            logger.info("AnimalMomentumScanners.get_all_signals blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         signals = {}
-        
+
         if self.wolf:
             try:
                 signals['wolf'] = self.wolf.scan()
@@ -1296,6 +1340,10 @@ class AnimalMomentumScanners:
     
     def run_swarm(self, max_positions: int = 3, capital: float = 100.0):
         """Run the full swarm orchestrator."""
+        if no_external_api_calls():
+            logger.info("AnimalMomentumScanners.run_swarm blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {'error': 'AUREON_NO_EXTERNAL_API_CALLS'}
+
         if self.orchestrator:
             return self.orchestrator.run_swarm_cycle(max_positions, capital)
         return {'error': 'Orchestrator not available'}

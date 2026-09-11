@@ -3,26 +3,22 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Target, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import type { MarketOpportunity } from '@/hooks/useMarketScanner';
-import type { AccountBalance } from '@/hooks/useBinanceBalances';
+
+interface ProviderPositionReceipt {
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  quantity: number;
+  pnl: number;
+  pnlPercent: number;
+}
 
 interface BattleMapProps {
   opportunities: MarketOpportunity[];
-  accounts: AccountBalance[];
+  positionReceipts?: ProviderPositionReceipt[];
 }
 
-export function BattleMap({ opportunities, accounts }: BattleMapProps) {
-  // Get positions from accounts (simplified - would need proper position tracking)
-  const activePositions = accounts.flatMap(acc => 
-    Object.entries(acc.balances)
-      .filter(([asset, balance]) => balance.total > 0.001 && asset !== 'USDT')
-      .map(([asset, balance]) => ({
-        symbol: `${asset}USDT`,
-        quantity: balance.total,
-        side: 'LONG',
-        pnl: 0, // Would need actual calculation
-        pnlPercent: 0,
-      }))
-  );
+export function BattleMap({ opportunities, positionReceipts }: BattleMapProps) {
+  const positions = positionReceipts ?? [];
 
   return (
     <div className="space-y-4">
@@ -77,7 +73,7 @@ export function BattleMap({ opportunities, accounts }: BattleMapProps) {
 
             {opportunities.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
-                🔍 Scanning for targets...
+                No provider market observations available.
               </div>
             )}
           </div>
@@ -89,13 +85,13 @@ export function BattleMap({ opportunities, accounts }: BattleMapProps) {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
-            ⚡ ACTIVE POSITIONS ({activePositions.length})
+            ⚡ ACTIVE POSITIONS ({positions.length})
           </h3>
         </div>
 
         <ScrollArea className="h-[200px]">
           <div className="space-y-2">
-            {activePositions.slice(0, 10).map((pos, index) => (
+            {positions.slice(0, 10).map((pos, index) => (
               <div
                 key={`${pos.symbol}-${index}`}
                 className="flex items-center justify-between p-3 rounded-lg bg-background/50 hover:bg-background/80 transition-all border border-border/50"
@@ -118,9 +114,9 @@ export function BattleMap({ opportunities, accounts }: BattleMapProps) {
               </div>
             ))}
 
-            {activePositions.length === 0 && (
+            {positions.length === 0 && (
               <div className="text-center text-muted-foreground py-8">
-                💤 No active positions
+                No provider position receipts available.
               </div>
             )}
           </div>

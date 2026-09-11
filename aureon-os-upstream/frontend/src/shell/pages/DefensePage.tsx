@@ -1,194 +1,68 @@
-/**
- * Defense & Validation — the bio family surfaced as verified SaaS.
- *
- * Reads GET /api/defense and renders the whole bio family in three groups —
- * the cognitive immune layer (integrity guard · swarm defense · MCP membrane),
- * the statistical-validity dossier (size · power · calibration · FWER · FDR),
- * and the sensor lanes — each module carrying its real pass/metrics/evidence
- * from the committed Tier-A benchmark report (with a live bus-trace overlay
- * where it has run) and an honest data-provenance badge. Nothing is fabricated;
- * a module that has neither been benchmarked nor run shows as no_data.
- */
-
-import { useEffect, useState } from "react";
+import { GlassPageHeader } from '@/shell/GlassPage';
+import { Button } from '@/components/ui/button';
 import { ShieldCheck, ShieldAlert, FlaskConical, Radar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LiveDataNotice } from "@/shell/Page";
-import { type TruthStatus, TRUTH_STATUS_STYLE } from "../truthStatus";
-
-
-interface DefenseModule {
-  key: string;
-  name: string;
-  module: string;
-  group: string;
-  passed: boolean;
-  metrics: Record<string, number | string | null>;
-  invariants_passed: number;
-  invariants_total: number;
-  evidence: string;
-  boundary?: string | null;
-  truth_status: TruthStatus;
-}
-
-interface DefenseGroup {
-  label: string;
-  purpose: string;
-  module_count: number;
-  passing: number;
-  modules: DefenseModule[];
-}
-
-interface DefensePayload {
-  generated_at?: string | null;
-  group_order: string[];
-  groups: Record<string, DefenseGroup>;
-  counts: { total?: number; passing?: number; groups?: number };
-  note?: string;
-  truth_status: TruthStatus;
-}
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { defenseStore, type DefenseModule } from "@/services/cognitiveReads";
+import { benchmarkResult, observedValue, surfaceEvidence, type SurfaceEvidence } from "@/lib/cognitionSurfaceEvidence";
+import { CognitiveReadUnavailable, EvidenceStamp } from "./cognitiveEvidenceCards";
 
 const GROUP_ICON: Record<string, typeof ShieldCheck> = {
-  cognitive_immune_layer: ShieldCheck,
-  statistical_validity: FlaskConical,
-  sensor_lane: Radar,
+  cognitive_immune_layer: ShieldCheck, statistical_validity: FlaskConical, sensor_lane: Radar,
 };
-
-const STATUS_STYLE: Record<TruthStatus, { cls: string; label: string }> = {
-  live: { cls: TRUTH_STATUS_STYLE.live, label: "live" },
-  real_derived: { cls: TRUTH_STATUS_STYLE.real_derived, label: "real · derived" },
-  cached_real: { cls: TRUTH_STATUS_STYLE.cached_real, label: "cached real" },
-  no_data: { cls: TRUTH_STATUS_STYLE.no_data, label: "no data" },
-  test_fixture: { cls: TRUTH_STATUS_STYLE.test_fixture, label: "test fixture" },
-};
-
-function StatusBadge({ status }: { status: TruthStatus }) {
-  const s = STATUS_STYLE[status] ?? STATUS_STYLE.no_data;
-  return <Badge variant="outline" className={`text-[10px] ${s.cls}`}>{s.label}</Badge>;
+function ModuleCard({ mod, report, now }: { mod: DefenseModule; report: SurfaceEvidence; now: number }) {
+  const result = benchmarkResult(mod.passed, report);
+  const runtime = surfaceEvidence(mod.runtime_observation, now);
+  return <Card><CardHeader><div className="flex items-start justify-between gap-2">
+    <CardTitle className="text-sm">{mod.name}</CardTitle>
+    <Badge variant={result === 'Recorded pass' ? 'success' : result === 'Recorded fail' ? 'destructive' : 'outline'}>{result}</Badge>
+  </div></CardHeader><CardContent className="space-y-3">
+    {report.historical ? <>
+      <p className="text-xs text-muted-foreground">Recorded benchmark metrics</p>
+      <dl className="grid grid-cols-2 gap-2 text-xs">{Object.entries(mod.metrics ?? {}).slice(0, 4).map(([name, value]) => <div key={name}>
+        <dt className="text-muted-foreground">{name.replaceAll('_', ' ')}</dt><dd className="font-mono">{observedValue(value)}</dd>
+      </div>)}</dl>
+      <p className="text-xs text-muted-foreground">Recorded invariants: {observedValue(mod.invariants_passed)} / {observedValue(mod.invariants_total)}</p>
+      {mod.evidence && <p className="text-xs text-muted-foreground">{mod.evidence}</p>}
+    </> : <p className="text-sm text-muted-foreground">Dated benchmark results unavailable.</p>}
+    <div className="border-t pt-3"><p className="mb-2 text-xs font-medium">Runtime trace</p><EvidenceStamp evidence={runtime} />
+      {runtime.current && typeof mod.runtime_observation?.boundary === 'string' && <p className="mt-2 text-xs text-muted-foreground">{mod.runtime_observation.boundary}</p>}
+      <p className="mt-2 text-xs text-muted-foreground">A recent trace does not rerun or refresh the recorded benchmark.</p>
+    </div>
+  </CardContent></Card>;
 }
-
-/** The two or three most telling metrics for a module, formatted without leaking internals. */
-function topMetrics(metrics: Record<string, number | string | null>): { label: string; value: string }[] {
-  const fmt = (v: number | string | null) =>
-    typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(4)) : v == null ? "—" : String(v);
-  return Object.entries(metrics)
-    .slice(0, 4)
-    .map(([label, value]) => ({ label: label.replace(/_/g, " "), value: fmt(value) }));
-}
-
-function ModuleCard({ mod }: { mod: DefenseModule }) {
-  return (
-    <Card className="flex flex-col">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-sm leading-snug">{mod.name}</CardTitle>
-          <div className="flex shrink-0 items-center gap-1">
-            <Badge variant={mod.passed ? "success" : "destructive"} className="text-[10px]">
-              {mod.passed ? "pass" : "fail"}
-            </Badge>
-            <StatusBadge status={mod.truth_status} />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-2">
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          {topMetrics(mod.metrics).map((row) => (
-            <div key={row.label} className="flex justify-between gap-2">
-              <dt className="truncate text-muted-foreground">{row.label}</dt>
-              <dd className="font-mono">{row.value}</dd>
-            </div>
-          ))}
-        </dl>
-        {mod.invariants_total > 0 && (
-          <p className="text-[11px] text-muted-foreground">
-            invariants {mod.invariants_passed}/{mod.invariants_total} · <span className="font-mono">{mod.module}</span>
-          </p>
-        )}
-        {mod.evidence && <p className="mt-auto text-[11px] italic text-muted-foreground">{mod.evidence}</p>}
-        {mod.boundary && <p className="text-[10px] text-muted-foreground/80">{mod.boundary}</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function DefensePage() {
-  const [data, setData] = useState<DefensePayload | null | undefined>(undefined);
-
-  useEffect(() => {
-    fetch("/api/defense")
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
-      .catch(() => setData(null));
-  }, []);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <ShieldCheck className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Defense & Validation</h1>
-          <p className="text-sm text-muted-foreground">
-            The bio family — sensor lanes, the statistical-validity dossier, and the cognitive immune
-            layer — surfaced from the committed Tier-A benchmark report with honest data provenance.
-          </p>
-        </div>
-      </div>
+  const receipt = useReadOnlyPoller(defenseStore, 15_000, 8_000);
+  const data = receipt.data;
+  const now = Date.now();
+  const report = surfaceEvidence(data?.report_observation, now);
+  return <div className="space-y-6">
+    <GlassPageHeader title="Defense &amp; Validation" icon={ShieldCheck} eyebrow="Defense &amp; Validation" description="Recorded benchmark results with independently timestamped current runtime traces." actions={<Button variant="outline" size="sm" onClick={receipt.refresh}>Refresh observation</Button>} />
 
       <LiveDataNotice />
-
-      {data === undefined && (
-        <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>
-      )}
-      {data === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Start the operator for the live Defense & Validation surface.
-          </CardContent></Card>
-      )}
-
-      {data && (
-        <>
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle className="text-base">
-                  {data.counts.passing} of {data.counts.total} bio benchmarks passing
-                </CardTitle>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Badge variant={data.counts.passing === data.counts.total ? "success" : "secondary"}>
-                    {data.counts.passing}/{data.counts.total}
-                  </Badge>
-                  {data.generated_at && (
-                    <Badge variant="outline" className="text-[10px]">report {data.generated_at}</Badge>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">{data.note}</CardContent>
-          </Card>
-
-          {data.group_order.map((gkey) => {
-            const group = data.groups[gkey];
-            if (!group || group.modules.length === 0) return null;
-            const Icon = GROUP_ICON[gkey] ?? ShieldAlert;
-            return (
-              <section key={gkey} className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Icon className="h-4 w-4 text-primary" />
-                  <h2 className="text-lg font-semibold tracking-tight">{group.label}</h2>
-                  <Badge variant="outline" className="text-[10px]">{group.passing}/{group.module_count}</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">{group.purpose}</p>
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {group.modules.map((mod) => <ModuleCard key={mod.key} mod={mod} />)}
-                </div>
-              </section>
-            );
-          })}
-        </>
-      )}
-    </div>
-  );
+    {receipt.loading && !data && <Skeleton className="h-40 w-full" />}
+    {!receipt.loading && !data && <CognitiveReadUnavailable {...receipt} />}
+    {data && <>
+      <Card><CardHeader><CardTitle className="text-base">Recorded benchmark report</CardTitle></CardHeader>
+        <CardContent className="space-y-3"><EvidenceStamp evidence={report} />
+          {report.historical && <p className="text-sm">{observedValue(data.counts?.passing)} recorded passes across {observedValue(data.counts?.total)} listed modules.</p>}
+          <p className="text-xs text-muted-foreground">{data.note || 'Benchmark results describe the original report scope and date.'}</p>
+        </CardContent></Card>
+      {!data.groups && <p className="text-sm text-muted-foreground">Module catalogue unavailable.</p>}
+      {(data.group_order ?? Object.keys(data.groups ?? {})).map(key => {
+        const group = data.groups?.[key];
+        if (!group) return null;
+        const Icon = GROUP_ICON[key] ?? ShieldAlert;
+        return <section key={key} className="space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold"><Icon className="h-4 w-4 text-primary" />{group.label || key}</h2>
+          <p className="text-sm text-muted-foreground">{group.purpose}</p>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">{(Array.isArray(group.modules) ? group.modules : []).map(mod =>
+            <ModuleCard key={mod.key} mod={mod} report={report} now={now} />)}</div>
+        </section>;
+      })}
+    </>}
+  </div>;
 }

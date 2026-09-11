@@ -6,7 +6,7 @@ CREATE TABLE public.harmonic_6d_states (
   d1_price JSONB NOT NULL DEFAULT '{}',
   d2_volume JSONB NOT NULL DEFAULT '{}',
   d3_time JSONB NOT NULL DEFAULT '{}',
-  REDACTED_USE_CLOUD_SECRET JSONB NOT NULL DEFAULT '{}',
+  d4_correlation JSONB NOT NULL DEFAULT '{}',
   d5_momentum JSONB NOT NULL DEFAULT '{}',
   d6_frequency JSONB NOT NULL DEFAULT '{}',
   dimensional_coherence NUMERIC NOT NULL DEFAULT 0,

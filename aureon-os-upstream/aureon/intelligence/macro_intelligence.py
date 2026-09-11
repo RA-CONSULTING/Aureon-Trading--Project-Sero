@@ -46,6 +46,8 @@ import time
 import urllib.request
 from typing import Dict, Optional
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 MACRO_REFRESH_S = 600          # Refresh every 10 minutes
@@ -296,6 +298,9 @@ class MacroIntelligence:
             logger.warning(f"Macro refresh error: {e}")
 
     def _fetch(self, url: str, timeout: int = 8):
+        if no_external_api_calls():
+            logger.debug("Macro Intelligence fetch blocked by AUREON_NO_EXTERNAL_API_CALLS: %s", url[:60])
+            return None
         try:
             req = urllib.request.Request(url)
             req.add_header("User-Agent", "AureonMacroIntel/1.0")

@@ -12,8 +12,8 @@ from typing import Any, Callable, Dict, List, Sequence
 from aureon.autonomous.aureon_agent_creative_process_guardian import (
     build_and_write_agent_creative_process_guardian,
 )
-from aureon.autonomous.aureon_autonomous_self_fix_director import (
-    build_and_write_autonomous_self_fix_director,
+from aureon.autonomous.aureon_autonomous_coherence_gate_director import (
+    build_and_write_coherence_gate_director,
 )
 from aureon.autonomous.aureon_capability_forge import REPO_ROOT, build_and_write_capability_forge
 from aureon.autonomous.aureon_coding_capability_unblocker import (
@@ -199,10 +199,10 @@ def _default_runners() -> Dict[str, Runner]:
             root=root, goal=prompt, refresh_inputs=True
         ),
         "capability_forge": lambda root, prompt: build_and_write_capability_forge(prompt, root=root),
-        "autonomous_self_fix_director": lambda root, prompt: build_and_write_autonomous_self_fix_director(
+        "autonomous_self_fix_director": lambda root, prompt: build_and_write_coherence_gate_director(
             root=root,
             operator_prompt=prompt,
-            codex_audit_state="autonomous_safe",
+            dry_run=False,
         ),
     }
 

@@ -1,386 +1,106 @@
-/**
- * Overview — the platform's front page.
- *
- * Live platform health from GET /api/status, domain tiles from the unified
- * frontend state (manifests), a billing/metering snapshot, and quick routes to
- * every section. Everything degrades honestly with no backend connected.
- */
+/** Operator glass: current evidence from the existing shared runtime. */
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { Activity, Building2, Clock, Radio, Shield, ArrowUpRight } from 'lucide-react';
+import { useTerminalState, type TerminalQuote } from '@/hooks/useTerminalState';
+import { useGlassQuotes } from '@/hooks/useGlassQuotes';
+import { readNativeBalanceEvidence } from '@/lib/nativeBalanceEvidence';
+import { executionGlassState } from '@/lib/glassTradingEvidence';
+import { appendObservedQuote, currentCandidateCount, currentGlassCandidates, endToEndMedianMs, observedCandles, type QuoteSample } from '@/lib/glassOverviewEvidence';
 
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowRight, Rocket, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  loadUnifiedFrontendState,
-  type UnifiedFrontendState,
-} from "@/services/aureonAutonomousFrontend";
-import { useSetupStatus } from "@/hooks/useSetupStatus";
-import { NAV_SECTIONS } from "../nav";
+const GOLD = '#FFB800';
+const CYAN = '#00E5FF';
+const BG = '#0e0e0e';
+const PANEL = '#121212';
+const BORDER = '#3f3f46';
+const format = (value: number | null | undefined) => value == null ? '—' : value.toLocaleString(undefined, { maximumSignificantDigits: 10 });
 
-interface PlatformStatus {
-  status?: string;
-  domains_reachable?: number;
-  domains_total?: number;
-  product_domains?: Record<string, { status?: string; reachable?: number; total?: number }>;
-  note?: string;
+function EvidenceBadge({ children }: { children: ReactNode }) {
+  return <span className="inline-flex rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
+    style={{ background: `${GOLD}18`, color: GOLD, borderColor: `${GOLD}55` }}>{children}</span>;
 }
-
-interface BillingStatus {
-  configured?: boolean;
-  metering?: { sink?: string; flushed?: number; pending?: number };
-  charge_endpoint?: { enabled?: boolean };
+function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`rounded-lg border ${className}`} style={{ background: PANEL, borderColor: BORDER }}>{children}</div>;
 }
-
-interface OrganismStatus {
-  available?: boolean;
-  connectome?: {
-    nodes?: number;
-    baton_linked?: number;
-    touched?: number;
-    woven?: number;
-    coverage_pct?: number;
-  };
-}
-
-interface AutomationIndex {
-  index_pct?: number | null;
-  label?: string;
-  dimensions?: Record<string, { pct?: number | null; weight?: number; detail?: string }>;
-  journey?: Array<{ ts?: number; index_pct?: number }>;
-  truth_status?: string;
-}
-
-interface DefenseSummary {
-  counts?: { total?: number; passing?: number };
-  truth_status?: string;
-}
-
-/** Dependency-free sparkline over the recorded journey; scales 0–100. */
-function JourneySparkline({ points }: { points: number[] }) {
-  const pts = points.filter((v) => Number.isFinite(v));
-  if (pts.length < 2) return null;
-  const w = 240;
-  const h = 28;
-  const d = pts
-    .map((v, i) => `${(i / (pts.length - 1)) * w},${(h - (Math.max(0, Math.min(100, v)) / 100) * h).toFixed(2)}`)
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-7 w-full text-primary/70" preserveAspectRatio="none"
-         role="img" aria-label="automation progress over time">
-      <polyline points={d} fill="none" stroke="currentColor" strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-const DIM_LABEL: Record<string, string> = {
-  connectivity: "Connectivity",
-  integration: "Integration",
-  consciousness: "Consciousness",
-  surfacing: "Surfacing",
-};
-
-function Bar({ pct, className }: { pct: number; className?: string }) {
-  return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-      <div className={`h-full rounded-full ${className ?? "bg-primary"}`}
-           style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
-    </div>
-  );
-}
-
-async function fetchJson<T>(url: string): Promise<T | null> {
-  try {
-    const r = await fetch(url, { cache: "no-store" });
-    return r.ok ? ((await r.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-const HEALTH_BADGE: Record<string, string> = {
-  healthy: "bg-success/15 text-success border-success/30",
-  ready: "bg-success/15 text-success border-success/30",
-  degraded: "bg-primary/15 text-primary border-primary/30",
-  critical: "bg-destructive/15 text-destructive border-destructive/30",
-  down: "bg-destructive/15 text-destructive border-destructive/30",
-};
-
-function healthBadgeClass(status: string | undefined): string {
-  return HEALTH_BADGE[String(status || "")] ?? "bg-muted text-muted-foreground";
+function SampledCandles({ quote, current }: { quote: TerminalQuote | undefined; current: boolean }) {
+  const [samples, setSamples] = useState<QuoteSample[]>([]);
+  useEffect(() => {
+    if (current && quote) setSamples(previous => appendObservedQuote(previous, quote));
+  }, [quote, current]);
+  const candles = observedCandles(samples);
+  const low = candles.length ? Math.min(...candles.map(row => row.low)) : 0;
+  const high = candles.length ? Math.max(...candles.map(row => row.high)) : 1;
+  const margin = Math.max((high - low) * 0.1, high * 0.00001);
+  const y = (value: number) => 12 + ((high + margin - value) / (high - low + margin * 2)) * 150;
+  const start = candles[0]?.timestamp ?? 0;
+  const slots = Math.max(8, ((candles.slice(-1)[0]?.timestamp ?? start) - start) / 60 + 1);
+  const slot = 464 / slots;
+  if (!candles.length) return <div className="flex h-44 items-center justify-center rounded border border-dashed text-xs text-zinc-500" style={{ borderColor: BORDER }}>Waiting for a current provider quote.</div>;
+  return <div><svg viewBox="0 0 480 180" className={`h-44 w-full ${current ? '' : 'opacity-40'}`} role="img" aria-label="Observed quote samples grouped by minute; partial candles collected while this page is open">
+    {[0, 1, 2, 3, 4].map(index => <line key={index} x1={8} x2={472} y1={12 + index * 38} y2={12 + index * 38} stroke={BORDER} strokeWidth={0.5} />)}
+    {candles.map(row => {
+      const x = 8 + ((row.timestamp - start) / 60 + 0.5) * slot;
+      const color = row.close >= row.open ? CYAN : GOLD;
+      return <g key={row.timestamp}><title>{new Date(row.timestamp * 1000).toISOString()} · {row.samples} observed samples</title>
+        <line x1={x} x2={x} y1={y(row.high)} y2={y(row.low)} stroke={color} />
+        <rect x={x - slot * 0.24} y={Math.min(y(row.open), y(row.close))} width={slot * 0.48} height={Math.max(1.5, Math.abs(y(row.open) - y(row.close)))} fill={color} /></g>;
+    })}</svg><p className="text-[10px] text-zinc-500">{current ? 'Observed samples' : 'Historical samples · current quote expired'} · {samples.length} ticks · partial 1-minute candles collected in this view. Full venue OHLC history is unavailable.</p></div>;
 }
 
 export default function OverviewPage() {
-  const [status, setStatus] = useState<PlatformStatus | null | undefined>(undefined);
-  const [billing, setBilling] = useState<BillingStatus | null | undefined>(undefined);
-  const [organism, setOrganism] = useState<OrganismStatus | null | undefined>(undefined);
-  const [automation, setAutomation] = useState<AutomationIndex | null | undefined>(undefined);
-  const [defense, setDefense] = useState<DefenseSummary | null | undefined>(undefined);
-  const [unified, setUnified] = useState<UnifiedFrontendState | null>(null);
-
+  const terminal = useTerminalState();
+  const market = useGlassQuotes(terminal);
+  const { state, observedState, isFresh, error, freshness } = terminal;
+  const connected = error === null && observedState !== null;
+  const providers = readNativeBalanceEvidence(observedState?.provider_observations, connected);
+  const accounts = providers.filter(provider => provider.observation.available).length;
+  const capital = providers.find(provider => provider.id === 'capital');
+  const capitalGbp = capital?.observation.available && capital.observation.inventoryComplete === true
+    ? [...capital.visible, ...capital.zeros].filter(group => group.currency === 'GBP' && group.metric === 'Account balance').flatMap(group => group.rows) : [];
+  const capitalAmount = capitalGbp.length && capitalGbp.every(row => row.balance !== null) ? capitalGbp.reduce((sum, row) => sum + row.balance!, 0) : null;
+  const execution = executionGlassState(state, isFresh, market.freshness.status === 'fresh');
+  const candidates = currentGlassCandidates(state, isFresh);
+  const candidateCount = currentCandidateCount(observedState, connected);
+  const latencyMs = endToEndMedianMs(observedState, connected);
+  const [selected, setSelected] = useState('');
+  const quotes = [...market.quotes].sort((a, b) => `${a.source}:${a.symbol}`.localeCompare(`${b.source}:${b.symbol}`));
+  const firstQuoteKey = quotes[0] ? `${quotes[0].source}:${quotes[0].symbol}` : '';
   useEffect(() => {
-    fetchJson<PlatformStatus>("/api/status").then(setStatus);
-    fetchJson<BillingStatus>("/api/billing/status").then(setBilling);
-    fetchJson<OrganismStatus>("/api/organism").then(setOrganism);
-    fetchJson<AutomationIndex>("/api/automation").then(setAutomation);  // once — avoids repeated organ cold-boot
-    fetchJson<DefenseSummary>("/api/defense").then(setDefense);
-    loadUnifiedFrontendState().then(setUnified).catch(() => setUnified(null));
-  }, []);
+    if (!selected && firstQuoteKey) setSelected(firstQuoteKey);
+  }, [selected, firstQuoteKey]);
+  const selectedQuote = selected ? quotes.find(quote => `${quote.source}:${quote.symbol}` === selected) : quotes[0];
+  const selectedKey = selected || (selectedQuote ? `${selectedQuote.source}:${selectedQuote.symbol}` : '');
+  const bid = typeof selectedQuote?.bid === 'number' && selectedQuote.bid > 0 ? selectedQuote.bid : null;
+  const ask = typeof selectedQuote?.ask === 'number' && selectedQuote.ask > 0 ? selectedQuote.ask : null;
+  const spread = bid !== null && ask !== null && ask >= bid ? ask - bid : null;
 
-  const domains = status?.product_domains ?? {};
-  const surfaceCount = unified?.inventory?.summary?.surface_count;
-  const setup = useSetupStatus();
-
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">Aureon Platform</h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          One interface for the whole organism — trading, planetary research, cognition,
-          the coding system, operations, and the platform itself.
-        </p>
-      </div>
-
-      {/* First-run nudge — only when the backend is reachable but no model is connected yet. */}
-      {!setup.loading && !setup.offline && !setup.hasProvider && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="flex items-start gap-3">
-              <Rocket className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-              <div>
-                <p className="text-sm font-medium">New here? Connect a model to begin.</p>
-                <p className="text-sm text-muted-foreground">
-                  Add an API key, test it, and start a grounded conversation — three steps.
-                </p>
-              </div>
-            </div>
-            <Button asChild size="sm">
-              <Link to="/start">
-                Get started <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Automation progress — the headline metric toward "fully automated" */}
-      <Card className="border-primary/30">
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">Automation progress</CardTitle>
-            {automation && automation.index_pct != null && (
-              <Badge variant="outline" className="text-xs">{automation.label}</Badge>
-            )}
-          </div>
-          <CardDescription>
-            How much of the repo is connected into the organism and driveable by the
-            soul/consciousness logic — composed from real coverage, never fabricated.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {automation === undefined ? (
-            <Skeleton className="h-10 w-full" />
-          ) : !automation || automation.index_pct == null ? (
-            <p className="text-xs text-muted-foreground">
-              Gateway offline (or organism cold) — start the operator for live progress.
-            </p>
-          ) : (
-            <>
-              <div className="flex items-end gap-3">
-                <span className="font-mono text-3xl tabular-nums text-primary">
-                  {automation.index_pct.toFixed(1)}%
-                </span>
-                <span className="pb-1 text-xs text-muted-foreground">toward fully automated</span>
-              </div>
-              <Bar pct={automation.index_pct} />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {Object.entries(automation.dimensions ?? {}).map(([name, d]) => (
-                  <div key={name} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{DIM_LABEL[name] ?? name}</span>
-                      <span className="font-mono tabular-nums">
-                        {d.pct == null ? "—" : `${d.pct.toFixed(1)}%`}
-                      </span>
-                    </div>
-                    <Bar pct={d.pct ?? 0} className="bg-primary/60" />
-                  </div>
-                ))}
-              </div>
-              {(automation.journey?.length ?? 0) >= 2 && (
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground">the journey — breath by breath</span>
-                  <JourneySparkline points={(automation.journey ?? []).map((p) => p.index_pct ?? NaN)} />
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Defenses — the bio family's benchmark health (immune layer + statistical validity + lanes) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">Defense & Validation</CardTitle>
-            <Link to="/defense" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-              open <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <CardDescription>
-            The cognitive immune layer + statistical-validity dossier + sensor lanes — real
-            Tier-A benchmark status, never fabricated.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {defense === undefined ? (
-            <Skeleton className="h-8 w-40" />
-          ) : !defense || defense.counts?.total == null ? (
-            <p className="text-xs text-muted-foreground">
-              Gateway offline — start the operator for live defense status.
-            </p>
-          ) : (
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-2xl tabular-nums text-primary">
-                {defense.counts.passing}/{defense.counts.total}
-              </span>
-              <span className="text-xs text-muted-foreground">bio benchmarks passing · immune layer active</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Platform health */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Platform status</CardDescription>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              {status === undefined ? (
-                <Skeleton className="h-6 w-24" />
-              ) : status === null ? (
-                <Badge variant="outline" className="text-muted-foreground">gateway offline</Badge>
-              ) : (
-                <Badge variant="outline" className={healthBadgeClass(status.status)}>
-                  {status.status}
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            {status
-              ? `${status.domains_reachable ?? "?"}/${status.domains_total ?? "?"} domains reachable`
-              : "Start the operator gateway (:8790) for live health."}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Catalogued surfaces</CardDescription>
-            <CardTitle className="text-lg">
-              {unified === null && surfaceCount === undefined ? "—" : surfaceCount ?? <Skeleton className="h-6 w-16" />}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            From the system inventory manifest — every module, categorized.
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Billing & metering</CardDescription>
-            <CardTitle className="text-lg">
-              {billing === undefined ? (
-                <Skeleton className="h-6 w-24" />
-              ) : billing === null ? (
-                "—"
-              ) : (
-                <span className="text-sm font-medium">
-                  metering: {billing.metering?.sink ?? "unknown"}
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            {billing?.configured
-              ? "Supabase billing backend connected."
-              : "Record-only metering; free access, support-the-project model."}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Organism connectome */}
-      <Card className="border-primary/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="h-4 w-4 text-primary" /> Organism connectome
-          </CardTitle>
-          <CardDescription>
-            How much of the body the metacognitive layer has sensed and woven — honest depths.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {organism === undefined ? (
-            <Skeleton className="h-10 w-full" />
-          ) : !organism?.available || !organism.connectome ? (
-            <p className="text-xs text-muted-foreground">
-              Connectome offline — start the organism daemon (or the operator gateway) for live coverage.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-4 text-sm">
-              <span><b>{organism.connectome.nodes ?? "?"}</b> <span className="text-muted-foreground">modules</span></span>
-              <span><b>{organism.connectome.baton_linked ?? 0}</b> <span className="text-muted-foreground">linked</span></span>
-              <span><b>{organism.connectome.touched ?? 0}</b> <span className="text-muted-foreground">touched</span></span>
-              <span><b>{organism.connectome.woven ?? 0}</b> <span className="text-muted-foreground">woven</span></span>
-              <span className="text-primary"><b>{organism.connectome.coverage_pct ?? 0}%</b> <span className="text-muted-foreground">felt</span></span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Domain health */}
-      {Object.keys(domains).length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Product domains</CardTitle>
-            <CardDescription>Import-level reachability, reported honestly.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {Object.entries(domains).map(([name, d]) => (
-              <Badge key={name} variant="outline" className={healthBadgeClass(d.status)}>
-                {name} · {d.reachable}/{d.total}
-              </Badge>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Section quick routes */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {NAV_SECTIONS.filter((s) => s.label !== "Platform").map((section) => (
-          <Card key={section.label} className="transition-shadow hover:shadow-md">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">{section.label}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1.5">
-              {section.items.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 truncate">{item.label}</span>
-                  <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+  return <div className="min-h-full space-y-4 p-4 text-zinc-100" style={{ background: BG }} data-overview="operator-v2">
+    <h1 className="sr-only">Operator overview</h1>
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2" style={{ borderColor: `${GOLD}55`, background: `${GOLD}0d` }}>
+      <div><p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>Operator glass · current source evidence</p><p className="mt-0.5 text-[10px] text-zinc-400">Accounts, market events and completed runtime ticks carry separate freshness.</p></div>
+      <Link to="/platform/switchboard" className="inline-flex items-center gap-1 text-xs text-zinc-300 underline">System controls <ArrowUpRight className="h-3 w-3" /></Link></div>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Panel className="p-3"><div className="mb-2 flex justify-between gap-2"><span className="text-[11px] uppercase tracking-wide text-zinc-400">1) Capital GBP balance</span><EvidenceBadge>{capitalAmount === null ? 'Unavailable' : 'Provider receipt'}</EvidenceBadge></div><div className="text-2xl font-semibold tabular-nums text-white">{capitalAmount === null ? '—' : `£${capitalAmount.toFixed(2)}`}</div><p className="mt-2 text-[10px] text-zinc-500">Native Capital account balances. Combined portfolio FX valuation unavailable.</p><Link to="/trading/live" className="mt-1 inline-block text-[10px] underline" style={{ color: CYAN }}>Inspect account receipts</Link></Panel>
+      <Panel className="p-3"><div className="mb-2 flex justify-between gap-2"><span className="text-[11px] uppercase tracking-wide text-zinc-400">2) Execution</span><EvidenceBadge>{freshness.status}</EvidenceBadge></div><div className="inline-flex rounded-md px-3 py-2 text-base font-black uppercase tracking-wide" style={{ background: execution.enabled ? CYAN : GOLD, color: '#0a0a0a' }}>{execution.label}</div><p className="mt-2 text-[10px] text-zinc-500">{execution.mode} · order intents {execution.intent.toLowerCase()}</p></Panel>
+      <Panel className="p-3"><div className="mb-2 flex justify-between gap-2"><span className="text-[11px] uppercase tracking-wide text-zinc-400">3) Exchanges</span><EvidenceBadge>Account observations</EvidenceBadge></div><div className="text-2xl font-semibold tabular-nums text-white">{connected ? accounts : '—'} / 4</div><p className="mt-2 text-[10px] text-zinc-500">Fresh private account readbacks. Connectivity does not prove execution readiness.</p></Panel>
+      <Panel className="p-3"><div className="mb-2 flex justify-between gap-2"><span className="text-[11px] uppercase tracking-wide text-zinc-400">4) Recorded latency p50</span><EvidenceBadge>{latencyMs === null ? 'No samples' : 'Recorded traces'}</EvidenceBadge></div><div className="text-2xl font-semibold tabular-nums text-white">{latencyMs === null ? '—' : `${format(latencyMs)} ms`}</div><p className="mt-2 text-[10px] text-zinc-500">Recorded instrumentation, not independently verified tick-to-ack performance. HTTP response time is separate.</p></Panel>
     </div>
-  );
+    <div className="grid gap-3 lg:grid-cols-12">
+      <Panel className="space-y-4 p-4 lg:col-span-3"><h2 className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Status &amp; Claim</h2>
+        <div className="flex items-start gap-3"><Shield className="mt-1 h-5 w-5 shrink-0" style={{ color: GOLD }} /><div><p className="text-sm font-semibold uppercase" style={{ color: execution.enabled ? CYAN : GOLD }}>{execution.label}</p><p className="text-[11px] text-zinc-500">Real orders: {execution.orders}. Existing exposure requires provider reconciliation.</p></div></div>
+        {execution.blockers.length > 0 && <ul className="space-y-1 text-[10px] text-amber-300">{execution.blockers.map(blocker => <li key={blocker}>· {blocker.replaceAll('_', ' ')}</li>)}</ul>}
+        <div className="space-y-2 border-t pt-3" style={{ borderColor: BORDER }}>{[['Market stream', market.freshness.status], ['Runtime tick', freshness.status], ['Account sources', `${accounts}/4 current`], ['Candidate receipt', candidateCount === null ? 'unavailable' : `${candidateCount} current`]].map(([name, value]) => <div key={name} className="flex justify-between gap-2 text-xs"><span className="text-zinc-400">{name}</span><span style={{ color: value.includes('fresh') || value.includes('current') ? CYAN : GOLD }}>{value}</span></div>)}</div>
+        <p className="text-[10px] text-zinc-500">{freshness.reason} · age {freshness.sourceAgeSec === null ? '—' : `${freshness.sourceAgeSec.toFixed(1)}s`}</p>
+        <div className="space-y-2 border-t pt-3 text-xs" style={{ borderColor: BORDER }}><Link to="/trading/war-room" className="block underline" style={{ color: CYAN }}>Open analysis &amp; trading gates</Link><Link to="/platform/coverage" className="block underline text-zinc-400">Inspect all system coverage</Link></div><p className="flex items-center gap-1.5 text-[10px] text-zinc-500"><Clock className="h-3 w-3" />Source tick {freshness.sourceTimestamp ?? 'unavailable'}</p></Panel>
+      <Panel className="p-4 lg:col-span-5"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm"><Activity className="h-4 w-4" style={{ color: CYAN }} />Market Pulse</h2><EvidenceBadge>{market.freshness.status}</EvidenceBadge></div>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><label className="block text-[10px] text-zinc-500" htmlFor="overview-symbol">Observed symbol / source</label><select id="overview-symbol" value={selectedKey} onChange={event => setSelected(event.target.value)} className="mt-1 max-w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs">
+          {!quotes.length && <option value={selectedKey}>{selectedKey || 'No current quotes'}</option>}{selected && !selectedQuote && quotes.length > 0 && <option value={selected}>{selected} · expired</option>}{quotes.map(quote => <option key={`${quote.source}:${quote.symbol}`} value={`${quote.source}:${quote.symbol}`}>{quote.symbol} · {quote.source}</option>)}</select></div><div className="text-right"><p className="font-mono text-2xl font-semibold" style={{ color: CYAN }}>{format(selectedQuote?.price)}</p><p className="text-[10px] text-zinc-500">{selectedQuote?.quote ?? 'Native quote units'}</p></div></div>
+        <SampledCandles key={selectedKey} quote={selectedQuote} current={Boolean(selectedQuote)} />
+        <div className="mt-3 grid grid-cols-2 gap-4">{([['Best bid', bid], ['Best ask', ask]] as const).map(([label, value]) => <div key={label} className="rounded border p-2" style={{ borderColor: BORDER }}><p className="text-[10px] uppercase text-zinc-500">{label}</p><p className="font-mono text-sm" style={{ color: label === 'Best bid' ? CYAN : GOLD }}>{format(value)}</p></div>)}</div>
+        <p className="mt-2 text-[10px] text-zinc-500">Spread {format(spread)} in quote units. Depth quantities are unavailable from this feed.</p><p className="mt-2 break-words text-[10px] text-zinc-500">{market.freshness.source} · {market.freshness.sourceTimestamp ?? 'timestamp unavailable'}</p></Panel>
+      <div className="flex flex-col gap-3 lg:col-span-4"><Panel className="p-4"><div className="mb-3 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm"><Building2 className="h-4 w-4 text-zinc-400" />Competitors Watch</h2><EvidenceBadge>Unavailable</EvidenceBadge></div><div className="rounded border border-dashed p-4 text-xs leading-relaxed text-zinc-400" style={{ borderColor: BORDER }}>No timestamped competitor measurement source is connected. Competitor latency and rankings require sourced evidence.</div><Link to="/platform/coverage" className="mt-3 inline-block text-[11px] underline" style={{ color: CYAN }}>Inspect source coverage</Link></Panel>
+        <Panel className="p-4"><div className="mb-1 flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-sm"><Radio className="h-4 w-4" style={{ color: GOLD }} />Cash-Cow Matrix</h2><EvidenceBadge>{candidates.length ? 'Runtime derived' : 'Unavailable'}</EvidenceBadge></div><p className="mb-3 text-[10px] text-zinc-500">Current plan candidates · model confidence is not verified profitability.</p>
+          <div className="overflow-auto rounded border" style={{ borderColor: BORDER }}><table className="w-full text-left text-[11px]"><thead><tr className="text-zinc-500"><th className="p-2 font-medium">Symbol / venue</th><th className="p-2 font-medium">Confidence</th><th className="p-2 font-medium">Side</th></tr></thead><tbody>{candidates.slice(0, 5).map(row => <tr key={row.key} className="border-t" style={{ borderColor: BORDER }}><td className="p-2 font-mono">{row.symbol}<small className="block text-zinc-500">{row.venue}</small></td><td className="p-2">{row.confidence === null ? '—' : `${(row.confidence * 100).toFixed(1)}%`}{row.confidence !== null && <div className="mt-1 h-1 rounded bg-zinc-800"><div className="h-full rounded" style={{ width: `${row.confidence * 100}%`, background: CYAN }} /></div>}</td><td className="p-2" style={{ color: CYAN }}>{row.side}</td></tr>)}{!candidates.length && <tr><td colSpan={3} className="p-3 text-zinc-500">No current candidate rows meet their source freshness limit.</td></tr>}</tbody></table></div><Link to="/trading/war-room" className="mt-3 inline-block text-[11px] underline" style={{ color: CYAN }}>Inspect decision evidence &amp; gates</Link></Panel></div>
+    </div>
+  </div>;
 }

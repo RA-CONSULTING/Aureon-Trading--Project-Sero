@@ -3,10 +3,16 @@
 Fail-closed voice-layer tests.
 
 Prompt composition and choice logic remain pure. Provider calls, vault
-mutation, bus publishing, and background execution remain on the production
-Magic Star release HOLD.
+mutation, bus publishing, and background execution sit behind the shared
+fail-closed release record (``aureon.vault.voice._goal_release``): they
+raise the module's HOLD error while the record is absent or invalid, and
+run only while the record names the module. Every test here defaults to a
+missing record (autouse fixture); released-path tests opt into a released
+fixture. Released-path speak tests use no adapter or a silent choice gate,
+so no provider is ever contacted.
 """
 
+import json
 import os
 import sys
 
@@ -30,6 +36,31 @@ from aureon.vault import (  # noqa: E402
     ThoughtStreamLoop,
     build_all_voices,
 )
+
+
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch, tmp_path) -> None:
+    """Default every test to the fail-closed HOLD: point the release
+    record at a path that does not exist."""
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
+@pytest.fixture
+def released(monkeypatch, tmp_path):
+    """Opt into the released path. Names the whole voice chain:
+    self_dialogue speaks through vault_voice, and the thought stream
+    ticks through self_dialogue."""
+    record_dir = tmp_path / "record"
+    record_dir.mkdir()
+    record = record_dir / "dispatch_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["vault_voice", "self_dialogue", "thought_stream_loop"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("GOAL_DISPATCH_RELEASE_RECORD", str(record))
+    return record
 
 
 PASS = 0
@@ -234,9 +265,97 @@ def test_thought_stream_loop_never_spawns_or_executes(monkeypatch: pytest.Monkey
 
 
 def test_self_feedback_loop_voice_integration():
-    print("\n[6] Self-feedback voice integration remains on production HOLD")
-    with pytest.raises(RuntimeError, match="aureon_self_feedback_loop_hold"):
-        AureonSelfFeedbackLoop(base_interval_s=0.01, enable_voice=True)
+    print("\n[6] Self-feedback voice integration: fail-closed; voice stays "
+          "inert when the core record releases the loop")
+    import json as _json
+    import shutil
+    import tempfile
+
+    env_var = "AUREON_CORE_RELEASE_RECORD"
+    old = os.environ.get(env_var)
+    tmpdir = tempfile.mkdtemp()
+    try:
+        # HOLD path: record absent → the loop refuses the effectful flag.
+        os.environ[env_var] = os.path.join(tmpdir, "no_such_record.json")
+        with pytest.raises(RuntimeError, match="aureon_self_feedback_loop_hold"):
+            AureonSelfFeedbackLoop(base_interval_s=0.01, enable_voice=True)
+
+        # Released path: the loop's own gate opens, but the voice provider
+        # modules are voice-owned and are NOT released by the core record —
+        # the voice engine must stay inert.
+        record = os.path.join(tmpdir, "core_release.json")
+        with open(record, "w", encoding="utf-8") as f:
+            _json.dump({
+                "ts": "2026-09-06",
+                "source": "owner decree 2026-09-06 (Gary Leckey)",
+                "modules": ["aureon_vault", "casimir_quantifier",
+                            "harmonic_pinger", "self_feedback_loop"],
+            }, f)
+        os.environ[env_var] = record
+        loop = AureonSelfFeedbackLoop(base_interval_s=0.01, enable_voice=True)
+        check(loop.voice_engine is None,
+              "voice engine stays inert under core release (voice-owned)")
+        check(loop._running is False, "released loop starts inert")
+    finally:
+        if old is None:
+            os.environ.pop(env_var, None)
+        else:
+            os.environ[env_var] = old
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_released_voices_speak_silence_without_adapter(released) -> None:
+    print("\n[7] Released voices speak the safe silence statement with no adapter")
+    vault = AureonVault()
+    vault.love_amplitude = 0.6
+    vault.gratitude_score = 0.7
+    vault.last_lambda_t = 0.42
+    voices = build_all_voices(adapter=None)
+    for name, voice in voices.items():
+        statement = voice.speak(vault)
+        check(statement is not None, f"{name} released speak returns a statement")
+        check(
+            "I have no adapter" in (statement.text or ""),
+            f"{name} speaks the silence statement without an adapter",
+        )
+        check(statement.voice == name, f"{name} statement names its voice")
+
+
+def test_released_self_dialogue_converse_stays_silent_when_gate_says_so(
+    released,
+) -> None:
+    print("\n[8] Released SelfDialogueEngine honours a silent choice gate")
+    vault = AureonVault()
+    silent_gate = ChoiceGate(min_interval_s=0.0, urgency_threshold=1.1,
+                             background_rate=0.0)
+    engine = SelfDialogueEngine(
+        vault=vault,
+        voices=build_all_voices(adapter=None),
+        choice_gate=silent_gate,
+    )
+    check(engine.converse() is None, "silent gate -> converse() returns None")
+    check(engine.get_status()["total_decisions"] == 1,
+          "the decision was still counted")
+
+
+def test_released_thought_stream_counts_cycles_without_utterances(
+    released,
+) -> None:
+    print("\n[9] Released ThoughtStreamLoop runs cycles against a silent engine")
+    vault = AureonVault()
+    silent_gate = ChoiceGate(min_interval_s=0.0, urgency_threshold=1.1,
+                             background_rate=0.0)
+    engine = SelfDialogueEngine(
+        vault=vault,
+        voices=build_all_voices(adapter=None),
+        choice_gate=silent_gate,
+    )
+    stream = ThoughtStreamLoop(vault=vault, base_interval_s=0.001, engine=engine)
+    utterances = stream.run_n_cycles(3, sleep_between=False)
+    check(utterances == [], "silent engine -> no utterances")
+    status = stream.get_status()
+    check(status.cycles == 3, f"three cycles ran (got {status.cycles})")
+    check(status.utterances == 0, "no utterances recorded")
 
 
 def main():
@@ -244,12 +363,44 @@ def main():
     print("  VAULT VOICE TEST SUITE")
     print("=" * 80)
 
-    test_voices_compose_pure_prompts_but_speaking_is_held()
-    test_choice_gate()
-    test_self_dialogue_engine_is_inert_and_all_effect_entrypoints_hold()
-    test_human_response_hold_precedes_provider_vault_and_bus_effects()
-    test_thought_stream_loop_never_spawns_or_executes(pytest.MonkeyPatch())
-    test_self_feedback_loop_voice_integration()
+    import shutil
+    import tempfile
+
+    env_var = "GOAL_DISPATCH_RELEASE_RECORD"
+    old_env = os.environ.get(env_var)
+    tmpdir = tempfile.mkdtemp()
+    try:
+        # Held sections: point the release record at a missing path.
+        os.environ[env_var] = os.path.join(tmpdir, "missing.json")
+        test_voices_compose_pure_prompts_but_speaking_is_held()
+        test_choice_gate()
+        test_self_dialogue_engine_is_inert_and_all_effect_entrypoints_hold()
+        test_human_response_hold_precedes_provider_vault_and_bus_effects()
+        test_thought_stream_loop_never_spawns_or_executes(pytest.MonkeyPatch())
+        test_self_feedback_loop_voice_integration()
+
+        # Released sections: write a real record naming the voice chain.
+        record_dir = os.path.join(tmpdir, "record")
+        os.makedirs(record_dir, exist_ok=True)
+        record = os.path.join(record_dir, "dispatch_release.json")
+        with open(record, "w", encoding="utf-8") as f:
+            json.dump({
+                "ts": "2026-09-06",
+                "source": "owner decree 2026-09-06 (Gary Leckey)",
+                "modules": ["vault_voice", "self_dialogue", "thought_stream_loop"],
+            }, f)
+        os.environ[env_var] = record
+        # main() is not pytest: the tests below only need the env var the
+        # fixture would have set, so pass a placeholder for the fixture arg.
+        test_released_voices_speak_silence_without_adapter(None)
+        test_released_self_dialogue_converse_stays_silent_when_gate_says_so(None)
+        test_released_thought_stream_counts_cycles_without_utterances(None)
+    finally:
+        if old_env is None:
+            os.environ.pop(env_var, None)
+        else:
+            os.environ[env_var] = old_env
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
     print()
     print("=" * 80)

@@ -2231,6 +2231,25 @@ class UnifiedMarketTrader:
         if EXCHANGE_BOOT_ASYNC_ENABLED and not EXCHANGE_SYNC_RETRY_ENABLED:
             if not getattr(self, "_exchange_init_threads", None):
                 self._start_exchange_boot_init()
+                return
+            if any(thread.is_alive() for thread in self._exchange_init_threads.values()):
+                return
+            # Async boot init finished: promote exchanges to ready. Without
+            # this, _startup_kraken/_startup_capital were only ever called on
+            # the synchronous boot path and the Kraken venue stayed dead
+            # (kraken_ready=False, kraken tick never ran) in async mode.
+            if self.kraken is not None and not self.kraken_ready:
+                self._startup_kraken()
+            elif self.kraken is None and not self.kraken_error:
+                self._init_kraken()
+            if self.capital is not None and not self.capital_ready:
+                self._startup_capital()
+            elif self.capital is None and not self.capital_error:
+                self._init_capital()
+            if self.alpaca is None and not self.alpaca_error:
+                self._init_alpaca()
+            if self.binance is None and not self.binance_error:
+                self._init_binance()
             return
         if self.kraken is None:
             self._init_kraken()

@@ -50,6 +50,8 @@ from dataclasses import dataclass, field
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     import websockets
 except ImportError:
@@ -287,6 +289,10 @@ class BinanceRapidStream:
         
     async def fetch_all_tickers_rest(self) -> int:
         """Fetch ALL tickers via REST API - fallback and initial load"""
+        if no_external_api_calls():
+            logger.warning("BinanceRapidStream.fetch_all_tickers_rest blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0
+
         try:
             response = await asyncio.get_event_loop().run_in_executor(
                 None, lambda: requests.get(self.REST_URL, timeout=10)
@@ -329,8 +335,12 @@ class BinanceRapidStream:
     
     async def stream_all(self):
         """Stream ALL pair updates via WebSocket - SPEED"""
+        if no_external_api_calls():
+            logger.warning("BinanceRapidStream.stream_all blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self.running = True
-        
+
         # Initial fetch
         count = await self.fetch_all_tickers_rest()
         print(f"   📡 Binance: Loaded {count} pairs via REST")
@@ -415,6 +425,10 @@ class KrakenRapidStream:
         
     async def fetch_pairs(self):
         """Fetch available pairs"""
+        if no_external_api_calls():
+            logger.warning("KrakenRapidStream.fetch_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0
+
         try:
             response = await asyncio.get_event_loop().run_in_executor(
                 None, lambda: requests.get(self.PAIRS_URL, timeout=10)
@@ -428,6 +442,10 @@ class KrakenRapidStream:
     
     async def fetch_all_tickers(self) -> int:
         """Fetch all Kraken tickers via REST (polled every second)"""
+        if no_external_api_calls():
+            logger.warning("KrakenRapidStream.fetch_all_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0
+
         try:
             # Get all pairs
             pairs_param = ','.join(list(self.pairs)[:50])  # Kraken limits
@@ -472,8 +490,12 @@ class KrakenRapidStream:
     
     async def stream_all(self):
         """Poll Kraken every second (they don't have free public WS for all pairs)"""
+        if no_external_api_calls():
+            logger.warning("KrakenRapidStream.stream_all blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self.running = True
-        
+
         # Get pairs first
         await self.fetch_pairs()
         print(f"   📡 Kraken: Found {len(self.pairs)} pairs")
@@ -687,6 +709,10 @@ class RapidConversionStream:
             
     async def run(self):
         """Start the rapid conversion stream"""
+        if no_external_api_calls():
+            logger.warning("RapidConversionStream.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print("""
 ╔═══════════════════════════════════════════════════════════════════════════════════╗
 ║                                                                                   ║

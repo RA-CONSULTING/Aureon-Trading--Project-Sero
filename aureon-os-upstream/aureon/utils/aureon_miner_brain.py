@@ -35,7 +35,7 @@ import logging
 import requests
 import random
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict, field
 from collections import deque
@@ -622,7 +622,7 @@ class CognitiveCircle:
                 json.dump({
                     'predictions': self.predictions[-100:],
                     'bias_tracker': self.bias_tracker,
-                    'last_updated': datetime.now().isoformat()
+                    'last_updated': datetime.now(timezone.utc).isoformat()
                 }, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not save predictions: {e}")
@@ -5311,7 +5311,7 @@ class MemoryCore:
         logger.info("💾 Committing to memory...")
         
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "talk": talk,
             "processed_data": data.get("processed", {}),
             "skeptic_analysis": analysis.get("skeptic", {}),

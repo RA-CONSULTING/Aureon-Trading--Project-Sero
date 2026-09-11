@@ -4,6 +4,9 @@
 ==========================================
 Forces a small profitable trade to demonstrate the system is working.
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -15,6 +18,9 @@ from aureon.trading.micro_profit_labyrinth import MicroProfitLabyrinth
 
 async def force_demo_trade():
     """Force a demonstration trade"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.force_trade_demo.force_demo_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "=" * 80)
     print("🎯 FORCING TRADE DEMONSTRATION")
     print("=" * 80)

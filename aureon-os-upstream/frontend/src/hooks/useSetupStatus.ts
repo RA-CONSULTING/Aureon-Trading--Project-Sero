@@ -1,81 +1,35 @@
-/**
- * useSetupStatus — the one honest read of "is this account ready to use?".
- *
- * Fetches the live provider surface (`/api/providers`) and reduces it to the few
- * booleans the onboarding flow needs: is the backend reachable, does the current
- * account have a model key configured, and is a model actually live. Shared by the
- * Get Started page, the Overview first-run nudge, and the Operator Chat pre-flight
- * so every surface tells the user the same thing. Honest by construction: on a
- * transport failure it reports `offline` rather than guessing.
- */
+import { useEffect, useRef } from 'react';
+import { ApiError, api } from '../services/apiClient';
+import { createReadOnlyPoller } from '../services/readOnlyPoller';
+import { useReadOnlyPoller } from './useReadOnlyPoller';
+import { CONFIGURATION_RECEIPT_MAX_AGE_MS, readProviderList, setupFromReceipt, type ProviderList, type ProviderView } from '../lib/accountConfigurationEvidence';
 
-import { useEffect, useState } from "react";
-import { api, ApiError } from "@/services/apiClient";
+const providerStore = createReadOnlyPoller<ProviderList>({
+  receiptMaxAgeMs: CONFIGURATION_RECEIPT_MAX_AGE_MS,
+  read: async options => {
+    const result = readProviderList(await api.get<unknown>('/api/providers', options));
+    if (!result) throw new ApiError('Provider configuration response is incomplete', { status: 200, path: '/api/providers' });
+    return result;
+  },
+});
 
-export interface SetupStatus {
-  /** The request is still in flight. */
-  loading: boolean;
-  /** The operator gateway is unreachable (transport failure), not merely keyless. */
-  offline: boolean;
-  /** At least one provider has a key stored for the current account. */
-  hasProvider: boolean;
-  /** At least one provider is live (driving cognition on this instance). */
-  liveProvider: boolean;
-  /** How many providers have a key configured. */
-  providerCount: number;
+/** One account-scoped configuration read shared by onboarding and key management. */
+export function useProviderConfiguration<T extends ProviderView = ProviderView>() {
+  const receipt = useReadOnlyPoller(providerStore, 15_000, 8_000);
+  return { ...receipt, providers: receipt.data ? receipt.data.providers as T[] : null };
 }
 
-interface ProviderView {
-  id: string;
-  has_key?: boolean;
-  live?: boolean;
-}
-
-const INITIAL: SetupStatus = {
-  loading: true,
-  offline: false,
-  hasProvider: false,
-  liveProvider: false,
-  providerCount: 0,
-};
-
-/**
- * @param refreshKey change this value to re-fetch (e.g. after saving a key).
- */
+export type SetupStatus = ReturnType<typeof setupFromReceipt>;
+/** liveProvider means runtime attachment; it never implies a successful test. */
 export function useSetupStatus(refreshKey?: number): SetupStatus {
-  const [status, setStatus] = useState<SetupStatus>(INITIAL);
-
+  const receipt = useProviderConfiguration();
+  const { invalidate } = receipt;
+  const previousKey = useRef(refreshKey);
   useEffect(() => {
-    let cancelled = false;
-    setStatus((s) => ({ ...s, loading: true }));
-    api
-      .get<{ providers?: ProviderView[] }>("/api/providers")
-      .then((data) => {
-        if (cancelled) return;
-        const list = data.providers ?? [];
-        const configured = list.filter((p) => p.has_key);
-        setStatus({
-          loading: false,
-          offline: false,
-          hasProvider: configured.length > 0,
-          liveProvider: list.some((p) => p.live),
-          providerCount: configured.length,
-        });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setStatus({
-          loading: false,
-          offline: err instanceof ApiError && err.offline,
-          hasProvider: false,
-          liveProvider: false,
-          providerCount: 0,
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [refreshKey]);
-
-  return status;
+    if (previousKey.current !== refreshKey) {
+      previousKey.current = refreshKey;
+      invalidate();
+    }
+  }, [refreshKey, invalidate]);
+  return setupFromReceipt(receipt);
 }

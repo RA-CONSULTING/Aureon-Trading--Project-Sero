@@ -20,12 +20,17 @@ if sys.platform == 'win32':
         pass
 
 import json
+import logging
 import time
 import asyncio
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 # Exchange clients
 try:
@@ -141,8 +146,12 @@ class LivePowerMonitor:
     
     def get_binance_stream(self) -> EnergyStream:
         """Get real-time Binance energy stream"""
+        if no_external_api_calls():
+            logger.info("LivePowerMonitor.get_binance_stream blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return EnergyStream('BIN', False, 0, 0, 0, 0, 0, [], time.time(), 0)
+
         start = time.time()
-        
+
         try:
             client = self.clients.get('BIN')
             if not client:
@@ -240,8 +249,12 @@ class LivePowerMonitor:
     
     def get_alpaca_stream(self) -> EnergyStream:
         """Get real-time Alpaca energy stream"""
+        if no_external_api_calls():
+            logger.info("LivePowerMonitor.get_alpaca_stream blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return EnergyStream('ALP', False, 0, 0, 0, 0, 0, [], time.time(), 0)
+
         start = time.time()
-        
+
         try:
             client = self.clients.get('ALP')
             if not client:
@@ -289,8 +302,12 @@ class LivePowerMonitor:
     
     def get_capital_stream(self) -> EnergyStream:
         """Get real-time Capital.com energy stream"""
+        if no_external_api_calls():
+            logger.info("LivePowerMonitor.get_capital_stream blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return EnergyStream('CAP', False, 0, 0, 0, 0, 0, [], time.time(), 0)
+
         start = time.time()
-        
+
         try:
             client = self.clients.get('CAP')
             if not client:

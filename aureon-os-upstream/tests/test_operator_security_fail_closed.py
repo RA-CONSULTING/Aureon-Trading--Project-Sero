@@ -132,7 +132,7 @@ def test_operator_main_defaults_to_loopback() -> None:
     assert "non_loopback_operator_requires_AUREON_OPERATOR_API_KEY" in main_source
 
 
-def test_compose_and_docs_use_the_exact_operator_environment_contract() -> None:
+def test_container_preflights_remain_isolated_and_http_runbook_uses_exact_contract() -> None:
     compose_paths = (
         ROOT / "deploy" / "docker-compose.operator.yml",
         ROOT / "deploy" / "docker-compose.saas.yml",
@@ -149,14 +149,18 @@ def test_compose_and_docs_use_the_exact_operator_environment_contract() -> None:
     )
     for path in compose_paths:
         text = path.read_text(encoding="utf-8")
-        assert all(name in text for name in required)
-        assert "AUREON_OPERATOR_API_KEY: \"${AUREON_OPERATOR_API_KEY:?" in text
-        assert "replicas: 1" in text
+        assert 'network_mode: "none"' in text
+        assert 'read_only: true' in text
+        assert 'restart: "no"' in text
+        assert 'no-new-privileges:true' in text
+        assert 'ports:' not in text
+        assert 'operator-protection-preflight:' in text
 
     docs = (
         ROOT / "docs" / "deployment" / "OPERATOR_DEPLOY.md",
         ROOT / "docs" / "runbooks" / "PRODUCTION_GRADE.md",
         ROOT / "docs" / "runbooks" / "GO_LIVE_HARDENING.md",
+        ROOT / "docs" / "deployment" / "LOCAL_OPERATOR_HTTP.md",
     )
     combined = "\n".join(path.read_text(encoding="utf-8") for path in docs)
     assert all(name in combined for name in required)

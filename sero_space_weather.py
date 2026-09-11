@@ -274,12 +274,21 @@ class SpaceWeatherBridge:
         print(f"🌌 Space Weather Bridge daemon starting (interval {interval}s)")
         try:
             while True:
-                snap = self.update()
-                if snap.source_reachable:
-                    print(f"🌌 Kp {snap.kp_index:.1f} ({snap.storm_level}), "
-                          f"{snap.cme_count_24h} CME alerts")
-                else:
-                    print("🌌 NOAA unreachable — sky blind this cycle")
+                try:
+                    snap = self.update()
+                    if snap.source_reachable:
+                        print(f"🌌 Kp {snap.kp_index:.1f} ({snap.storm_level}), "
+                              f"{snap.cme_count_24h} CME alerts")
+                    else:
+                        print("🌌 NOAA unreachable — sky blind this cycle")
+                except Exception as e:
+                    # A transient fetch/network error must never kill the sky
+                    # sense — log it and keep the hourly watch.
+                    print(f"🌌 fetch cycle failed ({type(e).__name__}: {e}) — continuing")
+                # Persist EVERY cycle: readers (queen reports) only see
+                # space_weather_state.json; without this the state file only
+                # updates when the daemon exits (observed stale since Sep 6).
+                self.save_state()
                 count += 1
                 if cycles is not None and count >= cycles:
                     break

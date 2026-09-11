@@ -23,6 +23,8 @@ from collections import defaultdict
 import threading
 import requests
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Add parent directory for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -132,6 +134,9 @@ class S5LabyrinthLive:
     
     def load_holdings(self) -> bool:
         """Load current holdings from Kraken"""
+        if no_external_api_calls():
+            print("S5LabyrinthLive.load_holdings blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("\n   🐙 Loading holdings from Kraken...")
         
         try:
@@ -186,6 +191,9 @@ class S5LabyrinthLive:
     
     async def run(self):
         """Main run loop"""
+        if no_external_api_calls():
+            print("S5LabyrinthLive.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         self.banner()
         
         if not self.load_holdings():

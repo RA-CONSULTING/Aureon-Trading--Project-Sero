@@ -23,6 +23,8 @@ from email.utils import parsedate_to_datetime
 from typing import Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # NOAA SWPC API Endpoints (no API key required - public data!)
@@ -74,7 +76,8 @@ class SpaceWeatherReading:
     active_sources: list
     source_timestamps: Dict[str, str]
     truth_status: str = 'live'
-    
+    reason: Optional[str] = None
+
     def to_dict(self) -> Dict:
         return {
             'timestamp': self.timestamp,
@@ -88,6 +91,7 @@ class SpaceWeatherReading:
             'active_sources': self.active_sources,
             'source_timestamps': self.source_timestamps,
             'truth_status': self.truth_status,
+            'reason': self.reason,
             'generated_values': False,
         }
 
@@ -108,11 +112,28 @@ class SpaceWeatherBridge:
         Returns no reading if required live NOAA fields are unavailable.
         """
         now = time.time()
-        
+
+        if no_external_api_calls():
+            logger.info("Space Weather Bridge blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return SpaceWeatherReading(
+                timestamp=now,
+                kp_index=0.0,
+                kp_category='No Source',
+                solar_wind_speed=0.0,
+                solar_wind_density=0.0,
+                bz_component=0.0,
+                solar_flares_24h=None,
+                geomagnetic_storm_3day=None,
+                active_sources=[],
+                source_timestamps={},
+                truth_status='no_source',
+                reason='AUREON_NO_EXTERNAL_API_CALLS',
+            )
+
         # Check cache
         if not force_refresh and self.cache and (now - self.last_update) < CACHE_LIFETIME_SECONDS:
             return self.cache
-        
+
         # Fetch fresh data
         active_sources = []
         source_timestamps: Dict[str, str] = {}
@@ -491,6 +512,8 @@ def get_cosmic_alignment_from_space_weather(force_refresh: bool = False) -> floa
     reading = bridge.get_live_data(force_refresh=force_refresh)
     if reading is None:
         raise RuntimeError("No fresh live space-weather reading is available")
+    if reading.truth_status == 'no_source':
+        raise RuntimeError(f"Space weather unavailable: {reading.reason or 'AUREON_NO_EXTERNAL_API_CALLS'}")
     return bridge.get_cosmic_score(reading)
 
 

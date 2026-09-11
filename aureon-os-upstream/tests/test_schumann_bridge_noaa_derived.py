@@ -27,6 +27,16 @@ def test_schumann_bridge_uses_labelled_noaa_kp_derived_path(monkeypatch):
         "_fetch_usgs_magnetometer",
         lambda self: None,
     )
+    monkeypatch.setattr(
+        schumann.SchumannResonanceBridge,
+        "_fetch_local_station_state",
+        lambda self: None,
+    )
+    monkeypatch.setattr(
+        schumann.SchumannResonanceBridge,
+        "_fetch_gfz_archive",
+        lambda self: None,
+    )
     monkeypatch.setenv("AUREON_ALLOW_SIM_FALLBACK", "0")
 
     bridge = schumann.SchumannResonanceBridge()

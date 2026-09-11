@@ -5,6 +5,7 @@ import random
 import os
 from aureon.trading.unified_exchange_client import MultiExchangeClient
 from aureon.intelligence.aureon_market_pulse import MarketPulse
+from aureon.core.no_external_calls import no_external_api_calls
 
 # Configuration
 SCOUT_SIZE_USD = 12.0  # Size of each scout deployment
@@ -32,6 +33,10 @@ def save_state(state):
         json.dump(state, f, indent=2)
 
 def run_scout_patrol():
+    if no_external_api_calls():
+        print("run_scout_patrol blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print("🏹 SCOUT PATROL STARTED - Searching for targets...")
     client = MultiExchangeClient()
     pulse = MarketPulse(client)

@@ -28,7 +28,7 @@ type SortField = 'symbol' | 'price' | 'change' | 'volume' | 'volatility';
 type SortDirection = 'asc' | 'desc';
 
 export function AssetPriceListPanel() {
-  const { assets, stats, isLoading, lastRefresh, refresh } = useAssetPriceList();
+  const { assets, stats, isLoading, lastRefresh, refresh, error } = useAssetPriceList();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('volume');
@@ -37,7 +37,7 @@ export function AssetPriceListPanel() {
 
   // Filter and sort assets
   const displayedAssets = useMemo(() => {
-    let filtered = assets;
+    let filtered = [...assets];
 
     // Apply search filter
     if (searchQuery) {
@@ -127,10 +127,10 @@ export function AssetPriceListPanel() {
                   <span className="text-destructive">● {stats.staleAssets} stale</span>
                 </div>
                 <Badge 
-                  variant={stats.dataFreshness > 80 ? 'default' : stats.dataFreshness > 50 ? 'secondary' : 'destructive'}
+                  variant={stats.dataFreshness === null ? 'outline' : stats.dataFreshness > 80 ? 'default' : stats.dataFreshness > 50 ? 'secondary' : 'destructive'}
                   className="text-[10px]"
                 >
-                  {stats.dataFreshness.toFixed(0)}% Fresh
+                  {stats.dataFreshness === null ? 'UNAVAILABLE' : `${stats.dataFreshness.toFixed(0)}% Fresh`}
                 </Badge>
                 {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </div>
@@ -140,6 +140,7 @@ export function AssetPriceListPanel() {
 
         <CollapsibleContent>
           <CardContent className="space-y-3">
+            {error && <p role="status" className="text-xs text-muted-foreground">{error}</p>}
             {/* Controls Row */}
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
@@ -233,7 +234,7 @@ export function AssetPriceListPanel() {
                 <p className="text-[10px] text-muted-foreground">Avg Volatility</p>
                 <div className="flex items-center gap-1">
                   <Activity className="h-3 w-3 text-primary" />
-                  <span className="text-xs font-mono">{stats.avgVolatility.toFixed(2)}%</span>
+                  <span className="text-xs font-mono">{stats.avgVolatility === null ? 'Unavailable' : `${stats.avgVolatility.toFixed(2)}%`}</span>
                 </div>
               </div>
             </div>
@@ -276,6 +277,7 @@ export function AssetPriceListPanel() {
             {/* Asset List */}
             <ScrollArea className="h-[400px]">
               <div className="space-y-0.5">
+                {displayedAssets.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">{isLoading ? 'Waiting for fresh provider data...' : error ?? 'No fresh assets match this filter.'}</p>}
                 {displayedAssets.slice(0, 200).map((asset) => (
                   <div 
                     key={asset.symbol}
@@ -315,7 +317,7 @@ export function AssetPriceListPanel() {
             {/* Footer */}
             <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-2 border-t border-border/50">
               <span>
-                Last refresh: {lastRefresh ? lastRefresh.toLocaleTimeString() : 'Never'}
+                Latest source observation: {lastRefresh ? lastRefresh.toLocaleTimeString() : 'Unavailable'}
               </span>
               <span>
                 Showing {Math.min(displayedAssets.length, 200)} of {displayedAssets.length} filtered / {stats.totalAssets} total

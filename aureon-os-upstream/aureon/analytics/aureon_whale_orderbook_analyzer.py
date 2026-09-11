@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from aureon.core.aureon_thought_bus import get_thought_bus, Thought
+from aureon.core.no_external_calls import no_external_api_calls
 
 try:
     from aureon.bots.whale_metrics import (
@@ -102,9 +103,12 @@ class WhaleOrderbookAnalyzer:
         self.binance_ws: Optional[Any] = None
         self.capital_client: Optional[Any] = None
         
-        # Initialize market connections
-        self._init_market_connections()
-        
+        # Initialize market connections only when external calls are allowed
+        if not no_external_api_calls():
+            self._init_market_connections()
+        else:
+            logger.info("WhaleOrderbookAnalyzer market connections blocked by AUREON_NO_EXTERNAL_API_CALLS")
+
         # 🐦 CHIRP BUS - Emit whale wall detections to Orca
         self.chirp_bus = None
         if CHIRP_BUS_AVAILABLE and get_chirp_bus:
@@ -115,6 +119,9 @@ class WhaleOrderbookAnalyzer:
                 logger.debug(f"Chirp bus init failed: {e}")
 
     def start(self) -> None:
+        if no_external_api_calls():
+            logger.info("WhaleOrderbookAnalyzer.start blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
@@ -168,6 +175,20 @@ class WhaleOrderbookAnalyzer:
 
     def analyze_symbol(self, symbol: str) -> Dict[str, Any]:
         """Fetch orderbook and analyze for walls and layering."""
+        if no_external_api_calls():
+            logger.info("WhaleOrderbookAnalyzer.analyze_symbol blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                'symbol': symbol,
+                'exchange': 'unknown',
+                'detected_at': time.time(),
+                'walls': [],
+                'layering_score': 0.0,
+                'bids_depth': 0.0,
+                'asks_depth': 0.0,
+                'truth_status': 'no_source',
+                'reason': 'AUREON_NO_EXTERNAL_API_CALLS',
+            }
+
         # Best-effort fetch via provided fee_tracker (Alpaca/bridge), else try ThoughtBus caches
         orderbook = None
         try:

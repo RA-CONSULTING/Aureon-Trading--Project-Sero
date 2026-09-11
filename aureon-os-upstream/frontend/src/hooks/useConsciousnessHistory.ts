@@ -1,5 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { SchumannData } from '@/lib/earthObservationEvidence';
+
+interface BiometricSnapshot {
+  hrv?: number;
+  heartRate?: number;
+  alpha?: number;
+  theta?: number;
+  delta?: number;
+  beta?: number;
+  coherenceIndex?: number;
+}
 
 export interface ConsciousnessHistoryData {
   id: string;
@@ -24,31 +35,7 @@ export function useConsciousnessHistory(hoursBack: number = 24) {
   const [historyData, setHistoryData] = useState<ConsciousnessHistoryData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchHistory();
-
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel('consciousness-history-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'consciousness_field_history'
-        },
-        (payload) => {
-          setHistoryData(prev => [payload.new as ConsciousnessHistoryData, ...prev].slice(0, 1000));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [hoursBack]);
-
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       const cutoffTime = new Date();
       cutoffTime.setHours(cutoffTime.getHours() - hoursBack);
@@ -71,23 +58,48 @@ export function useConsciousnessHistory(hoursBack: number = 24) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [hoursBack]);
+
+  useEffect(() => {
+    fetchHistory();
+
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('consciousness-history-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'consciousness_field_history'
+        },
+        (payload) => {
+          setHistoryData(prev => [payload.new as ConsciousnessHistoryData, ...prev].slice(0, 1000));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchHistory]);
 
   const saveDataPoint = async (
-    schumannData: any,
-    biometricData: any,
+    schumannData: SchumannData | null,
+    biometricData: BiometricSnapshot | null,
     celestialBoost: number,
     totalCoherence: number
   ) => {
     try {
+      if (!schumannData?.frequencyReported || !Number.isFinite(schumannData?.fundamentalHz) || !Number.isFinite(schumannData?.amplitude)) return;
       const { error } = await supabase
         .from('consciousness_field_history')
         .insert({
-          schumann_frequency: schumannData?.fundamentalHz || 7.83,
-          schumann_amplitude: schumannData?.amplitude || 0.5,
-          schumann_quality: schumannData?.quality || 0.7,
-          schumann_coherence_boost: schumannData?.coherenceBoost || 0,
-          schumann_phase: schumannData?.resonancePhase || 'stable',
+          schumann_frequency: schumannData.fundamentalHz,
+          schumann_amplitude: schumannData.amplitude,
+          schumann_quality: schumannData.quality,
+          schumann_coherence_boost: schumannData.coherenceBoost,
+          schumann_phase: schumannData.resonancePhase,
           hrv: biometricData?.hrv || null,
           heart_rate: biometricData?.heartRate || null,
           alpha_waves: biometricData?.alpha || null,

@@ -29,6 +29,8 @@
 ╚══════════════════════════════════════════════════════════════════════════════════════════════════════╝
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -378,6 +380,9 @@ class V11PowerStationLive:
     @property
     def binance(self):
         """Lazy load Binance client"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.binance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if self._binance is None:
             try:
                 # Direct import to avoid circular import issues
@@ -445,6 +450,9 @@ class V11PowerStationLive:
     @property
     def alpaca(self):
         """Lazy load Alpaca client"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.alpaca blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self._alpaca is None:
             try:
                 from aureon.exchanges.alpaca_client import AlpacaClient
@@ -481,6 +489,9 @@ class V11PowerStationLive:
     
     def scan_binance_nodes(self) -> List[PowerNode]:
         """Scan Binance for power nodes"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.scan_binance_nodes blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         nodes = []
         
         if not self.binance or 'binance' not in self.config.enabled_exchanges:
@@ -614,6 +625,9 @@ class V11PowerStationLive:
     
     def scan_kraken_nodes(self) -> List[PowerNode]:
         """Scan Kraken for power nodes"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.scan_kraken_nodes blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         nodes = []
         
         if not self.kraken or 'kraken' not in self.config.enabled_exchanges:
@@ -681,6 +695,9 @@ class V11PowerStationLive:
     
     def scan_alpaca_nodes(self) -> List[PowerNode]:
         """Scan Alpaca for power nodes"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.scan_alpaca_nodes blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         nodes = []
         
         if not self.alpaca or 'alpaca' not in self.config.enabled_exchanges:
@@ -733,6 +750,9 @@ class V11PowerStationLive:
     def scan_power_grid(self) -> PowerGridState:
         """Scan entire power grid across all exchanges"""
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.scan_power_grid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n⚡ Scanning Power Grid...")
         
         # Scan all exchanges
@@ -785,6 +805,9 @@ class V11PowerStationLive:
         Returns siphon record if successful.
         """
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.siphon_node blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not node.can_siphon:
             return None
         
@@ -901,6 +924,9 @@ class V11PowerStationLive:
     def siphon_all_generators(self) -> List[SiphonRecord]:
         """Siphon energy from ALL generating nodes"""
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.siphon_all_generators blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         records = []
         
         for key, node in self.nodes.items():
@@ -950,6 +976,9 @@ class V11PowerStationLive:
         - Add to winning positions
         - Grow the grid!
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.reinvest_reserve blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if amount < self.config.min_trade_size:
             print(f"\n   ⏳ Reserve ${amount:.2f} < ${self.config.min_trade_size:.2f} minimum")
             print(f"      Accumulating until > ${self.config.min_trade_size:.2f}...")
@@ -1037,6 +1066,9 @@ class V11PowerStationLive:
         
         Returns summary of actions taken.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.run_compound_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         summary = {
             'siphons': 0,
             'siphon_amount': 0.0,
@@ -1125,6 +1157,9 @@ class V11PowerStationLive:
     async def run_power_station(self):
         """Main power station loop - scan and siphon continuously"""
         
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.run_power_station blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n🚀 Starting V11 Power Station...")
         
         while True:
@@ -1158,6 +1193,9 @@ class V11PowerStationLive:
     
     def run_once(self):
         """Run one scan and siphon cycle (for testing)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.v11_power_station_live.V11PowerStationLive.run_once blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         state = self.scan_power_grid()
         self.display_grid_status(state)
         
@@ -1176,6 +1214,9 @@ class V11PowerStationLive:
 
 def main():
     """Run V11 Power Station"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.v11_power_station_live.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description='V11 Power Station Live Trading')

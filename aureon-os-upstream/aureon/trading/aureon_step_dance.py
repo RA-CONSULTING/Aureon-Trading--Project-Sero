@@ -34,6 +34,8 @@ Every EXECUTE step must be NET PROFIT validated.
 Every PLAN step feeds the next EXECUTE.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import asyncio
 import time
@@ -109,6 +111,9 @@ class SharedMemory:
     
     def get_consensus(self) -> Dict:
         """Calculate consensus from all signals"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.SharedMemory.get_consensus blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         signals = [
             self.lighthouse_signal,
             self.harmonic_signal,
@@ -170,6 +175,9 @@ class LighthousePlanner(PlannerSystem):
         
     async def plan(self, market_data: Dict) -> Dict:
         """Scan for patterns and plan next move"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.LighthousePlanner.plan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         analysis = {
             'patterns': [],
             'regime': 'UNKNOWN',
@@ -236,6 +244,9 @@ class HarmonicPlanner(PlannerSystem):
         
     async def plan(self, market_data: Dict) -> Dict:
         """Analyze frequencies and plan next move"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.HarmonicPlanner.plan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         analysis = {
             'frequency': 440,  # Default distortion
             'coherence': 0.5,
@@ -286,6 +297,9 @@ class ProbabilityPlanner(PlannerSystem):
         
     async def plan(self, market_data: Dict) -> Dict:
         """Calculate probabilities and plan next move"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.ProbabilityPlanner.plan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         analysis = {
             'win_probability': 0.5,
             'expected_profit': 0,
@@ -374,6 +388,9 @@ class MinerBrainPlanner(PlannerSystem):
         
     async def plan(self, market_data: Dict) -> Dict:
         """Apply cognitive wisdom and plan next move"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.MinerBrainPlanner.plan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         analysis = {
             'wisdom': [],
             'cognitive_score': 0.5,
@@ -421,6 +438,9 @@ class TelescopePlanner(PlannerSystem):
         
     async def plan(self, market_data: Dict) -> Dict:
         """Observe through geometric lenses and plan"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.TelescopePlanner.plan blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         analysis = {
             'spectrum': {},
             'geometry': 'balanced',
@@ -523,6 +543,9 @@ class StepDanceOrchestrator:
         
         Returns the step taken (EXECUTE or PLAN).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.StepDanceOrchestrator.dance_step blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         beat = self.current_beat % 3
         
         if beat == 0:
@@ -687,6 +710,9 @@ class StepDanceOrchestrator:
         
         Continuously execute the 1-2 step pattern.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_step_dance.StepDanceOrchestrator.run_dance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.running = True
         steps = 0
         
@@ -747,6 +773,9 @@ def integrate_step_dance(dance_instance):
     - Every step is net profit
     """
     # Get existing systems from dance
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_step_dance.integrate_step_dance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     lighthouse = getattr(dance_instance, 'lighthouse', None)
     harmonic = getattr(dance_instance, 'harmonic_fusion', None)
     nexus = getattr(dance_instance.intelligence, 'nexus', None) if hasattr(dance_instance, 'intelligence') else None

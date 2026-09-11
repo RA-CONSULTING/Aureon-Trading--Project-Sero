@@ -186,6 +186,14 @@ class PrimeSealComputer {
   }
 
   /**
+   * Honesty flag: true only when the last seal computation included
+   * runtime-backed bus contributions (systems marked ready with real provenance).
+   */
+  hasRuntimeData(): boolean {
+    return (this.lastPacket?.systems_contributing.length ?? 0) > 0;
+  }
+
+  /**
    * Check if seal is currently locked
    */
   isSealLocked(): boolean {

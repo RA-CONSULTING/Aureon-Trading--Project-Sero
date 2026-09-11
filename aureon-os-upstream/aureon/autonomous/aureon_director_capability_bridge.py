@@ -423,7 +423,9 @@ def render_markdown(report: dict[str, Any]) -> str:
 
 
 def component_source() -> str:
-    return r'''import { useEffect, useState } from "react";
+    return r"""import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
+import { consoleNumber } from "@/lib/generatedConsoleEvidence";
+import { useEffect, useState } from "react";
 import { BrainCircuit, GitBranch, Hammer, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -433,7 +435,7 @@ type JsonMap = Record<string, any>;
 
 async function fetchJson(url: string): Promise<JsonMap> {
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return {};
     return await response.json();
   } catch {
@@ -442,8 +444,8 @@ async function fetchJson(url: string): Promise<JsonMap> {
 }
 
 function fmt(value: unknown): string {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? number.toLocaleString() : String(value || "0");
+  const number = consoleNumber(value);
+  return number === null ? "Unavailable" : number.toLocaleString();
 }
 
 export function AureonDirectorCapabilityBridgeConsole() {
@@ -461,6 +463,7 @@ export function AureonDirectorCapabilityBridgeConsole() {
   const orders = Array.isArray(report.aureon_bridge_work_orders) ? report.aureon_bridge_work_orders : [];
 
   return (
+    <GeneratedReportBoundary report={report} source="/aureon_director_capability_bridge.json">
     <Card className="mb-5 bg-card/80">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -477,10 +480,10 @@ export function AureonDirectorCapabilityBridgeConsole() {
         </div>
 
         <div className="grid gap-2 md:grid-cols-4">
-          <Metric icon={ShieldCheck} label="ready" value={summary.ready_count || 0} />
-          <Metric icon={Hammer} label="partial" value={summary.partial_count || 0} />
-          <Metric icon={GitBranch} label="gaps" value={summary.gap_count || 0} />
-          <Metric icon={BrainCircuit} label="capabilities" value={summary.capability_count || 0} />
+          <Metric icon={ShieldCheck} label="ready" value={summary.ready_count} />
+          <Metric icon={Hammer} label="partial" value={summary.partial_count} />
+          <Metric icon={GitBranch} label="gaps" value={summary.gap_count} />
+          <Metric icon={BrainCircuit} label="capabilities" value={summary.capability_count} />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
@@ -508,18 +511,18 @@ export function AureonDirectorCapabilityBridgeConsole() {
           <ScrollArea className="h-[340px] pr-3">
             <div className="space-y-2">
               {orders.map((order: JsonMap) => (
-                <div key={order.id} className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3">
+                <div key={order.id} className="rounded-md border border-warning/30 bg-warning/10 p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="text-sm font-medium">{order.title}</div>
                     <Badge variant="outline">P{order.priority}</Badge>
                   </div>
-                  <div className="mt-2 text-xs text-yellow-50">{order.exact_aureon_prompt}</div>
+                  <div className="mt-2 text-xs text-warning">{order.exact_aureon_prompt}</div>
                   <div className="mt-2 truncate font-mono text-[10px] text-muted-foreground">{order.route}</div>
                 </div>
               ))}
               {!orders.length ? (
-                <div className="rounded-md border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-100">
-                  No bridge gaps detected.
+                <div className="rounded-md border border-success/30 bg-success/10 p-4 text-sm text-success">
+                  No work-order rows reported. This alone does not prove that all gaps are closed.
                 </div>
               ) : null}
             </div>
@@ -527,6 +530,7 @@ export function AureonDirectorCapabilityBridgeConsole() {
         </div>
       </CardContent>
     </Card>
+    </GeneratedReportBoundary>
   );
 }
 
@@ -541,7 +545,7 @@ function Metric({ icon: Icon, label, value }: { icon: any; label: string; value:
     </div>
   );
 }
-'''
+"""
 
 
 def _mount_component(app_text: str) -> str:

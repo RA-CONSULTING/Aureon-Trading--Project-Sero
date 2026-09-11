@@ -1,11 +1,26 @@
 /**
- * Earth data integration backed by the live NOAA-derived Supabase function.
+ * Earth data integration backed by the local gateway's live NOAA-derived proxy.
  * Local CSV/JSON datasets are research inputs and are never replayed as live.
  */
 
 import { unifiedBus } from './unifiedBus';
-import { supabase } from '@/integrations/supabase/client';
 import { assertFreshProvenance, type DataProvenance } from './liveDataContract';
+
+async function fetchSchumannProxy(): Promise<SchumannProxyResponse> {
+  const response = await fetch('/api/research/schumann', {
+    method: 'GET',
+    credentials: 'same-origin',
+    cache: 'no-cache',
+  });
+  if (!response.ok) {
+    throw new Error(`Schumann gateway returned HTTP ${response.status}`);
+  }
+  const data = await response.json() as Record<string, unknown>;
+  if (!data || data.truthStatus === 'no_data') {
+    throw new Error(`NO_DATA: NOAA-derived Earth proxy unavailable${typeof data?.reason === 'string' ? `: ${data.reason}` : ''}`);
+  }
+  return data as unknown as SchumannProxyResponse;
+}
 
 interface SchumannProxyResponse extends DataProvenance {
   fundamentalHz: number;
@@ -87,11 +102,14 @@ class EarthLiveDataIntegration {
   }
 
   async refresh(): Promise<void> {
-    const { data, error } = await supabase.functions.invoke<SchumannProxyResponse>('fetch-schumann-data');
-    if (error || !data) {
+    let data: SchumannProxyResponse;
+    try {
+      data = await fetchSchumannProxy();
+    } catch (error) {
       this.state = { ...EMPTY_STATE, modes: { ...EMPTY_STATE.modes } };
       this.notifyListeners();
-      throw new Error(`NO_DATA: NOAA-derived Earth proxy unavailable${error ? `: ${error.message}` : ''}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message.startsWith('NO_DATA:') ? message : `NO_DATA: NOAA-derived Earth proxy unavailable: ${message}`);
     }
     assertFreshProvenance(data, 20 * 60 * 1000);
     const numericValues = [

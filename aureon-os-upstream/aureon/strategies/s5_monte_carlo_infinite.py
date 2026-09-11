@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 import requests
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
@@ -183,6 +185,9 @@ class MonteCarloInfiniteLabyrinth:
     
     def load_all_markets(self):
         """Load ALL available Kraken markets"""
+        if no_external_api_calls():
+            print("MonteCarloInfiniteLabyrinth.load_all_markets blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("\n   🌌 OPENING ALL PATHS IN THE LABYRINTH...")
         
         # Build paths for all mappable pairs
@@ -199,6 +204,9 @@ class MonteCarloInfiniteLabyrinth:
     
     def load_holdings(self):
         """Load current holdings from Kraken"""
+        if no_external_api_calls():
+            print("MonteCarloInfiniteLabyrinth.load_holdings blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("\n   💰 LOADING YOUR ARSENAL...")
         
         try:
@@ -246,6 +254,9 @@ class MonteCarloInfiniteLabyrinth:
     
     async def run(self):
         """THE INFINITE SONG BEGINS"""
+        if no_external_api_calls():
+            print("MonteCarloInfiniteLabyrinth.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         self.banner()
         self.load_all_markets()
         self.load_holdings()

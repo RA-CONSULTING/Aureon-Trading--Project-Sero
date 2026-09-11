@@ -6,6 +6,7 @@ import importlib.util
 import json
 import py_compile
 import re
+import sys
 import time
 from datetime import UTC, datetime
 from html import escape
@@ -17,6 +18,11 @@ from aureon.autonomous.aureon_artifact_quality_gate import (
     write_artifact_quality_report,
 )
 from aureon.autonomous.aureon_safe_code_control import CodeProposal, SafeCodeControl
+
+try:
+    from aureon.autonomous.workers.local_coding_tool_worker import build_local_coding_tool
+except Exception:
+    build_local_coding_tool = None  # type: ignore[assignment, misc]
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_PATH = Path("state/aureon_capability_forge_last_run.json")
@@ -1275,6 +1281,12 @@ def _is_barcode_label_prompt(prompt: str) -> bool:
     )
 
 
+def _is_coding_tool_prompt(prompt: str) -> bool:
+    """Return True for finished "build a local ... tool" prompts that are not barcode labels."""
+    text = str(prompt or "").lower()
+    return "build a local" in text and "tool" in text and not _is_barcode_label_prompt(prompt)
+
+
 def _requests_finished_domain_tool(prompt: str) -> bool:
     text = str(prompt or "").lower()
     if any(
@@ -1904,6 +1916,203 @@ Then open `{public_url}` from the Aureon console. The static preview still rende
     }
 
 
+_TEMPLATE_STAMP_NEEDLES = (
+    "aureon local game forge",
+    "reach the glowing door",
+    "client proof passed: the player reached the door",
+)
+
+_AUTHORING_STOP_WORDS = frozenset({
+    "aureon", "build", "local", "finished", "working", "software", "system",
+    "self", "contained", "single", "file", "must", "where", "present",
+    "otherwise", "which", "there", "their", "these", "those",
+    "while", "when", "then", "than", "that", "this", "from", "into",
+    "your", "you", "are", "all", "any", "not", "none", "also", "plus",
+    "interactive", "application", "responsive", "layout", "theme",
+    "completion", "receipt", "machine", "readable", "embedded",
+    "reference", "honest", "unavailable", "notices", "missing",
+    "trading", "payments", "credentials", "deployment", "authority",
+})
+
+
+def _is_template_stamp(html_lower: str) -> bool:
+    """Return whether artifact text is the canned game template."""
+
+    return any(needle in html_lower for needle in _TEMPLATE_STAMP_NEEDLES)
+
+
+def _goal_content_tokens(prompt: str) -> List[str]:
+    """Extract distinctive content words a genuine build must address."""
+
+    words = re.findall(r"[a-zA-Z]{5,}", str(prompt or "").lower())
+    tokens: List[str] = []
+    for word in words:
+        if word in _AUTHORING_STOP_WORDS or word in tokens:
+            continue
+        tokens.append(word)
+    return tokens[:12]
+
+
+def _brain_authored_interactive_artifact(prompt: str, *, build_id: str) -> Dict[str, Any] | None:
+    """Author a non-game interactive artifact with Aureon's local brains.
+
+    Non-game app/model briefs must be genuinely authored, not stamped from
+    the game template.  Returns the authored HTML document, or None
+    (fail-closed) when no brain can be resolved or every bounded attempt
+    fails validation; the caller then records an honest template fallback
+    and the quality gate blocks the handover.
+    """
+    try:
+        from aureon.integrations.ollama.model_switchboard import OllamaModelSwitchboard
+    except Exception:
+        return None
+    try:
+        adapter, selection = OllamaModelSwitchboard().compatible_adapter_for("architecture")
+    except Exception:
+        return None
+    model = str(getattr(selection, "model", "") or "")
+    goal_tokens = _goal_content_tokens(prompt)
+    requirements = [
+        "single self-contained HTML file with inline CSS and JavaScript",
+        "no external network requests and no external assets",
+        "canvas-based rendering with a dark theme and responsive layout",
+        "honest empty or unavailable states wherever live data is missing",
+        "genuinely implement the client brief; no placeholders, no template reuse",
+    ]
+    system = (
+        "You are Aureon's Code Architect brain authoring finished, working, "
+        "self-contained web software for the local capability forge. You are "
+        "already mid-output: the conversation ends with the current end of "
+        "the document and your reply must continue it exactly - never "
+        "restart, never restate earlier content, never add commentary. "
+        "Close the document with </html> when it is complete."
+    )
+    base_user = (
+        f"Client brief: {prompt}\n\nHard requirements:\n"
+        + "\n".join(f"- {item}" for item in requirements)
+        + "\nThe finished document must visibly implement functionality for "
+        "these brief keywords: " + ", ".join(goal_tokens) + ".\n"
+        "Continue the document now."
+    )
+    failures: List[str] = []
+    for attempt in range(2):
+        user = base_user
+        if attempt and failures:
+            user = (
+                base_user
+                + "\n\nThe previous attempt failed validation: "
+                + "; ".join(failures)
+                + ". Fix every failure and output the complete corrected document."
+            )
+        doc_chunks: List[str] = []
+        tail_prefill = "<!doctype html"
+        continuation_user = user + (
+            "\n\n(Continuation) Continue the raw document from the exact "
+            "stopping point. Output only the next characters of the "
+            "document. No commentary, no explanations, no restating."
+        )
+        seam_re = re.compile(
+            r"(?:\s*(?:wait \u2014|let me|i'll|i will|okay|alright|"
+            r"continuing)[^\n<]*\n)+",
+            re.I,
+        )
+        try:
+            for _continuation in range(6):
+                response = adapter.prompt(
+                    # The trailing assistant message is a response prefill:
+                    # the brain continues the document instead of opening
+                    # with a planning essay.  Complex briefs exceed a single
+                    # completion budget, so while the model truncates
+                    # without closing the document we continue from the
+                    # accumulated tail - bounded continuation, simple to
+                    # complex, with extraction keeping only the last
+                    # complete doctype..</html> block.
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user if not _continuation else continuation_user,
+                        },
+                        {"role": "assistant", "content": tail_prefill},
+                    ],
+                    system=system,
+                    tools=None,
+                    max_tokens=30720,
+                    temperature=0.2,
+                )
+                chunk = str(getattr(response, "text", "") or "")
+                if _continuation:
+                    chunk = seam_re.sub("", chunk, count=1)
+                doc_chunks.append(chunk)
+                stop_reason = str(getattr(response, "stop_reason", "") or "").strip().lower()
+                if "</html>" in "".join(doc_chunks).lower() or stop_reason != "max_tokens":
+                    break
+                tail_prefill = "".join(doc_chunks)[-1800:]
+        except Exception as exc:
+            failures.append(f"brain_call_failed:{type(exc).__name__}")
+            continue
+        candidate = "".join(doc_chunks).strip()
+        if candidate.startswith("```"):
+            candidate = re.sub(r"^```[a-zA-Z]*\s*", "", candidate)
+            candidate = re.sub(r"\s*```\s*$", "", candidate).strip()
+        # The brain may narrate or emit earlier drafts before its final
+        # document.  Keep only the last COMPLETE <!doctype ... </html>
+        # block so narration can never reach the artifact.
+        starts = [m.start() for m in re.finditer(r"<!doctype\s+html", candidate, re.I)]
+        if not starts:
+            stop = str(getattr(response, "stop_reason", "") or "").strip().lower()
+            failures.append(f"missing_doctype_document:chars_{len(candidate)}:stop_{stop}")
+            continue
+        doc_start = starts[-1]
+        end_matches = list(re.finditer(r"</html>", candidate[doc_start:], re.I))
+        if not end_matches:
+            failures.append("incomplete_document_missing_closing_html")
+            continue
+        candidate = candidate[doc_start : doc_start + end_matches[-1].end()].strip()
+        lowered = candidate.lower()
+        narration_hits = sum(
+            1
+            for marker in ("wait \u2014", "let me ", "i'll ", "previous attempt")
+            if marker in lowered
+        )
+        if narration_hits >= 2:
+            failures.append(f"narration_detected:{narration_hits}_markers")
+            continue
+        if (
+            str(getattr(response, "stop_reason", "") or "").strip().lower() == "error"
+            or "[ERROR]" in candidate
+        ):
+            failures.append("brain_error_response")
+            continue
+        if "<html" not in lowered or "<script" not in lowered:
+            failures.append("missing_html_or_script")
+            continue
+        if "<canvas" not in lowered:
+            failures.append("missing_canvas_rendering")
+            continue
+        if _is_template_stamp(lowered):
+            failures.append("template_stamp_detected")
+            continue
+        if len(candidate) < 6000:
+            failures.append(f"artifact_too_small:{len(candidate)}_bytes")
+            continue
+        present = [token for token in goal_tokens if token in lowered]
+        if goal_tokens and len(present) < max(3, len(goal_tokens) // 3):
+            failures.append(f"goal_tokens_missing:{len(present)}/{len(goal_tokens)}")
+            continue
+        return {
+            "html": candidate,
+            "model": model,
+            "attempts": attempt + 1,
+            "failures": failures,
+            "goal_tokens_present": present,
+        }
+    print(
+        "[capability_forge] brain authoring attempts failed: " + "; ".join(failures),
+        file=sys.stderr,
+    )
+    return None
+
+
 def _interactive_game_artifact(prompt: str, root: Path, *, build_id: str) -> Dict[str, Any]:
     digest = build_id
     slug = _safe_slug(prompt, fallback="interactive_game")
@@ -2147,7 +2356,63 @@ def _interactive_game_artifact(prompt: str, root: Path, *, build_id: str) -> Dic
 </html>
 """.replace("__PROMPT__", prompt_html)
     html_lower = html.lower()
-    if game_kind == "space_shooter":
+    game_prompt = any(
+        token in prompt_lower
+        for token in ("game", "platformer", "space ship", "spaceship", "spacecraft", "shooter")
+    )
+    authoring = (
+        None if game_prompt else _brain_authored_interactive_artifact(prompt, build_id=build_id)
+    )
+    if authoring is not None:
+        html = authoring["html"]
+        html_lower = html.lower()
+        authoring_mode = "brain_authored"
+        authored_model = str(authoring.get("model", "") or "")
+        authored_attempts = int(authoring.get("attempts", 0))
+    else:
+        authoring_mode = "game_template" if game_prompt else "template_fallback"
+        authored_model = ""
+        authored_attempts = 0
+    if authoring_mode == "brain_authored":
+        goal_tokens = _goal_content_tokens(prompt)
+        present_tokens = [token for token in goal_tokens if token in html_lower]
+        prompt_specific_checks = [
+            {
+                "id": "brain_authored_for_brief",
+                "label": "Artifact was authored by the local brain for this brief",
+                "ok": bool(goal_tokens) and len(present_tokens) >= max(3, len(goal_tokens) // 3),
+                "blocking": True,
+                "evidence": (
+                    f"{len(present_tokens)}/{len(goal_tokens)} brief keywords implemented: "
+                    + ", ".join(present_tokens[:8])
+                ),
+            },
+            {
+                "id": "not_template_stamp",
+                "label": "Artifact is not the canned game template",
+                "ok": not _is_template_stamp(html_lower),
+                "blocking": True,
+                "evidence": "template signature absent",
+            },
+            {
+                "id": "authored_substance_floor",
+                "label": "Authored artifact meets the substance floor",
+                "ok": len(html) >= 6000,
+                "blocking": True,
+                "evidence": f"{len(html)} bytes of authored content",
+            },
+        ]
+    elif authoring_mode == "template_fallback":
+        prompt_specific_checks = [
+            {
+                "id": "brain_authoring_required",
+                "label": "Non-game briefs require brain authoring; template fallback is not client-ready",
+                "ok": False,
+                "blocking": True,
+                "evidence": "brain authoring failed and the game template was used for a non-game brief",
+            }
+        ]
+    elif game_kind == "space_shooter":
         prompt_specific_checks = [
             {
                 "id": "spaceship_player_present",
@@ -2190,7 +2455,15 @@ def _interactive_game_artifact(prompt: str, root: Path, *, build_id: str) -> Dic
     )
     unique_ok = all(bool(check.get("ok")) for check in uniqueness_checks)
     gate_ok = prompt_specific_ok and unique_ok
-    quality_score = 0.94 if gate_ok else 0.62
+    if authoring_mode == "brain_authored":
+        blocking_items = [c for c in prompt_specific_checks if c.get("blocking")]
+        quality_score = (
+            round(sum(1 for c in blocking_items if c.get("ok")) / len(blocking_items), 2)
+            if blocking_items
+            else 0.0
+        )
+    else:
+        quality_score = 0.94 if gate_ok else 0.62
     handover_ready = gate_ok
     quality_status = "artifact_quality_passed" if gate_ok else "artifact_quality_blocked"
     quality_snags = (
@@ -2214,8 +2487,10 @@ def _interactive_game_artifact(prompt: str, root: Path, *, build_id: str) -> Dic
         )
     metadata = {
         "schema_version": "aureon-local-interactive-artifact-v1",
-        "kind": "html_game",
+        "kind": "html_game" if authoring_mode == "game_template" else "html_app",
         "game_kind": game_kind,
+        "authoring_mode": authoring_mode,
+        "authoring_model": authored_model,
         "build_id": digest,
         "project_id": uniqueness["project_id"],
         "uniqueness_contract": uniqueness,
@@ -2251,11 +2526,14 @@ def _interactive_game_artifact(prompt: str, root: Path, *, build_id: str) -> Dic
                 "evidence": str(html_path),
             },
             {
-                "id": "keyboard_controls_visible",
-                "label": "Keyboard controls are documented on screen",
-                "ok": True,
+                "id": "controls_present",
+                "label": "Interactive controls are present in the artifact",
+                "ok": any(
+                    token in html_lower
+                    for token in ("arrow", "wasd", "keydown", "button", "onclick", "input", "slider")
+                ),
                 "blocking": True,
-                "evidence": "Arrow/WASD/Space/R",
+                "evidence": "interactive controls found in artifact",
             },
             {
                 "id": "local_only_generation",
@@ -2275,15 +2553,29 @@ def _interactive_game_artifact(prompt: str, root: Path, *, build_id: str) -> Dic
         + prompt_specific_checks
         + uniqueness_checks,
         "snags": quality_snags,
-        "regeneration_attempts": [
-            {
-                "attempt": 1,
-                "status": "accepted" if prompt_specific_ok else "blocked",
-                "reason": "local interactive artifact matched prompt-specific deterministic checks"
-                if prompt_specific_ok
-                else "prompt-specific deterministic checks failed",
-            }
-        ],
+        "regeneration_attempts": (
+            [
+                {
+                    "attempt": authored_attempts or 1,
+                    "status": "accepted" if prompt_specific_ok else "blocked",
+                    "reason": (
+                        f"brain-authored artifact (model {authored_model}) validated against brief-specific checks"
+                        if prompt_specific_ok
+                        else "brain-authored artifact failed brief-specific checks"
+                    ),
+                }
+            ]
+            if authoring_mode == "brain_authored"
+            else [
+                {
+                    "attempt": 1,
+                    "status": "accepted" if prompt_specific_ok else "blocked",
+                    "reason": "local interactive artifact matched prompt-specific deterministic checks"
+                    if prompt_specific_ok
+                    else "prompt-specific deterministic checks failed",
+                },
+            ]
+        ),
         "browser_render_proof": {
             "proof_status": "html_preview_ready",
             "preview_url": public_url,
@@ -3204,6 +3496,16 @@ def build_and_write_capability_forge(
         and not full_stack
         and not interactive
         and _is_barcode_label_prompt(prompt_text)
+        else {}
+    )
+    specialized = specialized or (
+        build_local_coding_tool(prompt_text, root, detected_families, task_family, build_id=build_id)  # type: ignore[misc]
+        if not website_design
+        and not visual
+        and not full_stack
+        and not interactive
+        and build_local_coding_tool is not None
+        and _is_coding_tool_prompt(prompt_text)
         else {}
     )
     adaptive = (

@@ -1,10 +1,13 @@
 """Aureon document artifact skill compatibility surface.
 
-CURRENT RELEASE: construction, prompt parsing, and deterministic formatting
-helpers remain inspectable. Runtime composition, ICS/fallback bootstrapping,
-source-file loading, rendering, filesystem writes, bus publication, shutdown,
-and the CLI all hard-HOLD before their first effect until a production Magic
-Star release and receipt-backed governance are available.
+RELEASE STATE: released by owner decree 2026-09-06 (Gary Leckey) via the
+shared fail-closed release record (``aureon_fusion/state/goals/dispatch_release.json``,
+read through ``_goal_release``): an absent/invalid record, or the module
+missing from the record's modules list, re-holds runtime composition,
+rendering, filesystem writes, bus publication, shutdown, and the CLI
+(``DOCUMENT_ARTIFACT_RELEASE_HOLD``) instantly. Construction, prompt
+parsing, and deterministic formatting helpers remain inspectable either
+way.
 """
 
 from __future__ import annotations
@@ -27,19 +30,30 @@ DOCUMENT_ARTIFACT_RELEASE_HOLD = (
     "document_artifact_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
 
-def preflight() -> Dict[str, Any]:
-    """Return the current release decision without performing any I/O."""
-    return {
-        "status": "HOLD",
-        "reason_code": "production_magic_star_release_unavailable",
-        "production_ready": False,
-        "effect_enabled": False,
-    }
+
+def _require_release() -> None:
+    if not _release.is_released("document_artifact_skill"):
+        raise RuntimeError(DOCUMENT_ARTIFACT_RELEASE_HOLD)
 
 
 def _hold() -> None:
-    raise RuntimeError(DOCUMENT_ARTIFACT_RELEASE_HOLD)
+    _require_release()
+
+
+def preflight() -> Dict[str, Any]:
+    """Return the current release decision without performing any I/O."""
+    gate = _release.release_status("document_artifact_skill")
+    return {
+        "status": "RELEASED" if gate["released"] else "HOLD",
+        "reason_code": (None if gate["released"]
+                        else "production_magic_star_release_unavailable"),
+        "production_ready": gate["released"],
+        "effect_enabled": gate["released"],
+    }
 
 
 MEANING_SECTIONS = [

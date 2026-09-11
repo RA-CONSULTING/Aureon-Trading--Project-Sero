@@ -36,6 +36,8 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 
@@ -135,9 +137,12 @@ class QueenOnlineResearcher:
     async def research_trading_strategies(self) -> List[ResearchFinding]:
         """
         👑🔍 Search online for trading strategy improvements.
-        
+
         Returns list of research findings with code patterns.
         """
+        if no_external_api_calls():
+            logger.info("Queen Online Researcher blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         logger.info("👑🔍 Queen researching trading strategies online...")
         findings = []
         

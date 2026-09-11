@@ -22,10 +22,9 @@ connectome dims count the **persisted** carried coverage (``touched``/``woven``)
 process-local ``baton_linked`` ping — so a cold read reflects the real coverage the organism
 carries across cycles, and 100% is an honest, achievable target.
 
-The index is the weight-renormalized mean of the dimensions actually present; when every
-dimension is dormant it is ``None`` (honest ``no_data``, never a fabricated 0). The
-weighting is transparent — the full per-dimension breakdown is always returned — and
-tunable. This is **observational only**: it measures, it changes nothing.
+The full index is withheld unless every dimension has an observation. Individual
+configuration/coverage dimensions remain visible; a single import-readiness score
+cannot become a claim that the whole organism is fully automated.
 
 Gary Leckey · Aureon Institute
 """
@@ -82,59 +81,20 @@ def _compose(fractions: Dict[str, float | None]) -> Tuple[float | None, List[str
 
 
 def _connectome_fractions() -> Tuple[float | None, float | None, Dict[str, Any]]:
-    """(connectivity, integration) + the honest coverage breakdown — offline-safe, no
-    cold-boot.
-
-    Two honesty rules make 100% a truthful, achievable target:
-      • **Carried coverage, not a process-local ping.** connectivity counts the persisted
-        ``touched`` (modules the connectome has imported + felt, carried across cycles) —
-        not ``baton_linked`` (only what pinged in *this* process). ``baton_linked`` stays
-        reported as the live signal (mirrors Phase 45's live-vs-persisted reconciliation).
-      • **Reachable denominator.** the ``denied`` modules are deliberately deny-listed
-        (unsafe to import — loop-at-boot / heavy) and can never be woven, so "fully
-        automated" is measured against ``reachable = nodes − denied``. ``failed`` stays
-        counted against the goal (retryable debt, not an exclusion)."""
-    try:
-        from aureon.core.aureon_connectome import get_connectome
-
-        st = get_connectome().status()
-        nodes = int(st.get("nodes") or 0)
-        denied = int(st.get("denied") or 0)
-        reachable = max(0, nodes - denied)
-        if reachable <= 0:
-            return None, None, {}
-        touched = int(st.get("touched") or 0)
-        woven = int(st.get("woven") or 0)
-        conn = _c01(touched / reachable)                 # persisted carried coverage
-        integ = _c01(woven / reachable)
-        return conn, integ, {
-            "modules": nodes, "reachable": reachable,
-            "touched": touched, "woven": woven,
-            "baton_linked": int(st.get("baton_linked") or 0),  # the live signal, kept visible
-            "denied": denied,                            # the deliberate ceiling
-            "failed": int(st.get("failed") or 0),        # retryable debt (still counted)
-            "unfelt": int(st.get("unfelt") or 0),        # remaining to reach
-        }
-    except Exception as exc:  # noqa: BLE001 — a cold connectome is no_data, never a crash
-        logger.debug("connectome fractions skipped: %s", exc)
-        return None, None, {}
+    from aureon.saas.observed_runtime import observed_organism
+    row = observed_organism()["connectome"]
+    nodes, denied, touched, woven = (row.get(k) for k in ("nodes", "denied", "touched", "woven"))
+    if not row.get("fresh") or any(not isinstance(v, (int, float)) for v in (nodes, denied, touched, woven)):
+        return None, None, {"connectome_observation": row}
+    reachable = nodes - denied
+    if reachable <= 0:
+        return None, None, {"connectome_observation": row}
+    return _c01(touched / reachable), _c01(woven / reachable), {"connectome_observation": row}
 
 
 def _consciousness_fraction() -> Tuple[float | None, Dict[str, Any]]:
-    """organs live / total — guarded (the organ singletons cold-boot once, cached)."""
-    try:
-        from aureon.saas.consciousness_catalog import build_consciousness_catalog
-
-        counts = build_consciousness_catalog().get("counts", {})
-        total = float(counts.get("total") or 0)
-        if total <= 0:
-            return None, {}
-        return _c01(float(counts.get("operational") or 0) / total), {
-            "organs_live": int(counts.get("operational") or 0),
-            "organs_total": int(total)}
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("consciousness fraction skipped: %s", exc)
-        return None, {}
+    # The number of configured accessors cannot qualify running cognition.
+    return None, {"reason": "complete_monitor_producer_coverage_not_observed"}
 
 
 def _surfacing_fraction() -> Tuple[float | None, Dict[str, Any]]:
@@ -189,10 +149,11 @@ def automation_index() -> Dict[str, Any]:
     details = {
         "connectivity": "modules reached & felt on the nervous system (touched / reachable, persisted)",
         "integration": "modules woven onto the mesh + Queen (driveable by the soul; / reachable)",
-        "consciousness": "consciousness organs live (the directing mind present)",
-        "surfacing": "domains reachable (inspectable / operable)",
+        "consciousness": "complete monitor producer coverage (unavailable until observed)",
+        "surfacing": "domain import reachability (configuration, not functional health)",
     }
-    index_pct, included = _compose(fractions)
+    partial_index, included = _compose(fractions)
+    index_pct = partial_index if all(value is not None for value in fractions.values()) else None
 
     dimensions: Dict[str, Any] = {}
     for name, frac in fractions.items():
@@ -210,17 +171,19 @@ def automation_index() -> Dict[str, Any]:
     totals.update(surf_t)
     # lineage maturity — reported only, never a weighted dimension (does not touch
     # index_pct). The organism reads its own diary: how many cycles it has carried.
-    try:
-        from aureon.core.awakening import read_genome
-
-        totals["generation"] = int(read_genome().get("generation") or 0)
-    except Exception:  # noqa: BLE001 — lineage echo is best-effort
-        totals["generation"] = None
+    from aureon.saas.observed_runtime import observed_organism, runtime_source_observations, process_observation
+    lineage = observed_organism()["awakening"]
+    totals["generation"] = lineage.get("generation")
+    totals["lineage_observation"] = lineage
 
     awake = bool(included)
     return {
         "index_pct": index_pct,
-        "label": _band(index_pct) if index_pct is not None else "dormant",
+        "label": "derived coverage" if index_pct is not None else "incomplete source coverage",
+        "classification": "software_coverage_not_autonomy",
+        "missing_dimensions": [name for name, value in fractions.items() if value is None],
+        "runtime_sources": runtime_source_observations(),
+        "process_observation": process_observation(),
         "included_dimensions": included,
         "dimensions": dimensions,
         "wired_by_category": _wired_by_category(),
@@ -231,7 +194,8 @@ def automation_index() -> Dict[str, Any]:
                 "driveable by the soul/consciousness logic — composed from real coverage "
                 "signals, never fabricated; observational only, it authorizes nothing",
         "truth_status": "real_derived" if awake else "no_data",
-        "ts": time.time(),
+        "source_timestamp": None,
+        "receipt_timestamp": time.time(),
     }
 
 

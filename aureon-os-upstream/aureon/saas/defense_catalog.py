@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -183,7 +184,12 @@ _TRACE_NAMES: Dict[str, str] = {
 def _load_report() -> Dict[str, Any]:
     """Read the committed Tier-A benchmark report; guarded → ``{}`` if absent/corrupt."""
     try:
-        return json.loads(_REPORT_PATH.read_text(encoding="utf-8"))
+        with _REPORT_PATH.open("rb") as handle:
+            raw = handle.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            return {}
+        result = json.loads(raw)
+        return result if isinstance(result, dict) else {}
     except Exception as exc:  # noqa: BLE001 — a missing report is no_data, never a crash
         logger.debug("defense catalog: report unreadable (%s)", exc)
         return {}
@@ -214,13 +220,26 @@ def build_defense_catalog() -> Dict[str, Any]:
     a live bus-trace overlay where a module has run. Pure-read, never imports/executes a bio
     module, never raises."""
     from aureon.saas.cognitive import provenance_block
+    from aureon.saas.observed_runtime import observation, source_epoch
 
     report = _load_report()
     tier_a = report.get("tier_a", []) if isinstance(report, dict) else []
     generated_at = report.get("ts") if isinstance(report, dict) else None
+    now = time.time()
+    report_timestamp = source_epoch(generated_at)
+    report_observation = {"source": "committed_tier_a_benchmark", "source_path": str(_REPORT_PATH),
+                          "source_timestamp": report_timestamp, "receipt_timestamp": now,
+                          "source_clock_kind": "benchmark_generation", "classification": "recorded_benchmark",
+                          "historical_available": bool(tier_a) and report_timestamp is not None,
+                          "fresh": False, "available": bool(tier_a) and report_timestamp is not None,
+                          "age_seconds": now - report_timestamp if report_timestamp is not None else None,
+                          "max_age_seconds": None, "read_state": "observed" if report_timestamp is not None and tier_a else "unavailable",
+                          "reason": "historical_benchmark_not_current_sensor_or_runtime_health"}
 
     rows: List[Dict[str, Any]] = []
     for entry in tier_a:
+        if not isinstance(entry, dict):
+            continue
         module = str(entry.get("module", ""))
         base = _basename(module)
         # bio modules are always in (default group: sensor lane); a non-bio
@@ -232,28 +251,33 @@ def build_defense_catalog() -> Dict[str, Any]:
         invariants = entry.get("invariants", {}) if isinstance(entry.get("invariants"), dict) else {}
         inv_pass = sum(1 for v in invariants.values() if v)
 
-        # live overlay: if the module has actually run, lift its boundary + mark live
+        # The runtime observation qualifies independently; benchmark results stay historical.
         boundary = None
         truth_status = "real_derived" if entry else "no_data"
+        runtime_observation = observation(base, None, now=now, read_state="missing", reason="no_runtime_trace_observed")
         trace_name = _TRACE_NAMES.get(base)
         if trace_name:
             latest = _latest_trace(trace_name)
             if isinstance(latest, dict):
-                boundary = latest.get("boundary")
-                truth_status = "live"
+                runtime_observation = observation(trace_name, latest.get("ts", latest.get("timestamp")), now=now)
+                if runtime_observation["fresh"]:
+                    boundary = latest.get("boundary")
+        runtime_observation["boundary"] = boundary
 
         rows.append({
             "key": _slug(entry.get("name", base)),
             "name": entry.get("name", base),
             "module": module,
             "group": group,
-            "passed": bool(entry.get("passed", False)),
+            "passed": entry.get("passed") if isinstance(entry.get("passed"), bool) else None,
             "metrics": entry.get("metrics", {}) if isinstance(entry.get("metrics"), dict) else {},
             "invariants_passed": inv_pass,
             "invariants_total": len(invariants),
             "evidence": str(entry.get("evidence", ""))[:400],
             "boundary": boundary,
             "truth_status": truth_status,
+            "classification": "recorded_benchmark",
+            "runtime_observation": runtime_observation,
         })
 
     groups: Dict[str, Any] = {}
@@ -264,20 +288,22 @@ def build_defense_catalog() -> Dict[str, Any]:
             "label": meta["label"],
             "purpose": meta["purpose"],
             "module_count": len(members),
-            "passing": sum(1 for r in members if r["passed"]),
+            "passing": sum(1 for r in members if r["passed"] is True),
             "modules": members,
         }
 
     n_modules = len(rows)
-    n_passing = sum(1 for r in rows if r["passed"])
-    overall = ("live" if any(r["truth_status"] == "live" for r in rows)
-               else "real_derived" if n_modules else "no_data")
+    n_passing = sum(1 for r in rows if r["passed"] is True)
+    overall = "real_derived" if n_modules else "no_data"
 
     return {
         "generated_at": generated_at,
+        "classification": "recorded_benchmark",
+        "report_observation": report_observation,
         "group_order": _GROUP_ORDER,
         "groups": groups,
-        "counts": {"total": n_modules, "passing": n_passing, "groups": len(_GROUP_ORDER)},
+        "counts": {"total": n_modules, "passing": n_passing, "groups": len(_GROUP_ORDER),
+                   "unqualified": sum(r["passed"] is None for r in rows)},
         "note": "the bio family — sensor lanes, statistical-validity dossier, and cognitive "
                 "immune layer — surfaced from the committed Tier-A benchmark report and live "
                 "bus-traces; read-only, the modules are never run on a request",

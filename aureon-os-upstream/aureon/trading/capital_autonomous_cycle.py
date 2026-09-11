@@ -35,6 +35,9 @@ from aureon.trading.bounded_capital_live_trade import (
 )
 from aureon.trading.capital_transaction_evidence import derive_capital_fee_receipt
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 CYCLE_SCHEMA = "aureon.capital_autonomous_cycle.v1"
 _FINAL_STAGES = frozenset({"CLOSED_SETTLED", "ENTRY_REJECTED", "HELD_PRE_ENTRY"})
 _LOCKS_GUARD = threading.Lock()
@@ -501,6 +504,9 @@ class CapitalAutonomousCycle:
     def execute(self, plan: CapitalTradePlan) -> dict[str, Any]:
         """Run or resume one exact plan; an uncertain mutation is never retried."""
 
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.capital_autonomous_cycle.CapitalAutonomousCycle.execute blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not isinstance(plan, CapitalTradePlan):
             raise TypeError("capital_trade_plan_required")
         binding = _plan_digest(plan)

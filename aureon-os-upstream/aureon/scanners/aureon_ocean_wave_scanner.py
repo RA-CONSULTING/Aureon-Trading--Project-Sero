@@ -48,6 +48,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
 
 def _safe_print(*args, **kwargs):
     try:
@@ -375,6 +376,10 @@ class OceanWaveScanner:
         """
         Connect to Binance WebSocket for multiple symbols.
         """
+        if no_external_api_calls():
+            logger.info("Ocean Wave Scanner scan_binance_stream blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         # Binance allows subscribing to multiple streams
         streams = [f"{s.lower()}@trade" for s in symbols[:20]]  # Batch of 20
         url = f"wss://stream.binance.com/stream?streams={'/'.join(streams)}"
@@ -743,6 +748,10 @@ class OceanWaveScanner:
     
     async def run(self):
         """Run the ocean scanner."""
+        if no_external_api_calls():
+            logger.info("Ocean Wave Scanner run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         # Start multiple Binance streams (batches of 20 symbols)
         tasks = []
         for i in range(0, len(CRYPTO_PAIRS), 20):
@@ -755,12 +764,16 @@ class OceanWaveScanner:
         await asyncio.gather(*tasks)
 
 async def main():
+    if no_external_api_calls():
+        logger.info("Ocean Wave Scanner main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    
+
     print("🌊" + "="*78 + "🌊")
     print("         AUREON OCEAN WAVE SCANNER - SCANNING THE ENTIRE OCEAN")
     print("🌊" + "="*78 + "🌊")

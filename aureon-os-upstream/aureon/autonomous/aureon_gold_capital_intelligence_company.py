@@ -4,6 +4,7 @@ import argparse
 from html import escape
 import json
 import math
+import re
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
@@ -1131,7 +1132,6 @@ def _latest_epoch_age_seconds(value: Any, now: datetime) -> Optional[float]:
 def _build_probability_data_evidence(root: Path, now: datetime) -> Dict[str, Any]:
     data_sets: List[Dict[str, Any]] = []
     gold_rows: List[Dict[str, Any]] = []
-    gold_terms = ("gold", "xau", "gc=f", "goldusd", "xauusd")
     for data_id, rel in PROBABILITY_DATA_PATHS.items():
         path = _rooted(root, rel)
         rows = _read_jsonl_tail(path)
@@ -1143,7 +1143,7 @@ def _build_probability_data_evidence(root: Path, now: datetime) -> Dict[str, Any
             parsed_time = _parse_time(timestamp)
             if parsed_time and (latest_time is None or parsed_time > latest_time):
                 latest_time = parsed_time
-            is_gold = any(term in symbol.lower() for term in gold_terms)
+            is_gold = _gold_related_blob(symbol)
             parsed = {
                 "symbol": symbol,
                 "timestamp": timestamp,
@@ -2561,15 +2561,37 @@ def _walk_dicts(value: Any, *, limit: int = 4000) -> Iterable[Dict[str, Any]]:
             stack.extend(item)
 
 
+_GOLD_REFERENCE = re.compile(
+    r"(?<![A-Z0-9])(?:GOLD(?:USD)?|XAU(?:[/_-]?(?:USD|EUR|GBP|AUD|CHF|JPY))?"
+    r"|GLD|GDXJ?|IAU|GC=F|GC[FGHJKMNQUVXZ][0-9]{2,4})(?![A-Z0-9])",
+    re.IGNORECASE,
+)
+
+
 def _gold_related_blob(*parts: Any) -> bool:
-    blob = " ".join(str(part or "") for part in parts).lower()
-    return any(term in blob for term in ("gold", "xau", "gld", "gdx", "gcm", "gc=f", "goldusd", "xauusd"))
+    # Instrument boundaries matter: EGLD is not GLD, and strategy prose such
+    # as "golden ratio" does not identify a gold instrument.
+    return any(_GOLD_REFERENCE.search(str(part or "")) for part in parts)
+
+
+def _direct_gold_symbol(symbol: Any, venue: Any = None) -> bool:
+    normalized = str(symbol or "").strip().upper()
+    if re.fullmatch(r"(?:GOLD(?:USD)?|XAU[/_-]?(?:USD|EUR|GBP|AUD|CHF|JPY))", normalized) is None:
+        return False
+    # GOLD is also an equity ticker. An explicitly different venue cannot
+    # supply the Capital.com target lane through a matching ticker alone.
+    venue_name = str(venue or "").strip().lower()
+    return venue_name in {"capital", "capital.com", "capital_cfd"}
 
 
 def _gold_shadow_context_relation(*parts: Any) -> str:
-    blob = " ".join(str(part or "") for part in parts).lower()
-    if _gold_related_blob(blob):
+    symbol = parts[0] if parts else ""
+    venue = parts[1] if len(parts) > 1 else None
+    if _direct_gold_symbol(symbol, venue):
         return "gold_target_candidate"
+    if _gold_related_blob(symbol):
+        return "gold_market_confirmation_context"
+    blob = " ".join(str(part or "") for part in parts).lower()
     if any(term in blob for term in ("oil", "crude", "brent", "wti", "usoil", "ukoil", "xbr", "xng", "natgas", "gas", "energy")):
         return "energy_confirmation_context"
     if any(term in blob for term in ("dxy", "usd", "yield", "rate", "inflation", "fred", "cpi", "treasury")):
@@ -2683,13 +2705,13 @@ def _extract_orderbook_evidence(shadow_report: Dict[str, Any]) -> Dict[str, Any]
                 "confidence": round(_num(item.get("confidence")), 4),
                 "orderbook_score": round(_num(score), 4),
                 "orderbook_alignment": str(alignment or "unknown"),
-                "orderbook_available": bool(pressure.get("available")) if pressure else str(alignment or "").lower() not in {"unavailable", "not_sampled"},
+                "orderbook_available": (pressure.get("available") is True and isinstance(pressure.get("score"), (int, float)) and not isinstance(pressure.get("score"), bool) and math.isfinite(pressure["score"])),
                 "pressure_side": pressure.get("pressure_side"),
                 "reason": pressure.get("reason") or item.get("selection_basis") or "orderbook evidence packet",
-                "gold_related": _gold_related_blob(symbol, item.get("route_signature")),
+                "gold_related": _direct_gold_symbol(symbol, item.get("venue")),
             }
         )
-    samples.sort(key=lambda item: (not item["gold_related"], -_num(item.get("orderbook_score")), str(item.get("symbol"))))
+    samples.sort(key=lambda item: (not item["gold_related"], not item["orderbook_available"], -_num(item.get("orderbook_score")), str(item.get("symbol"))))
     unique: List[Dict[str, Any]] = []
     seen: set[str] = set()
     for item in samples:
@@ -2701,7 +2723,7 @@ def _extract_orderbook_evidence(shadow_report: Dict[str, Any]) -> Dict[str, Any]
         if len(unique) >= 12:
             break
     available_count = sum(1 for item in unique if item.get("orderbook_available"))
-    gold_count = sum(1 for item in unique if item.get("gold_related"))
+    gold_count = sum(1 for item in unique if item.get("gold_related") and item.get("orderbook_available"))
     return {
         "status": "gold_orderbook_pressure_ready" if gold_count else "proxy_orderbook_pressure_only" if unique else "orderbook_pressure_missing",
         "sample_count": len(unique),
@@ -3102,7 +3124,8 @@ def _build_verified_real_data_gate(
     if not asset:
         blockers.append({"id": "capital_gold_asset_missing", "reason": "No real Capital GOLD asset is available."})
     if not snapshot_fresh:
-        blockers.append({"id": "capital_gold_bid_ask_not_fresh", "reason": f"GOLD bid/ask age is {round(snapshot_age_sec or -1, 1)}s."})
+        snapshot_age_label = f"{round(snapshot_age_sec, 1)}s" if snapshot_age_sec is not None and snapshot_age_sec >= 0 else "unavailable"
+        blockers.append({"id": "capital_gold_bid_ask_not_fresh", "reason": f"GOLD bid/ask age is {snapshot_age_label}."})
     if runtime_stale:
         blockers.append({"id": "runtime_truth_not_fresh", "reason": "Runtime says data is stale; action metrics cannot unlock."})
 
@@ -7258,7 +7281,8 @@ def build_gold_capital_intelligence_company(
     if runtime_stale:
         blockers.append({"id": "runtime_stale", "reason": stale_reason or "runtime stale blocks live Capital GOLD action"})
     if not snapshot_fresh:
-        blockers.append({"id": "capital_gold_snapshot_stale", "reason": f"Capital GOLD snapshot age is {round(snapshot_age or -1, 1)} seconds."})
+        snapshot_age_label = f"{round(snapshot_age, 1)} seconds" if snapshot_age is not None and snapshot_age >= 0 else "unavailable"
+        blockers.append({"id": "capital_gold_snapshot_stale", "reason": f"Capital GOLD snapshot age is {snapshot_age_label}."})
     if not trading_summary.get("trust_to_act"):
         blockers.append({"id": "decision_not_trusted_for_live_action", "reason": trading_summary.get("decision_posture") or "decision layer is shadow-only"})
     if harmonic_summary.get("safety_blocker_count"):

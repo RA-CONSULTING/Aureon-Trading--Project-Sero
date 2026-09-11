@@ -56,6 +56,7 @@ from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field, asdict
 from collections import deque, defaultdict
 from pathlib import Path
+from aureon.exchanges.orca_reader_observations import build_orca_reader_observations
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(message)s')
@@ -345,6 +346,7 @@ class OrcaCommandCenter:
         self.app.router.add_get('/', self._handle_index)
         self.app.router.add_get('/ws', self._handle_websocket)
         self.app.router.add_get('/api/status', self._handle_api_status)
+        self.app.router.add_get('/api/observations', self._handle_api_observations)
         self.app.router.add_get('/api/positions', self._handle_api_positions)
         self.app.router.add_get('/api/kills', self._handle_api_kills)
         self.app.router.add_get('/api/stats', self._handle_api_stats)
@@ -378,6 +380,12 @@ class OrcaCommandCenter:
         
         return ws
     
+    async def _handle_api_observations(self, request):
+        """Passive projection: never fetch providers, renew clocks or invoke controls."""
+        return web.json_response(build_orca_reader_observations(
+            self.alpaca, self.kraken, SYSTEMS_STATUS),
+            headers={'Cache-Control': 'no-store'})
+
     async def _handle_api_status(self, request):
         """Return overall system status from live data files."""
         # Load live data from files that War Room writes to

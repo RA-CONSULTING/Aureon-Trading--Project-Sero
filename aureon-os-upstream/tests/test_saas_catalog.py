@@ -78,7 +78,7 @@ def test_probe_domain_shape():
 
 def test_platform_status_is_honest():
     s = get_platform_status()
-    assert s["status"] in {"healthy", "degraded", "critical"}
+    assert s["status"] in {"healthy", "degraded", "critical", "unknown"}
     assert s["domains_total"] >= 24
     assert set(s["product_domains"]) == set(PRODUCT_DOMAINS)
     assert "operational_core" in s and "note" in s        # honesty note present

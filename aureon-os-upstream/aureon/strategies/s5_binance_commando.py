@@ -26,6 +26,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
@@ -86,6 +88,9 @@ class BinanceConversionCommando:
     
     def load_pairs(self):
         """Load tradeable pairs"""
+        if no_external_api_calls():
+            print("BinanceConversionCommando.load_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("\n📊 Loading Binance pairs...")
         
         try:
@@ -123,6 +128,9 @@ class BinanceConversionCommando:
     
     def load_holdings(self):
         """Load account balances"""
+        if no_external_api_calls():
+            print("BinanceConversionCommando.load_holdings blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
         print("\n💰 Loading holdings...")
         
         try:
@@ -225,6 +233,9 @@ class BinanceConversionCommando:
     
     async def run(self):
         """Main loop"""
+        if no_external_api_calls():
+            print("BinanceConversionCommando.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("""
 ╔══════════════════════════════════════════════════════════════════╗
 ║   🎯 BINANCE CONVERSION COMMANDO 🎯                              ║

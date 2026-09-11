@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import logging
 import os
 import re
 import textwrap
@@ -19,6 +20,8 @@ import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 try:
     import requests  # type: ignore
@@ -45,6 +48,8 @@ STATE_MANIFEST = Path("state/aureon_online_research_cinema_latest.json")
 DOCS_INDEX = Path("docs/audits/aureon_online_research_cinema_latest.json")
 
 USER_AGENT = "Mozilla/5.0 (Aureon Research Cinema; local evidence agent)"
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
@@ -113,6 +118,10 @@ def _unwrap_duckduckgo_url(url: str) -> str:
 def discover_sources(query: str, *, max_sources: int = 5) -> List[Dict[str, str]]:
     """Discover online sources through DuckDuckGo HTML, falling back to docs."""
 
+    if no_external_api_calls():
+        logger.info("discover_sources blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     fallback = [
         {
             "title": "NumPy FFT documentation",
@@ -174,6 +183,9 @@ def discover_sources(query: str, *, max_sources: int = 5) -> List[Dict[str, str]
 
 
 def fetch_source(url: str, topic: str) -> Dict[str, Any]:
+    if no_external_api_calls():
+        logger.info("fetch_source blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {"url": url, "success": False, "error": "AUREON_NO_EXTERNAL_API_CALLS"}
     if requests is None:
         return {"url": url, "success": False, "error": "requests unavailable"}
     started = time.perf_counter()
@@ -678,6 +690,68 @@ def build_online_research_cinema(
 
     root_path = Path(root or REPO_ROOT).resolve()
     topic_query = query or topic
+    if no_external_api_calls():
+        logger.info("build_online_research_cinema blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {
+            "schema_version": "aureon-online-research-cinema-v1",
+            "status": "online_research_cinema_no_source",
+            "generated_at": _utc_now(),
+            "mode": "no_external_api_calls",
+            "topic": topic,
+            "query": topic_query,
+            "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+            "truth_status": "no_source",
+            "summary": {
+                "discovered_source_count": 0,
+                "fetched_source_count": 0,
+                "frame_count": 0,
+                "motion_gif_created": False,
+                "motion_html_created": False,
+                "paper_created": False,
+                "coding_artifacts_created": False,
+                "generated_file_count": 0,
+                "metacognition_active": False,
+                "metacognitive_concept_count": 0,
+                "metacognitive_route_count": 0,
+                "understanding_published": False,
+                "test_action_handoff_ready": False,
+                "no_credentials_read": True,
+                "no_external_mutation": True,
+                "public_full_page_bodies_stored": False,
+            },
+            "source_rows": [],
+            "motion_picture": {
+                "gif_path": "",
+                "html_path": "",
+                "public_html": "",
+                "frame_paths": [],
+            },
+            "paper": {
+                "path": "",
+                "title": f"{topic}: Online Research Packet",
+                "chars": 0,
+            },
+            "coding_handoff": {},
+            "metacognition": {"status": "research_metacognition_no_source"},
+            "test_action_handoff": {
+                "ingest": "online source rows are fetched, timestamped, hashed, and summarized",
+                "test": "source freshness, hash integrity, frame generation, and paper generation can be asserted",
+                "action": "publish action packets only through existing authorized runtime paths",
+            },
+            "manual_boundaries": [
+                "AUREON_NO_EXTERNAL_API_CALLS is active; no outbound source discovery or fetch was attempted",
+                "online source bodies are summarized and hashed; public artifacts do not store full page bodies",
+                "screenshots/frames are research replay evidence, not trading authority",
+                "credentials and API keys are not read",
+                "external websites are fetched through ordinary GET requests only when the guard is disabled",
+            ],
+            "source_paths": {
+                "state_manifest": STATE_MANIFEST.as_posix(),
+                "public_manifest": PUBLIC_MANIFEST.as_posix(),
+                "docs_manifest": DOCS_INDEX.as_posix(),
+                "paper": "",
+            },
+        }
     trace_event = publish_search_event(
         phase="online_research_goal_received",
         source_system="online_research_cinema",

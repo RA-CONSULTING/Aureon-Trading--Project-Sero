@@ -41,7 +41,7 @@ export function Live6DWaveformVisualizer() {
       const d1 = waveform.d1_price || { amplitude: 0.5, phase: 0 };
       const d2 = waveform.d2_volume || { amplitude: 0.5, phase: 0 };
       const d3 = waveform.d3_time || { amplitude: 0.5, phase: 0 };
-      const d4 = waveform.REDACTED_USE_CLOUD_SECRET || { amplitude: 0.5, phase: 0 };
+      const d4 = waveform.d4_correlation || { amplitude: 0.5, phase: 0 };
       const d5 = waveform.d5_momentum || { amplitude: 0.5, phase: 0 };
       const d6 = waveform.d6_frequency || { amplitude: 0.5, phase: 0 };
 

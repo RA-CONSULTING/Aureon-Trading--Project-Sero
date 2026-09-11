@@ -10,10 +10,15 @@ explicit no_data.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_SYMBOLS = (
@@ -213,6 +218,21 @@ def collect_live_market_data(
     max_age_seconds: float = DEFAULT_MAX_QUOTE_AGE_SECONDS,
 ) -> Dict[str, Any]:
     """Collect a visible receipt for every requested symbol."""
+    if no_external_api_calls():
+        logger.info("collect_live_market_data blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        received_at = time.time() if now is None else float(now)
+        return {
+            "data_status": "no_data",
+            "truth_status": "no_data",
+            "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+            "received_at": datetime.fromtimestamp(received_at, timezone.utc).isoformat(),
+            "requested_symbol_count": 0,
+            "live_symbol_count": 0,
+            "quotes": {},
+            "generated_values": False,
+            "eligible_for_action": False,
+        }
+
     received_at = time.time() if now is None else float(now)
     receipts: Dict[str, Dict[str, Any]] = {}
     for raw_symbol in symbols:

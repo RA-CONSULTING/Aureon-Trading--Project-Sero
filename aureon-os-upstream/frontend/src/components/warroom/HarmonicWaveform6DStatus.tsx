@@ -11,7 +11,7 @@ const dimensionIcons = {
   d1_price: Activity,
   d2_volume: Waves,
   d3_time: Clock,
-  REDACTED_USE_CLOUD_SECRET: Link2,
+  d4_correlation: Link2,
   d5_momentum: TrendingUp,
   d6_frequency: Radio,
 };
@@ -20,7 +20,7 @@ const dimensionLabels = {
   d1_price: 'Price Wave',
   d2_volume: 'Volume Pulse',
   d3_time: 'Temporal Phase',
-  REDACTED_USE_CLOUD_SECRET: 'Correlation',
+  d4_correlation: 'Correlation',
   d5_momentum: 'Momentum',
   d6_frequency: 'Frequency',
 };
@@ -45,7 +45,7 @@ export function HarmonicWaveform6DStatus({ waveform }: HarmonicWaveform6DStatusP
     { key: 'd1_price', dim: waveform.d1_price },
     { key: 'd2_volume', dim: waveform.d2_volume },
     { key: 'd3_time', dim: waveform.d3_time },
-    { key: 'REDACTED_USE_CLOUD_SECRET', dim: waveform.REDACTED_USE_CLOUD_SECRET },
+    { key: 'd4_correlation', dim: waveform.d4_correlation },
     { key: 'd5_momentum', dim: waveform.d5_momentum },
     { key: 'd6_frequency', dim: waveform.d6_frequency },
   ];

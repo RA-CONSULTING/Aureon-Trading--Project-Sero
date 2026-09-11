@@ -16,6 +16,9 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Mapping, Optional
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     return max(low, min(high, float(value or 0.0)))
 
@@ -171,6 +174,9 @@ class TemporalTradeCognition:
         validated_net_pnl: float = 0.0,
         now: Optional[float] = None,
     ) -> Dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.temporal_trade_cognition.TemporalTradeCognition.verify blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         opened = self._epoch_from_section(plan.get("opened_at"))
         expected = self._epoch_from_section(plan.get("expected_by"))
         current_ts = time.time() if now is None else float(now)

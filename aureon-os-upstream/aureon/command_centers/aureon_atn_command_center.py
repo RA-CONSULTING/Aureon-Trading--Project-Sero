@@ -48,6 +48,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Silence all loggers from sub-systems during our banner phase
@@ -1120,6 +1122,10 @@ def render_layer_status(layers: Dict[str, LayerResult]) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run_once(args) -> None:
+    if no_external_api_calls():
+        print(f"{YEL}WARN: aureon_atn_command_center.run_once blocked by AUREON_NO_EXTERNAL_API_CALLS{RST}")
+        return
+
     pair    = args.pair
     deep    = args.deep
     days    = args.days
@@ -1227,6 +1233,10 @@ def run_once(args) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
+    if no_external_api_calls():
+        print(f"{YEL}WARN: aureon_atn_command_center.main blocked by AUREON_NO_EXTERNAL_API_CALLS{RST}")
+        return
+
     parser = argparse.ArgumentParser(
         description="Aureon ATN Command Center — full temporal intelligence matrix"
     )

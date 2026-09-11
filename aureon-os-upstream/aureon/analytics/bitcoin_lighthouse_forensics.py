@@ -9,6 +9,7 @@ This module provides a full pipeline:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Tuple
@@ -17,10 +18,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     import requests
 except ModuleNotFoundError:  # optional dependency
     requests = None
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -138,6 +143,10 @@ class BitcoinDataFetcher:
         self.base_url = "https://api.coingecko.com/api/v3"
 
     def fetch_historical_data(self, days: int = 90) -> pd.DataFrame:
+        if no_external_api_calls():
+            logger.info("BitcoinDataFetcher.fetch_historical_data blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return pd.DataFrame(columns=["timestamp", "price", "volume", "market_cap"])
+
         endpoint = f"{self.base_url}/coins/bitcoin/market_chart"
         params = {"vs_currency": "usd", "days": days, "interval": "hourly"}
 

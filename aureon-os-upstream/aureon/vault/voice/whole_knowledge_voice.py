@@ -66,6 +66,15 @@ WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD = (
     "whole_knowledge_voice_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("whole_knowledge_voice"):
+        raise RuntimeError(WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD)
+
 
 class GeneratedControlContent:
     """Immutable evidence boundary for prose and classifications made here.
@@ -202,7 +211,7 @@ def build_expression_profile(
     publish: bool = False,
 ) -> ExpressionProfile:
     """Build a typed profile from repo/vault knowledge sources."""
-    raise RuntimeError(WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD)
+    _require_release()
 
     root_path = Path(root) if root else repo_root()
     evidence_path = Path(evidence_dir) if evidence_dir else root_path / "state"
@@ -324,7 +333,7 @@ def compose_voice_artifact(
     publish: bool = False,
 ) -> VoiceArtifact:
     """Compose a voice artifact using the shared expression profile."""
-    raise RuntimeError(WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD)
+    _require_release()
 
     root_path = Path(root) if root else repo_root()
     evidence_path = Path(evidence_dir) if evidence_dir else root_path / "state"
@@ -378,7 +387,7 @@ def compose_voice_artifact(
 
 
 def _default_source_paths(root: Path, *, max_sources: int) -> List[Path]:
-    raise RuntimeError(WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD)
+    _require_release()
     explicit = [
         root / "state" / "knowledge_dataset.json",
         root / "aureon" / "wisdom" / "bhoys_wisdom.py",
@@ -420,7 +429,7 @@ def _default_source_paths(root: Path, *, max_sources: int) -> List[Path]:
 
 
 def _read_source_text(path: Path, *, max_chars: int) -> str:
-    raise RuntimeError(WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD)
+    _require_release()
     if path.suffix.lower() == ".docx":
         return "\n".join(_extract_docx_paragraphs(path, max_paragraphs=260))[:max_chars]
     text = path.read_text(encoding="utf-8", errors="ignore")
@@ -428,7 +437,7 @@ def _read_source_text(path: Path, *, max_chars: int) -> str:
 
 
 def _extract_docx_paragraphs(path: Path, *, max_paragraphs: int) -> List[str]:
-    raise RuntimeError(WHOLE_KNOWLEDGE_VOICE_RELEASE_HOLD)
+    _require_release()
     paragraphs: List[str] = []
     with ZipFile(path) as zf:
         xml = zf.read("word/document.xml")

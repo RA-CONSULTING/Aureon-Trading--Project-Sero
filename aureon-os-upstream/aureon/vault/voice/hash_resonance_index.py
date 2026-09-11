@@ -59,6 +59,15 @@ HASH_RESONANCE_RELEASE_HOLD = (
     "hash_resonance_index_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("hash_resonance_index"):
+        raise RuntimeError(HASH_RESONANCE_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Normalisation — payload → stable semantic fingerprint
@@ -225,7 +234,7 @@ class HashResonanceIndex:
     # ─── wiring ──────────────────────────────────────────────────────────
 
     def start(self) -> None:
-        raise RuntimeError(HASH_RESONANCE_RELEASE_HOLD)
+        _require_release()
         if self._subscribed or self.thought_bus is None:
             return
         try:
@@ -237,7 +246,7 @@ class HashResonanceIndex:
     def rebuild_from_vault(self) -> int:
         """Rebuild the index from scratch by scanning the vault's current
         contents. Returns the number of cards indexed."""
-        raise RuntimeError(HASH_RESONANCE_RELEASE_HOLD)
+        _require_release()
         contents = getattr(self.vault, "_contents", None)
         if not contents:
             return 0
@@ -253,7 +262,7 @@ class HashResonanceIndex:
     # ─── observer ────────────────────────────────────────────────────────
 
     def _on_vault_card_added(self, thought: Any) -> None:
-        raise RuntimeError(HASH_RESONANCE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         content_id = str(payload.get("content_id") or "")
         if not content_id:
@@ -272,7 +281,7 @@ class HashResonanceIndex:
     # ─── indexing ────────────────────────────────────────────────────────
 
     def _index_card(self, card: Any, *, _publish: bool) -> Optional[str]:
-        raise RuntimeError(HASH_RESONANCE_RELEASE_HOLD)
+        _require_release()
         try:
             content_id = str(getattr(card, "content_id", "") or "")
             if not content_id:
@@ -316,7 +325,7 @@ class HashResonanceIndex:
         return fp
 
     def _publish_bond(self, bond: BondRecord, threshold_crossed: int) -> None:
-        raise RuntimeError(HASH_RESONANCE_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return
         try:

@@ -13,8 +13,12 @@ Seams (verified against aureon_fusion/learning_will.py on disk):
   * Organ handles are injected via learning_will._CACHE
     ('knowledge_dataset' | 'memory_web' | 'mycelium' | 'mind_augment').
   * State paths are module-level constants (JOURNAL_DIR, JOURNAL_FILE,
-    INTENTS_FILE, BUILD_LOG, HNC_STATE_FILE, OPEN_SEARCH_SEEDS_FILE) — all
-    redirected into a per-run temp dir before any cycle runs.
+    INTENTS_FILE, BUILD_LOG, HNC_STATE_FILE, OPEN_SEARCH_SEEDS_FILE,
+    SATURATED_FILE, VETOED_FILE, REFUSED_FILE) — all redirected into a
+    per-run temp dir before any cycle runs. (VETOED/REFUSED included
+    because veto permanence and the refusal TTL write there: unredirected,
+    the veto scenario would permanently veto the fixture question in the
+    REAL state file and every later scenario would silence to no_intent.)
   * Gates are reached lazily ('from aureon_fusion import conscience_hook /
     capability_gate / receipts'), so patching the origin module attribute
     is sufficient.
@@ -186,7 +190,8 @@ class Harness:
     """Temp workspace + seam redirection for one scenario run."""
 
     PATH_ATTRS = ("JOURNAL_DIR", "JOURNAL_FILE", "INTENTS_FILE",
-                  "BUILD_LOG", "HNC_STATE_FILE", "OPEN_SEARCH_SEEDS_FILE")
+                  "BUILD_LOG", "HNC_STATE_FILE", "OPEN_SEARCH_SEEDS_FILE",
+                  "SATURATED_FILE", "VETOED_FILE", "REFUSED_FILE")
 
     def __init__(self, tmp, lw):
         self.tmp = Path(tmp)

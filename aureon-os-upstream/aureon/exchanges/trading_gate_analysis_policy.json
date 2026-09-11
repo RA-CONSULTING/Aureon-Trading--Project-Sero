@@ -1,0 +1,21 @@
+{
+  "schema": "aureon.trading_gate.analysis_policy.v1",
+  "policy_id": "aureon-war-room-analysis-policy-2026-09-08",
+  "scope": "analysis_only_no_execution_authority",
+  "generated_values": false,
+  "source": "aureon/exchanges/trading_gate_analysis_policy.json",
+  "required_gates": [
+    "auris",
+    "lighthouse",
+    "qgita"
+  ],
+  "auris_min_coherence": 0.5,
+  "lighthouse_min_confidence": 0.5,
+  "lhe_required": false,
+  "allowed_qgita_tiers": [
+    "Gold",
+    "Blue"
+  ],
+  "execution_authority": false,
+  "reason": "operator_versioned_analysis_policy_loaded_execution_hold_preserved"
+}

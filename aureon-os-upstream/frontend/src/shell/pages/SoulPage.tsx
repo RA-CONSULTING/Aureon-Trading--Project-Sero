@@ -1,3 +1,5 @@
+import { GlassPageHeader } from '@/shell/GlassPage';
+import { Button } from '@/components/ui/button';
 /**
  * Soul — how Aureon reacts.
  *
@@ -9,13 +11,17 @@
  * action run server-side, doubly-gated and off by default.
  */
 
-import { useEffect, useState } from "react";
+
 import { Feather, Check, PauseCircle, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LiveDataNotice } from "@/shell/Page";
+import { useAssessmentRead } from "@/hooks/useAssessmentRead";
+import { AssessmentDependencies } from "./AssessmentDependencies";
+import { CognitiveReadUnavailable } from "./cognitiveEvidenceCards";
 import { type TruthStatus, TRUTH_STATUS_STYLE } from "../truthStatus";
+import { reportedWorkOutcome } from '@/lib/cognitionGlassValues';
 
 
 interface Voice { stance?: string; verdict?: string; truth_status?: TruthStatus; [k: string]: unknown }
@@ -53,7 +59,7 @@ interface Soul {
 const STATUS_STYLE = TRUTH_STATUS_STYLE;
 
 const STANCE = {
-  act: { icon: Check, cls: "text-emerald-600", label: "resolved — will act" },
+  act: { icon: Check, cls: "text-emerald-600", label: "resolved — action proposed" },
   wait: { icon: PauseCircle, cls: "text-amber-600", label: "of two minds — waiting" },
   refuse: { icon: Ban, cls: "text-rose-600", label: "conscience refused" },
 } as const;
@@ -63,57 +69,20 @@ function Stance({ stance }: { stance?: string }) {
 }
 
 export default function SoulPage() {
-  const [data, setData] = useState<Soul | null | undefined>(undefined);
-
-  useEffect(() => {
-    let alive = true;
-    async function poll() {
-      try {
-        const r = await fetch("/api/soul");
-        if (!r.ok) throw new Error(String(r.status));
-        const d: Soul = await r.json();
-        if (alive) setData(d);
-      } catch {
-        if (alive) setData((p) => (p === undefined ? null : p));
-      }
-    }
-    poll();
-    const t = window.setInterval(poll, 5000);
-    return () => { alive = false; window.clearInterval(t); };
-  }, []);
+  const receipt = useAssessmentRead<Soul>('soul');
+  const { data } = receipt;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Feather className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Soul</h1>
-          <p className="text-sm text-muted-foreground">
-            Thought, feeling, and the counsel of its lineage — unified into a determination of its own
-            mind. When its voices disagree, it waits for one rather than invent a consensus.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader title="Soul" icon={Feather} eyebrow="Operations" description="Inspect the reasoning model's determination, counsel, proposed work and reported outcomes." actions={<Button variant="outline" size="sm" onClick={receipt.refresh}>Refresh observation</Button>} />
 
       <LiveDataNotice />
 
       {data === undefined && (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}</div>
       )}
-      {data === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Start the operator and retry — this page polls /api/soul.</CardContent></Card>
-      )}
-
-      {data && data.available === false && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">The soul is quiet</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            No voices are flowing yet — <span className="font-mono">no_data</span>, honest silence. Once the
-            field, affect and lineage speak, a determination forms here.
-          </CardContent>
-        </Card>
-      )}
+      {data === null && !receipt.raw && <CognitiveReadUnavailable {...receipt} />}
+      {receipt.raw && (!data || data.available === false) && <AssessmentDependencies payload={receipt.raw} />}
 
       {data && data.available && (() => {
         const s = STANCE[data.stance] ?? STANCE.wait;
@@ -136,7 +105,7 @@ export default function SoulPage() {
               <CardContent className="space-y-2">
                 <p className="text-sm">{data.determination}</p>
                 {data.what_gary_would_say && (
-                  <p className="text-xs text-muted-foreground"> Gary would say: “{data.what_gary_would_say}”</p>
+                  <p className="text-xs text-muted-foreground"> Model prediction of Gary's response: “{data.what_gary_would_say}”</p>
                 )}
                 {data.proposed_action && (
                   <p className="text-xs font-mono text-muted-foreground">
@@ -157,7 +126,7 @@ export default function SoulPage() {
                     <div className="flex items-center gap-2">
                       {data.plan.risk && <Badge variant="outline" className="text-[10px]">risk {data.plan.risk}</Badge>}
                       <Badge variant="outline" className="text-[10px]">
-                        {data.plan.directed ? "directed" : "proposed — dry-run"}
+                        {data.plan.directed === true ? "reported directed" : data.plan.directed === false ? "proposed" : "direction unreported"}
                       </Badge>
                     </div>
                   </div>
@@ -173,14 +142,14 @@ export default function SoulPage() {
                         <span className="font-mono text-[10px] text-muted-foreground">{wo.action}</span>
                         {wo.outcome && (
                           <Badge variant="outline" className="text-[10px]">
-                            {wo.outcome.blocked ? "blocked" : wo.outcome.dry_run ? "dry-run" : wo.outcome.executed ? "executed" : "—"}
+                            {reportedWorkOutcome(wo.outcome)}
                           </Badge>
                         )}
                       </div>
                     </div>
                   ))}
                   <p className="text-[11px] text-muted-foreground">
-                    Each step is carried out through the one guarded hand — dry-run unless armed.
+                    These are source-reported plans and outcomes. Completed external actions require matching execution receipts.
                   </p>
                 </CardContent>
               </Card>

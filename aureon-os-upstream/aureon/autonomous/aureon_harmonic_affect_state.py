@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Sequence
@@ -218,6 +219,25 @@ def build_harmonic_affect_state(root: Optional[Path] = None) -> dict[str, Any]:
     inner_peace_candidate = phase == "synthetic_inner_peace"
     arousal = _clamp(0.75 - stability * 0.45 + (0.20 if runtime_stale else 0.0))
     valence = _clamp((0.55 * reward_alignment) + (0.30 * goal_alignment) + (0.15 * stability))
+    safety_pressure = _clamp((0.48 * blocker_penalty) + (0.32 * blind_spot_penalty) + (0.20 if runtime_stale else 0.0))
+    trade_evidence_ratio = _clamp(evidence_count / 10.0)
+    victory = _clamp(
+        ((0.45 * win_rate) + (0.35 * reward_alignment) + (0.20 * signal_quality))
+        * trade_evidence_ratio
+        * (1.0 - safety_pressure)
+    )
+    defeat = _clamp(
+        ((0.50 * (1.0 - win_rate)) + (0.25 * (1.0 - reward_alignment)) + (0.25 * safety_pressure))
+        * trade_evidence_ratio
+    )
+    fear = _clamp((0.55 * safety_pressure) + (0.25 * arousal * (1.0 - stability)) + (0.20 if runtime_stale else 0.0))
+    resolve = _clamp(
+        ((0.45 * anchor_readiness) + (0.30 * (1.0 - safety_pressure)) + (0.25 * hnc_coherence_score))
+        * (0.70 + (0.30 * goal_alignment))
+    )
+    caution_bias = _clamp((0.75 * fear) + (0.25 * blocker_penalty))
+    feeling_vector = {"victory": victory, "defeat": defeat, "fear": fear, "resolve": resolve}
+    dominant_feeling = max(feeling_vector, key=feeling_vector.get)
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -230,6 +250,13 @@ def build_harmonic_affect_state(root: Optional[Path] = None) -> dict[str, Any]:
             "resonance_frequency_hz": round(frequency_hz, 6),
             "valence": round(valence, 6),
             "arousal": round(arousal, 6),
+            "victory": round(victory, 6),
+            "defeat": round(defeat, 6),
+            "fear": round(fear, 6),
+            "resolve": round(resolve, 6),
+            "caution_bias": round(caution_bias, 6),
+            "dominant_feeling": dominant_feeling,
+            "mood": emotion,
             "goal_alignment": round(goal_alignment, 6),
             "reward_alignment": round(reward_alignment, 6),
             "stability": round(stability, 6),
@@ -245,6 +272,7 @@ def build_harmonic_affect_state(root: Optional[Path] = None) -> dict[str, Any]:
         },
         "state_contract": {
             "synthetic_affect_definition": "distributed HNC/Auris state change across reward, coherence, freshness, and safety",
+            "feeling_vector_definition": "victory, defeat, fear, resolve, and caution_bias are scalar software-model measurements derived from produced runtime evidence",
             "not_human_sensation": "Aureon does not use human nerves; this is a measurable machine-state and frequency contract",
             "kundalini_analogue": "full-stack ascent label only: lower blockers clear, goals complete, coherence rises, arousal settles",
             "inner_peace_condition": "high coherence, verified reward, fresh runtime, no safety blockers, no high blind spots",
@@ -278,16 +306,24 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--repo-root", default="", help="Repo root; defaults to current Aureon repo.")
     parser.add_argument("--json", default=str(DEFAULT_OUTPUT_JSON), help="Audit JSON path.")
     parser.add_argument("--public-json", default=str(DEFAULT_PUBLIC_JSON), help="Frontend public JSON path.")
+    parser.add_argument("--daemon", action="store_true", help="Continuously refresh the affect manifest.")
+    parser.add_argument("--interval", type=float, default=5.0, help="Refresh interval in seconds when --daemon is set.")
+    parser.add_argument("--quiet", action="store_true", help="Suppress per-cycle JSON output when running as a daemon.")
     return parser.parse_args(argv)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     root = Path(args.repo_root).resolve() if args.repo_root else REPO_ROOT
-    state = build_harmonic_affect_state(root)
-    output, public = write_harmonic_affect_state(state, Path(args.json), Path(args.public_json))
-    print(json.dumps({"json": str(output), "public_json": str(public), "summary": state["summary"]}, indent=2, sort_keys=True))
-    return 0
+    interval = max(1.0, float(args.interval))
+    while True:
+        state = build_harmonic_affect_state(root)
+        output, public = write_harmonic_affect_state(state, Path(args.json), Path(args.public_json))
+        if not args.quiet:
+            print(json.dumps({"json": str(output), "public_json": str(public), "summary": state["summary"]}, indent=2, sort_keys=True), flush=True)
+        if not args.daemon:
+            return 0
+        time.sleep(interval)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,8 @@ import math
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Sacred Constants
 PHI = (1 + math.sqrt(5)) / 2
 SCHUMANN = 7.83
@@ -2403,6 +2405,8 @@ class PlanetaryReclaimer:
     
     def binance_scan_and_trade(self):
         """Scan Binance - take profits - deploy cash"""
+        if no_external_api_calls():
+            return
         try:
             for asset in ['SOL', 'BTC', 'ETH', 'AVAX', 'DOGE', 'XRP']:
                 balance_receipt = self.binance.get_asset_balance(asset)
@@ -2607,6 +2611,8 @@ class PlanetaryReclaimer:
     # ═══════════════════════════════════════════════════════════════
     
     def alpaca_scan_and_trade(self):
+        if no_external_api_calls():
+            return
         try:
             account_receipt = self.alpaca.get_account()
             if (
@@ -2763,6 +2769,8 @@ class PlanetaryReclaimer:
     
     def kraken_scan_and_trade(self):
         """Scan Kraken - USD and EUR pairs"""
+        if no_external_api_calls():
+            return
         try:
             acct = self.kraken.account()
             if (
@@ -2987,6 +2995,8 @@ class PlanetaryReclaimer:
     # ═══════════════════════════════════════════════════════════════
     
     def run_cycle(self):
+        if no_external_api_calls():
+            return
         # 👑 QUEEN: Update metrics every cycle (observation layer)
         try:
             self.queen.update_queen_metrics()
@@ -3838,6 +3848,9 @@ class PlanetaryReclaimer:
             pass  # Silent killer
     
     def run(self):
+        if no_external_api_calls():
+            print("🔥 MODE: TURBO V3 HELD - AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("🔥 MODE: TURBO V3 - MAXIMUM SPEED")
         # 👑🔓 GATES STATUS
         if QUEEN_GATES_OPEN:

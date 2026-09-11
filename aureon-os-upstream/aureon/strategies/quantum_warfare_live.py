@@ -23,6 +23,8 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 from collections import deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Import our quantum arsenal
 from aureon.simulation.aureon_quantum_warfare_engine import (
     QuantumWarfareEngine, 
@@ -139,6 +141,9 @@ class QuantumWarfareLive:
     
     async def fetch_live_data(self, symbols: List[str]) -> Dict[str, LiveMarketState]:
         """Fetch live market data from exchanges"""
+        if no_external_api_calls():
+            print("QuantumWarfareLive.fetch_live_data blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
         states = {}
         
         for symbol in symbols:
@@ -349,6 +354,9 @@ class QuantumWarfareLive:
     
     async def run_quantum_scan(self, symbols: List[str], duration_seconds: int = 60):
         """Run live quantum scanning"""
+        if no_external_api_calls():
+            print("QuantumWarfareLive.run_quantum_scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("=" * 80)
         print("⚛️🌌 QUANTUM WARFARE LIVE SCAN 🌌⚛️")
         print("=" * 80)

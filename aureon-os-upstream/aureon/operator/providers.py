@@ -11,8 +11,8 @@ Design rules (offline-first):
   • A provider is only wired when its API key is present.
   • With no keys — or under the repo's audit/offline guards
     (``AUREON_LLM_OFFLINE`` / ``AUREON_AUDIT_MODE`` / ``AUREON_DISABLE_LLM_HTTP``)
-    — the switchboard degrades to a local model (if reachable) or a stub, so
-    the operator always answers without touching the network.
+    — the switchboard returns an explicit unavailable status without
+    classifying a static placeholder as model reasoning.
 
 OpenAI and xAI/Grok both expose an OpenAI-compatible ``/v1/chat/completions``,
 so those adapters reuse ``AureonLocalAdapter`` almost verbatim (base-URL + key).
@@ -218,6 +218,34 @@ _OFFLINE_STUB_ANSWER = (
 )
 
 
+class AureonUnavailableAdapter(AureonStubAdapter):
+    """Operator fallback status, never a successful model response."""
+
+    def __init__(self):
+        super().__init__(
+            "[ERROR] No enabled model adapter is available. Review provider "
+            "configuration, connectivity, and audit/offline settings.",
+            model="aureon-operator-unavailable",
+        )
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def prompt(self, *args, **kwargs) -> LLMResponse:
+        return LLMResponse(
+            text=self._message, stop_reason="error", usage={},
+            model=self.model, raw=None,
+        )
+
+    def stream(self, *args, **kwargs) -> Generator[StreamChunk, None, None]:
+        yield StreamChunk(text=self._message)
+        yield StreamChunk(done=True, stop_reason="error")
+
+    def health_check(self) -> bool:
+        return False
+
+
 def _build_from_spec(spec) -> LLMAdapter | None:
     """Resolve one ModelSpec into a live adapter, or None if it can't run."""
     kind = spec.kind
@@ -269,9 +297,9 @@ def build_registry(
 
     Only rows that are enabled, key-present, and successfully initialised are
     included — so the registry can list every flagship model you *might* use and
-    the runtime dials only the ones actually configured. With none live (or under
-    the repo's offline/audit guards) it degrades to a local model or a single
-    offline stub, so the operator always has at least one working line.
+    the runtime dials only the ones actually configured. With none available
+    (or under the repo's offline/audit guards), an error-status adapter reports
+    the missing model without presenting a static placeholder as a working line.
     """
     from aureon.operator.config import default_registry
 
@@ -295,7 +323,7 @@ def build_registry(
     if providers:
         return providers
 
-    return {"offline": AureonStubAdapter(_OFFLINE_STUB_ANSWER, model="aureon-operator-offline")}
+    return {"offline": AureonUnavailableAdapter()}
 
 
 def build_provider_set(
@@ -359,15 +387,19 @@ def build_provider_set_from_entries(entries: Dict[str, Dict[str, Any]]) -> Dict[
     return out
 
 
-def describe_provider_set(providers: Dict[str, LLMAdapter]) -> List[Dict[str, str]]:
-    """Compact, log-safe description of the active switchboard (no secrets)."""
+def describe_provider_set(providers: Dict[str, LLMAdapter]) -> List[Dict[str, Any]]:
+    """Log-safe configuration metadata; attachment is not a live response receipt."""
     described = []
     for name, adapter in providers.items():
+        fallback = isinstance(adapter, AureonStubAdapter)
         described.append(
             {
                 "name": name,
                 "adapter": type(adapter).__name__,
-                "model": str(getattr(adapter, "model", "") or ""),
+                "model": str(getattr(adapter, "model", "") or getattr(adapter, "_model", "") or ""),
+                "is_fallback": fallback,
+                "configured": not fallback,
+                "status": "unavailable" if fallback else "configured",
             }
         )
     return described
@@ -377,6 +409,7 @@ __all__ = [
     "AureonOpenAIAdapter",
     "AureonGrokAdapter",
     "AureonGeminiAdapter",
+    "AureonUnavailableAdapter",
     "build_registry",
     "build_provider_set",
     "build_adapter",

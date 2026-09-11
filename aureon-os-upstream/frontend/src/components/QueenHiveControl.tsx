@@ -20,7 +20,6 @@ function formatCurrency(value: number | null | undefined): string {
 export function QueenHiveControl() {
   const { session, hives, agents, isRunning, isStarting, roi, startHive, stopHive, manualStep } = useQueenHive();
   const [initialCapital, setInitialCapital] = useState('');
-  const [liveExecutionConfirmed, setLiveExecutionConfirmed] = useState(false);
 
   const handleStart = async () => {
     const capital = Number(initialCapital);
@@ -28,14 +27,10 @@ export function QueenHiveControl() {
       window.alert('Enter a positive USD allocation. It cannot exceed fresh provider-observed equity.');
       return;
     }
-    if (!liveExecutionConfirmed) {
-      window.alert('Confirm that this session can submit real exchange orders.');
-      return;
-    }
-    const confirmed = window.confirm(
-      `LIVE EXECUTION: manual steps may submit real Binance market orders using this ${formatCurrency(capital)} allocation. Continue?`,
-    );
-    if (confirmed) await startHive(capital, true);
+    // Live order execution is permanently disabled in this frontend build.
+    // The Queen-Hive control remains available for observation only.
+    window.alert('Live Queen-Hive execution is disabled in this build. Analysis and observation modes are available.');
+    await startHive(capital, false);
   };
 
   const handleStop = () => {
@@ -73,21 +68,21 @@ export function QueenHiveControl() {
               </p>
             </div>
 
-            <label className="flex items-start gap-3 rounded-md border border-destructive/50 p-3 text-sm">
+            <label className="flex items-start gap-3 rounded-md border border-warning/50 p-3 text-sm text-muted-foreground">
               <input
                 type="checkbox"
-                checked={liveExecutionConfirmed}
-                onChange={(event) => setLiveExecutionConfirmed(event.target.checked)}
+                checked={false}
+                disabled
                 className="mt-1"
               />
               <span>
-                I understand this is live execution. A manual step may submit real Binance market orders and place real funds at risk.
+                Live order execution is disabled in this build. Only observation and analysis are available.
               </span>
             </label>
 
-            <Button onClick={handleStart} disabled={isStarting || !liveExecutionConfirmed}>
+            <Button onClick={handleStart} disabled={isStarting}>
               <Play className="mr-2 h-4 w-4" />
-              {isStarting ? 'Connecting live hive…' : 'Connect live Queen-Hive'}
+              {isStarting ? 'Connecting observation hive…' : 'Connect Queen-Hive (observation)'}
             </Button>
 
             <div className="border-t pt-4">

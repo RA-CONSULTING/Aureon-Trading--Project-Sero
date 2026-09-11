@@ -159,6 +159,32 @@ def test_company_topology_rejects_missing_or_mismatched_process_brain() -> None:
         validate_agent_company_brain_topology(role_lanes, mismatched)
 
 
+def test_company_builder_reports_live_routing_when_truth_gate_is_not_authorized(tmp_path) -> None:
+    (tmp_path / "aureon").mkdir()
+    report = build_agent_company_bill_list(
+        root=tmp_path,
+        goal="Route every agent and process brain without granting action authority.",
+        provision_brains=True,
+        brain_resolver=FabricResolver(),
+    )
+
+    assert report["status"] == "agent_company_brain_routing_live_action_held"
+    assert report["summary"]["brain_fabric_routing_live"] is True
+    assert report["summary"]["brain_fabric_ready"] is False
+    assert report["summary"]["executable_agents_created"] is False
+    assert report["brain_fabric"]["status"] == "brain_routing_live_action_held"
+    assert report["brain_fabric"]["routing_live"] is True
+    assert report["brain_fabric"]["execution_ready"] is False
+    assert report["brain_fabric"]["truth_gate_enforced"] is False
+    assert report["brain_fabric"]["tools_enabled"] is False
+    assert report["brain_fabric"]["action_eligible"] is False
+    assert report["brain_fabric"]["economic_eligible"] is False
+    assert report["completion_report"]["did_route_all_agent_and_process_brains"] is True
+    assert report["completion_report"]["did_provision_all_canonical_agent_and_process_brains"] is False
+    assert all(role["brain_binding"]["routing_live"] for role in report["roles"] if role["department"] != "public_design")
+    assert all(role["brain_binding"]["execution_ready"] is False for role in report["roles"])
+
+
 def test_company_builder_explicitly_attaches_live_brain_fabric(tmp_path) -> None:
     (tmp_path / "aureon").mkdir()
     report = build_agent_company_bill_list(

@@ -12,8 +12,16 @@ Tests the core vault components in isolation:
   6. HNCDeployer — gamma spike, auris rally, gratitude recovery
   7. RallyCoordinator — enter/exit burst mode
   8. HarmonicPinger — emits on both channels
+
+Effect paths are gated by the fail-closed core release record
+(``aureon_fusion/state/vault/core_release.json``, overridable via the
+``AUREON_CORE_RELEASE_RECORD`` env var). Every HOLD-behavior test drives
+the hold by pointing that env var at a path that does NOT exist; the
+released-path tests write a valid record to a tmp file and point the env
+var at it.
 """
 
+import json
 import os
 import sys
 
@@ -36,6 +44,40 @@ from aureon.vault import (
     RallyCoordinator,
     NODES,
 )
+
+_HOLD_ENV_VAR = "AUREON_CORE_RELEASE_RECORD"
+_ALL_CORE_MODULES = (
+    "aureon_vault",
+    "casimir_quantifier",
+    "harmonic_pinger",
+    "self_feedback_loop",
+)
+
+
+def _write_release_record(path, *modules):
+    path.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": list(modules),
+    }), encoding="utf-8")
+    return path
+
+
+@pytest.fixture
+def held(monkeypatch, tmp_path):
+    """Point the release record at a path that does not exist → HOLD."""
+    missing = tmp_path / "no_such_core_release.json"
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(missing))
+    return missing
+
+
+@pytest.fixture
+def released_all(monkeypatch, tmp_path):
+    """Point the release record at a valid record naming all core modules."""
+    record = _write_release_record(
+        tmp_path / "core_release.json", *_ALL_CORE_MODULES)
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(record))
+    return record
 
 
 PASS = 0
@@ -87,7 +129,9 @@ def test_vault_ingest_and_eviction():
     check(isinstance(fp, str) and len(fp) == 16, f"fingerprint is 16 hex chars ({fp})")
 
 
-def test_vault_thought_bus_wiring_holds_before_lookup_or_mutation(monkeypatch):
+def test_vault_thought_bus_wiring_holds_before_lookup_or_mutation(
+    monkeypatch, held,
+):
     from aureon.core import aureon_thought_bus as thought_bus_module
 
     class _BusProbe:
@@ -121,6 +165,43 @@ def test_vault_thought_bus_wiring_holds_before_lookup_or_mutation(monkeypatch):
 
     vault.ingest(topic="persona.collapse", payload={"winner": "engineer"})
     assert bus.publications == []
+
+
+def test_vault_thought_bus_wiring_released_subscribes_and_publishes(
+    monkeypatch, tmp_path,
+):
+    from aureon.core import aureon_thought_bus as thought_bus_module
+
+    class _BusProbe:
+        def __init__(self):
+            self.subscriptions = []
+            self.publications = []
+
+        def subscribe(self, topic, handler):
+            self.subscriptions.append((topic, handler))
+
+        def publish(self, thought):
+            self.publications.append(thought)
+
+    bus = _BusProbe()
+    monkeypatch.setattr(
+        thought_bus_module, "get_thought_bus", lambda: bus)
+    record = _write_release_record(
+        tmp_path / "core_release.json", "aureon_vault")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(record))
+
+    vault = AureonVault()
+    assert vault.wire_thought_bus() is True
+    assert vault._subscribed is True
+    assert len(bus.subscriptions) == len(vault.DEFAULT_SUBSCRIPTIONS)
+
+    vault.ingest(topic="persona.collapse", payload={"winner": "engineer"})
+    assert len(bus.publications) == 1
+    assert bus.publications[0].topic == "vault.card.added"
+
+    # idempotent
+    assert vault.wire_thought_bus() is True
+    assert len(bus.subscriptions) == len(vault.DEFAULT_SUBSCRIPTIONS)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -192,8 +273,8 @@ def test_love_gratitude_clock():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_casimir_quantifier():
-    print("\n[4] CasimirQuantifier remains on production HOLD")
+def test_casimir_quantifier_holds_without_release_record(held):
+    print("\n[4] CasimirQuantifier remains fail-closed without a release record")
     vault = AureonVault()
     # Seed the vault with some cards so we have a history
     for i in range(10):
@@ -205,8 +286,51 @@ def test_casimir_quantifier():
         quantifier.measure(vault)
     with pytest.raises(RuntimeError, match="casimir_quantifier_hold"):
         quantifier._load_engine()
+    with pytest.raises(RuntimeError, match="casimir_quantifier_hold"):
+        CasimirQuantifier(tau_s=30.0, use_native_engine=True)
     assert vault.last_casimir_force == before
     assert quantifier.last_reading is None
+
+
+def test_casimir_quantifier_released_measures_bounded_reading(
+    monkeypatch, tmp_path,
+):
+    print("\n[4b] CasimirQuantifier released: bounded reading, contract shape")
+    record = _write_release_record(
+        tmp_path / "core_release.json", "casimir_quantifier")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(record))
+
+    vault = AureonVault()
+    for i in range(10):
+        vault.ingest(topic=f"seed.{i}", payload={"i": i})
+
+    quantifier = CasimirQuantifier(tau_s=30.0)
+    reading = quantifier.measure(vault)
+
+    # Consumer contract: bounded force, 16-hex fingerprints, int drift bits
+    assert 0.0 <= reading.force <= 10.0
+    assert len(reading.present_fingerprint) == 16
+    assert len(reading.past_fingerprint) == 16
+    assert isinstance(reading.drift_bits, int)
+    assert reading.plate_separation >= 1.0
+    assert reading.timestamp > 0
+    assert vault.last_casimir_force == reading.force
+    assert quantifier.last_reading is reading
+
+    status = quantifier.get_status()
+    assert status["engine_kind"] == "stub"
+    assert status["last_force"] == round(reading.force, 6)
+
+    # Malformed or unnaming records still hold
+    bad = tmp_path / "bad.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(bad))
+    with pytest.raises(RuntimeError, match="casimir_quantifier_hold"):
+        quantifier.measure(vault)
+    other = _write_release_record(tmp_path / "other.json", "aureon_vault")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(other))
+    with pytest.raises(RuntimeError, match="casimir_quantifier_hold"):
+        quantifier.measure(vault)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -313,8 +437,8 @@ def test_rally_coordinator():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_harmonic_pinger():
-    print("\n[8] HarmonicPinger remains on production HOLD")
+def test_harmonic_pinger_holds_without_release_record(held):
+    print("\n[8] HarmonicPinger remains fail-closed without a release record")
     pinger = HarmonicPinger()
     with pytest.raises(RuntimeError, match="harmonic_pinger_hold"):
         pinger.ping(frequency_hz=528, coherence=0.85, payload={"cycle": 1})
@@ -323,6 +447,67 @@ def test_harmonic_pinger():
     with pytest.raises(RuntimeError, match="harmonic_pinger_hold"):
         pinger._load_thought_bus()
     assert pinger.get_status()["total_pings"] == 0
+
+
+def test_harmonic_pinger_released_emits_on_available_channels(
+    monkeypatch, tmp_path,
+):
+    print("\n[8b] HarmonicPinger released: emits Thought, stub ChirpBus honest")
+    from aureon.core import aureon_chirp_bus as chirp_module
+    from aureon.core import aureon_thought_bus as thought_module
+
+    record = _write_release_record(
+        tmp_path / "core_release.json", "harmonic_pinger")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(record))
+
+    # Keep the released loader away from the real shared-memory ChirpBus
+    # segment and from the process ThoughtBus singleton.
+    monkeypatch.setattr(
+        chirp_module, "get_chirp_bus",
+        lambda create_if_missing=True: None,
+    )
+
+    class _RecBus:
+        def __init__(self):
+            self.publications = []
+
+        def publish(self, thought):
+            self.publications.append(thought)
+            return True
+
+    rec_bus = _RecBus()
+    monkeypatch.setattr(thought_module, "get_thought_bus", lambda: rec_bus)
+
+    pinger = HarmonicPinger(enable_chirp_bus=True, enable_thought_bus=True)
+    assert pinger._chirp_bus is None  # stubbed ChirpBus factory
+    assert pinger._chirp_kind == "stub"
+    assert pinger._thought_bus is rec_bus
+
+    result = pinger.ping(frequency_hz=528, coherence=0.85,
+                         payload={"cycle": 1})
+    assert result.sent_chirp is False  # no real ChirpBus → honest no-send
+    assert result.sent_thought is True
+    assert result.frequency_hz == 528
+    assert result.coherence == 0.85
+    assert len(rec_bus.publications) == 1
+    assert rec_bus.publications[0].topic == "vault.heartbeat"
+    assert rec_bus.publications[0].payload["cycle"] == 1
+
+    status = pinger.get_status()
+    assert status["total_pings"] == 1
+    assert status["thought_success"] == 1
+    assert status["chirp_success"] == 0
+
+    # Malformed or unnaming records still hold
+    bad = tmp_path / "bad.json"
+    bad.write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(bad))
+    with pytest.raises(RuntimeError, match="harmonic_pinger_hold"):
+        pinger.ping()
+    other = _write_release_record(tmp_path / "other.json", "aureon_vault")
+    monkeypatch.setenv(_HOLD_ENV_VAR, str(other))
+    with pytest.raises(RuntimeError, match="harmonic_pinger_hold"):
+        pinger.ping()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -338,11 +523,11 @@ def main():
     test_vault_ingest_and_eviction()
     test_fibonacci_shuffler()
     test_love_gratitude_clock()
-    test_casimir_quantifier()
     test_auris_metacognition()
     test_hnc_deployer()
     test_rally_coordinator()
-    test_harmonic_pinger()
+    # Release-gated suites (4/4b, 8/8b, wiring hold/released) run under
+    # pytest, which supplies the fixtures they need.
 
     print()
     print("=" * 80)

@@ -90,7 +90,7 @@ production defaults use distinct `quickbooks_production_*` DPAPI vaults.
 
    - `QUICKBOOKS_CLIENT_ID`
    - `QUICKBOOKS_CLIENT_SECRET`
-   - `QUICKBOOKS_CLIENT_CREDENTIAL_VAULT=REDACTED_USE_CLOUD_SECRET`
+   - `QUICKBOOKS_CLIENT_CREDENTIAL_VAULT=.aureon/quickbooks_client_credentials.dpapi.json`
    - `QUICKBOOKS_REDIRECT_URI=http://localhost:8765/callback`
    - `QUICKBOOKS_ENVIRONMENT=sandbox`
    - `QUICKBOOKS_REALM_ID` optionally after the company connection

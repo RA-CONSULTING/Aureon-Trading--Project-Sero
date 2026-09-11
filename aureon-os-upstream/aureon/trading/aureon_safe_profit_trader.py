@@ -15,6 +15,9 @@ Strategy:
 Author: Aureon System / Gary Leckey
 Date: November 28, 2025
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, json, time, logging, argparse, random
 from datetime import datetime
@@ -50,6 +53,9 @@ class SafeProfitTrader:
         self.total_profit = 0.0
 
     def get_tradeable_pairs(self) -> List[Dict[str, Any]]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_safe_profit_trader.SafeProfitTrader.get_tradeable_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         account = self.client.account()
         balances = {b['asset']: float(b['free']) for b in account['balances'] if float(b['free']) > 0.01}
         info = self.client.exchange_info()
@@ -74,6 +80,9 @@ class SafeProfitTrader:
         return pairs
 
     def expected_profit_pct(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_safe_profit_trader.SafeProfitTrader.expected_profit_pct blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         try:
             orderbook = self.client.session.get(f"{self.client.base}/api/v3/ticker/bookTicker", params={'symbol': symbol}).json()
             bid = float(orderbook['bidPrice'])
@@ -88,6 +97,9 @@ class SafeProfitTrader:
             return -100.0
 
     def run(self, duration_sec: int = 600):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_safe_profit_trader.SafeProfitTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info(f"\n🚀 Starting SAFE PROFIT trading for {duration_sec}s...")
         start_time = time.time()
         cycle = 0
@@ -147,6 +159,9 @@ class SafeProfitTrader:
         logger.info(f"\n🏁 Final Profit: ${self.total_profit:+.2f}")
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_safe_profit_trader.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--duration', type=int, default=600)

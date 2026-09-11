@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 
 from aureon.ollama_config import (
     ensure_ollama_runtime_config,
+    is_ollama_cloud_model,
     is_ollama_cloud_url,
     looks_like_ollama_url,
     ollama_authorization_headers,
@@ -445,7 +446,7 @@ class AureonLocalAdapter(LLMAdapter):
         if keep_alive:
             payload["keep_alive"] = keep_alive
 
-        if is_ollama_cloud_url(self.base_url):
+        if is_ollama_cloud_url(self.base_url) or is_ollama_cloud_model(self.model):
             payload["reasoning_effort"] = resolve_ollama_reasoning_effort()
 
         if tools:
@@ -520,7 +521,7 @@ class AureonLocalAdapter(LLMAdapter):
             payload["keep_alive"] = self._keep_alive
         if stop:
             payload["options"]["stop"] = list(stop)
-        if is_ollama_cloud_url(self._native_root):
+        if is_ollama_cloud_url(self._native_root) or is_ollama_cloud_model(self.model):
             effort = resolve_ollama_reasoning_effort()
             payload["think"] = False if effort == "none" else effort
         return payload

@@ -33,9 +33,12 @@ Gary Leckey | The Math Works | January 2026
 """
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, List, Dict, Tuple, Optional
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 # ── Thought Bus integration (fail-safe) ──────────────────────────────────────
 try:
@@ -85,7 +88,7 @@ class RisingStarScanner:
     def scan_entire_market(self, max_candidates: int = 20) -> List[RisingStarCandidate]:
         """
         🔍 STAGE 1: SCAN - Map entire market for rising stars.
-        
+
         Uses ALL intelligence systems:
         - Quantum scoring
         - Probability predictions
@@ -93,6 +96,10 @@ class RisingStarScanner:
         - Firm intelligence
         - Whale tracking
         """
+        if no_external_api_calls():
+            logging.info("RisingStarScanner.scan_entire_market blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         candidates = []
         
         # UK users: BinanceClient now handles UK restrictions internally (626 allowed pairs)
@@ -297,19 +304,23 @@ class RisingStarScanner:
 
         return best
     
-    def execute_with_accumulation(self, candidate: RisingStarCandidate, 
+    def execute_with_accumulation(self, candidate: RisingStarCandidate,
                                    amount: float) -> Optional[Dict]:
         """
         💰 STAGE 4: EXECUTE + ACCUMULATE
-        
+
         Opens position with DCA strategy:
         - Buy initial position
         - If price drops → BUY MORE (accumulation)
         - Track total cost basis
         - Sell entire stack when profitable
-        
+
         Returns position details or None if failed.
         """
+        if no_external_api_calls():
+            logging.info("RisingStarScanner.execute_with_accumulation blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         try:
             client = self.orca.clients.get(candidate.exchange)
             if not client:

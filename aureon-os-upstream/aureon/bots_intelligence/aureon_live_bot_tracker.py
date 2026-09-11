@@ -24,7 +24,7 @@ if sys.platform == 'win32':
     try:
         import io
         def _is_utf8_wrapper(stream):
-            return (isinstance(stream, io.TextIOWrapper) and 
+            return (isinstance(stream, io.TextIOWrapper) and
                     hasattr(stream, 'encoding') and stream.encoding and
                     stream.encoding.lower().replace('-', '') == 'utf8')
         if hasattr(sys.stdout, 'buffer') and not _is_utf8_wrapper(sys.stdout):
@@ -44,6 +44,8 @@ from typing import Dict, List, Optional, Any, Tuple
 from collections import deque, defaultdict
 from pathlib import Path
 import hashlib
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(message)s')
 logger = logging.getLogger(__name__)
@@ -810,6 +812,10 @@ def print_bot_dashboard(engine: BotDetectionEngine, last_trades: deque):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def main():
+    if no_external_api_calls():
+        logger.info("Live Bot Tracker blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     print()
     print("🔥" * 40)
     print()
@@ -826,7 +832,7 @@ async def main():
     print()
     print("🔥" * 40)
     print()
-    
+
     # Initialize engine
     engine = BotDetectionEngine()
     last_trades = deque(maxlen=100)

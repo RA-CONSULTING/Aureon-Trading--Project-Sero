@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import requests
+from aureon.exchanges.provider_ui_observations import begin_provider_http_observation, fail_provider_http_observation, record_provider_http_observation
 
 from aureon.governance.economic_boundary import (
     EconomicGovernanceBlocked,
@@ -626,6 +627,7 @@ class AlpacaClient:
         url = f"{request_base}{endpoint}"
         attempt_count = 1 if is_mutation else self.max_retries + 1
         for attempt in range(attempt_count):
+            ui_observation_token = None
             try:
                 # Short GET dedup: avoid duplicate identical GET requests within short TTL
                 cache_key = None
@@ -688,6 +690,7 @@ class AlpacaClient:
                         body_digest=body_digest,
                     )
                 try:
+                    ui_observation_token = begin_provider_http_observation(self, "alpaca", normalized_method, endpoint, now=time.time())
                     resp = self._alpaca_http_request(
                         normalized_method,
                         endpoint,
@@ -696,9 +699,12 @@ class AlpacaClient:
                         body=economic_body if isinstance(economic_body, dict) else {},
                         _economic_dispatch=dispatch,
                     )
+                    ui_received_at = time.time()
                 finally:
                     self._discard_economic_dispatch(dispatch)
 
+                if not resp.ok:
+                    fail_provider_http_observation(self, "alpaca", normalized_method, endpoint, refresh_token=ui_observation_token)
                 # 🛡️ RATE LIMIT HANDLING - Respect Retry-After header if present
                 if resp.status_code == 429:
                     # Trigger adaptive backoff
@@ -761,17 +767,28 @@ class AlpacaClient:
                     return {}
 
                 # Cache GET responses for dedup window
+                ui_json_valid = False
                 try:
                     result_json = resp.json()
                     if cache_key and result_json is not None:
                         self._response_cache.set(cache_key, result_json)
+                    ui_json_valid = True
                 except Exception:
                     result_json = {}
 
                 self.last_error = None
                 self.init_error = ""
+                if ui_json_valid:
+                    record_provider_http_observation(self, "alpaca", normalized_method, endpoint, result_json,
+                        headers=getattr(resp, "headers", {}), received_at=ui_received_at,
+                        live_endpoint=request_base == ALPACA_LIVE_BASE and not getattr(self, "use_paper", True),
+                        refresh_token=ui_observation_token)
+                else:
+                    fail_provider_http_observation(self, "alpaca", normalized_method, endpoint, refresh_token=ui_observation_token)
                 return result_json
             except requests.exceptions.Timeout as e:
+                if ui_observation_token is not None:
+                    fail_provider_http_observation(self, "alpaca", normalized_method, endpoint, refresh_token=ui_observation_token)
                 if not is_mutation and attempt < self.max_retries:
                     time.sleep(0.5 * (attempt + 1))
                     continue
@@ -781,6 +798,8 @@ class AlpacaClient:
                     self.init_error = "socket_blocked"
                 return {}
             except Exception as e:
+                if ui_observation_token is not None:
+                    fail_provider_http_observation(self, "alpaca", normalized_method, endpoint, refresh_token=ui_observation_token)
                 if isinstance(e, EconomicGovernanceBlocked):
                     raise
                 logger.error(f"Alpaca Request Failed: {e}")

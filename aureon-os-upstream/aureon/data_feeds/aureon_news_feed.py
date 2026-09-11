@@ -18,6 +18,8 @@ from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Import ThoughtBus for publishing news thoughts
 try:
     from aureon.core.aureon_thought_bus import ThoughtBus, Thought
@@ -157,12 +159,17 @@ class NewsFeed:
     
     async def _make_request(self, endpoint: str, params: Dict[str, Any]) -> Optional[Dict]:
         """Make an API request."""
+        if no_external_api_calls():
+            print("[NewsFeed] External calls blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.metrics["errors"] += 1
+            self._publish_thought("news.error", {"reason": "AUREON_NO_EXTERNAL_API_CALLS"})
+            return None
         if not self.session:
             self.session = aiohttp.ClientSession()
-        
+
         url = f"{self.BASE_URL}/{endpoint}"
         headers = {"x-api-key": self.config.api_key}
-        
+
         try:
             async with self.session.get(url, params=params, headers=headers) as resp:
                 self.metrics["api_calls"] += 1

@@ -1684,7 +1684,8 @@ class HNCLiveDaemon:
                     },
                 })
             with open(self._trace_path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(row) + "\n")
+                fh.write(json.dumps(row, default=str) + "\n")
+                fh.flush()
         except Exception as exc:
             logger.debug("trace append failed: %s", exc)
 

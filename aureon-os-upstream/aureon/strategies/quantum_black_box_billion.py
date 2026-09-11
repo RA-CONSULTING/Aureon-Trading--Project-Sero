@@ -57,6 +57,8 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 from pathlib import Path
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Quantum consciousness system
 from aureon.wisdom.metatron_probability_billion_path import (
     QueenAurisPingPong, ProbabilityMatrix, ProbabilityPrediction, QuantumSpace
@@ -476,6 +478,9 @@ class QuantumBlackBox:
     
     def get_live_price(self, symbol: str, exchange: str) -> Optional[float]:
         """Get current price"""
+        if no_external_api_calls():
+            print(f"QuantumBlackBox.get_live_price blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
         try:
             client = self.exchanges.get(exchange)
             if client:
@@ -583,7 +588,9 @@ class QuantumBlackBox:
         """
         Race to $1 billion using black box perfection
         """
-        
+        if no_external_api_calls():
+            print("QuantumBlackBox.race_to_billion blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         print("\n" + "=" * 80)
         print("🔮 QUANTUM BLACK BOX - RACING TO $1 BILLION 🔮")
         print("=" * 80)

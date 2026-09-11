@@ -124,6 +124,20 @@ def main():
         print(f"  [{'PASS' if cond else 'FAIL'}] {label}")
         ok = ok and cond
 
+    print("== path 0: REAL aureon_fusion.goals_will (no stub) ==")
+    _remove_stubs()
+    goals = mind._goals_stage(cycle=0, publish=False)
+    wheel = mind._wheel_stage(cycle=0)
+    print("  goals =", json.dumps(goals, default=str))
+    print("  wheel hq =", (wheel or {}).get("happiness_quotient"),
+          "fresh =", (wheel or {}).get("fresh"))
+    check("goals is not the unavailable sentinel", "error" not in goals)
+    check("goals.reason non-empty", bool(goals.get("reason")))
+    check("goals considered flag is a bool",
+          isinstance(goals.get("considered"), bool))
+    check("wheel still works alongside", wheel is not None
+          and wheel.get("happiness_quotient") is not None)
+
     print("== path 1: success (stubbed goals_will + grand_wheel) ==")
     _install_stubs()
     goals = mind._goals_stage(cycle=1, publish=False)
@@ -151,6 +165,24 @@ def main():
     check("cycle line ends with hq=0.61", line.endswith(" hq=0.61"))
     check("existing tokens intact (learn=refused)",
           " learn=refused" in line and " doors=" not in line)
+
+    print("== path 1b: class-only organ (GoalsWill, no module consider) ==")
+    gcls = types.ModuleType(STUB_GOALS)
+
+    class FakeGoalsWill:
+        def consider(self, dry_run=False):
+            return {"considered": False, "outcome": "open_goals_active",
+                    "reason": "stub goals open"}
+
+    gcls.GoalsWill = FakeGoalsWill
+    sys.modules[STUB_GOALS] = gcls
+    aureon_fusion.goals_will = gcls
+    goals = mind._goals_stage(cycle=1, publish=False)
+    print("  goals =", json.dumps(goals, default=str))
+    check("class-only organ consulted (the original bug shape)",
+          goals.get("reason") == "stub goals open")
+    check("no unavailable sentinel on class-only shape", "error" not in goals)
+    _remove_stubs()
 
     print("== path 2: components raise ==")
     _install_stubs(goals_raise=True, wheel_raise=True)

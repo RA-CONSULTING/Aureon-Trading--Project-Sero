@@ -32,6 +32,8 @@ import json
 import math
 import logging
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,9 @@ FEE_PROFILES = {
 
 def get_kraken_prices():
     """Fetch live prices from Kraken"""
+    if no_external_api_calls():
+        logger.info("get_kraken_prices blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {}
     try:
         import requests
         
@@ -114,6 +119,9 @@ def get_kraken_prices():
 
 def get_alpaca_prices():
     """Fetch live prices from Alpaca"""
+    if no_external_api_calls():
+        logger.info("get_alpaca_prices blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {}
     try:
         import requests
         from dotenv import load_dotenv
@@ -199,6 +207,9 @@ def scan_quantum_mirror():
     Scans reality branches for profitable opportunities.
     Uses 3-pass validation then identifies 4th-pass candidates.
     """
+    if no_external_api_calls():
+        logger.info("scan_quantum_mirror blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
     print("\n" + "═" * 70)
     print("🔮 QUANTUM MIRROR ONE-SHOT SCANNER 🔮")
     print("═" * 70)

@@ -2,9 +2,15 @@
 OpportunityScanner — every persona scanning for ways to help
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CURRENT RELEASE: background scanning, threads, and goal dispatch are
-hard-HOLD before effects until the production Magic Star release is available.
-Persona opportunity-shaping functions remain pure and inspectable.
+RELEASE STATE: released by owner decree 2026-09-06 (Gary Leckey) via the
+shared fail-closed release record (``aureon_fusion/state/goals/dispatch_release.json``,
+read through ``_goal_release``): an absent/invalid record, or the module
+missing from the record's modules list, re-holds background scanning,
+threads, and goal dispatch (``OPPORTUNITY_SCANNER_RELEASE_HOLD``)
+instantly. Persona opportunity-shaping functions remain pure and
+inspectable in either state. Dispatched goals pass through the
+PersonaActuator's fail-closed conscience gate and onward into the
+conscience-gated goal pipeline.
 
 Between user turns, the scanner walks every persona against every
 active LifeEvent and asks ``scan_for_opportunity(event)``. If a
@@ -39,6 +45,15 @@ logger = logging.getLogger("aureon.vault.voice.opportunity_scanner")
 OPPORTUNITY_SCANNER_RELEASE_HOLD = (
     "opportunity_scanner_hold:production_magic_star_release_unavailable"
 )
+
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("opportunity_scanner"):
+        raise RuntimeError(OPPORTUNITY_SCANNER_RELEASE_HOLD)
 
 
 @dataclass
@@ -94,7 +109,7 @@ class OpportunityScanner:
     # ─── lifecycle ───────────────────────────────────────────────────────
 
     def start(self) -> None:
-        raise RuntimeError(OPPORTUNITY_SCANNER_RELEASE_HOLD)
+        _require_release()
         if self._running:
             return
         self._running = True
@@ -117,7 +132,7 @@ class OpportunityScanner:
     def scan_once(self, state: Optional[Dict[str, Any]] = None) -> List[OpportunityHit]:
         """Perform one full sweep: every persona × every active event.
         Returns the list of OpportunityHits dispatched this sweep."""
-        raise RuntimeError(OPPORTUNITY_SCANNER_RELEASE_HOLD)
+        _require_release()
         state = dict(state or {})
         events = self._life_context.active()
         if not events:
@@ -157,7 +172,7 @@ class OpportunityScanner:
         return fired
 
     def _dispatch(self, hit: OpportunityHit, event: Any) -> None:
-        raise RuntimeError(OPPORTUNITY_SCANNER_RELEASE_HOLD)
+        _require_release()
         action = PersonaAction(
             kind="goal.submit",
             topic=hit.goal_text,
@@ -186,7 +201,7 @@ class OpportunityScanner:
     # ─── loop ────────────────────────────────────────────────────────────
 
     def _loop(self) -> None:
-        raise RuntimeError(OPPORTUNITY_SCANNER_RELEASE_HOLD)
+        _require_release()
         while self._running:
             time.sleep(self.interval_s)
             if not self._running:

@@ -51,6 +51,8 @@ import hashlib
 import hmac
 import urllib.parse
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -3380,6 +3382,10 @@ class AureonProDashboard:
     
     async def refresh_exchange_balances(self):
         """Fetch real-time balances from all exchange clients."""
+        if no_external_api_calls():
+            logger.info("AureonProDashboard.refresh_exchange_balances blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         try:
             # Try Binance - calculate TOTAL portfolio value (not just stablecoins!)
             try:
@@ -3689,8 +3695,12 @@ class AureonProDashboard:
     # ═══════════════════════════════════════════════════════════════════════════════
     async def sentiment_data_loop(self):
         """Periodically fetch market sentiment data (Fear & Greed Index)."""
+        if no_external_api_calls():
+            logger.info("AureonProDashboard.sentiment_data_loop blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         await asyncio.sleep(8)  # Wait for init
-        
+
         while True:
             try:
                 timeout = aiohttp.ClientTimeout(total=10)
@@ -4174,6 +4184,10 @@ class AureonProDashboard:
     
     async def refresh_portfolio(self):
         """Fetch real portfolio data from ALL exchanges with caching."""
+        if no_external_api_calls():
+            logger.info("AureonProDashboard.refresh_portfolio blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         self.logger.info("🔄 REFRESH_PORTFOLIO: Starting portfolio refresh")
         self.logger.info(f"🔄 Environment: AUREON_STATE_DIR={os.getenv('AUREON_STATE_DIR', '.')}")
         try:
@@ -4700,9 +4714,13 @@ class AureonProDashboard:
     
     async def refresh_prices(self):
         """Fetch real crypto prices with timeout protection - NOW INCLUDES POSITION PRICES!"""
+        if no_external_api_calls():
+            logger.info("AureonProDashboard.refresh_prices blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         try:
             self.logger.info("🔄 Fetching prices...")
-            
+
             # Build list of symbols to fetch (BTC/ETH/SOL + all position symbols)
             symbols_to_fetch = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']
             
@@ -5615,10 +5633,14 @@ class AureonProDashboard:
     
     def start_binance_websocket(self):
         """Start Binance WebSocket in background thread for real-time data."""
+        if no_external_api_calls():
+            logger.info("AureonProDashboard.start_binance_websocket blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         if not BINANCE_WS_AVAILABLE:
             self.logger.error("❌ Binance WebSocket module not available - check binance_ws_client.py import")
             return
-        
+
         def run_ws():
             try:
                 # Subscribe to all major symbols
@@ -5781,15 +5803,19 @@ class AureonProDashboard:
     async def ocean_data_loop(self):
         """
         🌊 OCEAN DATA LOOP - Stream ENTIRE global market into harmonic field + update dashboard
-        
+
         Layer 1: Your portfolio (20 positions from exchanges)
         Layer 2: FULL MARKET SCAN (500+ symbols across all exchanges)
-        
+
         This creates a visualization of the ENTIRE global market pulse
         tuned into your harmonic field frequency.
         """
+        if no_external_api_calls():
+            logger.info("AureonProDashboard.ocean_data_loop blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         await asyncio.sleep(5)  # Wait for initialization
-        
+
         self.logger.info("🌊🔭 OCEAN DATA LOOP STARTED - Initializing full market streaming")
         self.logger.info(f"   Ocean Scanner: {'ACTIVE' if self.ocean_scanner else 'MISSING'}")
         self.logger.info(f"   Harmonic Field: {'ACTIVE' if self.harmonic_field else 'MISSING'}")
@@ -5865,6 +5891,10 @@ class AureonProDashboard:
     
     async def _init_ocean_scanner(self):
         """Initialize ocean scanner universe in background."""
+        if no_external_api_calls():
+            logger.info("AureonProDashboard._init_ocean_scanner blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         try:
             self.logger.info("🌊 Discovering ocean scanner universe...")
             universe = await self.ocean_scanner.discover_universe()

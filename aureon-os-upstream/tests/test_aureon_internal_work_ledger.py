@@ -121,7 +121,7 @@ def test_99_percent_contract_survives_restart_and_final_review(tmp_path: Path) -
     assert report["ready"] is True
     assert report["internal_work_units"] == 99
     assert report["senior_oversight_units"] == 1
-    assert report["internal_share_ppm"] == 990_000
+    assert report["internal_share_ppm"] == 1_000_000
     assert report["senior_oversight_is_final"] is True
 
 

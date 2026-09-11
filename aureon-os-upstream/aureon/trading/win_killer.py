@@ -28,6 +28,9 @@ from typing import Dict, List, Optional, Tuple
 from decimal import Decimal, ROUND_DOWN
 
 # Windows UTF-8 wrapper
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 if sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -109,6 +112,9 @@ class KrakenExecutor:
     
     def get_balance(self) -> Dict[str, float]:
         """Get current balance"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.KrakenExecutor.get_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         result = self._private_request('/0/private/Balance')
         if 'result' in result:
             return {k: float(v) for k, v in result['result'].items() if float(v) > 0}
@@ -116,6 +122,9 @@ class KrakenExecutor:
     
     def get_ticker(self, pair: str) -> Optional[Dict]:
         """Get ticker for a pair"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.KrakenExecutor.get_ticker blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             url = f'{self.base_url}/0/public/Ticker'
             resp = requests.get(url, params={'pair': pair}, timeout=10)
@@ -135,6 +144,9 @@ class KrakenExecutor:
     
     def execute_market_buy(self, pair: str, volume: float, dry_run: bool = True) -> Dict:
         """Execute market buy order"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.KrakenExecutor.execute_market_buy blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if dry_run:
             return {
                 'dry_run': True,
@@ -156,6 +168,9 @@ class KrakenExecutor:
     
     def execute_market_sell(self, pair: str, volume: float, dry_run: bool = True) -> Dict:
         """Execute market sell order"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.KrakenExecutor.execute_market_sell blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if dry_run:
             return {
                 'dry_run': True,
@@ -184,6 +199,9 @@ class WinScanner:
         
     def scan_binance(self) -> List[Dict]:
         """Scan Binance for opportunities"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.WinScanner.scan_binance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         try:
@@ -236,6 +254,9 @@ class WinScanner:
     
     def scan_kraken(self) -> List[Dict]:
         """Scan Kraken for opportunities"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.WinScanner.scan_kraken blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         # Top Kraken pairs
@@ -386,6 +407,9 @@ class WinKiller:
     def execute(self, opportunity: Opportunity) -> Dict:
         """Execute a winning trade"""
         # Get balance
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.WinKiller.execute blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         balances = self.executor.get_balance()
         
         # Find USD/USDT balance
@@ -424,6 +448,9 @@ class WinKiller:
     
     def run_forever(self):
         """Run the WIN KILLER continuously"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.win_killer.WinKiller.run_forever blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print()
         print('💀' * 35)
         print('   WIN KILLER ACTIVATED - KILL MODE')
@@ -467,6 +494,9 @@ class WinKiller:
 
 def main():
     """Main entry point"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.win_killer.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description='WIN KILLER - By Any Means Necessary')

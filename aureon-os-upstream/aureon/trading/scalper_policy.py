@@ -7,11 +7,17 @@ from collections.abc import Mapping
 from typing import Any
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 def resolve_scalper_targets(
     queen_signal: Any,
     learned_recommendation: Mapping[str, Any] | None,
 ) -> tuple[Any, Any, bool]:
     """Return TP, SL and activation without creating runtime or provider state."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.scalper_policy.resolve_scalper_targets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     learned = learned_recommendation or {}
     take_profit = learned.get("suggested_take_profit")
     stop_loss = learned.get("suggested_stop_loss")

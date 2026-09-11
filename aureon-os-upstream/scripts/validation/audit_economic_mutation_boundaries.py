@@ -1437,7 +1437,7 @@ def _migration_batches(blockers: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "scripts/traders/oandaApi.ts",
     }
     grouped: dict[str, list[dict[str, Any]]] = {
-        "REDACTED_USE_CLOUD_SECRET": [],
+        "01-quarantine-live-test-clis": [],
         "02-gate-supabase-provider-functions": [],
         "03-guard-provider-client-chokepoints": [],
         "04-migrate-direct-http-bypasses": [],
@@ -1446,7 +1446,7 @@ def _migration_batches(blockers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for blocker in blockers:
         file = str(blocker["file"])
         if file in unsafe_live_test_clis:
-            key = "REDACTED_USE_CLOUD_SECRET"
+            key = "01-quarantine-live-test-clis"
         elif file.startswith("supabase/functions/"):
             key = "02-gate-supabase-provider-functions"
         elif file in provider_clients:

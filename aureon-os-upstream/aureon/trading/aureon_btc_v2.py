@@ -14,6 +14,9 @@ Your account (TRD_GRP_039) can only trade BTC pairs!
 
 Author: Gary Leckey / Aureon System
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, time, logging, argparse, random, math, json
 from datetime import datetime
@@ -239,6 +242,9 @@ class ElephantMemory:
     
     def should_avoid(self, symbol: str) -> bool:
         """Check if we should avoid this symbol"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.ElephantMemory.should_avoid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if symbol not in self.symbols:
             return False
         
@@ -265,6 +271,9 @@ class ElephantMemory:
         return s['wins'] / total
     
     def get_overall_stats(self) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.ElephantMemory.get_overall_stats blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         total_profit = sum(s.get('profit_btc', 0) for s in self.symbols.values())
         total_trades = sum(s.get('trades', 0) for s in self.symbols.values())
         total_wins = sum(s.get('wins', 0) for s in self.symbols.values())
@@ -289,6 +298,9 @@ class LotSizeManager:
         self.last_update = 0
     
     def update(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.LotSizeManager.update blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if time.time() - self.last_update < 300:
             return
         try:
@@ -313,21 +325,33 @@ class LotSizeManager:
             logger.error(f"❌ Exchange info: {e}")
     
     def can_trade(self, symbol: str) -> bool:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.LotSizeManager.can_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         self.update()
         info = self.symbol_info.get(symbol, {})
         return info.get('can_trade', False) and info.get('status') == 'TRADING'
     
     def get_step_size(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.LotSizeManager.get_step_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         self.update()
         lot = self.symbol_info.get(symbol, {}).get('filters', {}).get('LOT_SIZE', {})
         return float(lot.get('stepSize', '0.00000001'))
     
     def get_min_qty(self, symbol: str) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.LotSizeManager.get_min_qty blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         self.update()
         lot = self.symbol_info.get(symbol, {}).get('filters', {}).get('LOT_SIZE', {})
         return float(lot.get('minQty', '0.00000001'))
     
     def format_qty(self, symbol: str, qty: float) -> str:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.LotSizeManager.format_qty blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         step = self.get_step_size(symbol)
         min_qty = self.get_min_qty(symbol)
         
@@ -422,6 +446,9 @@ class AureonBTCv2:
         self.losses = 0
     
     def update_tickers(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.update_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if time.time() - self.last_ticker_update < 2:
             return
         try:
@@ -432,6 +459,9 @@ class AureonBTCv2:
             logger.error(f"❌ Ticker update: {e}")
     
     def get_btc_price(self) -> Optional[float]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.get_btc_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         ticker = self.ticker_cache.get('BTCUSDT')
         price = _finite_provider_number(ticker.get('lastPrice'), positive=True) if isinstance(ticker, dict) else None
         if price is None:
@@ -444,6 +474,9 @@ class AureonBTCv2:
     
     def scan_opportunities(self) -> List[Dict]:
         """Find high-coherence BTC pairs"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         logger.info("\n🔍 SCANNING FOR HIGH-COHERENCE OPPORTUNITIES...")
         
         self.lot_mgr.update()
@@ -545,6 +578,9 @@ class AureonBTCv2:
     
     def enter_position(self, opp: Dict, btc_balance: float):
         """Enter a position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.enter_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         symbol = opp['symbol']
         
         size_btc = self.calculate_position_size(btc_balance, opp['coherence'])
@@ -609,6 +645,9 @@ class AureonBTCv2:
     
     def check_exits(self):
         """Check positions for TP/SL using penny profit"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         btc_price = self.get_btc_price()
         if btc_price is None:
             return
@@ -730,6 +769,9 @@ class AureonBTCv2:
     
     def display_status(self, cycle: int):
         """Display current status"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.display_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         balances = self.get_balances()
         btc_balance = balances.get('BTC', 0)
         btc_price = self.get_btc_price()
@@ -761,6 +803,9 @@ class AureonBTCv2:
 """)
     
     def run(self, duration_sec: int = 3600):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_btc_v2.AureonBTCv2.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("""
 ╔════════════════════════════════════════════════════════════════════════╗
 ║           🌊 AUREON QGITA ENGINE v2.0 - ENHANCED 🌊                    ║
@@ -819,6 +864,9 @@ class AureonBTCv2:
         self.memory.save()
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_btc_v2.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--duration', type=int, default=3600)

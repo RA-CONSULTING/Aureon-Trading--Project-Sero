@@ -1224,3 +1224,54 @@ if __name__ == "__main__":
         asyncio.run(main_loop())
     except KeyboardInterrupt:
         print("\nProbability Nexus stopped.")
+
+
+# ---------------------------------------------------------------------------
+# Compatibility re-exports (2026-09-07 bug-hunt)
+# Historical callers import these names from this module.
+# ---------------------------------------------------------------------------
+
+#: Backward-compat alias used by legacy callers.
+Prediction = NexusPrediction
+
+#: Backward-compat alias used by legacy callers.
+ProbabilityNexus = AureonProbabilityNexus
+
+try:  # Real implementation lives in strategies; wrapped for no-arg construction.
+    from aureon.strategies.hnc_probability_matrix import ProbabilityMatrix as _HncProbabilityMatrix
+    from datetime import datetime as _dt
+    from dataclasses import field as _compat_field
+
+    class ProbabilityMatrix(_HncProbabilityMatrix):
+        """No-arg constructible wrapper (legacy callers do ProbabilityMatrix())."""
+
+        def __init__(self, symbol: str = "UNKNOWN", generated_at=None, **kwargs):
+            super().__init__(
+                symbol=symbol,
+                generated_at=generated_at or _dt.utcnow(),
+                **kwargs,
+            )
+except Exception:  # fail-soft: callers guard this import already
+    pass
+
+
+def record_outcome(prediction, actual=None, *, symbol: str = "UNKNOWN", won: bool | None = None, **kwargs) -> dict:
+    """Minimal fail-closed outcome recorder for legacy callers.
+
+    Updates SUBSYSTEM_STATE accuracy tallies when possible; never raises.
+    Returns a receipt dict.
+    """
+    try:
+        state = SUBSYSTEM_STATE.setdefault(symbol, {})
+        if won is None and actual is not None and prediction is not None:
+            pred_dir = getattr(prediction, "direction", None) or (
+                prediction.get("direction") if isinstance(prediction, dict) else None)
+            won = pred_dir is not None and str(pred_dir).upper() == str(actual).upper()
+        state["outcomes_recorded"] = int(state.get("outcomes_recorded", 0)) + 1
+        if won is not None:
+            state["wins"] = int(state.get("wins", 0)) + (1 if won else 0)
+            state["accuracy"] = state["wins"] / state["outcomes_recorded"]
+        return {"ok": True, "symbol": symbol, "won": won,
+                "outcomes_recorded": state["outcomes_recorded"]}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}

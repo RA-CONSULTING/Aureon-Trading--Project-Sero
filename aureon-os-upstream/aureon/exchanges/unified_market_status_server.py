@@ -9,12 +9,16 @@ this process only serves that file and never places orders.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
+import math
 import os
 import re
 import time
-from datetime import datetime, timedelta
+import threading
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.client import HTTPConnection, HTTPException
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -34,15 +38,104 @@ from aureon.harmonic.hnc_quantum_packet_crypto import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STATE_ROOT = REPO_ROOT / "state"
 STATUS_PATH = REPO_ROOT / "state" / "unified_runtime_status.json"
+STREAM_CACHE_PATH = Path(os.getenv("WS_PRICE_CACHE_PATH") or (REPO_ROOT / "ws_cache" / "ws_prices.json"))
 MARKET_INTENT_PATH = STATE_ROOT / "aureon_market_reboot_intent.json"
 ENV_UPDATE_INTENT_PATH = STATE_ROOT / "aureon_env_update_intent.json"
 HNC_PACKET_EVIDENCE_PATH = STATE_ROOT / "aureon_hnc_quantum_packet_last_run.json"
+WORLD_FINANCIAL_ECOSYSTEM_STATE_PATH = STATE_ROOT / "aureon_world_financial_ecosystem_intelligence.json"
+PRISM_FREQUENCY_STATE_PATH = STATE_ROOT / "aureon_prism_frequency.json"
+HNC_SYMBOLIC_ROUTE_SEAL_STATE_PATH = STATE_ROOT / "aureon_hnc_symbolic_route_seal.json"
+SCANNER_FUSION_MATRIX_STATE_PATH = STATE_ROOT / "aureon_scanner_fusion_matrix.json"
+PROBABILITY_FUSION_STATE_PATH = STATE_ROOT / "aureon_probability_fusion.json"
+DECISION_TRACE_LOG_PATH = STATE_ROOT / "aureon_decision_traces.jsonl"
 ENV_PATH = Path(os.getenv("AUREON_ENV_FILE") or (REPO_ROOT / ".env")).expanduser()
 CREDENTIAL_UPDATE_FILESYSTEM_HOLD = "credential_update_filesystem_release_hold"
 CREDENTIAL_STATUS_READ_HOLD = "credential_status_read_release_hold"
 HOST = "127.0.0.1"
 STATUS_FILE_STALE_AFTER_SEC = float(os.getenv("UNIFIED_STATUS_FILE_STALE_AFTER_SEC", "60") or 60)
 TICK_STALE_AFTER_SEC = float(os.getenv("UNIFIED_READY_STALE_AFTER_SEC", "45") or 45)
+STREAM_MEMORY_PORT = 8794
+STREAM_MEMORY_TIMEOUT_SEC = 0.25
+STREAM_MEMORY_MAX_BYTES = 1024 * 1024
+_runtime_file_cache = None
+_stream_file_cache = None
+
+
+def _load_json_file_snapshot(path: Path) -> dict[str, Any]:
+    """Run only on the file reader in production; preserve the opened file's mtime."""
+    try:
+        for attempt in range(3):
+            try:
+                with path.open("r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                    mtime = os.fstat(handle.fileno()).st_mtime
+                break
+            except PermissionError:
+                if attempt == 2:
+                    raise
+                time.sleep(0.01)
+        if not isinstance(payload, dict):
+            raise ValueError("JSON object required")
+        return {"payload": payload, "mtime": mtime, "read_at": time.time(), "state": "observed"}
+    except FileNotFoundError:
+        return {"payload": None, "mtime": None, "read_at": time.time(), "state": "missing"}
+    except (OSError, ValueError, TypeError) as exc:
+        return {"payload": None, "mtime": None, "read_at": time.time(), "state": "failed", "error": type(exc).__name__}
+
+
+class _BackgroundFileSnapshot:
+    """One replaceable file snapshot; no file operations run under the read lock."""
+    def __init__(self, path: Path, interval_sec: float = 0.5):
+        self.path = path
+        self.interval_sec = interval_sec
+        self._snapshot = {"payload": None, "mtime": None, "read_at": None, "state": "pending"}
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread = None
+
+    def refresh(self) -> None:
+        snapshot = _load_json_file_snapshot(self.path)
+        with self._lock:
+            self._snapshot = snapshot
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            return self._snapshot
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self.refresh()
+            self._stop.wait(self.interval_sec)
+
+    def start(self) -> None:
+        if self._thread is None:
+            self._thread = threading.Thread(target=self._run, name=f"status-file-reader:{self.path.name}", daemon=True)
+            self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+
+def _read_live_market_cache() -> dict[str, Any] | None:
+    """Read only the fixed loopback feeder endpoint, without proxies or redirects."""
+    connection = HTTPConnection("127.0.0.1", STREAM_MEMORY_PORT, timeout=STREAM_MEMORY_TIMEOUT_SEC)
+    try:
+        connection.request("GET", "/api/quotes", headers={"Accept": "application/json"})
+        response = connection.getresponse()
+        if response.status != 200:
+            return None
+        length = response.getheader("Content-Length")
+        if length is None or not 0 < int(length) <= STREAM_MEMORY_MAX_BYTES:
+            return None
+        raw = response.read(int(length))
+        if len(raw) != int(length):
+            return None
+        payload = json.loads(raw)
+        return payload if isinstance(payload, dict) and isinstance(payload.get("ticker_cache"), dict) else None
+    except (OSError, ValueError, TypeError, HTTPException):
+        return None
+    finally:
+        connection.close()
 
 
 def _is_local_browser_origin(origin: str) -> bool:
@@ -108,7 +201,10 @@ def _runtime_watchdog(payload: dict[str, Any], status_file_age_sec: float | None
     last_started_ts = _parse_iso_timestamp(payload.get("last_tick_started_at"))
     last_tick_age_sec = payload.get("last_tick_age_sec")
     try:
-        last_tick_age = float(last_tick_age_sec) if last_tick_age_sec is not None else (now - last_completed_ts if last_completed_ts else None)
+        stored_age = float(last_tick_age_sec) if last_tick_age_sec is not None else None
+        measured_age = max(0.0, now - last_completed_ts) if last_completed_ts else None
+        ages = [age for age in (stored_age, measured_age) if age is not None]
+        last_tick_age = max(ages) if ages else None
     except Exception:
         last_tick_age = None
     tick_running_sec = max(0.0, now - last_started_ts) if last_started_ts > last_completed_ts else 0.0
@@ -169,32 +265,119 @@ def _runtime_watchdog(payload: dict[str, Any], status_file_age_sec: float | None
     return watchdog
 
 
-def _read_status() -> dict[str, Any]:
-    if STATUS_PATH.exists():
+def _read_market_stream() -> dict[str, Any]:
+    """Observe the feeder's memory snapshot, falling back to its original file quotes."""
+    now = time.time()
+    observed_at = datetime.now(timezone.utc).isoformat()
+    result: dict[str, Any] = {
+        "source": "ws_market_data_feeder", "mode": "observed_market_cache",
+        "fresh": False, "symbol_count": 0, "max_age_sec": 5.0,
+        "reason": "no_fresh_stream_tickers", "generated_at": observed_at,
+        "observed_at": observed_at, "quotes": [],
+    }
+    try:
+        cache = _read_live_market_cache()
+        if cache is not None:
+            result["transport"] = "loopback_memory"
+            result["producer_pid"] = cache.get("producer_pid")
+        else:
+            snapshot = _stream_file_cache.snapshot() if _stream_file_cache is not None else _load_json_file_snapshot(STREAM_CACHE_PATH)
+            cache = snapshot.get("payload")
+            result.update(transport="file_snapshot", file_read_state=snapshot.get("state"), file_read_at=snapshot.get("read_at"))
+            if not isinstance(cache, dict):
+                result["reason"] = "market_cache_unavailable_or_invalid"
+                return result
+        now = time.time()
+        observed_at = datetime.now(timezone.utc).isoformat()
+        result.update(generated_at=observed_at, observed_at=observed_at)
+        quotes = []
+        seen = set()
+        for key, ticker in cache.get("ticker_cache", {}).items():
+            if not isinstance(ticker, dict):
+                continue
+            try:
+                timestamp = float(ticker.get("timestamp", 0))
+                price = float(ticker.get("price", 0))
+            except (TypeError, ValueError):
+                continue
+            age = now - timestamp
+            if not math.isfinite(timestamp) or not math.isfinite(price) or price <= 0 or not -5 <= age <= 5:
+                continue
+            identity = (ticker.get("source") or ticker.get("exchange"), ticker.get("symbol") or ticker.get("pair") or key)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            quotes.append({
+                "symbol": ticker.get("symbol") or ticker.get("pair") or key,
+                "base": ticker.get("base"), "quote": ticker.get("quote"),
+                "price": price,
+                "bid": ticker.get("bid") if isinstance(ticker.get("bid"), (int, float)) and ticker["bid"] > 0 else None,
+                "ask": ticker.get("ask") if isinstance(ticker.get("ask"), (int, float)) and ticker["ask"] > 0 else None,
+                "source": ticker.get("source") or ticker.get("exchange"),
+                "timestamp": timestamp, "timestamp_kind": ticker.get("timestamp_kind", "cache_timestamp"),
+                "age_sec": round(max(0, age), 3),
+            })
+        preferred = {"BTC": 0, "ETH": 1, "SOL": 2, "XRP": 3}
+        quotes.sort(key=lambda q: (preferred.get(q.get("base"), 10), str(q.get("symbol"))))
+        result["symbol_count"] = len(quotes)
+        result["quotes"] = quotes[:16]
+        if quotes:
+            result.update(fresh=True, reason="fresh_provider_market_quotes",
+                          newest_selected_age_sec=min(q["age_sec"] for q in quotes),
+                          oldest_selected_age_sec=max(q["age_sec"] for q in quotes))
+    except (OSError, ValueError, TypeError, AttributeError):
+        result["reason"] = "market_cache_unavailable_or_invalid"
+    return result
+
+
+def _read_runtime_status() -> dict[str, Any]:
+    snapshot = _runtime_file_cache.snapshot() if _runtime_file_cache is not None else _load_json_file_snapshot(STATUS_PATH)
+    if isinstance(snapshot.get("payload"), dict):
         try:
-            with STATUS_PATH.open("r", encoding="utf-8") as handle:
-                payload = json.load(handle)
+            payload = copy.deepcopy(snapshot["payload"])
             if isinstance(payload, dict):
-                stat = STATUS_PATH.stat()
-                age_sec = max(0.0, time.time() - stat.st_mtime)
+                mtime = snapshot["mtime"]
+                age_sec = max(0.0, time.time() - mtime)
                 payload.setdefault("ok", True)
                 payload.setdefault("source", "unified-market-status-server")
                 payload.setdefault(
                     "generated_at",
                     payload.get("dashboard_generated_at")
                     or payload.get("last_tick_completed_at")
-                    or datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    or datetime.fromtimestamp(mtime).isoformat(),
                 )
                 payload["status_file"] = str(STATUS_PATH)
-                payload["status_file_mtime"] = datetime.fromtimestamp(stat.st_mtime).isoformat()
+                payload["status_file_mtime"] = datetime.fromtimestamp(mtime).isoformat()
+                payload["status_file_read_at"] = snapshot.get("read_at")
+                payload["status_file_read_state"] = snapshot.get("state")
                 payload["status_file_age_sec"] = round(age_sec, 3)
                 payload["runtime_watchdog"] = _runtime_watchdog(payload, age_sec)
-                if payload["runtime_watchdog"].get("tick_stale"):
+                payload["observed_at"] = datetime.now(timezone.utc).isoformat()
+                payload["last_tick_age_sec"] = payload["runtime_watchdog"].get("last_tick_age_sec")
+                payload["tick_stale_after_sec"] = TICK_STALE_AFTER_SEC
+                # A running cycle is process liveness, not fresh completed data.
+                # Only downgrade to stale based on last-completed age when the
+                # runtime is not actively inside a tick that is still within the
+                # long-running stall threshold.
+                watchdog = payload["runtime_watchdog"]
+                tick_active = bool(watchdog.get("tick_active"))
+                tick_running_sec = float(watchdog.get("last_tick_running_sec") or 0.0)
+                tick_age = payload["last_tick_age_sec"]
+                if tick_active and tick_running_sec >= 1.0 and tick_running_sec <= TICK_RUNNING_STALE_AFTER_SEC:
+                    if not watchdog.get("tick_stale"):
+                        payload["stale"] = False
+                        if str(payload.get("stale_reason") or "") == "last_completed_tick_unavailable_or_expired":
+                            payload["stale_reason"] = ""
+                elif tick_age is None or tick_age > TICK_STALE_AFTER_SEC:
                     payload["stale"] = True
-                    payload["stale_reason"] = payload["runtime_watchdog"].get("tick_stale_reason")
+                    payload["stale_reason"] = "last_completed_tick_unavailable_or_expired"
+                if watchdog.get("tick_stale"):
+                    payload["stale"] = True
+                    payload["stale_reason"] = watchdog.get("tick_stale_reason")
                 elif str(payload.get("stale_reason") or "") in {"last_tick_age_exceeded", "tick_in_progress_stalled"}:
                     payload["stale"] = False
                     payload["stale_reason"] = ""
+                payload.setdefault("stale_reason", "")
                 if (
                     not payload.get("stale")
                     and bool(payload.get("trading_ready"))
@@ -207,6 +390,8 @@ def _read_status() -> dict[str, Any]:
                     payload.setdefault("warnings", [])
                     if isinstance(payload["warnings"], list):
                         payload["warnings"].append("runtime_status_file_stale")
+                if payload.get("stale"):
+                    payload["ok"] = False
                 return payload
         except Exception as exc:
             return {
@@ -216,6 +401,12 @@ def _read_status() -> dict[str, Any]:
                 "status_file": str(STATUS_PATH),
                 "generated_at": datetime.now().isoformat(),
             }
+
+    if snapshot.get("state") == "failed":
+        return {"ok": False, "stale": True, "source": "unified-market-status-server",
+                "error": f"status_file_read_failed: {snapshot.get('error', 'unknown')}",
+                "status_file": str(STATUS_PATH), "status_file_read_state": "failed",
+                "status_file_read_at": snapshot.get("read_at"), "generated_at": datetime.now().isoformat()}
 
     return {
         "ok": True,
@@ -232,6 +423,8 @@ def _read_status() -> dict[str, Any]:
             "Trader is still booting and wiring exchange/cognitive systems.",
         ],
         "status_file": str(STATUS_PATH),
+        "status_file_read_state": snapshot.get("state"),
+        "status_file_read_at": snapshot.get("read_at"),
         "combined": {
             "open_positions": 0,
             "kraken_equity": 0.0,
@@ -244,6 +437,309 @@ def _read_status() -> dict[str, Any]:
             "binance_ready": False,
         },
     }
+
+
+
+
+def _load_state_file_receipt(path: Path) -> dict[str, Any]:
+    """Read a published state file and return a UI-backed receipt."""
+    missing_receipt = {
+        "path": str(path),
+        "available": False,
+        "truth_status": "no_data",
+        "generated_values": False,
+        "source_timestamp": None,
+        "source_timestamp_iso": None,
+        "expires_at": None,
+        "expires_at_iso": None,
+        "source": None,
+        "reason": "state_file_missing",
+        "state": "missing",
+    }
+    try:
+        if not path.exists():
+            return missing_receipt
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return {
+                **missing_receipt,
+                "reason": "state_file_invalid",
+                "state": "invalid",
+            }
+        generated_at = payload.get("generated_at")
+        source_ts = _parse_iso_timestamp(generated_at) if generated_at else path.stat().st_mtime
+        if source_ts <= 0:
+            source_ts = time.time()
+        expires_ts = source_ts + 3600.0
+        source_dt = datetime.fromtimestamp(source_ts, tz=timezone.utc)
+        expires_dt = datetime.fromtimestamp(expires_ts, tz=timezone.utc)
+        receipt: dict[str, Any] = {
+            "path": str(path),
+            "available": True,
+            "truth_status": "real_derived",
+            "generated_values": False,
+            "source_timestamp": source_ts,
+            "source_timestamp_iso": source_dt.isoformat(),
+            "expires_at": expires_ts,
+            "expires_at_iso": expires_dt.isoformat(),
+            "source": str(path),
+            "reason": "observed",
+            "generated_at": generated_at,
+            "schema_version": payload.get("schema_version"),            "enabled": payload.get("enabled"),            "mode": payload.get("mode"),
+            "summary": payload.get("summary"),
+            "decision_symbol_count": payload.get("decision_symbol_count")
+            if "decision_symbol_count" in payload
+            else len(payload.get("decision_symbols", {})) if isinstance(payload.get("decision_symbols"), dict) else None,
+        }
+        # Pass through payload-specific fields expected by the frontend.
+        for key in (
+            "frequency", "level", "resonance", "harmonic_purity", "love_locked",
+            "layers", "state", "coherence", "global_resonance", "market_energy",
+            "ecosystem_coherence", "dominant_frequency", "active_waveforms",
+            "systems", "sources", "prime_coherence", "seal_lock", "systems_contributing",
+            "consensus_signal", "intent_text", "packet_value", "fused_probability",
+            "fusedProbability", "action", "confidence", "wave_state", "waveState",
+            "harmonic_lock", "harmonicLock", "probability_6d", "probability6D",
+            "probability_hnc", "probabilityHNC", "probability_lighthouse",
+            "probabilityLighthouse", "weight_6d", "weight6D", "weight_hnc",
+            "weightHNC", "weight_lighthouse", "weightLighthouse", "resonance_boost",
+            "resonanceBoost",
+        ):
+            if key in payload:
+                receipt[key] = payload[key]
+        # Normalize ecosystem systems array to the dict expected by the UI.
+        systems = receipt.get("systems")
+        if isinstance(systems, list):
+            normalized: dict[str, Any] = {}
+            for entry in systems:
+                if not isinstance(entry, dict):
+                    continue
+                name = entry.get("name")
+                if not isinstance(name, str) or not name:
+                    continue
+                fresh = entry.get("fresh") is True
+                usable = entry.get("usable_for_decision") is True
+                normalized[name] = {
+                    "available": fresh and usable,
+                    "truth_status": "real_derived",
+                    "generated_values": False,
+                    "coherence": 1.0 if fresh and usable else 0.0,
+                    "value": 1.0 if fresh and usable else 0.0,
+                    "status": entry.get("reason") or "Runtime system observed.",
+                    "reason": entry.get("blocker") or "Runtime system observed.",
+                    "source_timestamp": source_ts,
+                    "source_timestamp_iso": source_dt.isoformat(),
+                    "source": str(path),
+                }
+            receipt["systems"] = normalized
+        # Normalize ecosystem sources array to the systems dict expected by the UI.
+        sources = receipt.get("sources")
+        if isinstance(sources, list):
+            normalized_sources: dict[str, Any] = {}
+            for entry in sources:
+                if not isinstance(entry, dict):
+                    continue
+                name = entry.get("system")
+                if not isinstance(name, str) or not name:
+                    continue
+                fresh = entry.get("fresh") is True
+                usable = entry.get("usable_for_decision") is True
+                normalized_sources[name] = {
+                    "available": fresh and usable,
+                    "truth_status": "real_derived",
+                    "generated_values": False,
+                    "coherence": 1.0 if fresh and usable else 0.0,
+                    "value": 1.0 if fresh and usable else 0.0,
+                    "status": entry.get("reason") or "Runtime source observed.",
+                    "reason": entry.get("blocker") or "Runtime source observed.",
+                    "source_timestamp": source_ts,
+                    "source_timestamp_iso": source_dt.isoformat(),
+                    "source": str(path),
+                }
+            if not isinstance(receipt.get("systems"), dict):
+                receipt["systems"] = {}
+            receipt["systems"].update(normalized_sources)
+        # Derive ecosystem scalar metrics from available source counts.
+        if "global_resonance" not in receipt:
+            active_count = payload.get("active_source_count")
+            usable_count = payload.get("usable_source_count")
+            if isinstance(active_count, int) and isinstance(usable_count, int) and active_count > 0:
+                receipt["global_resonance"] = usable_count / active_count
+        if "ecosystem_coherence" not in receipt:
+            active_count = payload.get("active_source_count")
+            usable_count = payload.get("usable_source_count")
+            if isinstance(active_count, int) and isinstance(usable_count, int) and active_count > 0:
+                receipt["ecosystem_coherence"] = usable_count / active_count
+        if "active_waveforms" not in receipt:
+            source_rows = payload.get("sources")
+            if isinstance(source_rows, list):
+                receipt["active_waveforms"] = [
+                    str(s.get("system")) for s in source_rows
+                    if isinstance(s, dict) and s.get("fresh") is True and isinstance(s.get("system"), str)
+                ]
+        # Derive Prism UI fields from runtime publisher output if not present.
+        if "prism_state" in payload or "prism_result" in payload:
+            prism_state = payload.get("prism_state") if isinstance(payload.get("prism_state"), dict) else {}
+            prism_result = payload.get("prism_result") if isinstance(payload.get("prism_result"), dict) else {}
+            level_values = prism_result.get("level_values") if isinstance(prism_result.get("level_values"), dict) else {}
+            levels = {int(key.split("_")[0][1:]) for key in level_values if isinstance(key, str) and key.startswith("L") and "_" in key}
+            if "frequency" not in receipt:
+                receipt["frequency"] = prism_state.get("prism_output") if isinstance(prism_state.get("prism_output"), (int, float)) else prism_result.get("prism_output")
+            if "level" not in receipt:
+                receipt["level"] = max(levels) if levels else None
+            if "resonance" not in receipt:
+                receipt["resonance"] = prism_state.get("resonance") if isinstance(prism_state.get("resonance"), (int, float)) else prism_result.get("resonance")
+            if "harmonic_purity" not in receipt:
+                receipt["harmonic_purity"] = payload.get("coherence") if isinstance(payload.get("coherence"), (int, float)) else prism_state.get("coherence_index")
+            if "state" not in receipt:
+                is_love = bool(prism_state.get("is_love") or prism_result.get("is_love"))
+                is_pure = bool(prism_state.get("is_pure") or prism_result.get("is_pure"))
+                is_aligned = bool(prism_state.get("is_aligned") or prism_result.get("is_aligned"))
+                if is_love:
+                    receipt["state"] = "LOVE"
+                elif is_pure:
+                    receipt["state"] = "PURE"
+                elif is_aligned:
+                    receipt["state"] = "ALIGNED"
+                else:
+                    receipt["state"] = "RESONANT"
+            if "love_locked" not in receipt:
+                receipt["love_locked"] = bool(prism_state.get("is_love") or prism_result.get("is_love"))
+            if "layers" not in receipt and level_values:
+                receipt["layers"] = {k: v for k, v in level_values.items() if isinstance(v, (int, float))}
+        # Flatten HNC symbolic route seal fields if the runtime uses nested shapes.
+        seal = payload.get("seal") if isinstance(payload.get("seal"), dict) else {}
+        summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+        if seal or summary:
+            catalog_summary = seal.get("catalog_summary") if isinstance(seal.get("catalog_summary"), dict) else {}
+            route = seal.get("route") if isinstance(seal.get("route"), dict) else {}
+            selected_rune = route.get("selected_rune") if isinstance(route.get("selected_rune"), dict) else {}
+            star_symbols = route.get("selected_star_symbols") if isinstance(route.get("selected_star_symbols"), dict) else {}
+            auris = route.get("selected_auris_symbol") if isinstance(route.get("selected_auris_symbol"), dict) else {}
+            if "prime_coherence" not in receipt:
+                catalog_count = catalog_summary.get("catalog_count") if isinstance(catalog_summary.get("catalog_count"), int) else 0
+                catalogs_present = catalog_summary.get("catalogs_present") if isinstance(catalog_summary.get("catalogs_present"), int) else 0
+                provenance_count = catalog_summary.get("provenance_count") if isinstance(catalog_summary.get("provenance_count"), int) else 0
+                provenance_present = catalog_summary.get("provenance_present") if isinstance(catalog_summary.get("provenance_present"), int) else 0
+                ratios: list[float] = []
+                if catalog_count > 0:
+                    ratios.append(catalogs_present / catalog_count)
+                if provenance_count > 0:
+                    ratios.append(provenance_present / provenance_count)
+                receipt["prime_coherence"] = sum(ratios) / len(ratios) if ratios else (1.0 if summary.get("valid") is True else 0.0)
+            if "seal_lock" not in receipt:
+                receipt["seal_lock"] = summary.get("valid") is True or seal.get("valid") is True
+            if "systems_contributing" not in receipt:
+                contributors: list[str] = []
+                for key, entry in star_symbols.items():
+                    if isinstance(entry, dict) and entry.get("name"):
+                        contributors.append(str(entry["name"]))
+                if isinstance(auris, dict) and auris.get("name"):
+                    contributors.append(str(auris["name"]))
+                if selected_rune.get("name"):
+                    contributors.append(str(selected_rune["name"]))
+                receipt["systems_contributing"] = contributors
+            if "consensus_signal" not in receipt:
+                rune_signal = selected_rune.get("trading_signal") if isinstance(selected_rune.get("trading_signal"), dict) else {}
+                receipt["consensus_signal"] = rune_signal.get("bias") if rune_signal.get("bias") else "NEUTRAL"
+            if "intent_text" not in receipt:
+                receipt["intent_text"] = seal.get("purpose") or summary.get("purpose") or "Observing"
+            if "packet_value" not in receipt:
+                symbol_count = catalog_summary.get("symbol_count") if isinstance(catalog_summary.get("symbol_count"), int) else 0
+                receipt["packet_value"] = float(symbol_count)
+        return receipt
+    except Exception as exc:
+        return {
+            **missing_receipt,
+            "reason": f"state_file_failed: {type(exc).__name__}",
+            "state": "failed",
+            "error": type(exc).__name__,
+        }
+
+
+def _decision_trace_tail(path: Path, n: int = 16) -> list[dict[str, Any]]:
+    try:
+        if not path.exists():
+            return []
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        out = []
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(record, dict):
+                out.append(record)
+                if len(out) >= n:
+                    break
+        return list(reversed(out))
+    except Exception:
+        return []
+
+
+def _enrich_terminal_state(payload: dict[str, Any]) -> None:
+    """Add live publisher receipts and provider position metadata to the status payload."""
+    if not isinstance(payload, dict):
+        return
+    payload.setdefault("ecosystem_receipt", _load_state_file_receipt(WORLD_FINANCIAL_ECOSYSTEM_STATE_PATH))
+    payload.setdefault("prism_receipt", _load_state_file_receipt(PRISM_FREQUENCY_STATE_PATH))
+    payload.setdefault("prime_seal_receipt", _load_state_file_receipt(HNC_SYMBOLIC_ROUTE_SEAL_STATE_PATH))
+    payload.setdefault("probability_fusion_receipt", _load_state_file_receipt(PROBABILITY_FUSION_STATE_PATH))
+
+    provider_positions = payload.get("provider_positions")
+    if not isinstance(provider_positions, dict):
+        provider_positions = {}
+        for venue in ("kraken", "capital", "alpaca", "binance"):
+            venue_payload = payload.get(venue) if isinstance(payload.get(venue), dict) else {}
+            positions = venue_payload.get("positions") if isinstance(venue_payload.get("positions"), list) else []
+            provider_positions[venue] = {
+                "available": bool(venue_payload.get("ok") or venue_payload.get("data_status") == "live"),
+                "count": len(positions),
+                "truth_status": "real_observed" if positions else "no_data",
+                "reason": "provider_positions_observed" if positions else "no_positions_observed",
+                "source_timestamp": None,
+                "positions": positions[:16],
+            }
+        payload["provider_positions"] = provider_positions
+
+    if not payload.get("decision_traces"):
+        payload["decision_traces"] = _decision_trace_tail(DECISION_TRACE_LOG_PATH)
+    if not payload.get("decision_latency_percentiles"):
+        try:
+            from aureon.trading.decision_trace import decision_trace_percentiles
+            payload["decision_latency_percentiles"] = decision_trace_percentiles(DECISION_TRACE_LOG_PATH)
+        except Exception:
+            payload["decision_latency_percentiles"] = {}
+
+def _read_status() -> dict[str, Any]:
+    payload = _read_runtime_status()
+    payload.setdefault("data_ready", False)
+    _enrich_terminal_state(payload)
+    payload.setdefault("trading_ready", False)
+    payload.setdefault("stale", True)
+    payload["observed_at"] = datetime.now(timezone.utc).isoformat()
+    payload["decision_stream_cache"] = payload.get("live_stream_cache")
+    payload["live_stream_cache"] = _read_market_stream()
+    # Legacy producer clocks are local naive datetimes. Resolve their instant
+    # on the producer host before sending them to browsers in other timezones.
+    for record, fields in (
+        (payload, ("generated_at", "dashboard_generated_at", "last_tick_completed_at", "last_tick_started_at", "status_file_mtime")),
+        (payload.get("analysis_snapshot"), ("generated_at",)),
+        (payload.get("hnc_cognitive_proof"), ("generated_at",)),
+        (payload.get("runtime_writer"), ("heartbeat_at",)),
+    ):
+        if not isinstance(record, dict):
+            continue
+        for field in fields:
+            value = record.get(field)
+            if isinstance(value, str):
+                epoch = _parse_iso_timestamp(value)
+                if epoch > 0:
+                    record[field] = datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+    return payload
 
 
 def _day_allowed(day_name: str, allowed_days: str | None) -> bool:
@@ -608,7 +1104,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                     "service": "unified-market-status-server",
                     "generated_at": datetime.now().isoformat(),
                     "status_file": str(STATUS_PATH),
-                    "status_file_exists": STATUS_PATH.exists(),
+                    "status_file_exists": payload.get("status_file_read_state") == "observed",
                     "served_status_ok": bool(payload.get("ok", False)),
                 }
             self._json(200, payload)
@@ -683,11 +1179,16 @@ class StatusHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    global _runtime_file_cache, _stream_file_cache
     parser = argparse.ArgumentParser(description="Read-only unified market status server")
     parser.add_argument("--port", type=int, default=8790)
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((HOST, int(args.port)), StatusHandler)
+    _runtime_file_cache = _BackgroundFileSnapshot(STATUS_PATH)
+    _stream_file_cache = _BackgroundFileSnapshot(STREAM_CACHE_PATH, interval_sec=1.0)
+    _runtime_file_cache.start()
+    _stream_file_cache.start()
     print(
         f"[{datetime.now().isoformat()}] unified market status server online: "
         f"http://{HOST}:{args.port}/api/terminal-state",
@@ -699,6 +1200,10 @@ def main() -> None:
             time.sleep(0.001)
     except KeyboardInterrupt:
         pass
+    finally:
+        _runtime_file_cache.stop()
+        _stream_file_cache.stop()
+        server.server_close()
 
 
 if __name__ == "__main__":

@@ -41,6 +41,8 @@ export function SchumannResonanceMonitor() {
     );
   }
 
+  const frequencyReported = schumannData.frequencyReported;
+  const activityScore = schumannData.activityScore ?? schumannData.amplitude * 100;
   const deviation = Math.abs(schumannData.fundamentalHz - 7.83);
   const coherencePercent = (schumannData.coherenceBoost / 0.12) * 100;
 
@@ -56,7 +58,7 @@ export function SchumannResonanceMonitor() {
               Schumann Resonance Monitor
             </CardTitle>
             <CardDescription>
-              Earth's Electromagnetic Heartbeat - Live Data
+              Live Schumann telemetry with source limits preserved
             </CardDescription>
           </div>
           <Badge className={`${getPhaseColor(schumannData.resonancePhase)} text-white ${getPhaseGlow(schumannData.resonancePhase)}`}>
@@ -71,13 +73,13 @@ export function SchumannResonanceMonitor() {
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Waves className="w-6 h-6 text-success" />
-              <span className="text-sm text-muted-foreground font-medium">Fundamental Frequency</span>
+              <span className="text-sm text-muted-foreground font-medium">{frequencyReported ? 'Fundamental Frequency' : 'Station Activity Score'}</span>
             </div>
             <div className="text-5xl font-bold bg-gradient-to-r from-success to-primary bg-clip-text text-transparent">
-              {schumannData.fundamentalHz.toFixed(3)} Hz
+              {frequencyReported ? `${schumannData.fundamentalHz.toFixed(3)} Hz` : `${activityScore.toFixed(0)}/100`}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Base: 7.83 Hz • Deviation: {(deviation * 1000).toFixed(1)}mHz
+              {frequencyReported ? `Base: 7.83 Hz • Deviation: ${(deviation * 1000).toFixed(1)}mHz` : `Stations: ${schumannData.stationCount ?? '—'}/${schumannData.stationsMonitored ?? '—'} • frequency not reported`}
             </div>
           </div>
         </div>
@@ -87,10 +89,10 @@ export function SchumannResonanceMonitor() {
           <div className="p-4 bg-background/50 rounded-lg border border-border/50">
             <div className="flex items-center gap-2 mb-2">
               <Activity className="w-4 h-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Amplitude</span>
+              <span className="text-xs text-muted-foreground">{frequencyReported ? 'Amplitude' : 'Relative Activity'}</span>
             </div>
-            <div className="text-2xl font-bold">{schumannData.amplitude.toFixed(2)}</div>
-            <Progress value={schumannData.amplitude * 50} className="mt-2 h-1" />
+            <div className="text-2xl font-bold">{frequencyReported ? schumannData.amplitude.toFixed(2) : `${activityScore.toFixed(0)}/100`}</div>
+            <Progress value={frequencyReported ? schumannData.amplitude * 50 : activityScore} className="mt-2 h-1" />
           </div>
 
           <div className="p-4 bg-background/50 rounded-lg border border-border/50">
@@ -114,9 +116,9 @@ export function SchumannResonanceMonitor() {
           <div className="p-4 bg-gradient-to-br from-success/20 to-primary/20 rounded-lg border border-success/50">
             <div className="flex items-center gap-2 mb-2">
               <Activity className="w-4 h-4 text-success" />
-              <span className="text-xs text-success">Coherence Boost</span>
+              <span className="text-xs text-success">{frequencyReported ? 'Coherence Boost' : 'Trading Boost Held'}</span>
             </div>
-            <div className="text-2xl font-bold text-success">+{(schumannData.coherenceBoost * 100).toFixed(1)}%</div>
+            <div className="text-2xl font-bold text-success">{frequencyReported ? `+${(schumannData.coherenceBoost * 100).toFixed(1)}%` : '0.0%'}</div>
             <Progress value={coherencePercent} className="mt-2 h-1" />
           </div>
         </div>
@@ -140,7 +142,7 @@ export function SchumannResonanceMonitor() {
           <div className="p-4 bg-success/10 border border-success/30 rounded-lg">
             <p className="text-sm text-success font-medium">
               ⚡ Peak resonance detected! Earth's electromagnetic field is highly coherent. 
-              AUREON coherence boosted by {(schumannData.coherenceBoost * 100).toFixed(1)}%.
+              {frequencyReported ? `AUREON coherence boosted by ${(schumannData.coherenceBoost * 100).toFixed(1)}%.` : 'Station activity is observed, but no trading or coherence gate is opened from this feed.'}
             </p>
           </div>
         )}
@@ -149,7 +151,7 @@ export function SchumannResonanceMonitor() {
           <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
             <p className="text-sm text-destructive font-medium">
               ⚠️ Geomagnetic disturbance detected. Schumann resonance variance elevated. 
-              Trading signals may be affected by field instability.
+              No trading signal is opened from this environmental telemetry.
             </p>
           </div>
         )}

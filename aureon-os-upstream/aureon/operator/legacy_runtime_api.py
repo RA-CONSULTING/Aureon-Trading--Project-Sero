@@ -19,8 +19,12 @@ and MCP transport: an import/wiring failure logs a warning and the operator stil
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
+import time
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Tuple
 
 logger = logging.getLogger("aureon.operator.legacy_runtime_api")
@@ -48,6 +52,77 @@ def _unavailable(reason: str, exc: Exception | None = None) -> Dict[str, Any]:
     if exc is not None:
         payload["error"] = str(exc)[:200]
     return payload
+
+def _terminal_receipt_summary(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a compact, non-secret terminal summary suitable for a durable receipt."""
+    plan = state.get("exchange_action_plan") if isinstance(state.get("exchange_action_plan"), dict) else {}
+    gate = state.get("trading_gate_evidence") if isinstance(state.get("trading_gate_evidence"), dict) else {}
+    watchdog = state.get("runtime_watchdog") if isinstance(state.get("runtime_watchdog"), dict) else {}
+    providers = state.get("provider_observations") if isinstance(state.get("provider_observations"), dict) else {}
+    provider_status: Dict[str, Any] = {}
+    for name in ("capital", "kraken", "alpaca", "binance"):
+        provider = providers.get(name) if isinstance(providers.get(name), dict) else {}
+        accounts = provider.get("accounts") if isinstance(provider.get("accounts"), dict) else {}
+        positions = provider.get("positions") if isinstance(provider.get("positions"), dict) else {}
+        provider_status[name] = {
+            "accounts_status": accounts.get("status", "unavailable"),
+            "accounts_count": accounts.get("observed_count", 0),
+            "positions_status": positions.get("status", "unavailable"),
+            "positions_count": positions.get("observed_count", 0),
+        }
+    venue_status: Dict[str, Any] = {}
+    venues = plan.get("venues") if isinstance(plan.get("venues"), dict) else {}
+    for key, venue in venues.items():
+        if not isinstance(venue, dict):
+            continue
+        blockers = venue.get("blockers") if isinstance(venue.get("blockers"), list) else []
+        clearances = venue.get("runtime_clearances") if isinstance(venue.get("runtime_clearances"), list) else []
+        venue_status[str(key)] = {
+            "ready": venue.get("ready") is True,
+            "candidate_count": venue.get("candidate_count", 0),
+            "ready_candidate_count": venue.get("ready_candidate_count", 0),
+            "blocker_count": len(blockers),
+            "clearance_count": len(clearances),
+            "trade_path_state": venue.get("trade_path_state", "unknown"),
+        }
+    return {
+        "ok": state.get("ok") is True,
+        "stale": state.get("stale") is True,
+        "duplicate_runtime": state.get("duplicate_runtime") is True,
+        "trading_ready": state.get("trading_ready") is True,
+        "data_ready": state.get("data_ready") is True,
+        "last_tick_completed_at": state.get("last_tick_completed_at"),
+        "last_tick_age_sec": state.get("last_tick_age_sec", watchdog.get("last_tick_age_sec")),
+        "tick_phase": state.get("tick_phase"),
+        "action_mode": plan.get("mode"),
+        "analysis_ready": gate.get("analysis_ready") is True,
+        "execution_authority": gate.get("execution_authority") is True,
+        "provider_status": provider_status,
+        "venue_status": venue_status,
+        "source": state.get("source"),
+        "status_file_read_state": state.get("status_file_read_state"),
+    }
+
+
+def _terminal_receipt_payload(state: Dict[str, Any]) -> Dict[str, Any]:
+    summary = _terminal_receipt_summary(state)
+    now = time.time()
+    body = json.dumps(summary, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return {
+        "schema": "aureon.operator.terminal-receipt.v1",
+        "source": "/api/terminal-state",
+        "truth_status": "real_derived" if summary["ok"] else "unavailable",
+        "generated_values": False,
+        "read_state": "observed",
+        "available": bool(summary["ok"] and not summary["stale"]),
+        "received_at": now,
+        "received_at_iso": datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "digest_sha256": hashlib.sha256(body).hexdigest(),
+        "digest_scope": "compact_terminal_summary",
+        "terminal": summary,
+        "mutation_authority": False,
+    }
+
 
 
 def _send_telegram(token: str, chat_id: str, message: str, parse_mode: str = "Markdown") -> Dict[str, Any]:
@@ -78,6 +153,23 @@ def register_legacy_runtime_routes(app: Any) -> int:
         except Exception as exc:  # noqa: BLE001 - degrade honestly, never 500
             logger.debug("terminal-state unavailable: %s", exc)
             return jsonify(_unavailable("runtime status server unavailable", exc))
+
+    def _terminal_receipt() -> Any:
+        try:
+            read_status, _flight, _env = _status_handlers()
+            return jsonify(_terminal_receipt_payload(read_status()))
+        except Exception as exc:  # noqa: BLE001 - degrade honestly, never 500
+            logger.debug("terminal-receipt unavailable: %s", exc)
+            payload = _unavailable("terminal receipt unavailable", exc)
+            payload.update({
+                "schema": "aureon.operator.terminal-receipt.v1",
+                "source": "/api/terminal-state",
+                "truth_status": "unavailable",
+                "generated_values": False,
+                "read_state": "unavailable",
+                "mutation_authority": False,
+            })
+            return jsonify(payload)
 
     def _flight_test_route() -> Any:
         try:
@@ -152,6 +244,7 @@ def register_legacy_runtime_routes(app: Any) -> int:
 
     routes = (
         ("/api/terminal-state", "legacy_terminal_state", _terminal_state, ["GET"]),
+        ("/api/operator/terminal-receipt", "operator_terminal_receipt", _terminal_receipt, ["GET"]),
         ("/api/flight-test", "legacy_flight_test", _flight_test_route, ["GET"]),
         ("/api/reboot-advice", "legacy_reboot_advice", _reboot_advice, ["GET"]),
         ("/api/env-credentials", "legacy_env_credentials", _env_credentials, ["GET"]),
@@ -167,3 +260,4 @@ def register_legacy_runtime_routes(app: Any) -> int:
 
 
 __all__ = ["register_legacy_runtime_routes"]
+

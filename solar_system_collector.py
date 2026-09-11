@@ -207,7 +207,7 @@ class SolarSystemCollector:
             'confidence': 0.85
         }
     
-    def _parse_mag_field(self, data: dict, solar_wind_speed: float = 400.0) -> dict:
+    def _parse_mag_field(self, data: dict, solar_wind_speed: Optional[float] = None) -> dict:
         """Parse IMF at L1 (RTSW 1-min dict rows)"""
         if not data or not isinstance(data, list) or len(data) < 1:
             return None
@@ -235,7 +235,8 @@ class SolarSystemCollector:
             clock_angle = None
         
         # Geomagnetic coupling (simplified): southward Bz couples most efficiently
-        coupling = max(0, -bz * solar_wind_speed * 1e-3)
+        coupling = (max(0, -bz * solar_wind_speed * 1e-3)
+                    if solar_wind_speed is not None else None)
         
         return {
             'source': 'mag_field_l1',
@@ -258,7 +259,9 @@ class SolarSystemCollector:
         if not isinstance(latest, dict):
             return None
         
-        flux = latest.get('flux', 0)
+        flux = latest.get('flux')
+        if not isinstance(flux, (int, float)) or isinstance(flux, bool) or not math.isfinite(flux) or flux < 0:
+            return None
         energy = latest.get('energy', 'unknown')
         
         # SEP classification
@@ -291,7 +294,9 @@ class SolarSystemCollector:
         if not isinstance(latest, dict):
             return None
         
-        flux = latest.get('flux', 0)
+        flux = latest.get('flux')
+        if not isinstance(flux, (int, float)) or isinstance(flux, bool) or not math.isfinite(flux) or flux < 0:
+            return None
         energy = latest.get('energy', 'unknown')
         
         return {
@@ -311,7 +316,9 @@ class SolarSystemCollector:
         if not isinstance(latest, dict):
             return None
         
-        flux = latest.get('flux', 0)
+        flux = latest.get('flux')
+        if not isinstance(flux, (int, float)) or isinstance(flux, bool) or not math.isfinite(flux) or flux < 0:
+            return None
         time_tag = latest.get('time_tag', 'unknown')
         
         # Flare classification
@@ -415,30 +422,30 @@ class SolarSystemCollector:
         # Second pass: parse all data (allows cross-referencing)
         results = {}
         
-        if 'sunspot_cycle' in raw_data:
-            results['sunspot_cycle'] = self._parse_sunspot_cycle(raw_data['sunspot_cycle'])
-        
-        if 'solar_wind_l1' in raw_data:
-            results['solar_wind_l1'] = self._parse_solar_wind(raw_data['solar_wind_l1'])
-        
-        if 'mag_field_l1' in raw_data:
-            sw_speed = results.get('solar_wind_l1', {}).get('speed', 400.0)
-            results['mag_field_l1'] = self._parse_mag_field(raw_data['mag_field_l1'], sw_speed)
-        
-        if 'proton_flux' in raw_data:
-            results['proton_flux'] = self._parse_proton_flux(raw_data['proton_flux'])
-        
-        if 'electron_flux' in raw_data:
-            results['electron_flux'] = self._parse_electron_flux(raw_data['electron_flux'])
-        
-        if 'xray_flux' in raw_data:
-            results['xray_flux'] = self._parse_xray(raw_data['xray_flux'])
-        
-        if 'alerts' in raw_data:
-            results['alerts'] = self._parse_alerts(raw_data['alerts'])
-        
-        if 'aurora_forecast' in raw_data:
-            results['aurora_forecast'] = self._parse_aurora(raw_data['aurora_forecast'])
+        # A fetched response can still be empty or malformed. One optional
+        # provider must not terminate collection of the other independent feeds.
+        parsers = {
+            'sunspot_cycle': self._parse_sunspot_cycle,
+            'solar_wind_l1': self._parse_solar_wind,
+            'mag_field_l1': lambda data: self._parse_mag_field(
+                data, (results.get('solar_wind_l1') or {}).get('speed')),
+            'proton_flux': self._parse_proton_flux,
+            'electron_flux': self._parse_electron_flux,
+            'xray_flux': self._parse_xray,
+            'alerts': self._parse_alerts,
+            'aurora_forecast': self._parse_aurora,
+        }
+        for name, parser in parsers.items():
+            if name not in raw_data:
+                continue
+            try:
+                result = parser(raw_data[name])
+                if isinstance(result, dict) and result:
+                    results[name] = result
+                else:
+                    logger.warning("   ⚠️ %s: no usable provider reading", name)
+            except Exception as error:
+                logger.warning("   ⚠️ %s: provider parse failed (%s)", name, type(error).__name__)
         
         for name, result in results.items():
             if result:
@@ -453,16 +460,25 @@ class SolarSystemCollector:
     
     def _build_state(self, results: dict) -> dict:
         """Build unified solar system state"""
+        # Callers may retain an optional source whose parser returned None.
+        # Count and dereference only actual readings; never synthesize a zero
+        # or a current provider timestamp for a missing source.
+        results = {name: result for name, result in results.items()
+                   if name in SOLAR_SOURCES and isinstance(result, dict) and result}
         if not results:
             logger.error("❌ No solar system data available")
             return None
         
         state = {
             'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp_kind': 'collection_time',
             'collection_status': {
                 'total_sources': len(SOLAR_SOURCES),
                 'successful_sources': len(results),
-                'failed_sources': len(SOLAR_SOURCES) - len(results)
+                'failed_sources': len(SOLAR_SOURCES) - len(results),
+                'available_source_names': sorted(results),
+                'unavailable_source_names': sorted(set(SOLAR_SOURCES) - set(results)),
+                'complete': len(results) == len(SOLAR_SOURCES),
             },
             'solar_activity': {},
             'solar_wind': {},
@@ -543,6 +559,8 @@ class SolarSystemCollector:
         
         # Solar system health score
         state['solar_system_health'] = self._calculate_health(state)
+        state['solar_system_health']['assessment_scope'] = 'available_sources_only'
+        state['solar_system_health']['data_complete'] = state['collection_status']['complete']
         
         # Raw results for detail
         state['raw_results'] = results

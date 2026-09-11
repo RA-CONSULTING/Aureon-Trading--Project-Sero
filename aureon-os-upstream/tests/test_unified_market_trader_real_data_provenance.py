@@ -75,10 +75,21 @@ def _market_inputs(timestamp: float | None = None):
         "model_alignment": True,
         "data_status": "live",
         "actionable": True,
+        "source_timestamp": observed,
+        "provider_timestamp": observed,
     }
+    source_row = {**row, "price": 50_000.0}
     central = {
         "generated_at": datetime.fromtimestamp(observed).isoformat(),
-        "sources": [{"source": "alpaca", "ready": True, "actionable": True, "data_status": "live"}],
+        "sources": [{
+            "source": "alpaca",
+            "ready": True,
+            "actionable": True,
+            "data_status": "live",
+            "provider_timestamp": observed,
+            "source_timestamp": observed,
+            "symbols": {"BTCUSD": source_row},
+        }],
         "symbols": {"BTCUSD": dict(row)},
     }
     return central, {"active_order_flow": [dict(row)]}
@@ -582,6 +593,7 @@ def test_deadman_submission_requires_provider_order_identity(monkeypatch):
     client = SimpleNamespace(
         place_trailing_stop_order=lambda *_args, **_kwargs: {"status": "accepted"},
     )
+    trader.kraken = client
 
     result = trader._arm_kraken_spot_deadman_switch(
         client,

@@ -43,6 +43,10 @@ from typing import Any
 #: the producer has stopped and the honest report is "unavailable", not a stale number.
 FIELD_MAX_AGE_S = 300.0
 FIELD_FUTURE_SKEW_S = 5.0
+# A complete final trace record must fit inside this bounded read window.
+# Oversized records/trailing padding degrade to unavailable rather than scanning
+# the growing history or treating a truncated record as a current observation.
+_FIELD_TRACE_TAIL_BYTES = 256 * 1024
 
 
 def _max_age_s() -> float:
@@ -343,6 +347,7 @@ class CanonicalField:
             "evidence_transport": self.evidence_transport,
             "source_id": self.source_id,
             "source_timestamp": self.source_timestamp,
+            "ts": self.source_timestamp,
             "received_at": self.received_at,
             "receipt_id": self.receipt_id,
             "receipt_type": self.receipt_type,
@@ -354,7 +359,7 @@ class CanonicalField:
             "data_status": self.data_status,
             "truth_status": self.truth_status,
             "generated_values": self.generated_values,
-            "source_count": self.source_count,
+            "source_count": int(self.source_count) if self.source_count is not None else None,
             "freshness_status": self.freshness_status,
             "operational_eligible": self.operational_eligible,
             "provider_eligible": self.provider_eligible,
@@ -509,12 +514,24 @@ def _read_field_from_trace() -> CanonicalField:
         p = Path(path)
         if not p.exists():
             return _EMPTY
+        with p.open("rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            start = max(0, size - _FIELD_TRACE_TAIL_BYTES)
+            fh.seek(start)
+            raw = fh.read(size - start)
+        if start:
+            # Never parse the first partial physical line, even when it happens
+            # to contain valid JSON. CR, LF and CRLF match text-file iteration.
+            boundary = re.search(br"[\r\n]", raw)
+            if boundary is None:
+                return _EMPTY
+            raw = raw[boundary.end():]
         last = ""
-        with p.open(encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    last = line
+        for line in raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+            line = line.strip()
+            if line:
+                last = line
         if not last:
             return _EMPTY
         row = json.loads(last)

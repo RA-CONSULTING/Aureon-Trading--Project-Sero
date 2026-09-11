@@ -15,6 +15,9 @@ The stupidest AND smartest strategy:
 Gary Leckey & GitHub Copilot | December 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import json
 import os
@@ -78,6 +81,9 @@ def calculate_penny_profit_threshold(
     - min_price_move_pct: Percentage price move needed
     - breakeven_price_multiplier: Multiply entry price by this for exit
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.penny_profit_sim.calculate_penny_profit_threshold blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     fees = EXCHANGE_FEES.get(exchange, EXCHANGE_FEES['binance'])
     fee_rate = fees['maker'] if use_maker else fees['taker']
     
@@ -126,6 +132,9 @@ def simulate_trades(num_trades: int, win_rate: float, avg_trade_size: float, exc
     - Win = hit penny profit target
     - Loss = hit stop loss (assume 2x the profit target as max loss)
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.penny_profit_sim.simulate_trades blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     threshold = calculate_penny_profit_threshold(avg_trade_size, exchange)
     
     import random
@@ -162,6 +171,9 @@ def generate_lookup_table() -> Dict:
     Generate the complete lookup table for all exchanges and trade sizes.
     This is what the brain loads to know exact exit targets.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.penny_profit_sim.generate_lookup_table blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     table = {
         'generated_at': datetime.now().isoformat(),
         'target_net_profit': TARGET_NET_PROFIT,
@@ -195,6 +207,9 @@ def generate_lookup_table() -> Dict:
 
 def print_summary():
     """Print a human-readable summary."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.penny_profit_sim.print_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("=" * 70)
     print("🪙 PENNY PROFIT STRATEGY - LOOKUP TABLE")
     print("=" * 70)
@@ -255,6 +270,9 @@ def print_summary():
 
 def save_lookup_table(filepath: str = 'penny_profit_thresholds.json'):
     """Save the lookup table for the brain to load."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.penny_profit_sim.save_lookup_table blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     table = generate_lookup_table()
     
     with open(filepath, 'w') as f:

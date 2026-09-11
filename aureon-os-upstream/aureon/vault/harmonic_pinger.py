@@ -28,6 +28,15 @@ HARMONIC_PINGER_RELEASE_HOLD = (
     "harmonic_pinger_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/vault/core_release.json) names this module.
+from aureon.vault import _core_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("harmonic_pinger"):
+        raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+
 
 @dataclass
 class PingResult:
@@ -54,8 +63,14 @@ class HarmonicPinger:
         enable_chirp_bus: bool = False,
         enable_thought_bus: bool = False,
     ):
+        """Dual-channel ping emitter.
+
+        Note: ``enable_chirp_bus=True`` attaches (or creates) the named
+        shared-memory ChirpBus segment — an inter-process surface. Both
+        flags are gated by the fail-closed core release record.
+        """
         if enable_chirp_bus or enable_thought_bus:
-            raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+            _require_release()
         self._chirp_bus: Any = None
         self._thought_bus: Any = None
         self._chirp_kind: str = "stub"
@@ -68,7 +83,7 @@ class HarmonicPinger:
             self._load_thought_bus()
 
     def _load_chirp_bus(self) -> None:
-        raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+        _require_release()
         try:
             from aureon.core.aureon_chirp_bus import get_chirp_bus
             self._chirp_bus = get_chirp_bus(create_if_missing=True)
@@ -81,7 +96,7 @@ class HarmonicPinger:
             self._chirp_kind = "stub"
 
     def _load_thought_bus(self) -> None:
-        raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+        _require_release()
         try:
             from aureon.core.aureon_thought_bus import get_thought_bus
             self._thought_bus = get_thought_bus()
@@ -100,8 +115,17 @@ class HarmonicPinger:
         confidence: float = 1.0,
         payload: Optional[Dict[str, Any]] = None,
     ) -> PingResult:
-        """Emit a ping on both channels. Returns PingResult."""
-        raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+        """Emit a ping on both channels. Returns PingResult.
+
+        Gated by the fail-closed release record; when released, a fusion-
+        conscience VETO refuses the emit (fail-closed).
+        """
+        _require_release()
+        if not _release.conscience_permits(
+            "harmonic_pinger: emit harmonic heartbeat ping",
+            {"frequency_hz": int(frequency_hz)},
+        ):
+            raise RuntimeError("conscience_veto:harmonic_pinger.ping")
         self._total_pings += 1
         freq_int = int(max(0, min(65535, frequency_hz)))
         coh = float(max(0.0, min(1.0, coherence)))
@@ -125,7 +149,7 @@ class HarmonicPinger:
 
     def _emit_chirp(self, freq: int, coh: float, conf: float) -> bool:
         """Emit a ChirpPacket PING on the real ChirpBus if available."""
-        raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+        _require_release()
         if not self._chirp_bus:
             return False
         try:
@@ -179,7 +203,7 @@ class HarmonicPinger:
         payload: Dict[str, Any],
     ) -> bool:
         """Publish a heartbeat Thought for observability."""
-        raise RuntimeError(HARMONIC_PINGER_RELEASE_HOLD)
+        _require_release()
         if not self._thought_bus:
             return False
         try:

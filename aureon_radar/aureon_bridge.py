@@ -32,15 +32,14 @@ if hasattr(sys.stdout, "reconfigure"):
 # ===============================================================================
 # PATHS -- UPDATED to use latest aureon-os-upstream
 # ===============================================================================
-AUREON_DIR = Path("C:/Users/user/.kimi_openclaw/workspace/aureon-os-upstream")
-RADAR_DIR = Path("C:/Users/user/.kimi_openclaw/workspace/aureon_radar")
-WORKSPACE_DIR = Path("C:/Users/user/.kimi_openclaw/workspace")
+WORKSPACE_DIR = Path(os.environ.get("SERO_WORKSPACE", str(Path(__file__).resolve().parents[1])))
 
 # Allow imports of the workspace aureon_fusion package when this script is run
 # directly from the radar directory.
 if str(WORKSPACE_DIR) not in sys.path:
     sys.path.insert(0, str(WORKSPACE_DIR))
-AUREON_VENV = AUREON_DIR / ".venv" / "Scripts" / "python.exe"
+from aureon_fusion.paths import AUREON_UPSTREAM as AUREON_DIR, AUREON_RADAR as RADAR_DIR
+AUREON_VENV = AUREON_DIR / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
 
 # Aureon OS state files
 TRACE_FILE = AUREON_DIR / "state" / "capital_cfd_last_exchange_trace.json"
@@ -94,6 +93,12 @@ class AureonRadarBridge:
         
     def start_aureon_dry_run(self):
         """Start Aureon OS in dry-run signal generation mode."""
+        if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
+            # Do not start an exchange path or replay imported signals on this host.
+            self.last_trace_mtime = TRACE_FILE.stat().st_mtime if TRACE_FILE.exists() else 0
+            self._promotion_offset = PROMOTION_LOG.stat().st_size if PROMOTION_LOG.exists() else 0
+            print("Deployment HOLD: monitor new recorded signals; upstream execution stopped.")
+            return None
         print("? Starting Aureon OS in DRY-RUN signal mode...")
         
         # Use Aureon's own venv Python

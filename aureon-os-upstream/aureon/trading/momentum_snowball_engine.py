@@ -22,6 +22,8 @@
 ╚═══════════════════════════════════════════════════════════════════════════════════╝
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -78,6 +80,9 @@ class MomentumTracker:
         
     def update_price(self, asset: str, price: float):
         """Record a price update"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumTracker.update_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         now = time.time()
         self.current_prices[asset] = price
         self.price_history[asset].append((now, price))
@@ -125,6 +130,9 @@ class MomentumTracker:
         
     def get_momentum(self, asset: str) -> float:
         """Get current momentum for asset (% per minute)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumTracker.get_momentum blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         return self.momentum.get(asset, 0.0)
         
     def get_strongest_rising(self, exclude: set = None) -> List[Tuple[str, float]]:
@@ -194,6 +202,9 @@ class MomentumSnowball:
                 
     async def fetch_prices(self) -> Dict[str, float]:
         """Fetch current prices from Binance"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumSnowball.fetch_prices blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         prices = {}
         try:
             async with aiohttp.ClientSession() as session:
@@ -222,6 +233,9 @@ class MomentumSnowball:
         
     def current_value(self) -> float:
         """Calculate current portfolio value"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumSnowball.current_value blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total = 0.0
         for asset, amount in self.holdings.items():
             price = self.tracker.current_prices.get(asset, 0)
@@ -239,6 +253,9 @@ class MomentumSnowball:
         
         Returns: (from_asset, to_asset, from_amount, expected_gain_pct, momentum_diff)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumSnowball.find_momentum_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.scans += 1
         
         best = None
@@ -284,6 +301,9 @@ class MomentumSnowball:
                                   from_amount: float, expected_gain: float,
                                   momentum_diff: float) -> bool:
         """Execute a momentum-based conversion"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumSnowball.execute_conversion blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         from_price = self.tracker.current_prices.get(from_asset, 0)
         to_price = self.tracker.current_prices.get(to_asset, 0)
         
@@ -382,6 +402,9 @@ class MomentumSnowball:
             
     async def initialize(self, starting_holdings: Dict[str, float] = None):
         """Initialize engine"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumSnowball.initialize blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "="*80)
         print("🌊⚡ MOMENTUM SNOWBALL ENGINE ⚡🌊")
         print("="*80)
@@ -450,6 +473,9 @@ class MomentumSnowball:
                         
     async def run(self, duration_seconds: int = 300):
         """Run the momentum snowball"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.momentum_snowball_engine.MomentumSnowball.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         await self.initialize()
         
         self.running = True
@@ -563,6 +589,9 @@ class MomentumSnowball:
 
 
 async def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.momentum_snowball_engine.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description='Momentum Snowball Engine')

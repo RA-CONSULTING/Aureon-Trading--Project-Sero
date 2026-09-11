@@ -24,6 +24,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
 from decimal import Decimal, ROUND_DOWN
+from aureon.core.no_external_calls import no_external_api_calls
 
 _IMPORT_SIDE_EFFECTS_SUPPRESSED = any(
     os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
@@ -585,9 +586,13 @@ class LotSizeManager:
     
     def update_symbol_info(self):
         """Fetch exchange info and parse LOT_SIZE filters"""
+        if no_external_api_calls():
+            logger.info("LotSizeManager.update_symbol_info blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         if time.time() - self.last_update < 300:  # Cache for 5 minutes
             return
-        
+
         try:
             info = self.client.exchange_info()
             for s in info.get('symbols', []):
@@ -670,6 +675,21 @@ class AureonQGITATrader:
         self.allow_simulated_models = bool(allow_simulated_models and dry_run)
         if allow_simulated_models and not dry_run:
             logger.warning("⚠️ Simulated model ensemble refused: live mode uses real signals only")
+
+        if no_external_api_calls():
+            logger.info("AureonQGITATrader initialisation blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.client = None
+            self.lot_manager = None
+            self.qgita = QGITAEngine()
+            self.decision_fusion = DecisionFusion(allow_simulated_models=self.allow_simulated_models)
+            self.risk_manager = RiskManager()
+            self.positions = {}
+            self.total_profit = 0.0
+            self.ticker_cache = {}
+            self.last_ticker_update = 0
+            self.cycle = 0
+            return
+
         self.client = get_binance_client()
         self.lot_manager = LotSizeManager(self.client)
         self.qgita = QGITAEngine()
@@ -680,12 +700,16 @@ class AureonQGITATrader:
         self.ticker_cache = {}
         self.last_ticker_update = 0
         self.cycle = 0
-        
+
         # Load existing positions
         self.load_existing_bags()
     
     def load_existing_bags(self):
         """Load existing balances as positions"""
+        if no_external_api_calls():
+            logger.info("AureonQGITATrader.load_existing_bags blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         logger.info("🔍 Scanning for existing bags...")
         try:
             account = self.client.account()
@@ -725,6 +749,10 @@ class AureonQGITATrader:
     
     def update_tickers(self):
         """Bulk update ticker cache"""
+        if no_external_api_calls():
+            logger.info("AureonQGITATrader.update_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         if time.time() - self.last_ticker_update < 2:
             return
         try:
@@ -764,6 +792,10 @@ class AureonQGITATrader:
     
     def check_exits(self):
         """Check and execute exits for open positions"""
+        if no_external_api_calls():
+            logger.info("AureonQGITATrader.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         for symbol in list(self.positions.keys()):
             pos = self.positions[symbol]
             snap = self.get_snapshot(symbol)
@@ -776,8 +808,12 @@ class AureonQGITATrader:
             
             # Track cycles for min hold time
             pos['cycles'] = pos.get('cycles', 0) + 1
-            current_value = pos.get('qty', 0) * price
-            entry_value = pos.get('entry_value', pos.get('qty', 0) * entry)
+            # Positions are opened with 'quantity' (scan_for_entries, load_existing_bags);
+            # reading 'qty' here always yielded 0, so gross_pnl was permanently $0 and
+            # the penny take-profit branch could never fire.
+            qty = pos.get('quantity', pos.get('qty', 0))
+            current_value = qty * price
+            entry_value = pos.get('entry_value', qty * entry)
             gross_pnl = current_value - entry_value
             
             # Create Auris state and run loop
@@ -834,6 +870,10 @@ class AureonQGITATrader:
     
     def close_position(self, symbol: str, pos: Dict, price: float, pnl_pct: float):
         """Close a position with proper LOT_SIZE handling"""
+        if no_external_api_calls():
+            logger.info(f"AureonQGITATrader.close_position({symbol}) blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         # Feed the outcome back so Kelly sizing converges on this session's observed win
         # rate instead of a standing assumption.
         self.risk_manager.record_outcome(pnl_pct)
@@ -891,9 +931,13 @@ class AureonQGITATrader:
     
     def scan_for_entries(self):
         """Scan for new entry opportunities"""
+        if no_external_api_calls():
+            logger.info("AureonQGITATrader.scan_for_entries blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         if len(self.positions) >= CONFIG['MAX_POSITIONS']:
             return
-        
+
         # Get tradeable pairs with USDT quote
         try:
             account = self.client.account()
@@ -983,6 +1027,10 @@ class AureonQGITATrader:
     
     def run(self, duration_sec: int = 3600):
         """Main trading loop"""
+        if no_external_api_calls():
+            logger.info("AureonQGITATrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         logger.info("""
 ╔════════════════════════════════════════════════════════════╗
 ║           🌊 AUREON QGITA TRADING ENGINE 🌊                ║
@@ -1021,6 +1069,10 @@ class AureonQGITATrader:
         logger.info(f"\n🏁 Session complete. Total profit: ${self.total_profit:+.2f}")
 
 def main():
+    if no_external_api_calls():
+        logger.info("Aureon QGITA main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', action='store_true', help='Paper trading mode')
     parser.add_argument('--duration', type=int, default=3600, help='Run duration in seconds')

@@ -13,6 +13,8 @@ NOW ENHANCED with Sandbox Evolution parameters from 454 generations of learning!
 Gary Leckey & GitHub Copilot | December 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import json
 import os
@@ -532,6 +534,9 @@ def get_wisdom_guidance(fear_greed: int = 50, btc_price: float = 100000, btc_cha
         - permission: True if OK to trade, False if brain says no
         - message: Human-readable guidance
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.penny_profit_engine.get_wisdom_guidance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     global _wisdom_engine
     
     try:

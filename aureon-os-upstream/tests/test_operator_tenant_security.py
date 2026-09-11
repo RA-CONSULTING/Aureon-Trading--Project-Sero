@@ -367,11 +367,11 @@ def test_repo_search_never_returns_secret_file_contents(tmp_path, monkeypatch):
     path filter a pattern like ``API_KEY=`` hands back the instance's .env in plaintext."""
     import aureon.inhouse_ai.tool_registry as tr
 
-    (tmp_path / ".env").write_text('KRAKEN_API_KEY="REDACTED_USE_CLOUD_SECRET"\n', encoding="utf-8")
+    (tmp_path / ".env").write_text('KRAKEN_API_KEY="LIVE-kraken-abc123"\n', encoding="utf-8")
     (tmp_path / "ok.py").write_text('X = "API_KEY=placeholder"\n', encoding="utf-8")
     monkeypatch.setattr(tr, "_repo_root", lambda: str(tmp_path))
     out = tr._builtin_repo_search({"pattern": "API_KEY=", "limit": 10})
-    assert "REDACTED_USE_CLOUD_SECRET" not in out
+    assert "LIVE-kraken-abc123" not in out
     assert ".env" not in json.dumps(json.loads(out)["hits"])
     assert "ok.py" in out            # ordinary files still searchable
 
@@ -383,7 +383,7 @@ def test_tenant_never_sees_instance_connection_credentials(app_env, monkeypatch)
     money keys are — were still built from the GLOBAL keystore plus ``os.environ``, so a tenant
     enumerated which instance credentials exist, their source, and the last 4 characters."""
     client, _srv, _ks = app_env
-    monkeypatch.setenv("KRAKEN_API_KEY", "REDACTED_USE_CLOUD_SECRET")
+    monkeypatch.setenv("KRAKEN_API_KEY", "INSTANCE-SECRET-9876")
     body = client.get("/api/connections", headers=_tenant("aaa")).get_json()
     rows = [c for s in body["categories"] for c in s["connections"]]
     kraken = next(c for c in rows if c["id"] == "kraken")
@@ -400,7 +400,7 @@ def test_tenant_never_sees_instance_connection_credentials(app_env, monkeypatch)
 
 def test_tenant_readiness_does_not_report_instance_keys_present(app_env, monkeypatch):
     client, _srv, _ks = app_env
-    monkeypatch.setenv("KRAKEN_API_KEY", "REDACTED_USE_CLOUD_SECRET")
+    monkeypatch.setenv("KRAKEN_API_KEY", "INSTANCE-SECRET-9876")
     items = client.get("/api/connections/readiness", headers=_tenant("aaa")).get_json()["items"]
     leaked = [i for i in items
               if i.get("category") not in ("ai_llm",) and i.get("present") and i.get("requirement") != "keyless"]

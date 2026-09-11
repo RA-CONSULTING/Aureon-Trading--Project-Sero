@@ -145,10 +145,29 @@ def test_integration_audit_trail():
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def test_wire_integrations_end_to_end():
-    print("\n[3] effectful feedback-loop integration remains on production HOLD")
+def test_wire_integrations_end_to_end(monkeypatch, tmp_path):
+    print("\n[3] effectful feedback-loop integration: fail-closed; voice "
+          "stays inert when released")
+    # HOLD path: record absent → the loop refuses the effectful flag.
+    monkeypatch.setenv(
+        "AUREON_CORE_RELEASE_RECORD",
+        str(tmp_path / "no_such_core_release.json"),
+    )
     with pytest.raises(RuntimeError, match="aureon_self_feedback_loop_hold"):
         AureonSelfFeedbackLoop(vault=AureonVault(), enable_voice=True)
+
+    # Released path: the loop's own gate opens, but the voice provider is
+    # voice-owned and is NOT released by the core record — inert.
+    record = tmp_path / "core_release.json"
+    record.write_text(json.dumps({
+        "ts": "2026-09-06",
+        "source": "owner decree 2026-09-06 (Gary Leckey)",
+        "modules": ["aureon_vault", "casimir_quantifier",
+                    "harmonic_pinger", "self_feedback_loop"],
+    }), encoding="utf-8")
+    monkeypatch.setenv("AUREON_CORE_RELEASE_RECORD", str(record))
+    loop = AureonSelfFeedbackLoop(vault=AureonVault(), enable_voice=True)
+    assert loop.voice_engine is None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

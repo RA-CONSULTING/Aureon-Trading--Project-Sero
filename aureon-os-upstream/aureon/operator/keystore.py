@@ -45,7 +45,8 @@ KEY_PATH = CONFIG_DIR / "provider_keys.key"
 STORE_PATH = CONFIG_DIR / "provider_keys.json.enc"
 TENANTS_DIR = CONFIG_DIR / "tenants"
 
-_FIELDS = ("api_key", "base_url", "model", "enabled")
+_FIELDS = ("api_key", "base_url", "model", "enabled",
+           "last_test_at", "last_test_ok", "last_test_latency_ms", "last_test_error")
 _SAFE_TENANT = re.compile(r"[A-Za-z0-9_-]{1,128}")
 
 
@@ -165,6 +166,10 @@ def save_provider(
     model: str | None = None,
     enabled: bool | None = None,
     extra: Dict[str, str] | None = None,
+    last_test_at: str | None = None,
+    last_test_ok: bool | None = None,
+    last_test_latency_ms: int | None = None,
+    last_test_error: str | None = None,
     tenant: str | None = None,
 ) -> Dict[str, Any]:
     """Merge the given fields into a provider's entry and persist. Only provided
@@ -190,6 +195,14 @@ def save_provider(
             merged = dict(entry.get("extra", {}))
             merged.update({k: str(v).strip() for k, v in extra.items() if v is not None})
             entry["extra"] = merged
+        if last_test_at is not None:
+            entry["last_test_at"] = last_test_at
+        if last_test_ok is not None:
+            entry["last_test_ok"] = bool(last_test_ok)
+        if last_test_latency_ms is not None:
+            entry["last_test_latency_ms"] = int(last_test_latency_ms)
+        if last_test_error is not None:
+            entry["last_test_error"] = str(last_test_error)
         data[provider_id] = entry
         _persist(data, tenant)
         return entry
@@ -313,6 +326,10 @@ def masked_view(tenant: str | None = None) -> Dict[str, Dict[str, Any]]:
             "base_url": str(entry.get("base_url", "") or ""),
             "model": str(entry.get("model", "") or ""),
             "enabled": bool(entry.get("enabled", True)),
+            "last_test_at": entry.get("last_test_at"),
+            "last_test_ok": entry.get("last_test_ok"),
+            "last_test_latency_ms": entry.get("last_test_latency_ms"),
+            "last_test_error": entry.get("last_test_error"),
         }
     return view
 

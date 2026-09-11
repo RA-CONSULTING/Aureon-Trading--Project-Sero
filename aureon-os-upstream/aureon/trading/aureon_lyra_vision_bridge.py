@@ -47,6 +47,8 @@ import logging
 import types
 from typing import Dict, Any, Optional, List, Tuple
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +143,9 @@ class LyraVisionBridge:
         -------
         List[str]  — ANSI-coloured lines of the painting
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra_vision_bridge.LyraVisionBridge.paint blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         from aureon.utils.aureon_geometric_renderer import render_painting
 
         lyra = self._get_lyra()
@@ -249,6 +254,9 @@ class LyraVisionBridge:
         but inject Lyra's resonance data into it first so the painting
         reflects the live emotional field.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra_vision_bridge.LyraVisionBridge.see blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         lyra    = self._get_lyra()
         bridge  = self._get_bridge()
 
@@ -283,6 +291,9 @@ class LyraVisionBridge:
 
     def diagnose(self) -> None:
         """Print Lyra's resonance summary + the painting to the terminal."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_lyra_vision_bridge.LyraVisionBridge.diagnose blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         from aureon.utils.aureon_geometric_renderer import _bold_hz, _dim
         lyra    = self._get_lyra()
         summary = lyra.get_resonance_summary()

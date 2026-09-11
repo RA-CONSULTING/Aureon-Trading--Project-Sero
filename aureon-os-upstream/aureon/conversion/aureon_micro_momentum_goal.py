@@ -53,6 +53,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 
@@ -302,6 +304,10 @@ class MicroMomentumScanner:
         
         Returns list of MomentumSignal sorted by profit potential.
         """
+        if no_external_api_calls():
+            logger.warning("MicroMomentumScanner.scan_for_momentum blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         if symbols is None:
             symbols = self.ALL_COINS
         
@@ -454,7 +460,11 @@ class MicroMomentumScanner:
 
 def show_the_goal():
     """Show the existing scanners what THE GOAL is!"""
-    
+
+    if no_external_api_calls():
+        logger.warning("show_the_goal blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     print("""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║

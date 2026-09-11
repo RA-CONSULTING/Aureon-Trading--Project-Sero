@@ -190,9 +190,14 @@ class GlobalHarmonicField:
             'probability': 1.6, # 🎯 HNC Probability Matrix - PROVEN ACCURACY!
         }
         
+        # Live-data tracking: set whenever a layer is fed real data.
+        # A fresh instance only holds synthetic 0.5 defaults — that state must
+        # never be presented as a live field.
+        self._last_data_feed: float = 0.0
+
         # Initialize engines lazily
         self._init_engines()
-        
+
         logger.info("🌐⚡ Global Harmonic Field initialized")
     
     def _init_engines(self):
@@ -213,7 +218,17 @@ class GlobalHarmonicField:
     # LAYER 1: WISDOM (11 Civilizations)
     # ═══════════════════════════════════════════════════════════════
     
-    def update_wisdom_layer(self, fear_greed: int = 50, btc_price: float = 100000, 
+    def has_live_data(self, max_age_seconds: float = 300.0) -> bool:
+        """
+        True only if a layer has been fed real data within max_age_seconds.
+
+        compute_field() on an untouched field returns a synthetic omega=0.5
+        'NEUTRAL' — numerically valid but not a live observation. Callers that
+        would label output as LIVE must check this first and fail closed.
+        """
+        return self._last_data_feed > 0.0 and (time.time() - self._last_data_feed) <= max_age_seconds
+
+    def update_wisdom_layer(self, fear_greed: int = 50, btc_price: float = 100000,
                             btc_change: float = 0.0) -> HarmonicLayerState:
         """
         Update Layer 1: Wisdom from 11 civilizations.
@@ -225,7 +240,8 @@ class GlobalHarmonicField:
           - BTC Price/Change
         """
         layer = self.state.layer_wisdom
-        
+        self._last_data_feed = time.time()
+
         if self._wisdom_engine:
             try:
                 reading = self._wisdom_engine.get_unified_reading(fear_greed, btc_price, btc_change)
@@ -297,6 +313,7 @@ class GlobalHarmonicField:
           - Harmonic Resonance
         """
         layer = self.state.layer_quantum
+        self._last_data_feed = time.time()
         
         if quantum_state:
             layer.sources = {
@@ -345,6 +362,7 @@ class GlobalHarmonicField:
           - Portfolio Coherence
         """
         layer = self.state.layer_auris
+        self._last_data_feed = time.time()
         
         if auris_state:
             layer.sources = {
@@ -415,6 +433,7 @@ class GlobalHarmonicField:
           - Queen Neuron Signal
         """
         layer = self.state.layer_mycelium
+        self._last_data_feed = time.time()
         
         if mycelium_state:
             layer.sources = {
@@ -462,6 +481,7 @@ class GlobalHarmonicField:
           - D6: Harmonic Frequency
         """
         layer = self.state.layer_waveform
+        self._last_data_feed = time.time()
         
         if waveform_state:
             layer.sources = {
@@ -514,6 +534,7 @@ class GlobalHarmonicField:
           - Geomagnetic Modifier
         """
         layer = self.state.layer_stargate
+        self._last_data_feed = time.time()
         
         if stargate_state:
             layer.sources = {
@@ -559,6 +580,7 @@ class GlobalHarmonicField:
           - Win Rate
         """
         layer = self.state.layer_market
+        self._last_data_feed = time.time()
         
         if market_state:
             layer.sources = {
@@ -610,6 +632,7 @@ class GlobalHarmonicField:
           - High Conviction Signals
         """
         layer = self.state.layer_probability
+        self._last_data_feed = time.time()
         
         if probability_state:
             layer.sources = {

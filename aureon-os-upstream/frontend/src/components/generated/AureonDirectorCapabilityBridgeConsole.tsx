@@ -1,14 +1,18 @@
+import { GlassPageHeader } from "@/shell/GlassPage";
+import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
+import { consoleNumber } from "@/lib/generatedConsoleEvidence";
 import { useEffect, useState } from "react";
 import { BrainCircuit, GitBranch, Hammer, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generated report fields retain their existing schema boundary.
 type JsonMap = Record<string, any>;
 
 async function fetchJson(url: string): Promise<JsonMap> {
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return {};
     return await response.json();
   } catch {
@@ -17,8 +21,8 @@ async function fetchJson(url: string): Promise<JsonMap> {
 }
 
 function fmt(value: unknown): string {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? number.toLocaleString() : String(value || "0");
+  const number = consoleNumber(value);
+  return number === null ? "Unavailable" : number.toLocaleString();
 }
 
 export function AureonDirectorCapabilityBridgeConsole() {
@@ -36,6 +40,9 @@ export function AureonDirectorCapabilityBridgeConsole() {
   const orders = Array.isArray(report.aureon_bridge_work_orders) ? report.aureon_bridge_work_orders : [];
 
   return (
+    <div className="space-y-5">
+    <GlassPageHeader eyebrow="Coding System" title="Director capability bridge" description="Recorded capability coverage and the work orders closing each gap." icon={BrainCircuit} />
+    <GeneratedReportBoundary report={report} source="/aureon_director_capability_bridge.json" scope="recorded">
     <Card className="mb-5 bg-card/80">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -48,14 +55,14 @@ export function AureonDirectorCapabilityBridgeConsole() {
           <Badge variant={summary.gap_count ? "warning" : "success"}>{report.status || "waiting"}</Badge>
           <Badge variant="outline">coverage {fmt(summary.coverage_percent)}%</Badge>
           <Badge variant="outline">work orders {fmt(summary.bridge_work_order_count)}</Badge>
-          <Badge variant="outline">updated {report.generated_at ? new Date(report.generated_at).toLocaleTimeString() : "pending"}</Badge>
+          <Badge variant="outline">Recorded source {report.generated_at ? new Date(report.generated_at).toLocaleString() : "pending"}</Badge>
         </div>
 
         <div className="grid gap-2 md:grid-cols-4">
-          <Metric icon={ShieldCheck} label="ready" value={summary.ready_count || 0} />
-          <Metric icon={Hammer} label="partial" value={summary.partial_count || 0} />
-          <Metric icon={GitBranch} label="gaps" value={summary.gap_count || 0} />
-          <Metric icon={BrainCircuit} label="capabilities" value={summary.capability_count || 0} />
+          <Metric icon={ShieldCheck} label="ready" value={summary.ready_count} />
+          <Metric icon={Hammer} label="partial" value={summary.partial_count} />
+          <Metric icon={GitBranch} label="gaps" value={summary.gap_count} />
+          <Metric icon={BrainCircuit} label="capabilities" value={summary.capability_count} />
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
@@ -94,7 +101,7 @@ export function AureonDirectorCapabilityBridgeConsole() {
               ))}
               {!orders.length ? (
                 <div className="rounded-md border border-success/30 bg-success/10 p-4 text-sm text-success">
-                  No bridge gaps detected.
+                  No work-order rows reported. This alone does not prove that all gaps are closed.
                 </div>
               ) : null}
             </div>
@@ -102,10 +109,12 @@ export function AureonDirectorCapabilityBridgeConsole() {
         </div>
       </CardContent>
     </Card>
+    </GeneratedReportBoundary>
+    </div>
   );
 }
 
-function Metric({ icon: Icon, label, value }: { icon: any; label: string; value: unknown }) {
+function Metric({ icon: Icon, label, value }: { icon: typeof BrainCircuit; label: string; value: unknown }) {
   return (
     <div className="rounded-md border border-border/40 bg-muted/10 p-3">
       <div className="flex items-center gap-2 text-[11px] uppercase text-muted-foreground">

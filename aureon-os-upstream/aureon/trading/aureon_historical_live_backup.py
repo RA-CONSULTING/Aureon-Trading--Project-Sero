@@ -16,6 +16,9 @@ FULL ECOSYSTEM INTEGRATION:
 THE PAST PREDICTS. THE PRESENT EXECUTES. THE FUTURE PROFITS.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -146,6 +149,9 @@ class HistoricalPattern:
     
     def matches_market_conditions(self, market_data: Dict) -> float:
         """Check if current market matches this pattern. Returns confidence 0-1"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.HistoricalPattern.matches_market_conditions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         confidence = 0.0
         
         if self.scenario == 'recovery':
@@ -338,16 +344,25 @@ class AureonHistoricalLive:
     def on_thought(self, thought: Thought):
         """Handle thoughts from other modules"""
         # React to ecosystem signals
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.on_thought blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if thought.topic == "historical.pattern_detected":
             print(f"🔮 Ecosystem pattern signal: {thought.payload.get('pattern_id')}")
     
     def on_market_thought(self, thought: Thought):
         """Handle market-related thoughts"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.on_market_thought blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if thought.topic == "market.opportunity":
             print(f"📊 Market opportunity from {thought.source}: {thought.payload.get('symbol')}")
     
     def on_pattern_thought(self, thought: Thought):
         """Handle pattern-related thoughts"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.on_pattern_thought blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if thought.topic == "pattern.confirmed":
             print(f"✅ Pattern confirmed by {thought.source}: {thought.payload.get('pattern_id')}")
         
@@ -397,6 +412,9 @@ class AureonHistoricalLive:
     def init_exchanges(self):
         """Initialize exchange connections"""
         # Try unified client first
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.init_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             from aureon.trading.unified_exchange_client import MultiExchangeClient
             self.unified_client = MultiExchangeClient()
@@ -481,6 +499,9 @@ class AureonHistoricalLive:
     
     async def scan_for_patterns(self) -> List[LiveSignal]:
         """Scan all exchanges for historical pattern matches"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.scan_for_patterns blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         signals = []
         
         # Get market data from all exchanges
@@ -547,6 +568,9 @@ class AureonHistoricalLive:
     
     async def get_market_data(self) -> List[Dict]:
         """Get real-time market data from all exchanges"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.get_market_data blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         markets = []
         
         # 🏹 SCOUT SYSTEM - Get targets from automated scanning
@@ -647,6 +671,9 @@ class AureonHistoricalLive:
 
     async def execute_signal(self, signal: LiveSignal) -> Optional[LivePosition]:
         """Execute a trading signal"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.execute_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         can_trade, reason = self.can_trade()
         
         if not can_trade:
@@ -691,6 +718,9 @@ class AureonHistoricalLive:
     
     async def monitor_positions(self):
         """Monitor open positions and check exit conditions"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.monitor_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for position in self.positions:
             if position.status != 'open':
                 continue
@@ -714,6 +744,9 @@ class AureonHistoricalLive:
     def should_exit_position(self, position: LivePosition) -> Tuple[bool, str]:
         """Determine if a position should be closed"""
         # Target hit
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.should_exit_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if position.current_price >= position.signal.predicted_target:
             return True, "TARGET HIT"
 
@@ -802,6 +835,9 @@ class AureonHistoricalLive:
     
     async def run_live(self, scan_interval: int = 60):
         """Run live trading loop"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_historical_live_backup.AureonHistoricalLive.run_live blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print(f"\n🚀 GOING LIVE!")
         print(f"   Scan interval: {scan_interval} seconds")
         print(f"   Pattern threshold: 75%+ confidence")
@@ -857,6 +893,9 @@ class AureonHistoricalLive:
 
 async def main():
     """Main entry point"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_historical_live_backup.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     trader = AureonHistoricalLive()
     
     print(f"\n🎯 Ready to trade!")

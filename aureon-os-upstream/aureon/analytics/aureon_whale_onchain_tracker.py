@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 from collections import deque, defaultdict
 
 from aureon.core.aureon_thought_bus import get_thought_bus, Thought
+from aureon.core.no_external_calls import no_external_api_calls
 
 logger = logging.getLogger(__name__)
 
@@ -108,14 +109,18 @@ class WhaleExchangeTracker:
 
     def start(self) -> bool:
         """Start background polling thread"""
+        if no_external_api_calls():
+            logger.info("WhaleExchangeTracker.start blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return False
+
         if not self.exchanges or self.thought_bus is None:
             logger.warning("Tracker requires explicitly configured exchanges and ThoughtBus")
             return False
-        
+
         if self._running:
             logger.debug("WhaleExchangeTracker already running")
             return True
-        
+
         self._running = True
         self._thread = threading.Thread(target=self._polling_loop, daemon=True)
         self._thread.start()

@@ -33,8 +33,10 @@ except ImportError:
     GlobalHarmonicFieldState = Any
     GLOBAL_FIELD_AVAILABLE = False
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# Setup logging (config only when run as a script — never at import time,
+# which would hijack the root logger of any process importing this module)
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 # Constants
@@ -143,6 +145,15 @@ class TemporalDialer:
         if self.field_connection is None:
             logger.warning("   ⚠️ No live Global Harmonic Field connection; no_data")
             return None
+
+        # Fail closed on synthetic fields: a GlobalHarmonicField that has never
+        # been fed real layer data only produces default 0.5 'NEUTRAL' values.
+        # Reporting those as Global_Harmonic_Field_LIVE would be fabrication.
+        has_live = getattr(self.field_connection, "has_live_data", None)
+        if not callable(has_live) or not has_live():
+            logger.warning("   ⚠️ Global Harmonic Field has no live fed data; no_data")
+            return None
+
         payload = {}
         source = "Global_Harmonic_Field_LIVE"
         field_omega = None
@@ -227,9 +238,15 @@ class TemporalDialer:
         noise = max(0.0, 1.0 - self.state.resonance)
         self.state.quantum_noise_level = noise
         
-        # Intensity combines resonance with field omega
+        # Intensity combines resonance with field omega.
+        # field_omega can be None if compute_field() returned nothing without
+        # raising — never call float(None); degrade to resonance-only instead.
+        try:
+            omega_factor = float(field_omega) if field_omega is not None else 0.0
+        except (TypeError, ValueError):
+            omega_factor = 0.0
         intensity = self.state.resonance * (1.0 - noise)
-        intensity = max(intensity, float(field_omega) * (1.0 - noise))
+        intensity = max(intensity, omega_factor * (1.0 - noise))
         
         packet = QuantumPacket(
             timestamp=time.time(),
@@ -254,10 +271,14 @@ class TemporalDialer:
         return packet
 
     def get_status(self) -> Dict[str, Any]:
+        state = asdict(self.state) if hasattr(self.state, "__dataclass_fields__") else {"raw": str(self.state)}
+        if isinstance(state, dict) and isinstance(self.state.mode, DialMode):
+            state["mode"] = self.state.mode.value  # JSON-safe (Enum is not serializable)
         return {
             "name": self.name,
             "connected": self.field_connection is not None,
-            "state": asdict(self.state) if hasattr(self.state, "__dataclass_fields__") else str(self.state),
+            "live_data": bool(getattr(self.field_connection, "has_live_data", lambda: False)()),
+            "state": state,
             "packets_received": len(self.history)
         }
 

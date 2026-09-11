@@ -42,6 +42,8 @@ from dataclasses import dataclass, field
 from collections import deque
 import logging
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     from aureon.core.aureon_thought_bus import ThoughtBus, Thought
     THOUGHT_BUS_AVAILABLE = True
@@ -145,7 +147,8 @@ class MacroSnapshot:
     risk_on_off: str = "NEUTRAL"  # RISK_ON, RISK_OFF, NEUTRAL
     market_regime: str = "NORMAL"  # NORMAL, FEAR, GREED, PANIC, EUPHORIA
     truth_status: str = "live"
-    
+    reason: Optional[str] = None
+
     def to_dict(self) -> Dict:
         return {
             'timestamp': self.timestamp.isoformat(),
@@ -174,6 +177,7 @@ class MacroSnapshot:
             'risk_on_off': self.risk_on_off,
             'market_regime': self.market_regime,
             'truth_status': self.truth_status,
+            'reason': self.reason,
             'generated_values': False,
         }
 
@@ -598,9 +602,46 @@ class GlobalFinancialFeed:
                 # Still try to broadcast if it's been a while (e.g. called from another loop)
                 self._broadcast_to_hive(self.last_snapshot)
                 return self.last_snapshot
-        
+
+        if no_external_api_calls():
+            logger.info("Global Financial Feed blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            snapshot = MacroSnapshot(
+                timestamp=datetime.now(timezone.utc),
+                crypto_fear_greed=0,
+                crypto_fg_classification='no_source',
+                vix=0.0,
+                vix_change=0.0,
+                dxy=0.0,
+                dxy_change=0.0,
+                us_10y_yield=0.0,
+                us_2y_yield=0.0,
+                yield_curve_inversion=False,
+                spx=0.0,
+                spx_change=0.0,
+                dow=0.0,
+                nasdaq=0.0,
+                gold=0.0,
+                gold_change=0.0,
+                oil=0.0,
+                oil_change=0.0,
+                total_crypto_mcap=0.0,
+                btc_dominance=0.0,
+                eur_usd=0.0,
+                gbp_usd=0.0,
+                usd_jpy=0.0,
+                risk_on_off='NEUTRAL',
+                market_regime='NORMAL',
+                truth_status='no_source',
+                reason='AUREON_NO_EXTERNAL_API_CALLS',
+            )
+            self.last_snapshot = snapshot
+            self.history.append(snapshot)
+            self._save_state()
+            self._broadcast_to_hive(snapshot)
+            return snapshot
+
         print("\n🌍 Fetching Global Financial Data...")
-        
+
         # Fetch all data sources
         fng = self.fetch_crypto_fear_greed()
         crypto_global = self.fetch_global_crypto_market()

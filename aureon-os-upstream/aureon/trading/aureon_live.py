@@ -27,6 +27,9 @@ Usage:
 Author: Aureon System
 Date: November 28, 2025
 """
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os, sys, json, time, logging, argparse, math
 try:
@@ -203,6 +206,9 @@ class AureonLiveTrader:
 
     def run_coherence_test(self) -> bool:
         """Run the Master Equation only from a fresh, complete provider candle."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_live.AureonLiveTrader.run_coherence_test blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         logger.info("\n📊 Running coherence gate with live Binance candle data...")
         try:
             candles = self.client.get_klines(self.symbol, interval="1m", limit=3)
@@ -314,6 +320,9 @@ class AureonLiveTrader:
 
     def run(self, num_trades: int = 1):
         """Main execution loop."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_live.AureonLiveTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.preflight_check():
             logger.error("Preflight check failed. Aborting.")
             sys.exit(1)
@@ -336,6 +345,9 @@ class AureonLiveTrader:
         return True
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_live.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     parser = argparse.ArgumentParser(description="Aureon Live Trading Launcher")
     parser.add_argument('--stage', type=int, default=0, help='Stage: 0=testnet+dry, 1=testnet+real, 2=live+real')
     parser.add_argument('--symbol', type=str, default='BTCUSDT', help='Trading symbol')

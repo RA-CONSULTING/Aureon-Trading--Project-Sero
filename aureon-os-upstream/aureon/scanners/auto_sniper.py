@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 
 STATE_FILE = os.getenv("AUREON_STATE_FILE", "aureon_kraken_state.json")
 CHECK_INTERVAL = 30
@@ -187,6 +189,9 @@ def _deduplicated(state: Mapping[str, Any], receipt: Mapping[str, Any]) -> bool:
 
 def check_and_kill(client: Any, state: Dict[str, Any], *, state_file: str | os.PathLike[str] = STATE_FILE, now: Optional[float] = None) -> Dict[str, Any]:
     """Screen receipts and account only a complete, unique terminal provider fill."""
+    if no_external_api_calls():
+        return _no_data("AUREON_NO_EXTERNAL_API_CALLS")
+
     current = time.time() if now is None else now
     if not math.isfinite(current):
         return _no_data("clock_invalid")
@@ -261,6 +266,10 @@ def check_and_kill(client: Any, state: Dict[str, Any], *, state_file: str | os.P
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    if no_external_api_calls():
+        print("auto_sniper main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return 0
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", action="store_true", help="explicitly enable the receipt-gated scan loop")
     parser.add_argument("--state-file", default=STATE_FILE)

@@ -16,7 +16,10 @@ quantifier weighs against its past self, what the Auris nodes vote on,
 and what the white cells scan for threats.
 
 This module defines the data structures. The orchestration lives in
-`self_feedback_loop.py`.
+`self_feedback_loop.py`. Bus wiring (`wire_thought_bus`) is gated by the
+fail-closed core release record in
+`aureon_fusion/state/vault/core_release.json`; manual ingest via
+`add()`/`ingest()` is always available.
 """
 
 from __future__ import annotations
@@ -37,6 +40,15 @@ logger = logging.getLogger("aureon.vault")
 AUREON_VAULT_RELEASE_HOLD = (
     "aureon_vault_thought_bus_hold:production_magic_star_release_unavailable"
 )
+
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/vault/core_release.json) names this module.
+from aureon.vault import _core_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("aureon_vault"):
+        raise RuntimeError(AUREON_VAULT_RELEASE_HOLD)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -188,13 +200,23 @@ class AureonVault:
 
     def wire_thought_bus(self) -> bool:
         """
-        Hold shared-bus wiring until the production Magic Star release exists.
+        Wire the vault to the shared ThoughtBus singleton.
 
-        Manual, in-memory ingest remains available.  The release gate is the
-        first operation so a denied call cannot look up the process singleton,
-        subscribe handlers, or make later ingest publish ``vault.card.added``.
+        Manual, in-memory ingest remains available with or without a
+        release record.  The release gate is the first operation so a
+        denied call cannot look up the process singleton, subscribe
+        handlers, or make later ingest publish ``vault.card.added``.  When
+        released, a fusion-conscience VETO refuses wiring (fail-closed).
         """
-        raise RuntimeError(AUREON_VAULT_RELEASE_HOLD)
+        _require_release()
+        if not _release.conscience_permits(
+            "aureon_vault: wire vault to shared ThoughtBus",
+            {
+                "vault_id": self.vault_id,
+                "subscriptions": len(self.DEFAULT_SUBSCRIPTIONS),
+            },
+        ):
+            raise RuntimeError("conscience_veto:aureon_vault.wire_thought_bus")
         if self._subscribed:
             return True
         try:

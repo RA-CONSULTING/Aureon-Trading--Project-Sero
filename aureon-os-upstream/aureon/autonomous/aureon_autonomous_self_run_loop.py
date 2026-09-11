@@ -14,8 +14,8 @@ from aureon.autonomous.aureon_agent_creative_process_guardian import (
     build_and_write_agent_creative_process_guardian,
 )
 from aureon.autonomous.aureon_autonomous_job_executor import tick_autonomous_jobs
-from aureon.autonomous.aureon_autonomous_self_fix_director import (
-    build_and_write_autonomous_self_fix_director,
+from aureon.autonomous.aureon_autonomous_coherence_gate_director import (
+    build_and_write_coherence_gate_director,
 )
 from aureon.autonomous.aureon_capability_forge import REPO_ROOT
 from aureon.autonomous.aureon_coding_capability_unblocker import (
@@ -63,10 +63,11 @@ CODING_BRIDGE_EVIDENCE_PATHS = [
 _SELF_CODER_STATUSES = frozenset(
     {
         "internal_self_coder_disabled",
-        "internal_self_coder_evidence_hold",
         "internal_self_coder_error",
+        "internal_self_coder_evidence_hold",
         "internal_self_coder_existing_evidence_hold",
         "internal_self_coder_held",
+        "internal_self_coder_seal_complete",
     }
 )
 _SELF_CODER_REASON_CODES = frozenset(
@@ -229,7 +230,11 @@ def _select_goal_route(route_names: Sequence[str], objective: str) -> str:
     ):
         if candidate in route_names:
             return candidate
-    return "autonomous_job_executor"
+    # Default to SafeCodeControl dispatch rather than the heavy autonomous job
+    # executor.  SafeCodeControl is the bounded review/approval path and does
+    # not attempt open-ended model-driven execution inside the goal contract
+    # dispatcher cycle.
+    return "safe_code_repair"
 
 
 def _candidate_stock_audit_paths(root: Path) -> List[Path]:
@@ -509,25 +514,6 @@ def run_goal_contract_dispatcher(
     return _persist_goal_dispatcher(root, report)
 
 
-def _default_self_fix_tests(root: Path) -> List[List[str]]:
-    tests = [
-        root / "tests" / "test_aureon_autonomous_self_fix_director.py",
-        root / "tests" / "test_aureon_complex_build_stress_audit.py",
-    ]
-    if all(path.exists() for path in tests):
-        return [
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "tests/test_aureon_autonomous_self_fix_director.py",
-                "tests/test_aureon_complex_build_stress_audit.py",
-                "-q",
-            ]
-        ]
-    return [[sys.executable, "-c", "print('self-run safe patch smoke ok')"]]
-
-
 def _default_runners(*, include_stress: bool, max_stress_attempts: int) -> Dict[str, Runner]:
     runners: Dict[str, Runner] = {
         "goal_contract_dispatcher": lambda root, prompt: run_goal_contract_dispatcher(
@@ -543,13 +529,13 @@ def _default_runners(*, include_stress: bool, max_stress_attempts: int) -> Dict[
         "unified_self_evolution": lambda root, prompt: build_and_write_unified_self_evolution_loop(
             root=root,
             prompt=prompt,
-            run_ollama=True,
+            run_ollama=False,
+            run_swarm=False,
         ),
-        "autonomous_self_fix_director": lambda root, prompt: build_and_write_autonomous_self_fix_director(
+        "autonomous_self_fix_director": lambda root, prompt: build_and_write_coherence_gate_director(
             root=root,
             operator_prompt=prompt,
-            codex_audit_state="autonomous_safe",
-            test_commands=_default_self_fix_tests(root),
+            dry_run=False,
         ),
         "autonomous_job_executor": lambda root, prompt: tick_autonomous_jobs(root=root),
         "evolution_queue_certification": lambda root, prompt: build_and_write_evolution_queue_autonomous_certification(
@@ -640,8 +626,8 @@ def _run_task(task_id: str, runner: Runner, root: Path, prompt: str) -> Dict[str
         summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
         output_files = result.get("output_files", [])
         if task_id == INTERNAL_SELF_CODING_TASK_ID:
-            ok = False
             status = status if status in _SELF_CODER_STATUSES else "internal_self_coder_held"
+            ok = bool(result.get("ok", True)) if status == "internal_self_coder_seal_complete" else False
             summary = _compact_self_coder_summary(summary)
             output_files = []
         return {
@@ -902,7 +888,7 @@ def build_and_write_autonomous_self_run_loop(
         "autonomy_mode": "full_safe_local_autonomy",
         "heartbeat": heartbeat,
         "loop_contract": {
-            "principle": "Aureon runs its safe local coding, stress, creative-process, and self-fix organs without waiting for Codex.",
+            "principle": "Aureon runs its safe local coding, stress, creative-process, and self-fix organs without depending on Codex.",
             "no_false_blocks": "Coding/tool/skill/test gaps become autonomous work orders and rerun targets.",
             "coherence_membrane": "HNC/Auris changes internal pace, patch batch size, test depth, and rollback depth; it never closes introspection or repair.",
             "internal_self_coding": {

@@ -5,6 +5,8 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Tuple, Optional, Any
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -101,6 +103,9 @@ class UnifiedTradeExecutor:
 
     def record_fill_confirmation(self, order_id: str, exchange: str, filled_qty: float, filled_price: float) -> bool:
         """Attach an exchange-side confirmation to an order and validate fill integrity."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_trade_activation.UnifiedTradeExecutor.record_fill_confirmation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         order = self._submitted_orders.get(order_id)
         if not order:
             self.stats["validation_failures"] += 1
@@ -123,6 +128,9 @@ class UnifiedTradeExecutor:
 
     def sweep_for_ghost_orders(self, now: Optional[float] = None) -> int:
         """Flag approved orders that never received exchange confirmation."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_trade_activation.UnifiedTradeExecutor.sweep_for_ghost_orders blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         now = now or time.time()
         ghost_count = 0
         for order in self._submitted_orders.values():
@@ -136,6 +144,9 @@ class UnifiedTradeExecutor:
 
     def build_request_from_opportunity(self, opportunity: Dict[str, Any], side: str = "buy") -> ExecutionRequest:
         """Translate Ocean Scanner output into a validated execution request."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_trade_activation.UnifiedTradeExecutor.build_request_from_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         price = float(opportunity.get("price") or 0.0)
         confidence = float(opportunity.get("confidence") or 0.0)
         coherence = float(opportunity.get("ocean_score") or confidence)

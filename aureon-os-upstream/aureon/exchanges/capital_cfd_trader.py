@@ -319,6 +319,7 @@ CAPITAL_FAST_PROFIT_MIN_PCT = _env_float("CAPITAL_FAST_PROFIT_MIN_PCT", 0.02)
 CAPITAL_FAST_PROFIT_MIN_HOLD_SECS = _env_float("CAPITAL_FAST_PROFIT_MIN_HOLD_SECS", 2.0)
 CAPITAL_FAST_PROFIT_MARKET_STATUS_TTL_SECS = _env_float("CAPITAL_FAST_PROFIT_MARKET_STATUS_TTL_SECS", 10.0)
 CAPITAL_MIND_MAP_REFRESH_SECS = _env_float("CAPITAL_MIND_MAP_REFRESH_SECS", 300.0)
+CAPITAL_MIND_MAP_REFRESH_ENABLED = str(os.getenv('CAPITAL_MIND_MAP_REFRESH_ENABLED', '1')).strip().lower() not in {'0','false','no','off'}
 CAPITAL_MYCELIUM_REFRESH_SECS = _env_float("CAPITAL_MYCELIUM_REFRESH_SECS", 15.0)
 CAPITAL_PROBABILITY_FEED_INTERVAL_SECS = _env_float("CAPITAL_PROBABILITY_FEED_INTERVAL_SECS", 15.0)
 # Skip slow multi-exchange Quadrumvirate overlays — set true for HFT benchmarking
@@ -326,6 +327,12 @@ CAPITAL_SKIP_INTEL_OVERLAYS = _env_bool("CAPITAL_SKIP_INTEL_OVERLAYS", False)
 CAPITAL_FOCUS_SYMBOLS = tuple(
     symbol.strip().upper()
     for symbol in str(os.getenv("CAPITAL_FOCUS_SYMBOLS", "") or "").split(",")
+    if symbol.strip()
+)
+CAPITAL_PRICE_REFRESH_MAX_MISSING_SYMBOLS = max(1, int(_env_float("CAPITAL_PRICE_REFRESH_MAX_MISSING_SYMBOLS", 16.0)))
+CAPITAL_PRICE_REFRESH_PRIORITY_SYMBOLS = tuple(
+    symbol.strip().upper()
+    for symbol in str(os.getenv("CAPITAL_PRICE_REFRESH_PRIORITY_SYMBOLS", "GOLD,XAUUSD,GOLDUSD") or "").split(",")
     if symbol.strip()
 )
 CAPITAL_RISK_MODE = _env_text("CAPITAL_RISK_MODE", "conservative").strip().lower()
@@ -3819,17 +3826,23 @@ class CapitalCFDTrader:
           1. External unified market feed (Binance WS / Kraken / shared feed)
           2. Capital monitor cache (written by background monitor)
           3. Capital REST API (last resort — slow, rate-limited)
+
+        External crypto cache hits must not mask Capital-native CFDs such as
+        GOLD. Merge the fast external hits, then fetch only the missing active
+        universe symbols through the Capital reader.
         """
         now = time.time()
         if now - self._prices_fetched_at < CFD_CONFIG["price_ttl_secs"]:
             return
 
+        active_universe = self._active_universe()
+        fresh: Dict[str, dict] = {}
+
         # 1. Try external unified feed first (fast, no API calls)
         external = getattr(self, "_external_price_feed", None)
         if external is not None:
             try:
-                fresh: Dict[str, dict] = {}
-                for sym in self._active_universe().keys():
+                for sym in active_universe.keys():
                     price = float(external.get(sym.upper()) or external.get(sym) or 0.0)
                     if price > 0:
                         fresh[sym.upper()] = {
@@ -3841,24 +3854,48 @@ class CapitalCFDTrader:
                 if fresh:
                     with self._prices_lock:
                         self._prices.update(fresh)
-                        self._prices_fetched_at = now
                     logger.debug(f"Capital prices refreshed from external feed: {len(fresh)} symbols")
-                    return
             except Exception as _e:
+                fresh = {}
                 logger.debug(f"External price feed refresh failed: {_e}")
 
-        # 2. Fall back to Capital client (monitor cache → API)
-        if not self.client:
-            return
-        try:
-            raw = self.client.get_tickers_for_symbols(list(self._active_universe().keys()))
-            if raw:
-                with self._prices_lock:
-                    self._prices = raw
-                    self._prices_fetched_at = time.time()
-        except Exception as _e:
-            logger.debug(f"CFD price refresh error: {_e}")
+        raw_missing_symbols = [
+            sym
+            for sym in active_universe.keys()
+            if sym.upper() not in fresh
+        ]
+        original_order = {str(sym).upper(): index for index, sym in enumerate(raw_missing_symbols)}
+        priority = {symbol: index for index, symbol in enumerate(CAPITAL_PRICE_REFRESH_PRIORITY_SYMBOLS)}
+        missing_symbols = sorted(
+            raw_missing_symbols,
+            key=lambda sym: (
+                priority.get(str(sym).upper(), 999),
+                1 if str(active_universe.get(sym, {}).get("class", "")).lower() == "crypto" else 0,
+                original_order.get(str(sym).upper(), 9999),
+            ),
+        )
+        if len(missing_symbols) > CAPITAL_PRICE_REFRESH_MAX_MISSING_SYMBOLS:
+            deferred_count = len(missing_symbols) - CAPITAL_PRICE_REFRESH_MAX_MISSING_SYMBOLS
+            logger.debug(
+                "Capital price refresh deferred %s lower-priority symbols to keep tick bounded",
+                deferred_count,
+            )
+            missing_symbols = missing_symbols[:CAPITAL_PRICE_REFRESH_MAX_MISSING_SYMBOLS]
 
+        fetched: Dict[str, dict] = {}
+        if missing_symbols and self.client:
+            try:
+                raw = self.client.get_tickers_for_symbols(missing_symbols)
+                if isinstance(raw, dict):
+                    fetched = raw
+            except Exception as _e:
+                logger.debug(f"CFD price refresh error: {_e}")
+
+        if fresh or fetched:
+            with self._prices_lock:
+                if fetched:
+                    self._prices.update(fetched)
+                self._prices_fetched_at = time.time()
     def _get_price(self, symbol: str) -> Optional[dict]:
         sym_upper = symbol.upper()
         # Check external feed first
@@ -6494,7 +6531,8 @@ class CapitalCFDTrader:
             pass
         # Snapshot refreshes are slow (file scans) and don't need state lock.
         self._refresh_unified_intel_snapshot()
-        self._refresh_mind_map_snapshot()
+        if CAPITAL_MIND_MAP_REFRESH_ENABLED:
+            self._refresh_mind_map_snapshot()
         self._refresh_thought_bus_snapshot()
         with self._state_lock:
             return self._tick_locked()
@@ -6621,8 +6659,44 @@ class CapitalCFDTrader:
         self.status_lines()
         return closed_this_tick
 
-    def status_lines(self) -> List[str]:
-        """Return human-readable status lines for orca dashboard / print_status."""
+    def status_lines(self, *, cached_only: bool = False) -> List[str]:
+        """Return status text; UI callers use cached_only to avoid provider reads."""
+        if cached_only:
+            # Rendering must not run get_capital_snapshot, risk or growth
+            # enrichment: all three paths can perform authenticated reads.
+            # Keep the independent account poller and its original clocks intact.
+            observation = getattr(getattr(self, "client", None), "last_ui_accounts_observation", None)
+            lines = ["  CAPITAL STATUS | cached observations; rendering does not refresh source data"]
+            if isinstance(observation, dict):
+                def observed_value(value):
+                    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+                        return str(value)
+                    return "unavailable"
+
+                lines.append(
+                    f"  Cached account receipt: {observation.get('status', 'unavailable')} | "
+                    f"source={observation.get('source') or 'unavailable'} | "
+                    f"source_timestamp={observed_value(observation.get('source_timestamp'))} | "
+                    f"received_at={observed_value(observation.get('received_at'))} | "
+                    "current freshness not evaluated"
+                )
+                if observation.get("status") == "observed" and observation.get("generated_values") is False:
+                    rows = observation.get("rows")
+                    for row in rows if isinstance(rows, list) else []:
+                        if not isinstance(row, dict):
+                            continue
+                        currency = row.get("currency") if isinstance(row.get("currency"), str) else "unreported currency"
+                        lines.append(
+                            f"  Cached account: balance={observed_value(row.get('balance'))} {currency} | "
+                            f"available={observed_value(row.get('available'))} {currency}"
+                        )
+            else:
+                lines.append("  Cached native account receipt unavailable")
+            cached_lines = getattr(self, "_latest_status_lines", None)
+            if isinstance(cached_lines, list) and cached_lines:
+                lines.append("  Cached diagnostics follow; their original source time is unreported")
+                lines.extend(f"  CACHED: {line}" for line in cached_lines if isinstance(line, str))
+            return lines
         mind_map_snapshot = dict(getattr(self, "_mind_map_snapshot", {}) or {})
         mycelium_snapshot = dict(getattr(self, "_mycelium_snapshot", {}) or {})
         live_system_activity_snapshot = dict(getattr(self, "_live_system_activity_snapshot", {}) or {})
@@ -6895,30 +6969,11 @@ class CapitalCFDTrader:
             "next_action": "Run python -m aureon.exchanges.capital_asset_registry --max-snapshots 100",
         }
 
-    def get_dashboard_payload(self) -> Dict[str, Any]:
-        """Expose Capital trader state in the same local-dashboard style as the margin trader."""
-        capital = self.get_capital_snapshot()
-        risk_envelope = self._build_capital_risk_envelope()
-        no_loss_queue = self._build_no_loss_hold_queue()
-        growth = self._compute_growth_metrics()
-        return {
-            "exchange": "capital",
-            "mode": "cfd",
-            "ok": self.enabled,
-            "equity_gbp": capital["equity_gbp"],
-            "free_gbp": capital["free_gbp"],
-            "used_gbp": capital["used_gbp"],
-            "budget_gbp": capital["budget_gbp"],
-            "target_pct_equity": capital["target_pct_equity"],
-            "capital_risk_envelope": risk_envelope,
-            "capital_trade_evidence": dict(getattr(self, "_capital_trade_evidence", {}) or {}),
-            "capital_confidence_ratchet": dict(getattr(self, "_capital_confidence_ratchet", {}) or {}),
-            "capital_unified_waveform_check": dict(getattr(self, "_capital_unified_waveform_check", {}) or {}),
-            "capital_no_loss_hold_queue": no_loss_queue,
-            "capital_pending_order_envelope": dict(getattr(self, "_capital_pending_order_envelope", {}) or {}),
-            "capital_last_working_order_submit": dict(getattr(self, "_capital_last_working_order_submit", {}) or {}),
-            "capital_asset_registry": self._load_capital_asset_registry_summary(),
-            "positions": [
+    def _dashboard_positions_with_incomplete(self) -> List[Dict[str, Any]]:
+        """Return live positions plus provider-visible positions with incomplete receipts."""
+        positions: List[Dict[str, Any]] = []
+        for pos in self.positions:
+            positions.append(
                 {
                     "symbol": pos.symbol,
                     "deal_id": pos.deal_id,
@@ -6934,9 +6989,71 @@ class CapitalCFDTrader:
                     "asset_class": pos.asset_class,
                     "age_secs": pos.age_secs,
                     "pnl_pct": pos.pnl_pct,
+                    "truth_status": "real_observed" if pos.entry_fill_receipt_complete else "incomplete",
+                    "reason": "terminal_fill_receipt_complete" if pos.entry_fill_receipt_complete else "terminal_fill_receipt_pending_or_incomplete",
+                    "entry_fill_receipt_complete": pos.entry_fill_receipt_complete,
+                    "generated_values": False,
                 }
-                for pos in self.positions
-            ],
+            )
+        for deal_id, unsettled in (getattr(self, "_unsettled_provider_positions", {}) or {}).items():
+            positions.append(
+                {
+                    "symbol": unsettled.get("symbol", ""),
+                    "deal_id": deal_id,
+                    "lifecycle_id": unsettled.get("lifecycle_id", ""),
+                    "route_key": self._capital_route_key(
+                        str(unsettled.get("symbol", "")),
+                        str(unsettled.get("direction", "")),
+                    ),
+                    "epic": unsettled.get("epic", ""),
+                    "direction": unsettled.get("direction", ""),
+                    "size": unsettled.get("size", 0.0),
+                    "entry_price": unsettled.get("entry_price", 0.0),
+                    "current_price": unsettled.get("current_price", unsettled.get("entry_price", 0.0)),
+                    "tp_price": unsettled.get("tp_price", 0.0),
+                    "sl_price": unsettled.get("sl_price", 0.0),
+                    "asset_class": unsettled.get("asset_class", "unknown"),
+                    "age_secs": unsettled.get("age_secs", 0.0),
+                    "pnl_pct": unsettled.get("pnl_pct", 0.0),
+                    "truth_status": str(unsettled.get("truth_status") or "incomplete"),
+                    "reason": str(
+                        unsettled.get("reason")
+                        or "broker_position_visible_terminal_fill_receipt_pending"
+                    ),
+                    "entry_fill_receipt_complete": False,
+                    "generated_values": False,
+                }
+            )
+        return positions
+
+    def get_dashboard_payload(self) -> Dict[str, Any]:
+        """Expose Capital trader state in the same local-dashboard style as the margin trader."""
+        capital = self.get_capital_snapshot()
+        risk_envelope = self._build_capital_risk_envelope()
+        no_loss_queue = self._build_no_loss_hold_queue()
+        growth = self._compute_growth_metrics()
+        return {
+            "exchange": "capital",
+            "mode": "cfd",
+            "ok": self.enabled,
+            "provider_observations": {
+                "accounts": dict(getattr(self.client, "last_ui_accounts_observation", {}) or {}),
+                "positions": dict(getattr(self.client, "last_ui_positions_observation", {}) or {}),
+            },
+            "equity_gbp": capital["equity_gbp"],
+            "free_gbp": capital["free_gbp"],
+            "used_gbp": capital["used_gbp"],
+            "budget_gbp": capital["budget_gbp"],
+            "target_pct_equity": capital["target_pct_equity"],
+            "capital_risk_envelope": risk_envelope,
+            "capital_trade_evidence": dict(getattr(self, "_capital_trade_evidence", {}) or {}),
+            "capital_confidence_ratchet": dict(getattr(self, "_capital_confidence_ratchet", {}) or {}),
+            "capital_unified_waveform_check": dict(getattr(self, "_capital_unified_waveform_check", {}) or {}),
+            "capital_no_loss_hold_queue": no_loss_queue,
+            "capital_pending_order_envelope": dict(getattr(self, "_capital_pending_order_envelope", {}) or {}),
+            "capital_last_working_order_submit": dict(getattr(self, "_capital_last_working_order_submit", {}) or {}),
+            "capital_asset_registry": self._load_capital_asset_registry_summary(),
+            "positions": self._dashboard_positions_with_incomplete(),
             "shadows": [
                 {
                     "symbol": shadow.symbol,
@@ -6983,3 +7100,4 @@ class CapitalCFDTrader:
             "shadow_validated": self._shadow_validated_count,
             "shadow_failed": self._shadow_failed_count,
         }
+

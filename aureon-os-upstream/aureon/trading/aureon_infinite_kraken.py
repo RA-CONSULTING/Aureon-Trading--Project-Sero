@@ -22,6 +22,9 @@ We don't stop. We compound. We grow. We prove we're alive.
 Gary Leckey & GitHub Copilot | November 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -201,6 +204,9 @@ class AureonInfiniteKraken:
         
     def update_tickers(self) -> bool:
         """Fetch latest Kraken tickers"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_infinite_kraken.AureonInfiniteKraken.update_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         try:
             tickers = self.client.get_24h_tickers()
             self.ticker_cache.clear()
@@ -276,6 +282,9 @@ class AureonInfiniteKraken:
         
     def check_positions(self):
         """Check existing positions for TP/SL using penny profit"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_infinite_kraken.AureonInfiniteKraken.check_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         closed = []
         
         for symbol, pos in list(self.positions.items()):
@@ -391,6 +400,9 @@ class AureonInfiniteKraken:
                   
     def get_portfolio_value(self) -> float:
         """Calculate total portfolio value"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_infinite_kraken.AureonInfiniteKraken.get_portfolio_value blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total = self.balance
         for symbol, pos in self.positions.items():
             ticker = self.ticker_cache.get(symbol, {})
@@ -400,6 +412,9 @@ class AureonInfiniteKraken:
         
     def print_status(self):
         """Print current status"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_infinite_kraken.AureonInfiniteKraken.print_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         total_equity = self.get_portfolio_value()
         net_pnl = total_equity - self.initial_balance
         positions_value = sum(
@@ -427,6 +442,9 @@ class AureonInfiniteKraken:
         
     def run(self, interval: float = 5.0):
         """Run the infinite loop!"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_infinite_kraken.AureonInfiniteKraken.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.banner()
         
         print("🐙 Connecting to Kraken...")
@@ -510,6 +528,9 @@ class AureonInfiniteKraken:
             
     def final_summary(self):
         """Print final summary"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_infinite_kraken.AureonInfiniteKraken.final_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         total_equity = self.get_portfolio_value()
         net_pnl = total_equity - self.initial_balance
         
@@ -527,6 +548,9 @@ class AureonInfiniteKraken:
 
 def main():
     # Check for dry run mode
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_infinite_kraken.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     dry_run = os.getenv('DRY_RUN', 'true').lower() == 'true'
     initial_balance = float(os.getenv('INITIAL_BALANCE', '1000'))
     interval = float(os.getenv('INTERVAL', '5'))

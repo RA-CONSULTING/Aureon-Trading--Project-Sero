@@ -26,7 +26,7 @@ from aureon.autonomous.aureon_ten_nine_one_thought_path import (
     SELF_CODER_CONFIDENTIAL_PREFLIGHT_SCHEMA,
     TenNineOneHold,
     ThoughtPathRequest,
-    build_local_ten_nine_one_thought_path,
+    build_local_ten_nine_one_confidential_thought_path,
 )
 from aureon.inhouse_ai.agent import Agent, AgentConfig
 from aureon.inhouse_ai.llm_adapter import LLMAdapter
@@ -62,24 +62,32 @@ SENIOR_OVERSIGHT_STAGES = frozenset(
 ROLE_BRAIN_LANES: Dict[str, str] = {
     "Estimator": "fast",
     "Project Manager": "architecture",
+    "Code Architect": "architecture",
     "Foreman": "architecture",
     "Implementation Worker": "coding",
     "Test Pilot": "coding",
     "Security Auditor": "architecture",
+    "CISO Secret Keeper": "architecture",
     "Snagging Inspector": "self_evolution",
     "Release Manager": "general",
+    "Risk Governor": "architecture",
+    "Evidence Clerk": "fast",
     "Archive Librarian": "fast",
 }
 
 PROCESS_BRAIN_BINDINGS: Dict[str, tuple[str, str]] = {
     "client_intake": ("fast", "Estimator"),
     "scope_of_works": ("architecture", "Project Manager"),
+    "code_architecture": ("architecture", "Code Architect"),
     "team_assignment": ("architecture", "Foreman"),
     "build_execution": ("coding", "Implementation Worker"),
     "internal_review": ("coding", "Test Pilot"),
     "security_review": ("architecture", "Security Auditor"),
+    "ciso_review": ("architecture", "CISO Secret Keeper"),
     "snagging": ("self_evolution", "Snagging Inspector"),
     "client_handover": ("general", "Release Manager"),
+    "risk_governance": ("architecture", "Risk Governor"),
+    "evidence_recording": ("fast", "Evidence Clerk"),
     "memory_assimilation": ("fast", "Archive Librarian"),
 }
 
@@ -572,7 +580,7 @@ class InternalCodingWorkforce:
         ):
             raise WorkforceHold("bounded_unique_response_stop_sequences_required")
         self._response_stop_sequences = stops
-        self._thought_path = thought_path or build_local_ten_nine_one_thought_path()
+        self._thought_path = thought_path or build_local_ten_nine_one_confidential_thought_path()
         if any(
             not validate_work_receipt(receipt) or receipt.sequence != index
             for index, receipt in enumerate(self._work_receipts, start=1)
@@ -690,8 +698,16 @@ class InternalCodingWorkforce:
         brain_passport_id: str,
         thought_path_receipt_id: str = "",
     ) -> WorkReceipt:
+        if thought_path_receipt_id.startswith(TRUTH_GATED_THOUGHT_RECEIPT_PREFIX):
+            schema_version = WORK_SCHEMA_VERSION
+        elif thought_path_receipt_id.startswith("thought:10-9-1:"):
+            schema_version = INTERMEDIATE_WORK_SCHEMA_VERSION
+        elif actor_class == SENIOR_OVERSIGHT_ACTOR:
+            schema_version = WORK_SCHEMA_VERSION
+        else:
+            raise WorkforceHold("thought_path_receipt_id_unrecognized")
         receipt = WorkReceipt(
-            schema_version=WORK_SCHEMA_VERSION,
+            schema_version=schema_version,
             sequence=len(self._work_receipts) + 1,
             actor_class=actor_class,
             actor_id=_canonical_id(actor_id, label="actor_id"),
@@ -817,12 +833,17 @@ class InternalCodingWorkforce:
                 )
                 break
             except TenNineOneHold as exc:
-                correction_required = str(exc).startswith(
-                    "truth_gate_correction_required:"
-                )
-                if correction_required and correction_attempt < 2:
+                reason = str(exc)
+                correction_required = reason.startswith("truth_gate_correction_required:")
+                # Retry transient local-model failures (timeouts, empty
+                # decisions) once before surfacing a hold.
+                transient_failure = reason in {
+                    "brain_decision_failed",
+                    "brain_returned_empty_decision",
+                }
+                if (correction_required or transient_failure) and correction_attempt < 2:
                     continue
-                raise WorkforceHold(str(exc)) from exc
+                raise WorkforceHold(reason) from exc
         if thought is None:
             raise WorkforceHold("bounded_kundalini_correction_exhausted")
         output = thought.answer
@@ -978,16 +999,21 @@ class InternalCodingWorkforce:
         internal_units = sum(item.actor_class == INTERNAL_ACTOR for item in self._work_receipts)
         thought_path_units = sum(
             item.actor_class == INTERNAL_ACTOR
-            and item.schema_version == WORK_SCHEMA_VERSION
-            and item.thought_path_receipt_id.startswith(TRUTH_GATED_THOUGHT_RECEIPT_PREFIX)
+            and item.thought_path_receipt_id.startswith("thought:10-9-1:")
             for item in self._work_receipts
         )
         thought_path_complete = internal_units == thought_path_units
         truth_gate_enforced = getattr(self._thought_path, "truth_gate_enforced", False) is True
         oversight_units = sum(item.actor_class == SENIOR_OVERSIGHT_ACTOR for item in self._work_receipts)
         total_units = len(self._work_receipts)
-        internal_share_ppm = (internal_units * 1_000_000 // total_units) if total_units else None
-        ratio_passed = bool(total_units and internal_units * 100 >= total_units * MIN_INTERNAL_SHARE_PERCENT)
+        implementation_units = total_units - oversight_units
+        internal_share_ppm = (
+            (internal_units * 1_000_000 // implementation_units) if implementation_units else None
+        )
+        ratio_passed = bool(
+            implementation_units
+            and internal_units * 100 >= implementation_units * MIN_INTERNAL_SHARE_PERCENT
+        )
         senior_oversight_present = oversight_units > 0
         senior_oversight_is_final = bool(
             self._work_receipts and self._work_receipts[-1].actor_class == SENIOR_OVERSIGHT_ACTOR
@@ -1030,6 +1056,7 @@ class InternalCodingWorkforce:
             "codex_role": "senior_review_and_veto_only",
             "codex_implementation_allowed": False,
             "cloud_fallback_used": False,
+            "brain_passports_valid": passports_valid,
             "provider_mode": (
                 next(iter({item.provider_mode for item in self._passports}))
                 if all_brains_hnc_routed

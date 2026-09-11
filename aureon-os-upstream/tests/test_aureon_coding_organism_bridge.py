@@ -59,6 +59,10 @@ class StubInternalWorkforce:
     def __init__(self, *, ready: bool) -> None:
         self.ready = ready
         self.deliberation_calls = 0
+        self.work_receipts = ()
+
+    def record_senior_oversight(self, **kwargs: Any) -> None:
+        pass
 
     def deliberate_coding_goal(self, prompt: str, *, scope_locked: bool = True):
         self.deliberation_calls += 1

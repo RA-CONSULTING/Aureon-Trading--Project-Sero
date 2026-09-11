@@ -156,18 +156,28 @@ def company_brain_fabric_report(workforce: InternalCodingWorkforce) -> Dict[str,
     report = workforce.report()
     expected = CANONICAL_AGENT_COMPANY_ROLE_COUNT
     passport_count = len(report["passports"])
-    ready = bool(
-        report["brain_fabric_ready"]
+    routing_live = bool(
+        report.get("brain_passports_valid") is True
         and report["all_brains_hnc_routed"]
         and report["agent_brain_count"] == expected
         and report["process_brain_count"] == expected
         and passport_count == expected * 2
         and report["distinct_hnc_routing_receipt_count"] == expected * 2
     )
+    ready = bool(routing_live and report["truth_gate_enforced"])
+    status = "brain_fabric_ready" if ready else (
+        "brain_routing_live_action_held" if routing_live else "hold"
+    )
+    blockers = []
+    if routing_live and not report["truth_gate_enforced"]:
+        blockers.append("authenticated_truth_authority_bundle_required_for_executable_work")
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "brain_fabric_ready" if ready else "hold",
+        "status": status,
+        "routing_live": routing_live,
+        "execution_ready": ready,
         "ready": ready,
+        "blockers": blockers,
         "canonical_role_count": expected,
         "agent_brain_count": report["agent_brain_count"],
         "process_brain_count": report["process_brain_count"],

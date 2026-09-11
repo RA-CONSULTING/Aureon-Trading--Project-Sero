@@ -63,6 +63,8 @@ from typing import Dict, List, Set, Any, Optional
 from pathlib import Path
 from aiohttp import web
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -337,6 +339,20 @@ class AureonUnifiedDashboard:
     
     def collect_portfolio_metrics(self) -> Dict[str, Any]:
         """Collect portfolio metrics (total value, P&L, positions)."""
+        if no_external_api_calls():
+            logger.info("AureonUnifiedDashboard.collect_portfolio_metrics blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {
+                "timestamp": time.time(),
+                "total_value_usd": 0.0,
+                "cash_available": 0.0,
+                "assets_value": 0.0,
+                "pnl_today": 0.0,
+                "pnl_total": 0.0,
+                "positions_count": 0,
+                "positions": [],
+                "exchanges": {}
+            }
+
         metrics = {
             "timestamp": time.time(),
             "total_value_usd": 0.0,
@@ -348,7 +364,7 @@ class AureonUnifiedDashboard:
             "positions": [],
             "exchanges": {}
         }
-        
+
         try:
             # Collect from each exchange
             exchanges_data = []
@@ -404,59 +420,80 @@ class AureonUnifiedDashboard:
             "pnl_today": 0.0,
             "pnl_total": 0.0,
             "positions_count": 0,
-            "positions": []
+            "positions": [],
+            "error": ""
         }
-        
+
         try:
             balance = self.kraken.get_balance()
-            
+            quote_failures = 0
+
             # Calculate values
             for asset, qty in balance.items():
                 if asset in ['USD', 'ZUSD', 'USDT', 'USDC']:
                     data["cash"] += qty
                 else:
-                    # Get current price
+                    # Probe current price with provenance (never trust a quote
+                    # the venue cannot attest as live and complete).
                     try:
-                        pair = f"{asset}/USD"
-                        ticker = self.kraken.get_ticker(pair)
-                        if ticker and 'last' in ticker:
-                            price = float(ticker['last'])
-                            value = qty * price
-                            data["assets_value"] += value
-                            
-                            # Get entry price from cost basis
-                            entry_price = None
-                            if self.cost_basis:
-                                entry_price = self.cost_basis.get_entry_price(asset, exchange='kraken')
-                            
-                            if entry_price:
-                                entry_value = qty * entry_price
-                                pnl = value - entry_value
-                                pnl_pct = (pnl / entry_value * 100) if entry_value > 0 else 0
-                            else:
-                                pnl = 0
-                                pnl_pct = 0
-                            
-                            data["positions"].append({
-                                "symbol": asset,
-                                "quantity": qty,
-                                "price": price,
-                                "value": value,
-                                "entry_price": entry_price,
-                                "pnl": pnl,
-                                "pnl_pct": pnl_pct
-                            })
-                            data["positions_count"] += 1
-                            data["pnl_total"] += pnl
-                    except:
+                        pair = f"{asset}USD"
+                        if hasattr(self.kraken, 'get_ticker_receipt'):
+                            ticker = self.kraken.get_ticker_receipt(pair)
+                            if ticker.get('truth_status') != 'real_observed':
+                                quote_failures += 1
+                                continue
+                            price = float(ticker['price'])
+                        else:
+                            ticker = self.kraken.get_ticker(pair)
+                            price = float(ticker.get('price') or ticker.get('last') or 0.0)
+                        if not math.isfinite(price) or price <= 0:
+                            quote_failures += 1
+                            continue
+                        value = qty * price
+                        data["assets_value"] += value
+
+                        # Get entry price from cost basis
+                        entry_price = None
+                        if self.cost_basis:
+                            entry_price = self.cost_basis.get_entry_price(asset, exchange='kraken')
+
+                        if entry_price:
+                            entry_value = qty * entry_price
+                            pnl = value - entry_value
+                            pnl_pct = (pnl / entry_value * 100) if entry_value > 0 else 0
+                        else:
+                            pnl = 0
+                            pnl_pct = 0
+
+                        data["positions"].append({
+                            "symbol": asset,
+                            "quantity": qty,
+                            "price": price,
+                            "value": value,
+                            "entry_price": entry_price,
+                            "pnl": pnl,
+                            "pnl_pct": pnl_pct
+                        })
+                        data["positions_count"] += 1
+                        data["pnl_total"] += pnl
+                    except Exception:
+                        quote_failures += 1
                         continue
-            
+
             data["total_value"] = data["cash"] + data["assets_value"]
-            data["status"] = "online"
-            
+            if quote_failures and not balance:
+                data["status"] = "offline"
+                data["error"] = "balance_unavailable"
+            elif quote_failures:
+                data["status"] = "degraded"
+                data["error"] = f"{quote_failures} asset quote(s) unavailable"
+            else:
+                data["status"] = "online"
+
         except Exception as e:
+            data["error"] = f"{type(e).__name__}: {e}"
             logger.debug(f"Failed to collect Kraken portfolio: {e}")
-        
+
         return data
     
     def _collect_alpaca_portfolio(self) -> Dict[str, Any]:
@@ -470,16 +507,17 @@ class AureonUnifiedDashboard:
             "pnl_today": 0.0,
             "pnl_total": 0.0,
             "positions_count": 0,
-            "positions": []
+            "positions": [],
+            "error": ""
         }
-        
+
         try:
             # Get account info
             account = self.alpaca.get_account()
             data["cash"] = float(account.get('cash', 0))
             data["total_value"] = float(account.get('portfolio_value', 0))
             data["assets_value"] = data["total_value"] - data["cash"]
-            
+
             # Get positions
             positions = self.alpaca.get_positions()
             for pos in positions:
@@ -490,7 +528,7 @@ class AureonUnifiedDashboard:
                 market_value = float(pos.get('market_value', 0))
                 unrealized_pl = float(pos.get('unrealized_pl', 0))
                 unrealized_plpc = float(pos.get('unrealized_plpc', 0)) * 100
-                
+
                 data["positions"].append({
                     "symbol": symbol,
                     "quantity": qty,
@@ -502,12 +540,13 @@ class AureonUnifiedDashboard:
                 })
                 data["positions_count"] += 1
                 data["pnl_total"] += unrealized_pl
-            
+
             data["status"] = "online"
-            
+
         except Exception as e:
+            data["error"] = f"{type(e).__name__}: {e}"
             logger.debug(f"Failed to collect Alpaca portfolio: {e}")
-        
+
         return data
     
     def _collect_binance_portfolio(self) -> Dict[str, Any]:
@@ -521,58 +560,77 @@ class AureonUnifiedDashboard:
             "pnl_today": 0.0,
             "pnl_total": 0.0,
             "positions_count": 0,
-            "positions": []
+            "positions": [],
+            "error": ""
         }
-        
+
         try:
             balance = self.binance.get_balance()
-            
+            quote_failures = 0
+
             for asset, qty in balance.items():
                 if asset in ['USD', 'USDT', 'USDC', 'BUSD']:
                     data["cash"] += qty
                 else:
-                    # Get current price
+                    # Probe current price with provenance
                     try:
                         pair = f"{asset}USDT"
                         ticker = self.binance.get_ticker(pair)
-                        if ticker and 'price' in ticker:
-                            price = float(ticker['price'])
-                            value = qty * price
-                            data["assets_value"] += value
-                            
-                            # Get entry price
-                            entry_price = None
-                            if self.cost_basis:
-                                entry_price = self.cost_basis.get_entry_price(asset, exchange='binance')
-                            
-                            if entry_price:
-                                entry_value = qty * entry_price
-                                pnl = value - entry_value
-                                pnl_pct = (pnl / entry_value * 100) if entry_value > 0 else 0
-                            else:
-                                pnl = 0
-                                pnl_pct = 0
-                            
-                            data["positions"].append({
-                                "symbol": asset,
-                                "quantity": qty,
-                                "price": price,
-                                "value": value,
-                                "entry_price": entry_price,
-                                "pnl": pnl,
-                                "pnl_pct": pnl_pct
-                            })
-                            data["positions_count"] += 1
-                            data["pnl_total"] += pnl
-                    except:
+                        if ticker.get('truth_status') not in (None, 'real_observed'):
+                            quote_failures += 1
+                            continue
+                        if not ticker or 'price' not in ticker:
+                            quote_failures += 1
+                            continue
+                        price = float(ticker['price'])
+                        if not math.isfinite(price) or price <= 0:
+                            quote_failures += 1
+                            continue
+                        value = qty * price
+                        data["assets_value"] += value
+
+                        # Get entry price
+                        entry_price = None
+                        if self.cost_basis:
+                            entry_price = self.cost_basis.get_entry_price(asset, exchange='binance')
+
+                        if entry_price:
+                            entry_value = qty * entry_price
+                            pnl = value - entry_value
+                            pnl_pct = (pnl / entry_value * 100) if entry_value > 0 else 0
+                        else:
+                            pnl = 0
+                            pnl_pct = 0
+
+                        data["positions"].append({
+                            "symbol": asset,
+                            "quantity": qty,
+                            "price": price,
+                            "value": value,
+                            "entry_price": entry_price,
+                            "pnl": pnl,
+                            "pnl_pct": pnl_pct
+                        })
+                        data["positions_count"] += 1
+                        data["pnl_total"] += pnl
+                    except Exception:
+                        quote_failures += 1
                         continue
-            
+
             data["total_value"] = data["cash"] + data["assets_value"]
-            data["status"] = "online"
-            
+            if quote_failures and not balance:
+                data["status"] = "offline"
+                data["error"] = "balance_unavailable"
+            elif quote_failures:
+                data["status"] = "degraded"
+                data["error"] = f"{quote_failures} asset quote(s) unavailable"
+            else:
+                data["status"] = "online"
+
         except Exception as e:
+            data["error"] = f"{type(e).__name__}: {e}"
             logger.debug(f"Failed to collect Binance portfolio: {e}")
-        
+
         return data
     
     def _collect_capital_portfolio(self) -> Dict[str, Any]:
@@ -586,11 +644,13 @@ class AureonUnifiedDashboard:
             "pnl_today": 0.0,
             "pnl_total": 0.0,
             "positions_count": 0,
-            "positions": []
+            "positions": [],
+            "error": ""
         }
-        
+
         try:
             if not self.capital or not getattr(self.capital, 'enabled', False):
+                data["error"] = "disabled"
                 return data
             
             positions = self.capital.get_positions()
@@ -627,10 +687,11 @@ class AureonUnifiedDashboard:
             
             data["total_value"] = data["assets_value"]
             data["status"] = "online"
-            
+
         except Exception as e:
+            data["error"] = f"{type(e).__name__}: {e}"
             logger.debug(f"Failed to collect Capital.com portfolio: {e}")
-        
+
         return data
     
     def collect_system_metrics(self) -> Dict[str, Any]:

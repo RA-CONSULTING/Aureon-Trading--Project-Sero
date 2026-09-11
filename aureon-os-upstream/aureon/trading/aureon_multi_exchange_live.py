@@ -23,6 +23,8 @@ Same v6.1 intelligence, now with:
 Gary Leckey | December 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -288,6 +290,9 @@ class MultiExchangeManager:
     
     def get_balance(self, exchange: str, asset: str) -> float:
         """Get balance for asset on exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.MultiExchangeManager.get_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if exchange not in self.clients:
             return 0.0
         
@@ -319,6 +324,9 @@ class MultiExchangeManager:
     
     def get_tickers(self, exchange: str) -> Dict[str, Dict]:
         """Get all tickers from exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.MultiExchangeManager.get_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if exchange not in self.clients:
             return {}
         
@@ -521,6 +529,9 @@ class MultiExchangeManager:
     
     def format_qty(self, exchange: str, symbol: str, qty: float) -> str:
         """Format quantity according to exchange rules."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.MultiExchangeManager.format_qty blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         key = f"{exchange}:{symbol}"
         
         if key in self.lot_info:
@@ -543,6 +554,9 @@ class MultiExchangeManager:
     
     def can_trade(self, exchange: str, symbol: str) -> bool:
         """Check if symbol is tradeable on exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.MultiExchangeManager.can_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         key = f"{exchange}:{symbol}"
         if key in self.lot_info:
             return self.lot_info[key].get('status') == 'TRADING'
@@ -550,6 +564,9 @@ class MultiExchangeManager:
     
     def place_order(self, exchange: str, symbol: str, side: str, qty: float) -> Dict:
         """Place market order on exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.MultiExchangeManager.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if exchange not in self.clients:
             return {'error': f'Exchange {exchange} not available'}
         
@@ -617,6 +634,9 @@ class ElephantMemory:
         self.save()
     
     def should_avoid(self, exchange: str, symbol: str) -> bool:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.ElephantMemory.should_avoid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         key = f"{exchange}:{symbol}"
         if key not in self.symbols:
             return False
@@ -706,6 +726,9 @@ class AureonMultiExchangeTrader:
 
     def sync_all(self) -> Dict[str, Any]:
         """Backward-compatible sync entrypoint for legacy orchestrators."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.AureonMultiExchangeTrader.sync_all blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         self.update_all_tickers()
         opportunities = self.scan_opportunities()
         return {
@@ -716,6 +739,9 @@ class AureonMultiExchangeTrader:
 
     def scan_opportunities(self) -> List[Dict]:
         """Scan all exchanges for opportunities using v6.1 logic."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.AureonMultiExchangeTrader.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         for exchange, tickers in self.ticker_cache.items():
@@ -931,6 +957,9 @@ class AureonMultiExchangeTrader:
     
     def enter_position(self, opp: Dict) -> bool:
         """Enter position on best exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.AureonMultiExchangeTrader.enter_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         exchange = opp['exchange']
         symbol = opp['symbol']
         quote = opp.get('quote', 'USDC')
@@ -1004,6 +1033,9 @@ class AureonMultiExchangeTrader:
     
     def check_exits(self):
         """Check all positions for exit conditions."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.AureonMultiExchangeTrader.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for key in list(self.positions.keys()):
             pos = self.positions[key]
             exchange = pos['exchange']
@@ -1097,6 +1129,9 @@ class AureonMultiExchangeTrader:
     def display_status(self, cycle: int):
         """Display current status across all exchanges."""
         # Get balances
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.AureonMultiExchangeTrader.display_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         balances = {}
         for exchange in self.exchange_mgr.clients.keys():
             for quote in CONFIG['QUOTE_CURRENCIES'].get(exchange, []):
@@ -1132,6 +1167,9 @@ class AureonMultiExchangeTrader:
 """)
     
     def run(self, duration_sec: int = 3600):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_multi_exchange_live.AureonMultiExchangeTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         harmonic_status = "✅ ENABLED" if self.use_6d else "❌ DISABLED"
         logger.info(f"""
 ╔════════════════════════════════════════════════════════════════╗

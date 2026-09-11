@@ -32,7 +32,7 @@ export interface HarmonicWaveform6D {
   d1_price: Dimension;
   d2_volume: Dimension;
   d3_time: Dimension;
-  REDACTED_USE_CLOUD_SECRET: Dimension;
+  d4_correlation: Dimension;
   d5_momentum: Dimension;
   d6_frequency: Dimension;
   
@@ -158,11 +158,11 @@ export class SixDimensionalHarmonicEngine {
     
     // D4: Cross-Market Resonance (correlation dimension)
     const globalFactor = this.ecosystemState.globalResonance;
-    waveform.REDACTED_USE_CLOUD_SECRET.value = globalFactor * externalCoherence;
-    waveform.REDACTED_USE_CLOUD_SECRET.phase = globalFactor * Math.PI;
-    waveform.REDACTED_USE_CLOUD_SECRET.amplitude = externalCoherence;
-    waveform.REDACTED_USE_CLOUD_SECRET.frequency = SCHUMANN * globalFactor;
-    updateDimensionHistory(waveform.REDACTED_USE_CLOUD_SECRET);
+    waveform.d4_correlation.value = globalFactor * externalCoherence;
+    waveform.d4_correlation.phase = globalFactor * Math.PI;
+    waveform.d4_correlation.amplitude = externalCoherence;
+    waveform.d4_correlation.frequency = SCHUMANN * globalFactor;
+    updateDimensionHistory(waveform.d4_correlation);
     
     // D5: Momentum Vortex
     const momentumRaw = changePct / 10; // Normalize percentage
@@ -217,7 +217,7 @@ export class SixDimensionalHarmonicEngine {
       d1_price: createDimension('Price Wave'),
       d2_volume: createDimension('Volume Pulse'),
       d3_time: createDimension('Temporal Phase'),
-      REDACTED_USE_CLOUD_SECRET: createDimension('Cross-Market Resonance'),
+      d4_correlation: createDimension('Cross-Market Resonance'),
       d5_momentum: createDimension('Momentum Vortex'),
       d6_frequency: createDimension('Harmonic Frequency'),
       dimensionalCoherence: 0.5,
@@ -235,7 +235,7 @@ export class SixDimensionalHarmonicEngine {
   }
   
   private calculateDimensionalCoherence(wf: HarmonicWaveform6D): number {
-    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.REDACTED_USE_CLOUD_SECRET, wf.d5_momentum, wf.d6_frequency];
+    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.d4_correlation, wf.d5_momentum, wf.d6_frequency];
     const phases = dims.map(d => d.phase);
     
     // Calculate phase variance
@@ -247,7 +247,7 @@ export class SixDimensionalHarmonicEngine {
   }
   
   private calculatePhaseAlignment(wf: HarmonicWaveform6D): number {
-    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.REDACTED_USE_CLOUD_SECRET, wf.d5_momentum, wf.d6_frequency];
+    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.d4_correlation, wf.d5_momentum, wf.d6_frequency];
     
     // Check alignment with golden ratio harmonics
     let alignment = 0;
@@ -261,7 +261,7 @@ export class SixDimensionalHarmonicEngine {
   }
   
   private calculateEnergyDensity(wf: HarmonicWaveform6D): number {
-    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.REDACTED_USE_CLOUD_SECRET, wf.d5_momentum, wf.d6_frequency];
+    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.d4_correlation, wf.d5_momentum, wf.d6_frequency];
     
     // E = 0.5 * A² * ω² for each dimension
     const totalEnergy = dims.reduce((sum, d) => {
@@ -285,7 +285,7 @@ export class SixDimensionalHarmonicEngine {
   
   private calculateHarmonicConvergence(wf: HarmonicWaveform6D): number {
     // Check if frequencies are converging to harmonic ratios
-    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.REDACTED_USE_CLOUD_SECRET, wf.d5_momentum, wf.d6_frequency];
+    const dims = [wf.d1_price, wf.d2_volume, wf.d3_time, wf.d4_correlation, wf.d5_momentum, wf.d6_frequency];
     const freqs = dims.map(d => d.frequency);
     
     let harmonicScore = 0;
@@ -384,7 +384,7 @@ export class SixDimensionalHarmonicEngine {
       waveforms.reduce((sum, wf) => sum + wf.d1_price.amplitude, 0) / waveforms.length,
       waveforms.reduce((sum, wf) => sum + wf.d2_volume.amplitude, 0) / waveforms.length,
       waveforms.reduce((sum, wf) => sum + wf.d3_time.amplitude, 0) / waveforms.length,
-      waveforms.reduce((sum, wf) => sum + wf.REDACTED_USE_CLOUD_SECRET.amplitude, 0) / waveforms.length,
+      waveforms.reduce((sum, wf) => sum + wf.d4_correlation.amplitude, 0) / waveforms.length,
       waveforms.reduce((sum, wf) => sum + wf.d5_momentum.amplitude, 0) / waveforms.length,
       waveforms.reduce((sum, wf) => sum + wf.d6_frequency.amplitude, 0) / waveforms.length,
     ];

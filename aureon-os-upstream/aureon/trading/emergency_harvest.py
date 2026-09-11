@@ -11,6 +11,9 @@ Notes:
 - Routes sells through MultiExchangeClient so it works across exchanges
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import json
 import os
@@ -52,6 +55,9 @@ def _is_order_success(result: dict) -> bool:
 
 
 def main() -> Tuple[int, float]:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.emergency_harvest.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     dry_run = '--dry-run' in sys.argv
 
     try:

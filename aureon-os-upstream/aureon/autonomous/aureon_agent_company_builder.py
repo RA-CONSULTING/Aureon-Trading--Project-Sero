@@ -2634,6 +2634,7 @@ def build_agent_company_bill_list(
             "passports": [],
         }
     brain_fabric_ready = bool(brain_fabric.get("ready"))
+    brain_fabric_routing_live = bool(brain_fabric.get("routing_live") or brain_fabric_ready)
     passport_by_subject = {
         (item.get("subject_type"), item.get("subject_id")): item
         for item in brain_fabric.get("passports", [])
@@ -2653,6 +2654,12 @@ def build_agent_company_bill_list(
             passport_by_subject.get(("process", process_id), {})
             if canonical_brain_member and process_id
             else {}
+        )
+        role_brain_routing_live = bool(
+            brain_fabric_routing_live
+            and canonical_brain_member
+            and agent_passport
+            and process_passport
         )
         role_brain_provisioned = bool(
             brain_fabric_ready
@@ -2677,6 +2684,8 @@ def build_agent_company_bill_list(
             "paired_process_id": process_id,
             "agent_brain_passport_id": agent_passport.get("receipt_id"),
             "process_brain_passport_id": process_passport.get("receipt_id"),
+            "routing_live": role_brain_routing_live,
+            "execution_ready": role_brain_provisioned,
             "provisioned": role_brain_provisioned,
             "tools_enabled": False,
             "action_eligible": False,
@@ -2736,6 +2745,7 @@ def build_agent_company_bill_list(
             "executable_agents_created": brain_fabric_ready,
             "brain_fabric_status": brain_fabric.get("status"),
             "brain_fabric_ready": brain_fabric_ready,
+            "brain_fabric_routing_live": brain_fabric_routing_live,
             "agent_brain_count": int(brain_fabric.get("agent_brain_count") or 0),
             "process_brain_count": int(brain_fabric.get("process_brain_count") or 0),
             "brain_passport_count": int(brain_fabric.get("brain_passport_count") or 0),
@@ -2749,7 +2759,15 @@ def build_agent_company_bill_list(
         "generated_at": generated_at,
         "company_name": "Aureon Agent Company",
         "goal": goal,
-        "status": "agent_company_brain_fabric_ready" if brain_fabric_ready else "agent_company_registry_ready",
+        "status": (
+            "agent_company_brain_fabric_ready"
+            if brain_fabric_ready
+            else (
+                "agent_company_brain_routing_live_action_held"
+                if brain_fabric_routing_live
+                else "agent_company_registry_ready"
+            )
+        ),
         "summary": summary,
         "brain_fabric": brain_fabric,
         "capability_taxonomy_sources": MARKET_CAPABILITY_TAXONOMY,
@@ -2813,6 +2831,7 @@ def build_agent_company_bill_list(
             "did_attach_bio_cosmic_organisation_doctrine": BIO_COSMIC_ORGANISATION_DOCTRINE["ethos"]
             == "bio_cosmic_living_system_organisation",
             "did_build_agent_blueprints": bool(recruitment_engine.get("agent_blueprints")),
+            "did_route_all_agent_and_process_brains": brain_fabric_routing_live,
             "did_provision_all_agent_and_process_brains": all_registered_roles_brain_provisioned,
             "did_provision_all_canonical_agent_and_process_brains": all_canonical_brains_provisioned,
             "did_keep_public_design_roles_registry_only": all(

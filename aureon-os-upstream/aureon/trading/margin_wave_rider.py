@@ -29,6 +29,8 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import logging
 from dataclasses import dataclass
@@ -281,6 +283,9 @@ class MarginWaveRider:
         -------
         (approved: bool, check: WaveCheck)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.margin_wave_rider.MarginWaveRider.check_from_client blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         try:
             tb = kraken_client.get_trade_balance()
             equity = float(tb.get("equity", tb.get("equity_value", 0)) or 0)
@@ -360,6 +365,9 @@ def check_wave(equity: float, margin_used: float,
 def check_wave_from_client(kraken_client, new_notional: float,
                            leverage: float) -> Tuple[bool, WaveCheck]:
     """Module-level convenience — fetches live data then checks."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.margin_wave_rider.check_wave_from_client blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     return WAVE_RIDER.check_from_client(kraken_client, new_notional, leverage)
 
 

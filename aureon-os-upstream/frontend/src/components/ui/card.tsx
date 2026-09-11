@@ -8,6 +8,7 @@ const Card = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
+    data-aureon-ui="card"
     className={cn(
       "rounded-lg border border-border bg-card text-card-foreground shadow-md",
       className
@@ -35,6 +36,7 @@ const CardTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <h3
     ref={ref}
+    data-aureon-ui="card-title"
     className={cn(
       "text-2xl font-semibold leading-none tracking-tight text-foreground",
       className

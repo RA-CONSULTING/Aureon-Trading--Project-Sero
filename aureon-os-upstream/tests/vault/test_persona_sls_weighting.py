@@ -11,6 +11,14 @@ from aureon.vault.voice.aureon_personas import build_aureon_personas
 from aureon.vault.voice.persona_vacuum import PersonaVacuum
 
 
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch, tmp_path) -> None:
+    """Default every test to the fail-closed HOLD: point the release
+    record at a path that does not exist."""
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
 class _Trap:
     def __getattribute__(self, _name: str) -> Any:
         raise AssertionError("release-held SLS wiring touched an effect owner")

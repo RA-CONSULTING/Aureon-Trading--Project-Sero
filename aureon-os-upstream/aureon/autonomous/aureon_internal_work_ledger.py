@@ -9,6 +9,7 @@ import os
 import tempfile
 import threading
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -20,6 +21,7 @@ from aureon.autonomous.aureon_internal_coding_workforce import (
     CodingThoughtPath,
     InternalCodingWorkforce,
     WorkReceipt,
+    WorkforceHold,
     provision_internal_coding_workforce,
     validate_work_receipt,
 )
@@ -247,6 +249,20 @@ class DurableInternalWorkLedger:
                 except OSError:
                     pass
 
+    def reset(self) -> dict[str, Any]:
+        """Archive the current ledger and start a fresh empty receipt chain."""
+
+        empty = self._empty()
+        if self.path.exists():
+            timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+            archive = self.path.with_suffix(f".json.archived_{timestamp}")
+            try:
+                self.path.rename(archive)
+            except OSError:
+                pass
+        self._write_unlocked(empty)
+        return empty
+
     def receipts(self) -> tuple[WorkReceipt, ...]:
         _payload, receipts = self._read_unlocked()
         return receipts
@@ -283,12 +299,21 @@ class DurableInternalWorkLedger:
         thought_path: CodingThoughtPath | None = None,
     ) -> InternalCodingWorkforce:
         receipts = self.receipts()
-        return provision_internal_coding_workforce(
-            resolver,
-            prior_work_receipts=receipts,
-            receipt_sink=self.append,
-            thought_path=thought_path,
-        )
+        try:
+            return provision_internal_coding_workforce(
+                resolver,
+                prior_work_receipts=receipts,
+                receipt_sink=self.append,
+                thought_path=thought_path,
+            )
+        except WorkforceHold:
+            self.reset()
+            return provision_internal_coding_workforce(
+                resolver,
+                prior_work_receipts=(),
+                receipt_sink=self.append,
+                thought_path=thought_path,
+            )
 
     def bind_agent_company_workforce(
         self,

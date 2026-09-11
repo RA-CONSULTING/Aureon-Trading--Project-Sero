@@ -21,9 +21,15 @@ if sys.platform == 'win32':
         pass
 
 import json
+import logging
 import time
 from datetime import datetime
 from pathlib import Path
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
+
 
 class LiveMonitor:
     def __init__(self):
@@ -40,8 +46,12 @@ class LiveMonitor:
     
     def get_current_balances(self):
         """Get current balances from various sources"""
+        if no_external_api_calls():
+            logger.info("LiveMonitor.get_current_balances blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         balances = {}
-        
+
         # Try to read alpaca balance
         try:
             import aureon.exchanges.alpaca_client as alpaca_client

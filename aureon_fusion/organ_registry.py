@@ -96,6 +96,7 @@ from .paths import (
 from . import events
 
 REGISTRY_FILE = FUSION_STATE / "organ_registry.json"
+OBSERVED_IDENTITY_FILE = FUSION_STATE / "observed_process_identity.json"
 
 # Capital release pin. Owned by the orchestrator — this module only READS
 # its presence. Never create, touch, or delete it here.
@@ -265,6 +266,86 @@ def _queen_mind_spec() -> dict:
 # The table is in dependency order: data feeders first, radar organs last.
 # `start --all` walks it forward, `stop --all` walks it in reverse.
 ORGANS = {
+    "unified_market_trader": {
+        "module": "aureon.exchanges.unified_market_trader",
+        "match": "aureon.exchanges.unified_market_trader",
+        "args": ["--interval", "2"], "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (provider analysis; order and exchange mutation holds)",
+        "log": str(LOGS / "organ_unified_market_trader.log"),
+        "env": _radar_env({
+            # The supervisor runs with suppressed imports; this analysis service
+            # needs native provider clients, with mutations held separately below.
+            "AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS": "0", "AUREON_AUDIT_MODE": "0",
+            "AUREON_ENV_FILE": str(AUREON_RADAR / ".env"),
+            "AUREON_DISABLE_REAL_ORDERS": "1", "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0", "AUREON_LIVE_TRADING": "0",
+            "AUREON_UNIFIED_ORDER_EXECUTOR": "0", "UNIFIED_LIGHTWEIGHT_KRAKEN_BOOT": "1",
+            "UNIFIED_KRAKEN_SPOT_COST_BASIS_PROBE": "0", "CAPITAL_MIND_MAP_REFRESH_ENABLED": "0",
+            "UNIFIED_CAPITAL_TICK_TIMEOUT_SEC": "5", "UNIFIED_KRAKEN_TICK_TIMEOUT_SEC": "5",
+            "UNIFIED_EXCHANGE_DASHBOARD_PAYLOAD_TIMEOUT_SEC": "2",
+            "UNIFIED_ORDERBOOK_PROBE_MAX_PER_TICK": "2", "UNIFIED_INTEL_ORDERBOOK_MAX_BONUS": "0",
+            "PYTHONUTF8": "1",
+        }),
+    },
+    "operator_gateway": {
+        "requires_local_http_profile": True,
+        "module": "aureon.operator.operator_server",
+        "match": "aureon.operator.operator_server",
+        "args": [], "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (existing local operator gateway on port 8080)",
+        "log": str(LOGS / "organ_operator_gateway.log"),
+        "env": _launch_env({
+            "AUREON_ENV_FILE": str(AUREON_RADAR / ".env"),
+            # Allow the operator's configured model to answer UI requests while
+            # import audit guards and the four execution controls stay enabled.
+            "AUREON_LLM_ALLOW_HTTP_IN_AUDIT": "1",
+            "AUREON_LLM_REQUEST_TIMEOUT_S": "25",
+            "AUREON_DISABLE_REAL_ORDERS": "1", "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0", "AUREON_LIVE_TRADING": "0",
+            "AUREON_UNIFIED_ORDER_EXECUTOR": "0", "PYTHONUTF8": "1",
+        }),
+    },
+    "frontend_vite": {
+        "requires_local_http_profile": True,
+        "executable": r"C:\Program Files\nodejs\node.exe",
+        "script": str(AUREON_UPSTREAM / "frontend" / "node_modules" / "vite" / "bin" / "vite.js"),
+        "match": "node_modules\\vite\\bin\\vite.js",
+        "args": ["--host", "127.0.0.1", "--port", "5173", "--strictPort"],
+        "cwd": str(AUREON_UPSTREAM / "frontend"),
+        "mode": "continuous (local frontend on port 5173)",
+        "log": str(LOGS / "organ_frontend_vite.log"),
+        "env": _launch_env({"AUREON_TERMINAL_STATE_URL": "http://127.0.0.1:8791",
+                            "AUREON_OPERATOR_URL": "http://127.0.0.1:8080"}),
+    },
+    "unified_market_status": {
+        "module": "aureon.exchanges.unified_market_status_server",
+        "match": "aureon.exchanges.unified_market_status_server",
+        "args": ["--port", "8791"], "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (read-only terminal status on port 8791)",
+        "log": str(LOGS / "organ_unified_market_status.log"),
+        "env": _launch_env(),
+    },
+    "market_stream_feeder": {
+        "module": "aureon.data_feeds.ws_market_data_feeder",
+        "match": "aureon.data_feeds.ws_market_data_feeder",
+        "args": ["--out", str(AUREON_UPSTREAM / "ws_cache" / "ws_prices.json"),
+                 "--kraken", "--write-interval-s", "1", "--kraken-interval-s", "30", "--quiet"],
+        "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (public Binance websocket and Kraken market snapshots)",
+        "log": str(LOGS / "organ_market_stream_feeder.log"),
+        "env": _launch_env({
+            "AUREON_STREAM_FEEDER_BATON": "0",
+            "AUREON_STREAM_ENABLE_ALPACA": "0",
+            "AUREON_STREAM_ENABLE_CAPITAL": "0",
+            "AUREON_ALLOW_DUPLICATE_STREAM_FEEDER": "0",
+            "AUREON_DISABLE_REAL_ORDERS": "1",
+            "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0",
+            "AUREON_LIVE_TRADING": "0",
+            "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+            "PYTHONUTF8": "1",
+        }),
+    },
     "real_time_data_feeder": {
         "script": str(REALTIME_FEEDER),
         "args": [],
@@ -491,7 +572,15 @@ ORGANS = {
         "cwd": str(AUREON_RADAR),
         "mode": "continuous (aiohttp orca dashboard :8888)",
         "log": str(AUREON_RADAR / "logs" / "orca_command_center.log"),
-        "env": _radar_env({"PYTHONUTF8": "1"}),
+        "env": _radar_env({
+            "PYTHONUTF8": "1",
+            # Existing native provider reads continue; this dashboard has no
+            # authority to publish order intents or mutate exchange accounts.
+            "AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS": "0", "AUREON_AUDIT_MODE": "0",
+            "AUREON_DISABLE_REAL_ORDERS": "1", "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0", "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+            "AUREON_LIVE_TRADING": "0",
+        }),
     },
     "unity_supervisor": {
         "module": "aureon_fusion.unity_supervisor",
@@ -520,6 +609,58 @@ ORGANS = {
         "log": str(LOGS / "organ_bus_bridge.log"),
         "env": _workspace_env(),
     },
+    # ── Phase 6: read-only assessment / affect / HNC live producers ───────────
+    # These upstream modules publish the runtime snapshots consumed by
+    # aureon/saas/observed_runtime.py. They are launched with the four safety
+    # holds in force; they read state and emit JSON, never exchange mutation.
+    "assessment_snapshot_producer": {
+        "module": "aureon.autonomous.aureon_assessment_snapshot_producer",
+        "match": "aureon.autonomous.aureon_assessment_snapshot_producer",
+        "args": ["--daemon", "--interval", "60", "--quiet"],
+        "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (60s read-only assessment snapshots)",
+        "log": str(LOGS / "organ_assessment_snapshot_producer.log"),
+        "env": _launch_env({
+            "AUREON_DISABLE_REAL_ORDERS": "1",
+            "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0",
+            "AUREON_LIVE_TRADING": "0",
+            "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+            "PYTHONUTF8": "1",
+        }),
+    },
+    "harmonic_affect_producer": {
+        "module": "aureon.autonomous.aureon_harmonic_affect_state",
+        "match": "aureon.autonomous.aureon_harmonic_affect_state",
+        "args": ["--daemon", "--interval", "60", "--quiet"],
+        "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (60s harmonic affect state)",
+        "log": str(LOGS / "organ_harmonic_affect_producer.log"),
+        "env": _launch_env({
+            "AUREON_DISABLE_REAL_ORDERS": "1",
+            "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0",
+            "AUREON_LIVE_TRADING": "0",
+            "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+            "PYTHONUTF8": "1",
+        }),
+    },
+    "hnc_live_daemon": {
+        "module": "aureon.core.hnc_live_daemon",
+        "match": "aureon.core.hnc_live_daemon",
+        "args": [],
+        "cwd": str(AUREON_UPSTREAM),
+        "mode": "continuous (HNC live Λ(t) field)",
+        "log": str(LOGS / "organ_hnc_live_daemon.log"),
+        "env": _launch_env({
+            "AUREON_DISABLE_REAL_ORDERS": "1",
+            "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+            "AUREON_ORDER_INTENT_PUBLISH": "0",
+            "AUREON_LIVE_TRADING": "0",
+            "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+            "PYTHONUTF8": "1",
+        }),
+    },
 }
 
 # On-demand tools that are NOT organs (note only — kept out of ORGANS on
@@ -533,6 +674,8 @@ ORGAN_ORDER = list(ORGANS)
 
 def _release_granted() -> bool:
     """True only when the orchestrator has pulled the capital pin."""
+    if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
+        return False
     return CAPITAL_RELEASE_FLAG.exists()
 
 
@@ -563,6 +706,21 @@ def _excluded_pids() -> set:
     except Exception:
         pass
     return excluded
+
+
+def _process_creation_time(pid) -> float | None:
+    """Native process creation time (epoch) for a PID, or None if unavailable.
+
+    A recorded creation time lets downstream observers verify that a live PID
+    still belongs to the process the registry launched, not a recycled PID.
+    """
+    if not pid:
+        return None
+    try:
+        import psutil
+        return float(psutil.Process(pid).create_time())
+    except Exception:
+        return None
 
 
 def _match_pattern(spec: dict):
@@ -602,8 +760,16 @@ def _iter_matching_pids(spec: dict):
         import psutil
         excluded = _excluded_pids()
         found = []
-        for proc in psutil.process_iter(["cmdline"]):
+        executables = {"python", "python.exe", "pythonw.exe", "python3", "node", "node.exe"}
+        if spec.get("executable"):
+            executables.add(Path(spec["executable"]).name.lower())
+        for proc in psutil.process_iter(["name"]):
             if proc.pid in excluded:
+                continue
+            # Every registered organ uses Python or an explicit executable.
+            # Reading command lines from unrelated Windows processes can block
+            # recovery for minutes; their image name already excludes them.
+            if str(proc.info.get("name") or "").lower() not in executables:
                 continue
             try:
                 cmdline = " ".join(proc.cmdline() or [])
@@ -627,7 +793,7 @@ def _find_running_pid(spec: dict):
     return pids[0] if pids else None
 
 
-def _kill_tree(pid) -> bool:
+def _kill_tree(pid, *, preserve_children: bool = False) -> bool:
     """Terminate a process AND its whole descendant tree (Windows children
     survive parent termination — e.g. master_launcher's unified_hub and
     phi_radar). Children first, newest-first; escalate to kill after a
@@ -641,7 +807,8 @@ def _kill_tree(pid) -> bool:
             return True
         procs = [root]
         try:
-            procs.extend(root.children(recursive=True))
+            if not preserve_children:
+                procs.extend(root.children(recursive=True))
         except Exception:
             pass
         # Newest first so children die before their parents can respawn them
@@ -656,13 +823,30 @@ def _kill_tree(pid) -> bool:
                 p.terminate()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
-        gone, alive = psutil.wait_procs(procs, timeout=5)
+        def _wait_remaining(candidates):
+            try:
+                return psutil.wait_procs(candidates, timeout=5)[1]
+            except psutil.AccessDenied:
+                # Windows can deny OpenProcess while a terminated process is
+                # disappearing. Recheck liveness; permission failure itself is
+                # never evidence that termination succeeded.
+                remaining = []
+                for candidate in candidates:
+                    try:
+                        if candidate.is_running():
+                            remaining.append(candidate)
+                    except psutil.NoSuchProcess:
+                        pass
+                    except psutil.AccessDenied:
+                        remaining.append(candidate)
+                return remaining
+        alive = _wait_remaining(procs)
         for p in alive:
             try:
                 p.kill()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
-        gone2, alive2 = psutil.wait_procs(alive, timeout=5)
+        alive2 = _wait_remaining(alive)
         return not alive2
     except ImportError:
         return False
@@ -772,8 +956,15 @@ def _load_registry() -> dict:
     externally-started instances of supervised organs. The reconcile+save
     runs under the advisory lock so two registry processes cannot interleave
     a read-modify-write."""
-    with _registry_lock():
+    with _registry_lock() as held:
         reg = _read_registry_file()
+        if not held:
+            # The atomic snapshot is readable while another writer owns the
+            # lock. Do not turn a failed read lock into a fleet scan or a
+            # second write attempt that blocks an unrelated recovery command.
+            for name, spec in ORGANS.items():
+                reg["organs"].setdefault(name, {}).setdefault("mode", spec["mode"])
+            return reg
         changed = False
         for name, spec in ORGANS.items():
             entry = reg["organs"].get(name, {})
@@ -794,6 +985,7 @@ def _load_registry() -> dict:
                 if found:
                     entry["pid"] = found
                     entry["adopted_external_at"] = int(time.time())
+                    entry["process_created_at"] = _process_creation_time(found)
                     changed = True
             entry.setdefault("mode", spec["mode"])
             reg["organs"][name] = entry
@@ -941,6 +1133,22 @@ def _rotate_log_if_oversized(log_path: Path) -> None:
 
 
 def start(organ: str) -> dict:
+    """Serialize liveness check, spawn and PID publication as one operation.
+
+    A supervisor and a manual start must not both pass the duplicate guard
+    before either has published its PID. A lock conflict never starts a child.
+    """
+    if organ not in ORGANS:
+        return {"ok": False, "error": f"unknown organ '{organ}': {sorted(ORGANS)}"}
+    with _registry_lock() as held:
+        if not held:
+            return {"ok": False, "organ": organ, "state": "registry_busy",
+                    "reason": "registry is busy; no process was started"}
+        return _start_locked(organ)
+
+
+def _start_locked(organ: str) -> dict:
+    """Start implementation; caller holds the re-entrant registry lock."""
     spec = ORGANS.get(organ)
     if not spec:
         return {"ok": False, "error": f"unknown organ '{organ}': {sorted(ORGANS)}"}
@@ -986,11 +1194,28 @@ def start(organ: str) -> dict:
     if sys.platform == "win32":
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         flags |= getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    if spec.get("module"):
+    if spec.get("executable"):
+        cmd = [spec["executable"], spec["script"], *spec["args"]]
+    elif spec.get("module"):
         cmd = [sys.executable, "-u", "-m", spec["module"], *spec["args"]]
     else:
         cmd = [sys.executable, "-u", spec["script"], *spec["args"]]
     env = spec.get("env")
+    if organ in {"operator_gateway", "frontend_vite"}:
+        # Load only the installed account-protected HTTP profile, at spawn time.
+        # Keep credentials out of the registry, command line and event receipts.
+        import importlib.util
+
+        profile_path = AUREON_UPSTREAM / "aureon" / "operator" / "local_http_profile.py"
+        required_profile = spec.get("requires_local_http_profile") is True
+        if required_profile and not profile_path.is_file():
+            return {"ok": False, "organ": organ, "state": "blocked",
+                    "reason": "commissioned HTTP credential loader missing"}
+        if profile_path.is_file():
+            module_spec = importlib.util.spec_from_file_location("aureon_local_http_profile", profile_path)
+            profile_module = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(profile_module)
+            env = profile_module.service_environment(organ, dict(env or os.environ), required=required_profile)
     with open(log_path, "a", encoding="utf-8", errors="replace") as logf:
         proc = subprocess.Popen(
             cmd, cwd=spec["cwd"],
@@ -1001,6 +1226,7 @@ def start(organ: str) -> dict:
         "pid": proc.pid,
         "started_at": int(time.time()),
         "started_at_iso": datetime.now(timezone.utc).isoformat(),
+        "process_created_at": _process_creation_time(proc.pid),
         "cmd": cmd,
         "mode": spec["mode"],
         "log": spec["log"],
@@ -1040,10 +1266,19 @@ def stop(organ: str, timeout: int = 8) -> dict:
             _save_registry(reg)
         return {"ok": True, "organ": organ, "state": "not_running"}
 
-    stopped = _kill_tree(pid)
+    # The supervisor's descendants are independent registered services. Reload
+    # its policy without terminating the runtime it supervises.
+    stopped = _kill_tree(pid, preserve_children=organ == "unity_supervisor")
 
     if not stopped:
-        stopped = _taskkill(pid)  # tree-kill fallback catches children
+        stopped = _taskkill(pid, preserve_children=organ == "unity_supervisor")
+
+    if not stopped:
+        # Preserve the recorded owner when Windows denied termination. Clearing
+        # it and calling start would merely adopt the old process and falsely
+        # report a completed restart with stale launch configuration.
+        return {"ok": False, "organ": organ, "state": "stop_failed", "pid": pid,
+                "reason": "registered process could not be stopped; existing owner preserved"}
 
     if stopped:
         # Audit trail: the kill lands in the intrusion ledger
@@ -1072,10 +1307,10 @@ def stop(organ: str, timeout: int = 8) -> dict:
             "pid": pid}
 
 
-def _taskkill(pid) -> bool:
+def _taskkill(pid, *, preserve_children: bool = False) -> bool:
     try:
         subprocess.run(
-            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            ["taskkill", "/PID", str(pid), *([] if preserve_children else ["/T"]), "/F"],
             capture_output=True, timeout=15,
         )
         return not _pid_alive(pid)
@@ -1084,7 +1319,9 @@ def _taskkill(pid) -> bool:
 
 
 def restart(organ: str) -> dict:
-    stop(organ)
+    stopped = stop(organ)
+    if not stopped.get("ok"):
+        return stopped
     return start(organ)
 
 
@@ -1175,7 +1412,9 @@ def prune() -> dict:
                 # queen). Ambiguous → report and skip, never kill.
                 skipped.append(pid)
                 continue
-            if _kill_tree(pid):
+            # Supervised services remain independent when a duplicate
+            # supervisor is removed, just as when its policy is restarted.
+            if _kill_tree(pid, preserve_children=name == "unity_supervisor"):
                 killed.append(pid)
             else:
                 failures.append(pid)
@@ -1225,8 +1464,88 @@ def stop_all() -> dict:
     return results
 
 
+def _cwd_matches(spec: dict, process) -> bool:
+    """True when the process cwd matches the organ's configured cwd."""
+    expected = spec.get("cwd")
+    if not expected:
+        return True
+    try:
+        actual = process.cwd()
+    except Exception:
+        return False
+    return Path(actual).resolve() == Path(expected).resolve()
+
+
+def write_observed_process_identity() -> dict:
+    """Verify every registered PID and write an identity receipt.
+
+    The receipt follows the schema expected by
+    aureon.saas.observed_runtime.py (_project kind="process_identity"):
+    {schema: "aureon.process_identity.v1", generated_at, organs: {name: {
+        pid, process_created_at, process_name, spec_match, cwd_match,
+        verified_at}}}.
+
+    This is cheap enough to run inside the unity_supervisor cycle; it only
+    probes PIDs already recorded in the registry.
+    """
+    reg = _load_registry()
+    now = time.time()
+    rows = {}
+    try:
+        import psutil
+        native = psutil.Process
+    except Exception:
+        native = None
+    for name, spec in ORGANS.items():
+        entry = reg["organs"].get(name, {})
+        pid = entry.get("pid")
+        if not pid:
+            continue
+        row = {"pid": pid}
+        if native is None:
+            row["reason"] = "native_process_reader_missing"
+        else:
+            try:
+                proc = native(pid)
+                if not proc.is_running():
+                    continue
+                cmdline = " ".join(proc.cmdline() or [])
+                row.update({
+                    "process_created_at": float(proc.create_time()),
+                    "process_name": str(proc.name()).lower(),
+                    "spec_match": _cmdline_matches(cmdline, spec),
+                    "cwd_match": _cwd_matches(spec, proc),
+                    "verified_at": now,
+                })
+            except Exception:
+                continue
+        rows[name] = row
+    payload = {
+        "schema": "aureon.process_identity.v1",
+        "generated_at": now,
+        "organs": rows,
+    }
+    FUSION_STATE.mkdir(parents=True, exist_ok=True)
+    tmp = OBSERVED_IDENTITY_FILE.with_name(
+        f"{OBSERVED_IDENTITY_FILE.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        _replace_with_retry(tmp, OBSERVED_IDENTITY_FILE)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    return payload
+
+
 def status_data() -> dict:
     """Liveness snapshot for every supervised organ."""
+
     reg = _load_registry()
     out = {}
     stale = []

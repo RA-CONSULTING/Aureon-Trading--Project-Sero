@@ -30,6 +30,8 @@ STRATEGY:
 - Use CHECKPOINTS to secure gains before next move
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import asyncio
 import time
@@ -155,6 +157,9 @@ class TurnBasedStrategy:
     
     def update_board(self, holdings: Dict[str, Dict[str, float]], prices: Dict[str, Dict[str, float]]):
         """Update board state from current holdings"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_turn_strategy.TurnBasedStrategy.update_board blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for exchange, assets in holdings.items():
             for asset, amount in assets.items():
                 if amount < 0.001:
@@ -190,6 +195,9 @@ class TurnBasedStrategy:
         Uses probability matrix + mycelium consensus
         to find the GUARANTEED PROFIT move.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_turn_strategy.TurnBasedStrategy.get_best_move blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         candidates: List[PlannedMove] = []
         
         # 1. CHECK SELLS - Can we harvest any profits?
@@ -472,6 +480,9 @@ class ProfitGate:
         Check if selling would be profitable.
         Returns: (allowed, expected_profit, reason)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_turn_strategy.ProfitGate.can_sell blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not self.trade_tracker or asset not in self.trade_tracker.cost_basis:
             return False, 0, "No cost basis - can't calculate profit"
         

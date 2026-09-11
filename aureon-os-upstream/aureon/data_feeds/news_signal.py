@@ -28,6 +28,8 @@ from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 import re
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  Config
 # ─────────────────────────────────────────────────────────────────────────────
@@ -140,6 +142,9 @@ class NewsSignalResult:
     headline_count: int = 0
     # Timestamp of last fetch
     fetched_at: float = 0.0
+    # Truth status / reason for no-data
+    truth_status: str = 'live'
+    reason: Optional[str] = None
     # Whether data is stale
     @property
     def age_minutes(self) -> float:
@@ -151,6 +156,8 @@ class NewsSignalResult:
 
     def summary(self) -> str:
         parts = [f"RISK:{self.risk_level}"]
+        if self.reason:
+            parts.append(f"reason={self.reason}")
         for cat in ('crypto', 'forex', 'index', 'commodity', 'stock'):
             s = self.sentiment.get(cat, 0.0)
             if abs(s) >= 0.1:
@@ -266,6 +273,11 @@ class NewsSignalFetcher:
             return self._result
 
     def _fetch_all(self) -> NewsSignalResult:
+        if no_external_api_calls():
+            return NewsSignalResult(
+                truth_status='no_source',
+                reason='AUREON_NO_EXTERNAL_API_CALLS',
+            )
         headlines: List[str] = []
         for name, url, _hint in RSS_FEEDS:
             fetched = _fetch_rss(url)

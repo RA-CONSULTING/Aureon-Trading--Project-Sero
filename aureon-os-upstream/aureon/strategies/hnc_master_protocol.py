@@ -29,6 +29,8 @@ from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass, field
 from collections import deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Optional: matplotlib for visualization
 try:
     import matplotlib.pyplot as plt
@@ -878,6 +880,9 @@ class LiveMarketFrequencyFeed:
         
     def fetch_live_crypto_data(self) -> dict:
         """Fetch live crypto data from CoinGecko (free, no API key)."""
+        if no_external_api_calls():
+            print("LiveMarketFrequencyFeed.fetch_live_crypto_data blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
         try:
             import urllib.request
             import json
@@ -923,6 +928,9 @@ class LiveMarketFrequencyFeed:
     
     def fetch_fear_greed_index(self) -> dict:
         """Fetch Fear & Greed Index from alternative.me."""
+        if no_external_api_calls():
+            print("LiveMarketFrequencyFeed.fetch_fear_greed_index blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {'value': 50, 'classification': 'Neutral', 'frequency': 351}
         try:
             import urllib.request
             import json

@@ -54,6 +54,8 @@ if sys.platform == 'win32':
     except Exception:
         pass
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ─── Thought Bus ──────────────────────────────────────────────────────────────
@@ -148,6 +150,8 @@ class EnigmaReport:
     by_tier: Dict[str, int] = field(default_factory=dict)
     new_listings: List[str] = field(default_factory=list)    # symbols new today
     all_symbols: List[str] = field(default_factory=list)     # flat canonical list
+    truth_status: str = 'live'
+    reason: Optional[str] = None
 
 
 # ─── Main Machine ─────────────────────────────────────────────────────────────
@@ -319,6 +323,10 @@ class CryptoEnigmaSymbolMachine:
         Full discovery scan across all exchanges.
         Updates catalog, returns a rich report.
         """
+        if no_external_api_calls():
+            logger.info("CryptoEnigmaSymbolMachine.discover_all blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return EnigmaReport(truth_status='no_source', reason='AUREON_NO_EXTERNAL_API_CALLS')
+
         print("🔐 CRYPTO ENIGMA SYMBOL MACHINE — Full Scan Starting...")
         print("═" * 70)
 
@@ -673,6 +681,10 @@ def main():
         level=logging.WARNING,
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
+
+    if no_external_api_calls():
+        logger.info("Crypto Enigma Symbol Machine main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
 
     args = _parse_args()
     machine = CryptoEnigmaSymbolMachine()

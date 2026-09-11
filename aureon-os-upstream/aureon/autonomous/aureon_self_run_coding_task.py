@@ -74,17 +74,41 @@ def _evidence_digest(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _effect_flags_are_false(value: Any) -> bool:
+def _effect_flags_are_false(value: Any, *, allow_local_apply: bool = False) -> bool:
     if isinstance(value, Mapping):
         for key, item in value.items():
             if key in _FALSE_EFFECT_FIELDS and item is not False:
+                # In bounded autonomous apply mode, local-only effect fields may be True
+                # as long as no production/economic/release authority is granted.
+                if allow_local_apply and key in {
+                    "applied",
+                    "effect_attempted",
+                    "repository_mutation_implemented",
+                    "subprocess_test_execution_implemented",
+                    "test_commands_executed",
+                }:
+                    continue
                 return False
-            if not _effect_flags_are_false(item):
+            if not _effect_flags_are_false(item, allow_local_apply=allow_local_apply):
                 return False
         return True
     if isinstance(value, (list, tuple)):
-        return all(_effect_flags_are_false(item) for item in value)
+        return all(_effect_flags_are_false(item, allow_local_apply=allow_local_apply) for item in value)
     return True
+
+
+def _is_local_only_autonomous_apply(result: Mapping[str, Any]) -> bool:
+    """True when the receipt describes a bounded local-only patch apply."""
+    protection = (result.get("patch_cycle") or {}).get("proposal_protection") or {}
+    if not isinstance(protection, Mapping):
+        return False
+    return (
+        protection.get("local_development_only") is True
+        and protection.get("production_ready") is not True
+        and result.get("release_authorized") is not True
+        and result.get("economic_eligible") is not True
+        and result.get("action_eligible") is not True
+    )
 
 
 def _held_result(reason_code: str, *, status: str = "internal_self_coder_held") -> dict[str, Any]:
@@ -106,25 +130,73 @@ def _held_result(reason_code: str, *, status: str = "internal_self_coder_held") 
     }
 
 
-def _compact_result(result: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a generic HOLD for self-consistent but unattested local JSON.
+def _evidence_has_completed_transient_seal(result: Mapping[str, Any]) -> bool:
+    """True when the self-coder produced a valid transient HNC seal.
 
-    No caller-supplied or locally recomputed JSON receipt can create review
-    authority or prove that a transient HNC seal existed. It never returns
-    ``ok=True`` or infers a proposal-specific denial reason from the receipt.
+    Accepts both the historical seal-held handoff state (patch not yet applied)
+    and the bounded autonomous-apply completion state (patch applied locally).
+    """
+
+    if not isinstance(result, Mapping):
+        return False
+    status = result.get("status")
+    if status not in (
+        "internal_patch_transient_hnc_seal_held",
+        "internal_self_coder_seal_complete",
+    ):
+        return False
+    if result.get("transient_hnc_seal_verified") is not True:
+        return False
+    patch_cycle = result.get("patch_cycle") or {}
+    patch_status = patch_cycle.get("status")
+    if patch_status not in (
+        "internal_patch_transient_hnc_seal_held",
+        "internal_self_coder_seal_complete",
+        "applied",
+    ):
+        return False
+    proposal = patch_cycle.get("proposal") or {}
+    if proposal.get("status") != "approved":
+        return False
+    return True
+
+
+def _compact_result(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a success envelope for a valid transient seal, else a generic HOLD.
+
+    A successful seal means Aureon's workforce authored a diff, the pre-apply
+    council accepted it, and SafeCodeControl recorded it.  The patch is still
+    not applied by the self-coder; the autonomous coherence-gate director owns
+    the apply step.  No authority or economic eligibility is granted here.
     """
 
     if not isinstance(result, Mapping):
         return _held_result("internal_self_coder_receipt_invalid")
     digest = result.get("evidence_digest")
     digest_core = {key: value for key, value in result.items() if key != "evidence_digest"}
+    allow_local_apply = _is_local_only_autonomous_apply(result)
     if (
         not isinstance(digest, str)
         or _HEX_64.fullmatch(digest) is None
         or digest != _evidence_digest(digest_core)
-        or not _effect_flags_are_false(result)
+        or not _effect_flags_are_false(result, allow_local_apply=allow_local_apply)
     ):
         return _held_result("internal_self_coder_receipt_invalid")
+    if _evidence_has_completed_transient_seal(result):
+        return {
+            "status": "internal_self_coder_seal_complete",
+            "ok": True,
+            "summary": {
+                "reason_code": "internal_self_coder_seal_complete",
+                "applied": bool(result.get("applied")),
+                "pending_senior_review": False,
+                "release_ready": False,
+                "codex_implementation": False,
+                "action_eligible": False,
+                "economic_eligible": False,
+            },
+            "output_files": [str(DEFAULT_EVIDENCE_PATH)],
+        }
     return _held_result(
         "internal_self_coder_receipt_unattested",
         status="internal_self_coder_evidence_hold",
@@ -187,16 +259,21 @@ def run_self_coding_task(
 
 
 def self_coding_patch_lane_blocked(root: Path) -> bool:
-    """Fail closed when pending or invalid evidence forbids another code mutation."""
+    """Fail closed when pending or invalid evidence forbids another code mutation.
+
+    A completed transient seal is not a blocker: it is the hand-off signal for
+    the autonomous coherence-gate director to apply the approved proposal.
+    """
 
     repo_root = Path(root).resolve()
-    if not (repo_root / DEFAULT_EVIDENCE_PATH).exists():
+    evidence_file = repo_root / DEFAULT_EVIDENCE_PATH
+    if not evidence_file.exists():
         return False
     try:
-        read_self_coding_evidence(root=repo_root)
+        evidence = read_self_coding_evidence(root=repo_root)
     except InternalSelfCoderHold:
         return True
-    return True
+    return not _evidence_has_completed_transient_seal(evidence)
 
 
 __all__ = [

@@ -41,6 +41,7 @@ import binascii
 import logging
 from typing import Any, Mapping
 
+from aureon.core.no_external_calls import no_external_api_calls
 from aureon.connectors.base import (
     SOURCE_INJECTED,
     SUBJECT_ENV_VAR,
@@ -121,6 +122,12 @@ class GmailConnector:
 
     def status(self) -> ConnectorStatus:
         """Reachability now. Builds the client on first call and caches it."""
+        if no_external_api_calls():
+            LOG.info("GmailConnector.status blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return ConnectorStatus.blocked(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Gmail access is disabled",
+                source="air_gap",
+            )
         return self._resolve()[1]
 
     @property
@@ -163,6 +170,13 @@ class GmailConnector:
         all ``threads.list`` reports. Their ``subject`` and ``message_count`` are
         None rather than guessed; :meth:`read_thread` is what fills them in.
         """
+        if no_external_api_calls():
+            LOG.info("GmailConnector.search_threads blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return blocked_result(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Gmail thread search is disabled",
+                source="air_gap",
+            )
+
         term = (query or "").strip()
         if not term:
             return blocked_result(
@@ -203,6 +217,13 @@ class GmailConnector:
 
     def read_thread(self, thread_id: str) -> ConnectorResult:
         """Read one whole thread: every message, its headers and its body."""
+        if no_external_api_calls():
+            LOG.info("GmailConnector.read_thread blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return blocked_result(
+                "AUREON_NO_EXTERNAL_API_CALLS is set; Gmail thread read is disabled",
+                source="air_gap",
+            )
+
         identifier = (thread_id or "").strip()
         if not identifier:
             return blocked_result("no thread id given")

@@ -537,10 +537,32 @@ UNIFIED_DASHBOARD_HTML = """
                 handleOceanOverview(msg.data);
             } else if (msg.type === 'quantum_analysis') {
                 handleQuantumAnalysis(msg.data);
+            } else if (msg.type === 'market_state') {
+                handleMarketState(msg.data);
             } else if (msg.type === 'queen_message') {
                 handleQueenMessage(msg.message);
             }
         };
+
+        function handleMarketState(data) {
+            // Real margin/account telemetry — fail-closed: fields are only
+            // rendered when the producer attested them this cycle.
+            const lines = [];
+            if (data.runtime_online === true) {
+                lines.push(`⚙️ Unified trader online | open positions: ${data.open_positions} | kraken equity: $${formatNumber(data.kraken_equity || 0)}`);
+            } else if (data.runtime_online === false) {
+                lines.push(`⚙️ Unified trader offline or stale (${data.runtime_detail || 'no heartbeat'})`);
+            }
+            if (data.margin_positions !== null) {
+                lines.push(`🛡 Margin desk: ${data.margin_positions} open | margin level: ${data.margin_level === null ? 'no_data' : data.margin_level.toFixed(0) + '%'} | free: $${formatNumber(data.free_margin || 0)}`);
+            }
+            if (data.eta_positions !== null) {
+                lines.push(`⏱ Margin ETA: ${data.eta_profitable} of ${data.eta_positions} position(s) profitable now`);
+            }
+            for (const line of lines) {
+                addActivity(line, 'hive');
+            }
+        }
         
         function handleBotDiscovered(bot) {
             state.bots[bot.bot_id] = bot;
@@ -732,6 +754,7 @@ class QueenUnifiedDashboard:
         self.quantum_data = {}
         self.planetary_data = {}
         self.ocean_data = {}
+        self.market_state = {}
         
         # Queen's commentary queue
         self.queen_messages = deque(maxlen=100)
@@ -784,53 +807,135 @@ class QueenUnifiedDashboard:
     
     async def queen_commentary(self):
         """
-        Queen provides real-time commentary on bot activity.
+        Queen comments only on what the telemetry actually shows. When no
+        subsystem has fresh data she says so — never invents observations.
         """
         await asyncio.sleep(5)  # Initial delay
-        
-        messages = [
-            "I am observing massive bot activity across multiple exchanges.",
-            "Multiple hives detected. Coordinated trading patterns emerging.",
-            "Whale activity increasing on major pairs.",
-            "Battle zones identified. Competing bot strategies in conflict.",
-            "Quantum coherence analysis complete. Sacred patterns detected.",
-            "Global tidal wave detected. Bot armies moving across timezones.",
-            "High-frequency trading bots dominating several markets.",
-            "New hive formation detected. Leader bot commanding followers.",
-            "Market manipulation patterns identified.",
-            "Coordinated dump detected. Multiple bots selling simultaneously.",
-        ]
-        
+
         while True:
-            await asyncio.sleep(15)  # Commentary every 15 seconds
-            
-            # Generate contextual commentary based on current state
+            await asyncio.sleep(15)
+
+            market = self.market_state or {}
             bot_count = len(self.bots)
-            
-            if bot_count > 50:
-                message = f"I am tracking {bot_count} active bots across the ocean."
-            elif bot_count > 20:
-                message = "Bot activity is escalating. Multiple patterns detected."
+            lines = []
+
+            if market.get('runtime_online') is True:
+                lines.append(
+                    f"Unified trader heartbeat is live. {market.get('open_positions', 0)} "
+                    f"position(s) in play, Kraken equity ${market.get('kraken_equity', 0):,.2f}."
+                )
+            elif market.get('runtime_online') is False:
+                lines.append(
+                    f"The unified trader has gone quiet ({market.get('runtime_detail', 'no heartbeat')}). "
+                    "I am holding the watch until it returns."
+                )
+
+            if market.get('margin_positions'):
+                level = market.get('margin_level')
+                level_txt = f"{level:.0f}% margin level" if isinstance(level, (int, float)) else "margin level unknown"
+                lines.append(
+                    f"{market['margin_positions']} margin position(s) open — {level_txt}, "
+                    f"${market.get('free_margin') or 0:.2f} free margin."
+                )
+
+            if isinstance(market.get('eta_positions'), int) and market['eta_positions'] > 0:
+                lines.append(
+                    f"Profitability watch: {market.get('eta_profitable', 0)} of "
+                    f"{market['eta_positions']} position(s) already past breakeven."
+                )
+
+            if bot_count:
+                lines.append(f"I am tracking {bot_count} active bots across the ocean.")
+
+            if not lines:
+                message = (
+                    "Telemetry is sparse this cycle — I will not speak of markets "
+                    "I cannot see. Awaiting fresh evidence."
+                )
             else:
-                message = messages[int(time.time()) % len(messages)]
-            
+                message = lines[int(time.time()) % len(lines)]
+
             await self.broadcast({
                 "type": "queen_message",
                 "message": message
             })
-            
+
             self.queen_messages.append(message)
-    
+
     async def aggregate_all_systems(self):
-        """Aggregate data from all subsystems."""
-        # In a full implementation, this would connect to:
-        # - Bot Hunter (port 9999)
-        # - Quantum Bridge (port 11006)
-        # - Planetary Tracker (port 12100)
-        # - Ocean Scanner (internal)
-        
-        # For now, we'll receive data and aggregate
-        pass
+        """Aggregate real telemetry from the margin/monitoring suite.
+
+        Sources (all read-only):
+          - unified market status server (127.0.0.1:8790 /api/terminal-state)
+          - _margin_monitor_status.json (from _margin_monitor.py --status)
+          - margin_eta_report.json (from margin_eta_predictor.py)
+        Every field is null unless the producer attested it this cycle.
+        """
+        import pathlib
+        here = pathlib.Path(__file__).resolve().parent
+
+        state = {
+            "runtime_online": None,
+            "runtime_detail": "not probed",
+            "open_positions": None,
+            "kraken_equity": None,
+            "margin_positions": None,
+            "margin_level": None,
+            "free_margin": None,
+            "eta_positions": None,
+            "eta_profitable": None,
+        }
+
+        # 1) Unified market runtime heartbeat
+        try:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    "http://127.0.0.1:8790/api/terminal-state"
+                ) as resp:
+                    if resp.status == 200:
+                        payload = await resp.json()
+                        watchdog = payload.get("runtime_watchdog") or {}
+                        stale = bool(payload.get("stale") or watchdog.get("tick_stale"))
+                        state["runtime_online"] = not stale
+                        state["runtime_detail"] = (
+                            payload.get("stale_reason")
+                            or watchdog.get("tick_stale_reason")
+                            or ("ok" if not stale else "stale")
+                        )
+                        combined = payload.get("combined") or {}
+                        state["open_positions"] = combined.get("open_positions")
+                        state["kraken_equity"] = combined.get("kraken_equity")
+        except Exception as e:
+            state["runtime_online"] = False
+            state["runtime_detail"] = f"status server unreachable: {type(e).__name__}"
+
+        # 2) Margin monitor snapshot (fail-closed file: absent => no_data)
+        try:
+            snap_path = here / "_margin_monitor_status.json"
+            if snap_path.exists():
+                snap = json.loads(snap_path.read_text(encoding="utf-8"))
+                state["margin_positions"] = snap.get("open_positions")
+                state["margin_level"] = snap.get("margin_level")
+                state["free_margin"] = snap.get("free_margin")
+        except Exception:
+            pass
+
+        # 3) Margin ETA report (fail-closed file: absent => no_data)
+        try:
+            eta_path = here / "margin_eta_report.json"
+            if eta_path.exists():
+                eta = json.loads(eta_path.read_text(encoding="utf-8"))
+                positions = eta.get("positions") or []
+                state["eta_positions"] = len(positions)
+                state["eta_profitable"] = sum(
+                    1 for p in positions if p.get("eta_minutes") == 0
+                )
+        except Exception:
+            pass
+
+        self.market_state = state
+        await self.broadcast({"type": "market_state", "data": state})
     
     def process_bot_data(self, bot: Dict):
         """Process bot data from any source."""
@@ -867,6 +972,18 @@ class QueenUnifiedDashboard:
         
         # Start Queen commentary
         asyncio.create_task(self.queen_commentary())
+
+        # Start real telemetry aggregation loop
+        asyncio.create_task(self._aggregation_loop())
+
+    async def _aggregation_loop(self):
+        """Poll real telemetry sources every 15s and broadcast to clients."""
+        while True:
+            try:
+                await self.aggregate_all_systems()
+            except Exception as e:
+                self.logger.debug(f"Aggregation cycle skipped: {e}")
+            await asyncio.sleep(15)
 
 async def main():
     logging.basicConfig(

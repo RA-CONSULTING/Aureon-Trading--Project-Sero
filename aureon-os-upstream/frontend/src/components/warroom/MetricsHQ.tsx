@@ -10,6 +10,8 @@ interface MetricsHQProps {
 }
 
 export function MetricsHQ({ metrics, totals, isScanning }: MetricsHQProps) {
+  const closedAnalyticsObserved = metrics.closedPositionAnalyticsStatus === 'observed';
+  const closedAnalyticsReason = metrics.closedPositionAnalyticsReason || 'Closed-position analytics unavailable';
   const kpiCards = [
     {
       icon: DollarSign,
@@ -22,10 +24,10 @@ export function MetricsHQ({ metrics, totals, isScanning }: MetricsHQProps) {
     {
       icon: TrendingUp,
       label: 'Net P&L Today',
-      value: `${metrics.netPnLToday >= 0 ? '+' : ''}$${metrics.netPnLToday.toFixed(2)}`,
-      subValue: `ROI: ${metrics.roiPercent.toFixed(2)}%`,
-      color: metrics.netPnLToday >= 0 ? 'text-success' : 'text-destructive',
-      bgGlow: metrics.netPnLToday >= 0 ? 'hover:shadow-glow-love' : '',
+      value: closedAnalyticsObserved ? `${metrics.netPnLToday >= 0 ? '+' : ''}$${metrics.netPnLToday.toFixed(2)}` : 'Unavailable',
+      subValue: closedAnalyticsObserved ? `ROI: ${metrics.roiPercent.toFixed(2)}%` : closedAnalyticsReason,
+      color: closedAnalyticsObserved && metrics.netPnLToday < 0 ? 'text-destructive' : closedAnalyticsObserved ? 'text-success' : 'text-muted-foreground',
+      bgGlow: closedAnalyticsObserved && metrics.netPnLToday >= 0 ? 'hover:shadow-glow-love' : '',
     },
     {
       icon: Zap,
@@ -38,8 +40,8 @@ export function MetricsHQ({ metrics, totals, isScanning }: MetricsHQProps) {
     {
       icon: Target,
       label: 'Win Rate',
-      value: `${metrics.winRate.toFixed(1)}%`,
-      subValue: `Avg: $${metrics.avgPositionSize.toFixed(2)}`,
+      value: closedAnalyticsObserved ? `${metrics.winRate.toFixed(1)}%` : 'Unavailable',
+      subValue: closedAnalyticsObserved ? `Avg: $${metrics.avgPositionSize.toFixed(2)}` : 'Needs backend receipt',
       color: 'text-accent',
       bgGlow: 'hover:shadow-glow-prism',
     },

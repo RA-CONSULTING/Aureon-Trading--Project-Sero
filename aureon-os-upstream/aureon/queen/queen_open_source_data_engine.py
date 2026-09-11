@@ -35,6 +35,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Imports
 try:
     import aiohttp
@@ -187,9 +189,18 @@ class OpenSourceDataEngine:
     
     async def start(self):
         """Start all data collection"""
+        if no_external_api_calls():
+            logger.info("Open Source Data Engine blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.running = False
+            self.sentiment = SentimentData(
+                fear_greed_index=0,
+                fear_greed_label='no_source',
+                news_sentiment=0.0,
+            )
+            return
         self.running = True
         logger.info("🚀 Starting Open Source Data Engine...")
-        
+
         # Start all collectors concurrently
         tasks = [
             asyncio.create_task(self._poll_coingecko()),
@@ -214,11 +225,20 @@ class OpenSourceDataEngine:
     
     def start_background(self):
         """Start in background thread"""
+        if no_external_api_calls():
+            logger.info("Open Source Data Engine background start blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            self.running = False
+            self.sentiment = SentimentData(
+                fear_greed_index=0,
+                fear_greed_label='no_source',
+                news_sentiment=0.0,
+            )
+            return None
         def run():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(self.start())
-        
+
         thread = threading.Thread(target=run, daemon=True)
         thread.start()
         logger.info("🌐 Data engine running in background")
@@ -929,7 +949,8 @@ class OpenSourceDataEngine:
                         
                         if count > 0:
                             self.news_sentiment_score = sentiment_sum / count
-                            self.sentiment.news_sentiment = self.news_sentiment_score if self.sentiment else 0
+                            if self.sentiment is not None:
+                                self.sentiment.news_sentiment = self.news_sentiment_score
                             
                         logger.info(f"📰 News: {len(articles)} articles, sentiment={self.news_sentiment_score:.2f}")
                         

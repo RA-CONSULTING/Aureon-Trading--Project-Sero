@@ -57,7 +57,7 @@ def test_catalog_has_all_providers():
 # ── keystore ──────────────────────────────────────────────────────────────────
 
 def test_keystore_roundtrip_and_masking(temp_store):
-    keystore.save_provider("deepseek", api_key="REDACTED_USE_CLOUD_SECRET", model="deepseek-chat")
+    keystore.save_provider("deepseek", api_key="sk-secret-ABCD1234", model="deepseek-chat")
     view = keystore.masked_view()["deepseek"]
     assert view["has_key"] is True
     assert view["key_masked"].endswith("1234")
@@ -67,10 +67,10 @@ def test_keystore_roundtrip_and_masking(temp_store):
 
 def test_keystore_apply_and_disable(temp_store, monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    keystore.save_provider("deepseek", api_key="REDACTED_USE_CLOUD_SECRET", enabled=True)
+    keystore.save_provider("deepseek", api_key="sk-secret-ABCD1234", enabled=True)
     keystore.apply_to_env()
     import os
-    assert os.environ.get("DEEPSEEK_API_KEY") == "REDACTED_USE_CLOUD_SECRET"
+    assert os.environ.get("DEEPSEEK_API_KEY") == "sk-secret-ABCD1234"
     # disabling removes the key env so the line drops out
     keystore.save_provider("deepseek", enabled=False)
     keystore.apply_to_env()
@@ -168,6 +168,21 @@ def test_test_endpoint_returns_verdict_not_500(temp_store, monkeypatch):
     v = r.get_json()
     assert set(v) >= {"ok", "latency_ms", "model", "error"}
     assert v["ok"] is False            # offline → cannot round-trip, but no 500
+
+
+def test_test_endpoint_persists_history_and_exposes_it_on_providers_list(temp_store, monkeypatch):
+    monkeypatch.setenv("AUREON_LLM_OFFLINE", "1")
+    c = _client()
+    r = c.post("/api/providers/deepseek/test", json={"api_key": "sk-x"})
+    assert r.status_code == 200
+    verdict = r.get_json()
+    prov = next(p for p in c.get("/api/providers").get_json()["providers"] if p["id"] == "deepseek")
+    # Test history is persisted and exposed (no secrets).
+    assert prov["last_test_ok"] is False
+    assert isinstance(prov["last_test_at"], str) and prov["last_test_at"]
+    assert prov["last_test_latency_ms"] == verdict["latency_ms"]
+    assert isinstance(prov["last_test_error"], str) and prov["last_test_error"]
+    assert "api_key" not in prov
 
 
 def test_delete_provider(temp_store):

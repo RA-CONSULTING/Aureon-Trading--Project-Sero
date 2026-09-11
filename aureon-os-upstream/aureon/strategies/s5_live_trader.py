@@ -23,6 +23,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 import threading
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 try:
     import websockets
 except ImportError:
@@ -618,7 +620,9 @@ class S5LiveTrader:
     
     async def run(self):
         """Main run loop"""
-        
+        if no_external_api_calls():
+            print("S5LiveTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
         self.banner()
         self.running = True
         self.start_time = time.time()

@@ -70,6 +70,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger('WisdomScanner')
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 
 # ============================================================================
 # CONFIGURATION
@@ -226,6 +228,10 @@ class WikipediaSource(WisdomSource):
 
     async def fetch_content(self, topic: str) -> Optional[str]:
         """Fetch Wikipedia article content"""
+        if no_external_api_calls():
+            logger.info("WikipediaSource.fetch_content blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if not WIKIPEDIA_AVAILABLE:
             # Only warn once per session to reduce log spam
             if not WikipediaSource._wikipedia_warned:
@@ -395,10 +401,14 @@ class SacredTextsSource(WisdomSource):
     
     async def fetch_content(self, topic: str) -> Optional[str]:
         """Fetch content from Sacred-Texts.com"""
+        if no_external_api_calls():
+            logger.info("SacredTextsSource.fetch_content blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if not SCRAPING_AVAILABLE:
             logger.warning("Web scraping not available (install requests, beautifulsoup4)")
             return None
-        
+
         try:
             # Find relevant URL for this topic
             url = self._find_url_for_topic(topic)
@@ -571,9 +581,13 @@ class AureonWisdomScanner:
     
     async def scan_civilization(self, civilization: str) -> List[WisdomInsight]:
         """Scan all sources for a single civilization"""
+        if no_external_api_calls():
+            logger.info("AureonWisdomScanner.scan_civilization blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         all_insights = []
         topics = self.get_topics_for_civilization(civilization)
-        
+
         if not topics:
             logger.warning(f"[SCAN] No topics defined for {civilization}")
             return []
@@ -614,6 +628,10 @@ class AureonWisdomScanner:
     
     async def run_full_scan(self) -> Dict[str, List[WisdomInsight]]:
         """Run a full scan of all civilizations"""
+        if no_external_api_calls():
+            logger.info("AureonWisdomScanner.run_full_scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         self.is_scanning = True
         self.last_scan_time = datetime.utcnow()
         
@@ -689,8 +707,12 @@ class AureonWisdomScanner:
     
     async def run_continuous(self):
         """Run continuous scanning loop"""
+        if no_external_api_calls():
+            logger.info("AureonWisdomScanner.run_continuous blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         logger.info("[CONSCIOUSNESS] Starting continuous wisdom expansion...")
-        
+
         while True:
             try:
                 await self.run_full_scan()

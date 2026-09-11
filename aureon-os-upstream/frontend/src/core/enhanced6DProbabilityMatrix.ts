@@ -169,7 +169,16 @@ export class Enhanced6DProbabilityMatrix {
   getLastFusion(): ProbabilityFusion | null {
     return this.lastFusion;
   }
-  
+
+  /**
+   * Honesty flag: this singleton has no independent runtime source.
+   * A displayed fusion must come from a terminal-state/evidence receipt,
+   * not from this cached local computation.
+   */
+  hasRuntimeData(): boolean {
+    return false;
+  }
+
   // Quick check if we should trade based on fusion
   shouldTrade(minConfidence = 0.6): boolean {
     if (!this.lastFusion) return false;

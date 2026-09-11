@@ -44,6 +44,15 @@ SYMBOLIC_LIFE_RELEASE_HOLD = (
     "symbolic_life_bridge_hold:production_magic_star_release_unavailable"
 )
 
+# Fail-closed release gate: released only while a valid release record
+# (aureon_fusion/state/goals/dispatch_release.json) names this module.
+from aureon.vault.voice import _goal_release as _release  # noqa: E402
+
+
+def _require_release() -> None:
+    if not _release.is_released("symbolic_life_bridge"):
+        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Rolling observation buffer
@@ -162,7 +171,7 @@ class SymbolicLifeBridge:
 
     def start(self) -> None:
         """Subscribe to bus topics. Optionally start the background pulse thread."""
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         if self._subscribed:
             return
         if self.thought_bus is None:
@@ -198,7 +207,7 @@ class SymbolicLifeBridge:
     # ─── subscribers ─────────────────────────────────────────────────────
 
     def _on_persona_collapse(self, thought: Any) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         winner = str(payload.get("winner") or "")
         probs = payload.get("probabilities") or {}
@@ -210,7 +219,7 @@ class SymbolicLifeBridge:
             self._winner_buffer.append(winner)
 
     def _on_persona_thought(self, thought: Any) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         with self._lock:
             self._rolling["actuator_pulse"].bump(0.5)
@@ -221,7 +230,7 @@ class SymbolicLifeBridge:
                 self._hash_buffer.append(fp)
 
     def _on_goal_request(self, thought: Any) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         urgency = float(payload.get("urgency") or 0.5)
         with self._lock:
@@ -230,7 +239,7 @@ class SymbolicLifeBridge:
             self._rolling["actuator_pulse"].bump(1.0)
 
     def _on_life_event(self, thought: Any) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         status = str(payload.get("status") or "active")
         # Only active events radiate intent worth propagating.
@@ -239,13 +248,13 @@ class SymbolicLifeBridge:
             self._rolling["life_resonance"].bump(weight)
 
     def _on_peer_state(self, thought: Any) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         # Mesh heartbeat — every exchange with a peer is a lattice link.
         with self._lock:
             self._rolling["mesh_unity"].bump(0.8)
 
     def _on_conversation_turn(self, thought: Any) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         with self._lock:
             self._rolling["vault_memory"].bump(1.0)
@@ -259,7 +268,7 @@ class SymbolicLifeBridge:
         a lighthouse-health signal in [0, 1]: completion_rate minus
         orphan_rate, clamped. A closed causal line lifts it; a broken
         lighthouse pulls it toward zero."""
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         payload = getattr(thought, "payload", {}) or {}
         if not isinstance(payload, dict):
             return
@@ -276,7 +285,7 @@ class SymbolicLifeBridge:
     def _on_goal_echo_orphaned(self, thought: Any) -> None:
         """An orphaned goal is a broken lighthouse — register it as a
         zero contribution to goal_lighthouse so the rolling mean drops."""
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         with self._lock:
             self._rolling["goal_lighthouse"].bump(0.0)
 
@@ -284,7 +293,7 @@ class SymbolicLifeBridge:
 
     def _build_readings(self) -> List[Any]:
         """Translate rolling counters into SubsystemReading objects."""
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         horizon = float(self.horizon)
         with self._lock:
             readings = []
@@ -324,9 +333,14 @@ class SymbolicLifeBridge:
         """One Λ heartbeat — translate the rolling state into readings,
         step the Λ engine, publish the resulting pillars, return the state.
         """
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         if self._lambda_engine is None:
             return None
+        if self._SubsystemReading is None:
+            # Lazy resolution keeps the constructor inert while letting the
+            # released pulse path build real readings (engine module or
+            # local fallback shape).
+            self._SubsystemReading = self._import_reading_cls()
         readings = self._build_readings()
         try:
             state = self._lambda_engine.step(
@@ -344,7 +358,7 @@ class SymbolicLifeBridge:
         return state
 
     def _publish_pulse(self, state: Any, readings: List[Any]) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         if self.thought_bus is None:
             return
         try:
@@ -395,7 +409,7 @@ class SymbolicLifeBridge:
     # ─── loop ────────────────────────────────────────────────────────────
 
     def _loop(self) -> None:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         while self._running:
             try:
                 self.pulse()
@@ -428,7 +442,7 @@ class SymbolicLifeBridge:
 
     @staticmethod
     def _build_lambda_engine() -> Any:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         try:
             from aureon.core.aureon_lambda_engine import LambdaEngine
             return LambdaEngine()
@@ -438,7 +452,7 @@ class SymbolicLifeBridge:
 
     @staticmethod
     def _import_reading_cls() -> Any:
-        raise RuntimeError(SYMBOLIC_LIFE_RELEASE_HOLD)
+        _require_release()
         try:
             from aureon.core.aureon_lambda_engine import SubsystemReading
             return SubsystemReading

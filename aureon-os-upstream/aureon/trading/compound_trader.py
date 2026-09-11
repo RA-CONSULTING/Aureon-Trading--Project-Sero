@@ -4,6 +4,9 @@
 Executes trades and compounds profits automatically.
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
 import time
@@ -32,10 +35,16 @@ class CompoundTrader:
         return balances
     
     def get_usdc_balance(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.get_usdc_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         return self.get_balances().get('USDC', 0)
     
     def find_opportunity(self, pairs):
         """Find best trading opportunity"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.find_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         best = None
         
         for sym in pairs:
@@ -94,6 +103,9 @@ class CompoundTrader:
     
     def open_position(self, opportunity, size_usdc):
         """Open a new position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.open_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         sym = opportunity['symbol']
         side = opportunity['side']
         
@@ -134,6 +146,9 @@ class CompoundTrader:
     
     def check_positions(self):
         """Check all open positions for exit signals"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.check_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for sym in list(self.positions.keys()):
             pos = self.positions[sym]
             
@@ -172,6 +187,9 @@ class CompoundTrader:
     
     def close_position(self, symbol, price, reason):
         """Close a position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.close_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         pos = self.positions[symbol]
         
         try:
@@ -211,6 +229,9 @@ class CompoundTrader:
     
     def run(self, pairs, trade_size_pct=0.25, check_interval=5, max_trades=20):
         """Run the compound trading loop"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("""
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                               ║
@@ -251,6 +272,9 @@ class CompoundTrader:
         self.print_report()
     
     def print_report(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.compound_trader.CompoundTrader.print_report blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         final_capital = self.get_usdc_balance()
         total_growth = (final_capital / self.starting_capital - 1) * 100 if self.starting_capital > 0 else 0
         

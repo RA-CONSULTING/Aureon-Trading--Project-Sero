@@ -24,6 +24,8 @@ import asyncio
 from typing import Dict, List, Any
 from datetime import datetime
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Import capability modules
 from aureon.intelligence.aureon_elephant_learning import ElephantMemory, LearnedPattern, TradingWisdom
 from aureon.exchanges.coinbase_historical_feed import CoinbaseHistoricalFeed
@@ -42,8 +44,12 @@ class HistoricalKnowledgeScanner:
         """
         Scans Coinbase for 1 Year of OHLCV data to find statistical edges.
         """
+        if no_external_api_calls():
+            logger.info("scan_coinbase_history blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         logger.info("🪙 Starting Coinbase Historical Scan...")
-        
+
         # We focus on the big movers to establish a "Market Pulse"
         pairs = ['BTC-USD', 'ETH-USD', 'SOL-USD']
         

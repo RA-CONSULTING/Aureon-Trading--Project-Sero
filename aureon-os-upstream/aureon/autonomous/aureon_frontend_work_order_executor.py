@@ -287,7 +287,9 @@ def render_materialized_patch_module(report: WorkOrderExecutionReport) -> str:
 
 
 def render_component() -> str:
-    return r'''import { useEffect, useMemo, useState } from "react";
+    return r"""import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
+import { consoleNumber } from "@/lib/generatedConsoleEvidence";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, Archive, CheckCircle2, Lock, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -302,7 +304,7 @@ type JsonMap = Record<string, any>;
 
 async function fetchJson(url: string): Promise<JsonMap> {
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return {};
     return await response.json();
   } catch {
@@ -311,8 +313,8 @@ async function fetchJson(url: string): Promise<JsonMap> {
 }
 
 function compact(value: unknown): string {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? number.toLocaleString() : String(value || "0");
+  const number = consoleNumber(value);
+  return number === null ? "Unavailable" : number.toLocaleString();
 }
 
 function tone(status: string): string {
@@ -362,6 +364,7 @@ export function AureonWorkOrderExecutionConsole() {
   const top = useMemo(() => executions.slice(0, 80), [executions]);
 
   return (
+    <GeneratedReportBoundary report={report} source="/aureon_frontend_work_order_execution.json">
     <Card className="mb-5 bg-card/80">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -450,6 +453,7 @@ export function AureonWorkOrderExecutionConsole() {
         </ScrollArea>
       </CardContent>
     </Card>
+    </GeneratedReportBoundary>
   );
 }
 
@@ -461,7 +465,7 @@ function Stat({ label, value }: { label: string; value: unknown }) {
     </div>
   );
 }
-'''
+"""
 
 
 def mount_component_in_app(app_text: str) -> tuple[str, bool]:

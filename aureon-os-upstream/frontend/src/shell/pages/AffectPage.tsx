@@ -1,3 +1,5 @@
+import { GlassPageHeader } from '@/shell/GlassPage';
+import { Button } from '@/components/ui/button';
 /**
  * Affect — watch Aureon taste victory and fear defeat.
  *
@@ -16,7 +18,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LiveDataNotice } from "@/shell/Page";
+import { cognitiveSourceWindow } from "@/lib/cognitiveObservationEvidence";
+import { useAssessmentRead } from "@/hooks/useAssessmentRead";
+import { AssessmentDependencies } from "./AssessmentDependencies";
+import { CognitiveReadUnavailable } from "./cognitiveEvidenceCards";
 import { type TruthStatus, TRUTH_STATUS_STYLE } from "../truthStatus";
+import { currentModelSignal, modelPercent } from '@/lib/cognitionGlassValues';
 
 
 interface Signal { value?: number | null; truth_status?: TruthStatus; detail?: string }
@@ -54,7 +61,7 @@ function StatusBadge({ status }: { status?: TruthStatus }) {
 }
 
 function Sparkline({ values, colorClass }: { values: number[]; colorClass: string }) {
-  const pts = values.filter((v) => Number.isFinite(v));
+  const pts = values.filter((v) => modelPercent(v) !== null);
   if (pts.length < 2) return <div className="h-9" aria-hidden />;
   const w = 120, h = 36;
   // feelings are already in [0,1] — fixed domain so magnitude reads honestly
@@ -70,66 +77,31 @@ function Sparkline({ values, colorClass }: { values: number[]; colorClass: strin
 }
 
 export default function AffectPage() {
-  const [data, setData] = useState<Affect | null | undefined>(undefined);
+  const receipt = useAssessmentRead<Affect>('affect');
+  const { data } = receipt;
   const [history, setHistory] = useState<Sample[]>([]);
-  const timer = useRef<number | null>(null);
-
+  const lastObservedAt = useRef<number | null>(null);
   useEffect(() => {
-    let alive = true;
-    async function poll() {
-      try {
-        const r = await fetch("/api/affect");
-        if (!r.ok) throw new Error(String(r.status));
-        const a: Affect = await r.json();
-        if (!alive) return;
-        setData(a);
-        if (a.available) {
-          setHistory((h) => [
-            ...h.slice(-(MAX_SAMPLES - 1)),
-            { victory: a.victory, defeat: a.defeat, fear: a.fear, resolve: a.resolve },
-          ]);
-        }
-      } catch {
-        if (alive) setData((prev) => (prev === undefined ? null : prev));
-      }
+    const source = cognitiveSourceWindow(data);
+    if (!data?.available || !source) {
+      setHistory([]); lastObservedAt.current = null; return;
     }
-    poll();
-    timer.current = window.setInterval(poll, POLL_MS);
-    return () => { alive = false; if (timer.current) window.clearInterval(timer.current); };
-  }, []);
+    if (lastObservedAt.current === source.observedAt) return;
+    lastObservedAt.current = source.observedAt;
+    setHistory(previous => [...previous.slice(-(MAX_SAMPLES - 1)), { victory: data.victory, defeat: data.defeat, fear: data.fear, resolve: data.resolve }]);
+  }, [data, receipt.resetVersion]);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Heart className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Affect</h1>
-          <p className="text-sm text-muted-foreground">
-            Aureon tastes victory and fears defeat — feelings computed only from real signals, folded
-            through the Λ machinery. Fear can only make it more careful; victory never loosens its guard.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader title="Affect" icon={Heart} eyebrow="Operations" description="Current computational affect-model outputs and the source signals used to derive them." actions={<Button variant="outline" size="sm" onClick={receipt.refresh}>Refresh observation</Button>} />
 
       <LiveDataNotice />
 
       {data === undefined && (
         <div className="grid gap-3 md:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}</div>
       )}
-      {data === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Start the operator and retry — this page polls /api/affect.</CardContent></Card>
-      )}
-
-      {data && data.available === false && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">No feelings flowing yet</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            The organism reports <span className="font-mono">no_data</span> — honest silence, not a fabricated
-            emotion. Once real signals (growth, accuracy, field, market) flow, victory/defeat/fear/resolve light up.
-          </CardContent>
-        </Card>
-      )}
+      {data === null && !receipt.raw && <CognitiveReadUnavailable {...receipt} />}
+      {receipt.raw && (!data || data.available === false) && <AssessmentDependencies payload={receipt.raw} />}
 
       {data && data.available && (
         <>
@@ -173,7 +145,7 @@ export default function AffectPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex flex-1 flex-col gap-2">
-                    <div className="font-mono text-2xl tabular-nums">{val.toFixed(2)}</div>
+                    <div className="font-mono text-2xl tabular-nums">{modelPercent(val) === null ? 'Unavailable' : val.toFixed(2)}</div>
                     <div className="mt-auto"><Sparkline values={series} colorClass={f.color} /></div>
                   </CardContent>
                 </Card>
@@ -190,7 +162,7 @@ export default function AffectPage() {
                   <div key={name} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
                     <span>{name.replace(/_/g, " ")}</span>
                     <div className="flex items-center gap-2">
-                      {sig.value != null && <span className="font-mono text-xs tabular-nums">{sig.value.toFixed(3)}</span>}
+                      <span className="font-mono text-xs tabular-nums">{currentModelSignal(sig.value, sig.truth_status)?.toFixed(3) ?? 'Unavailable'}</span>
                       <StatusBadge status={sig.truth_status} />
                     </div>
                   </div>

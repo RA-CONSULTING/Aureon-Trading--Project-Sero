@@ -26,6 +26,9 @@ from typing import Any, Callable, Mapping, Optional
 # its working directory is frontend/. Establish the checkout root before
 # importing any aureon package so the inert CLI preflight remains runnable
 # from every declared package-script location.
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -1694,6 +1697,9 @@ class BoundedBinanceRoundTrip:
         confirmation_token: str,
         max_quote: Any,
     ) -> dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.bounded_binance_roundtrip.BoundedBinanceRoundTrip.read_only_preflight blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         quote_cap = _finite_decimal(max_quote, positive=True)
         if quote_cap is None or quote_cap > MAX_QUOTE_CAP:
             return _no_action(
@@ -2526,6 +2532,9 @@ class BoundedBinanceRoundTrip:
         authorization_receipt: Any,
         confirmation_token: str,
     ) -> dict[str, Any]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.bounded_binance_roundtrip.BoundedBinanceRoundTrip.advance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if self.state_path.parent.name != "bounded_binance_roundtrip":
             return _no_action("private_hashed_cycle_state_path_required")
         try:
@@ -2659,6 +2668,9 @@ class BoundedBinanceRoundTrip:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.bounded_binance_roundtrip.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return 0
     parser = argparse.ArgumentParser(
         description=(
             "Inert interface for the bounded Binance round-trip runner."

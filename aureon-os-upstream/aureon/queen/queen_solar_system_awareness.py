@@ -51,6 +51,8 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Tuple
 from collections import deque
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -211,9 +213,12 @@ class QueenSolarSystemAwareness:
     async def fetch_cme_data(self) -> List[CMEEvent]:
         """
         Fetch CME data from NASA DONKI (Database Of Notifications, Knowledge, Information)
-        
+
         This is FREE, OPEN DATA the elites use but don't tell retail about.
         """
+        if no_external_api_calls():
+            logger.info("Queen Solar System Awareness CME fetch blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
         events = []
         
         # NASA DONKI API (free, no key required)
@@ -370,6 +375,9 @@ class QueenSolarSystemAwareness:
         with a warning log. Callers cannot distinguish "computed calm"
         from "fetch failed" — watch the warning to detect missing data.
         """
+        if no_external_api_calls():
+            logger.info("Queen Solar System Awareness Kp fetch blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return 0.0
         try:
             url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
             resp = requests.get(url, timeout=10)

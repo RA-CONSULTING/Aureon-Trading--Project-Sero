@@ -1,10 +1,15 @@
+import { consoleReportedPercent, goldRuntimeObservation } from "@/lib/generatedConsoleDisplayEvidence";
+import { GlassPageHeader, GlassSection } from "@/shell/GlassPage";
+import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
+import { useTerminalState } from "@/hooks/useTerminalState";
+import { consoleNumber } from "@/lib/generatedConsoleEvidence";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Building2, CheckCircle2, ExternalLink, Gauge, LineChart, Radio, RefreshCw, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generated report fields are schema-checked at read boundaries before display.
 type JsonMap = Record<string, any>;
 
 const REFRESH_MS = 7500;
@@ -12,7 +17,7 @@ const REPORT_URL = "/aureon_gold_capital_intelligence_company.json";
 
 async function fetchJson(url: string): Promise<JsonMap> {
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return {};
     return await response.json();
   } catch {
@@ -25,15 +30,23 @@ function hasPayload(value: unknown): value is JsonMap {
 }
 
 function fmtNumber(value: unknown, digits = 2): string {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return "0";
+  const number = consoleNumber(value);
+  if (number === null) return "Unavailable";
   return number.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
 }
 
 function fmtPercent(value: unknown): string {
-  const number = Number(value || 0);
-  if (!Number.isFinite(number)) return "0%";
+  const number = consoleNumber(value);
+  if (number === null) return "Unavailable";
   return `${Math.round(number * 100)}%`;
+}
+
+function blockerReason(value: unknown, fallback = ""): string {
+  const text = String(value || fallback || "");
+  return text
+    .replace(/age is -1(?:\.0)? seconds?\.?/gi, "age is unavailable.")
+    .replace(/age is -1(?:\.0)?s\.?/gi, "age is unavailable.")
+    .replace(/age -1(?:\.0)?s/gi, "age unavailable");
 }
 
 function toneForStatus(status: string): string {
@@ -45,7 +58,7 @@ function toneForStatus(status: string): string {
 
 function Pill({ label, tone = "border-border bg-muted/40 text-muted-foreground" }: { label: string; tone?: string }) {
   return (
-    <Badge variant="outline" className={`min-w-0 max-w-full justify-start truncate rounded-md px-2 py-1 text-[11px] font-medium ${tone}`}>
+    <Badge variant="outline" className={`min-w-0 max-w-full justify-start whitespace-normal [overflow-wrap:anywhere] rounded-md px-2 py-1 text-[11px] font-medium ${tone}`}>
       {label}
     </Badge>
   );
@@ -54,9 +67,9 @@ function Pill({ label, tone = "border-border bg-muted/40 text-muted-foreground" 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="min-w-0 rounded-md border border-border/70 bg-background/45 p-3">
-      <div className="truncate text-[11px] uppercase tracking-normal text-muted-foreground">{label}</div>
-      <div className="mt-1 truncate text-lg font-semibold text-foreground">{value}</div>
-      {hint ? <div className="mt-1 truncate text-xs text-muted-foreground">{hint}</div> : null}
+      <div className="whitespace-normal [overflow-wrap:anywhere] text-[11px] uppercase tracking-normal text-muted-foreground">{label}</div>
+      <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-lg font-semibold text-foreground">{value}</div>
+      {hint ? <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{hint}</div> : null}
     </div>
   );
 }
@@ -74,6 +87,23 @@ export function AureonGoldCapitalIntelligenceConsole({
 } = {}) {
   const [report, setReport] = useState<JsonMap>({});
   const [lastLoadedAt, setLastLoadedAt] = useState("");
+  const terminal = useTerminalState();
+  const terminalActionPlan = hasPayload(terminal.state?.exchange_action_plan) ? (terminal.state.exchange_action_plan as JsonMap) : {};
+  const rootRuntimeGoldProof = terminal.state?.gold_runtime_trade_proof;
+  const actionRuntimeGoldProof = terminalActionPlan.gold_runtime_trade_proof;
+  const directRuntimeGoldProof: JsonMap = hasPayload(rootRuntimeGoldProof)
+    ? rootRuntimeGoldProof
+    : hasPayload(actionRuntimeGoldProof)
+      ? actionRuntimeGoldProof
+      : {};
+  const usingProvidedProof = runtimeGoldProof !== undefined;
+  const selectedTransportCurrent = usingProvidedProof ? runtimeConnected : terminal.isFresh;
+  const effectiveRuntimeClearancePending = usingProvidedProof ? runtimeClearancePending : terminal.freshness.status === "loading";
+  const runtimeObservation = goldRuntimeObservation(usingProvidedProof ? runtimeGoldProof : directRuntimeGoldProof,
+    selectedTransportCurrent && !effectiveRuntimeClearancePending);
+  const effectiveRuntimeConnected = runtimeObservation.current;
+  const effectiveRuntimeStaleReason = usingProvidedProof ? runtimeStaleReason || "Provided runtime proof unavailable or expired"
+    : terminal.isFresh ? "Gold proof unavailable or expired" : terminal.freshness.reason;
 
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +111,7 @@ export function AureonGoldCapitalIntelligenceConsole({
       const payload = await fetchJson(REPORT_URL);
       if (cancelled) return;
       setReport(payload);
-      setLastLoadedAt(new Date().toLocaleTimeString());
+      setLastLoadedAt(Object.keys(payload).length ? new Date().toLocaleString() : "");
     };
     load();
     const timer = window.setInterval(load, REFRESH_MS);
@@ -99,7 +129,6 @@ export function AureonGoldCapitalIntelligenceConsole({
   const verifiedSourceChecks = Array.isArray(verifiedRealDataGate.source_checks) ? verifiedRealDataGate.source_checks : [];
   const verifiedSignalChecks = Array.isArray(verifiedRealDataGate.signal_checks) ? verifiedRealDataGate.signal_checks : [];
   const goldSignalFreshnessMatrix = hasPayload(report.gold_signal_freshness_matrix) ? report.gold_signal_freshness_matrix : {};
-  const goldSignalFreshnessRows = Array.isArray(goldSignalFreshnessMatrix.rows) ? goldSignalFreshnessMatrix.rows : [];
   const goldSignalFreshnessBlockers = Array.isArray(goldSignalFreshnessMatrix.blockers) ? goldSignalFreshnessMatrix.blockers : [];
   const goldTickerSourceMesh = hasPayload(report.gold_ticker_source_mesh) ? report.gold_ticker_source_mesh : {};
   const goldTickerSourceLanes = Array.isArray(goldTickerSourceMesh.lanes) ? goldTickerSourceMesh.lanes : [];
@@ -242,28 +271,28 @@ export function AureonGoldCapitalIntelligenceConsole({
   const agentSupportBlockers = Array.isArray(agentCodingSupport.blockers) ? agentCodingSupport.blockers : [];
   const marketUniverse = hasPayload(report.gold_market_universe) ? report.gold_market_universe : {};
   const marketBuckets = hasPayload(marketUniverse.bucket_counts) ? marketUniverse.bucket_counts : {};
-  const energyPercent = Math.max(0, Math.min(100, Number(decision.gold_energy_score || summary.gold_energy_score || 0) * 100));
-  const confidencePercent = Math.max(0, Math.min(100, Number(decision.confidence || summary.confidence || 0) * 100));
-  const coveragePercent = Math.max(0, Math.min(100, Number(summary.gold_intelligence_coverage_score || 0) * 100));
-  const liveRuntimeProof = hasPayload(runtimeGoldProof) ? runtimeGoldProof : {};
-  const liveGoldSource = hasPayload(liveRuntimeProof.fresh_gold_data_source) ? liveRuntimeProof.fresh_gold_data_source : {};
-  const liveGoldProofReady = Boolean(liveRuntimeProof.gold_runtime_candidate_ready || liveGoldSource.ready);
+  const energyPercent = consoleReportedPercent(decision.gold_energy_score ?? summary.gold_energy_score);
+  const confidencePercent = consoleReportedPercent(decision.confidence ?? summary.confidence);
+  const coveragePercent = consoleReportedPercent(summary.gold_intelligence_coverage_score);
+  const liveRuntimeProof: JsonMap = runtimeObservation.proof;
+  const liveGoldSource: JsonMap = runtimeObservation.source;
+  const liveGoldProofReady = runtimeObservation.sourceCurrent;
   const liveCandidateSide = String(liveRuntimeProof.candidate_side || dynamicEdgeCandidate.side || decision.direction_guess || summary.direction_guess || "HOLD");
   const liveCandidateSymbol = String(liveRuntimeProof.candidate_symbol || liveGoldSource.normalized_symbol || target.symbol || summary.target_symbol || "GOLD");
-  const liveCandidateConfidence = Number(liveRuntimeProof.candidate_confidence ?? liveGoldSource.confidence ?? decision.confidence ?? summary.confidence ?? 0);
+  const liveCandidateConfidence = consoleNumber(liveRuntimeProof.candidate_confidence ?? liveGoldSource.confidence ?? decision.confidence ?? summary.confidence);
   const effectiveMidPrice = liveGoldSource.reference_price ?? liveGoldSource.price ?? price.mid_price;
-  const effectiveSnapshotAge = liveGoldSource.age_sec ?? summary.capital_snapshot_age_sec;
-  const effectiveSnapshotFresh = Boolean(liveGoldSource.ready || summary.capital_snapshot_fresh);
-  const effectiveRuntimeLabel = runtimeConnected
-    ? runtimeClearancePending
+  const effectiveSnapshotAge = runtimeObservation.ageSeconds;
+  const effectiveSnapshotAgeNumber = consoleNumber(effectiveSnapshotAge);
+  const effectiveSnapshotAgeValid = effectiveSnapshotAgeNumber !== null && effectiveSnapshotAgeNumber >= 0;
+  const effectiveSnapshotFresh = effectiveRuntimeConnected && !effectiveRuntimeClearancePending && liveGoldSource.ready === true;
+  const effectiveRuntimeLabel = effectiveRuntimeConnected
+    ? effectiveRuntimeClearancePending
       ? "checking"
-      : "live"
-    : summary.runtime_stale
-      ? "stale"
-      : "fresh";
-  const effectiveRuntimeHint = runtimeConnected && liveGoldProofReady
+      : "observed"
+    : "unavailable";
+  const effectiveRuntimeHint = effectiveRuntimeConnected && liveGoldProofReady
     ? `${liveCandidateSymbol} ${liveCandidateSide}`
-    : String(runtimeStaleReason || summary.stale_reason || "runtime evidence");
+    : String(effectiveRuntimeStaleReason || summary.stale_reason || "runtime evidence");
   const effectiveCapitalProfile = {
     ...liveCapitalProfile,
     bid: liveGoldSource.bid ?? liveCapitalProfile.bid,
@@ -271,68 +300,30 @@ export function AureonGoldCapitalIntelligenceConsole({
     mid_price: liveGoldSource.reference_price ?? liveCapitalProfile.mid_price,
     spread: liveGoldSource.spread ?? liveCapitalProfile.spread,
     spread_pct: liveGoldSource.spread_pct ?? liveCapitalProfile.spread_pct,
-    snapshot_age_seconds: liveGoldSource.age_sec ?? liveCapitalProfile.snapshot_age_seconds,
-    snapshot_fresh: Boolean(liveGoldSource.ready || liveCapitalProfile.snapshot_fresh),
-    market_status: liveCapitalProfile.market_status || (liveGoldSource.ready ? "TRADEABLE" : undefined),
-    minimum_deal_size: liveCapitalProfile.minimum_deal_size ?? summary.minimum_deal_size ?? 0,
+    snapshot_age_seconds: runtimeObservation.ageSeconds,
+    snapshot_fresh: runtimeObservation.sourceCurrent,
+    market_status: liveCapitalProfile.market_status,
+    minimum_deal_size: liveCapitalProfile.minimum_deal_size ?? summary.minimum_deal_size,
   };
+  const effectiveCapitalProfileAge = consoleNumber(effectiveCapitalProfile.snapshot_age_seconds);
+  const effectiveCapitalProfileAgeValid = effectiveCapitalProfileAge !== null && effectiveCapitalProfileAge >= 0;
+  const effectiveCapitalProfileFresh = Boolean(effectiveCapitalProfile.snapshot_fresh);
   const effectiveFloorEntry = liveGoldSource.reference_price ?? threePFloorGate.entry_level;
   const effectiveMarginEntry = liveGoldSource.reference_price ?? marginSignalIntent.entry_level;
   const effectiveShadowEntry = liveGoldSource.reference_price ?? goldShadowPromotionGate.entry_level;
   const effectiveNextEdgeStep = liveGoldSource.ready
     ? "validate interval projection"
     : String(goldDynamicMarketEdgeStream.next_action || "refresh").replace(/_/g, " ");
-  const liveDynamicEdgeRows = dynamicEdgeRows.map((row: JsonMap) => {
-    const text = `${String(row.id || "")} ${String(row.label || "")}`.toLowerCase();
-    if (!liveGoldSource.ready || !(text.includes("capital") && (text.includes("gold") || text.includes("xau")))) {
-      return row;
-    }
-    return {
-      ...row,
-      fresh: true,
-      age_seconds: liveGoldSource.age_sec,
-      edge_score: Math.max(Number(row.edge_score || 0), Number(liveGoldSource.confidence || 0)),
-    };
-  });
-  const staleManifestBlockers = new Set([
-    "runtime_stale",
-    "capital_gold_snapshot_stale",
-    "verified_real_data_gate_blocking",
-  ]);
-  const visibleBlockingTruth = liveGoldProofReady
-    ? blockers.filter((blocker: JsonMap) => !staleManifestBlockers.has(String(blocker.id || "")))
-    : blockers;
-  const liveProofSupersedesBlocker = (blocker: JsonMap) => {
-    if (!liveGoldProofReady) return false;
-    const text = `${String(blocker.id || "")} ${String(blocker.reason || "")}`.toLowerCase();
-    return (
-      text.includes("runtime_stale") ||
-      text.includes("runtime is stale") ||
-      text.includes("runtime stale") ||
-      text.includes("runtime_not_fresh") ||
-      text.includes("runtime not fresh") ||
-      text.includes("runtime_stale_blocks") ||
-      text.includes("tick_in_progress_stalled") ||
-      text.includes("runtime freshness is required") ||
-      text.includes("restore a fresh tick") ||
-      text.includes("trust_decision_shadow_until_runtime_fresh") ||
-      text.includes("trust_decision_wait_for_runtime_clearance") ||
-      text.includes("capital_gold_snapshot") ||
-      text.includes("capital_gold_live_quote_missing_or_stale") ||
-      text.includes("capital gold stream not fresh") ||
-      text.includes("capital gold target stream/profile is not fresh") ||
-      text.includes("capital_gold_profile_stale") ||
-      text.includes("capital gold profile/snapshot is not fresh") ||
-      text.includes("fresh gold bid/ask is required")
-    );
-  };
-  const liveThreePFloorBlockers = threePFloorBlockers.filter((blocker: JsonMap) => !liveProofSupersedesBlocker(blocker));
-  const liveDeckVisibleBlockers = liveDeckBlockers.filter((blocker: JsonMap) => !liveProofSupersedesBlocker(blocker));
-  const liveMarginSignalBlockers = marginSignalBlockers.filter((blocker: JsonMap) => !liveProofSupersedesBlocker(blocker));
-  const liveMarginUnityBlockers = marginBlockers.filter((blocker: JsonMap) => !liveProofSupersedesBlocker(blocker));
-  const liveDynamicEdgeBlockers = dynamicEdgeBlockers.filter((blocker: JsonMap) => !liveProofSupersedesBlocker(blocker));
+  // Runtime quote observations cannot rewrite recorded validation or erase blockers.
+  const liveDynamicEdgeRows = dynamicEdgeRows;
+  const visibleBlockingTruth = blockers;
+  const liveThreePFloorBlockers = threePFloorBlockers;
+  const liveDeckVisibleBlockers = liveDeckBlockers;
+  const liveMarginSignalBlockers = marginSignalBlockers;
+  const liveMarginUnityBlockers = marginBlockers;
+  const liveDynamicEdgeBlockers = dynamicEdgeBlockers;
   const effectiveDecisionReason = liveGoldProofReady
-    ? `Terminal-state has fresh Capital GOLD proof for ${liveCandidateSymbol}; action remains shadow/held until interval validation allows a BUY/SELL GOLD intent.`
+    ? `Terminal-state reports a current Capital GOLD source for ${liveCandidateSymbol}. Recorded decision and validation blockers remain below; this quote does not establish execution clearance.`
     : String(decision.reason || "Waiting for Aureon to publish the gold decision packet.");
 
   const actionTone = useMemo(() => {
@@ -342,13 +333,33 @@ export function AureonGoldCapitalIntelligenceConsole({
   }, [decision.live_trade_allowed, decision.shadow_observation_allowed]);
 
   return (
+    <div className="space-y-5">
+    <GlassPageHeader eyebrow="Operations" title="Gold capital intelligence" description="Current runtime observations alongside dated research and validation reports." icon={Building2} />
+    <GlassSection className="space-y-3 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">Current gold observations</h2>
+        <Badge variant="outline">{runtimeObservation.current ? "Runtime proof observed" : "Runtime proof unavailable"}</Badge>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric label="Observed quote" value={fmtNumber(liveGoldSource.reference_price ?? liveGoldSource.price)}
+          hint={liveGoldSource.source ? String(liveGoldSource.source) : "Source unavailable"} />
+        <Metric label="Symbol" value={String(liveGoldSource.normalized_symbol || "Unavailable")}
+          hint="Instrument as reported by the source" />
+        <Metric label="Estimated source age" value={runtimeObservation.ageSeconds === null ? "Unavailable" : `${fmtNumber(runtimeObservation.ageSeconds, 1)}s`}
+          hint="Reported age advanced from original proof time" />
+        <Metric label="Candidate side" value={String(liveRuntimeProof.candidate_side || "Unavailable")}
+          hint="Runtime candidate; execution clearance is separate" />
+      </div>
+      <p className="text-xs text-muted-foreground">Proof generated: {runtimeObservation.current ? String(liveRuntimeProof.generated_at) : "Unavailable"}. Current observations remain visible independently of the recorded research report. Execution status is available in the Trading War Room.</p>
+    </GlassSection>
+    <GeneratedReportBoundary report={report} source={"/aureon_gold_capital_intelligence_company.json"} scope="recorded">
     <Card className="bg-card/85" data-testid="gold-capital-intelligence-console">
       <CardHeader className="space-y-3 pb-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <CardTitle className="flex min-w-0 items-center gap-2 text-xl">
               <Building2 className="h-5 w-5 shrink-0 text-warning" />
-              <span className="truncate">Gold Capital Intelligence Company</span>
+              <span className="whitespace-normal [overflow-wrap:anywhere]">Gold Capital Intelligence Company</span>
             </CardTitle>
             <p className="mt-1 max-w-4xl text-sm text-muted-foreground">
               Aureon gathers Capital GOLD, exchange, macro-gap, HNC/Auris, runtime, and shadow-validation evidence into one read-only price-energy thesis.
@@ -356,55 +367,56 @@ export function AureonGoldCapitalIntelligenceConsole({
           </div>
           <div className="flex flex-wrap items-center gap-2">
           <Pill label={String(report.status || "waiting_for_gold_report")} tone={toneForStatus(String(report.status || ""))} />
-          <Pill label={`loaded ${lastLoadedAt || "waiting"}`} tone="border-primary/30 bg-primary/10 text-primary" />
+          <Pill label={`Report fetched ${lastLoadedAt || "unavailable"}`} tone="border-primary/30 bg-primary/10 text-primary" />
           <Pill label={`${Math.round(REFRESH_MS / 1000)}s refresh`} tone="border-slate-500/30 bg-slate-500/10 text-slate-200" />
-          <Pill label={runtimeConnected ? "terminal-state linked" : "manifest only"} tone={runtimeConnected ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
+          <Pill label={effectiveRuntimeConnected ? "terminal-state linked" : "manifest only"} tone={effectiveRuntimeConnected ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Pill label={`target ${String(target.symbol || summary.target_symbol || "GOLD")}`} tone="border-warning/30 bg-warning/10 text-warning" />
           <Pill label={`epic ${String(target.epic || summary.target_epic || "GOLD")}`} tone="border-warning/30 bg-warning/10 text-warning" />
-          <Pill label={decision.live_trade_allowed ? "live trade allowed" : "live trade blocked"} tone={decision.live_trade_allowed ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success"} />
-          <Pill label={decision.shadow_observation_allowed ? "shadow observation allowed" : "shadow observation held"} tone={actionTone} />
+          <Pill label={`Recorded trade permission: ${decision.live_trade_allowed === true ? "allowed" : decision.live_trade_allowed === false ? "blocked" : "unavailable"}`} tone={decision.live_trade_allowed ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success"} />
+          <Pill label={`Recorded shadow permission: ${decision.shadow_observation_allowed === true ? "allowed" : decision.shadow_observation_allowed === false ? "held" : "unavailable"}`} tone={actionTone} />
           <Pill label="not financial advice" tone="border-primary/30 bg-primary/10 text-primary" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-9">
-          <Metric label="Mid Price" value={`$${fmtNumber(effectiveMidPrice, 2)}`} hint={`${String(price.currency || "USD")} ${liveGoldSource.ready ? "terminal-state quote" : "Capital snapshot"}`} />
-          <Metric label="Hypothesis Range" value={`$${fmtNumber(price.hypothesis_low, 0)} - $${fmtNumber(price.hypothesis_high, 0)}`} hint={String(price.band_reason || "awaiting range proof")} />
+        <p className="text-xs text-muted-foreground">Research and validation panels below retain the original report date: {report.generated_at || "Unavailable"}. Their recorded freshness flags, forecasts and permissions do not establish current market data or execution authority. Current quote observations never remove recorded blockers.</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-9">
+          <Metric label={runtimeObservation.sourceCurrent ? "Observed mid price" : "Recorded mid price"} value={`$${fmtNumber(effectiveMidPrice, 2)}`} hint={`${String(price.currency || "USD")} ${liveGoldSource.ready ? "runtime source" : "recorded Capital snapshot"}`} />
+          <Metric label="Hypothesis Range" value={`$${fmtNumber(price.hypothesis_low, 0)} - $${fmtNumber(price.hypothesis_high, 0)}`} hint={String(price.band_reason || "range proof unavailable")} />
           <Metric label="Direction Guess" value={liveCandidateSide} hint={String(liveGoldSource.side_reason || summary.action_posture || "shadow observe")} />
           <Metric label="Runtime" value={effectiveRuntimeLabel} hint={effectiveRuntimeHint} />
-          <Metric label="Capital Snapshot" value={effectiveSnapshotFresh ? "fresh" : "stale"} hint={`${fmtNumber(effectiveSnapshotAge, 0)}s old`} />
-          <Metric label="Gold Intel Map" value={`${fmtNumber(summary.gold_intelligence_surface_ready_count, 0)}/${fmtNumber(summary.gold_intelligence_surface_count, 0)}`} hint={`${Math.round(coveragePercent)}% coverage`} />
+          <Metric label="Capital Snapshot" value={effectiveSnapshotFresh ? "fresh" : effectiveSnapshotAgeValid ? "stale" : "unavailable"} hint={effectiveSnapshotAgeValid ? `Estimated ${fmtNumber(effectiveSnapshotAge, 0)}s source age` : "age unavailable"} />
+          <Metric label="Gold Intel Map" value={`${fmtNumber(summary.gold_intelligence_surface_ready_count, 0)}/${fmtNumber(summary.gold_intelligence_surface_count, 0)}`} hint={coveragePercent === null ? "Coverage unavailable" : `${Math.round(coveragePercent)}% recorded coverage`} />
           <Metric label="Replay Lanes" value={`${fmtNumber(summary.historical_signal_ready_count, 0)}/${fmtNumber(summary.historical_signal_lane_count, 0)}`} hint={String(summary.historical_signal_status || "historical lab")} />
-          <Metric label="Real Data" value={summary.verified_real_data_action_allowed ? "passed" : "blocked"} hint={`${fmtNumber(summary.verified_real_data_fresh_source_count, 0)}/${fmtNumber(summary.verified_real_data_required_source_count, 0)} fresh`} />
-          <Metric label="Swarm Agents" value={`${fmtNumber(summary.gold_swarm_active_agent_count, 0)}/${fmtNumber(summary.gold_swarm_agent_count, 0)}`} hint={String(summary.gold_swarm_compile_state || "compile gate")} />
+          <Metric label="Recorded data gate" value={summary.verified_real_data_action_allowed ? "passed" : "blocked"} hint={`${fmtNumber(summary.verified_real_data_fresh_source_count, 0)}/${fmtNumber(summary.verified_real_data_required_source_count, 0)} fresh`} />
+          <Metric label="Recorded swarm agents" value={`${fmtNumber(summary.gold_swarm_active_agent_count, 0)}/${fmtNumber(summary.gold_swarm_agent_count, 0)}`} hint={String(summary.gold_swarm_compile_state || "compile gate")} />
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
           <section className="rounded-md border border-border/70 bg-background/35 p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">
                 <Gauge className="h-4 w-4 shrink-0 text-warning" />
-                <h3 className="truncate text-sm font-semibold">Price Energy Thesis</h3>
+                <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">Price Energy Thesis</h3>
               </div>
               <Pill label={`confidence ${fmtPercent(decision.confidence || summary.confidence)}`} tone="border-primary/30 bg-primary/10 text-primary" />
             </div>
             <div className="mt-4 space-y-3">
               <div>
                 <div className="mb-1 flex justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Gold energy score</span>
-                  <span>{Math.round(energyPercent)}%</span>
+                  <span>Recorded gold energy score</span>
+                  <span>{energyPercent === null ? "Unavailable" : `${Math.round(energyPercent)}%`}</span>
                 </div>
-                <Progress value={energyPercent} />
+                {energyPercent !== null && <Progress value={energyPercent} />}
               </div>
               <div>
                 <div className="mb-1 flex justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Confidence</span>
-                  <span>{Math.round(confidencePercent)}%</span>
+                  <span>Recorded confidence</span>
+                  <span>{confidencePercent === null ? "Unavailable" : `${Math.round(confidencePercent)}%`}</span>
                 </div>
-                <Progress value={confidencePercent} />
+                {confidencePercent !== null && <Progress value={confidencePercent} />}
               </div>
               <p className="text-sm text-muted-foreground">{effectiveDecisionReason}</p>
             </div>
@@ -414,20 +426,20 @@ export function AureonGoldCapitalIntelligenceConsole({
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="flex min-w-0 items-center gap-2">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
-                <h3 className="truncate text-sm font-semibold">3p Profit Floor Gate</h3>
+                <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">3p Profit Floor Gate</h3>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Pill label={String(threePFloorGate.state || "floor waiting")} tone={toneForStatus(String(threePFloorGate.state || ""))} />
                 <Pill label={`${String(threePFloorGate.side || "HOLD")}`} tone="border-warning/30 bg-warning/10 text-warning" />
               </div>
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <Metric label="Floor" value={`${fmtNumber(threePFloorGate.profit_floor_account_currency, 2)}`} hint={String(threePFloorGate.profit_floor_label || "net")} />
               <Metric label="Entry" value={`${fmtNumber(effectiveFloorEntry, 2)}`} hint={liveGoldSource.ready ? "terminal-state quote" : String(threePFloorGate.entry_instruction || "entry")} />
               <Metric label="Target" value={`${fmtNumber(threePFloorGate.target_level, 2)}`} hint="shadow target" />
               <Metric label="Size" value={`${fmtNumber(threePFloorGate.suggested_shadow_size, 4)}`} hint="shadow only" />
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                 <div className="text-muted-foreground">minimum move</div>
                 <div className="font-semibold">{fmtNumber(threePFloorGate.minimum_price_move_for_floor_at_min_size, 4)}</div>
@@ -441,11 +453,11 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="font-semibold">{fmtNumber(threePFloorGate.estimated_net_at_suggested_size, 4)}</div>
               </div>
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
               {liveThreePFloorBlockers.slice(0, 4).map((blocker: JsonMap) => (
                 <div key={String(blocker.id || blocker.reason)} className="rounded-md border border-warning/20 bg-warning/5 p-2">
-                  <div className="truncate text-xs font-medium text-warning">{String(blocker.id || "blocker")}</div>
-                  <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{String(blocker.reason || "")}</div>
+                  <div className="whitespace-normal [overflow-wrap:anywhere] text-xs font-medium text-warning">{String(blocker.id || "blocker")}</div>
+                  <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{blockerReason(blocker.reason)}</div>
                 </div>
               ))}
             </div>
@@ -456,12 +468,12 @@ export function AureonGoldCapitalIntelligenceConsole({
               <AlertTriangle className="h-4 w-4 text-warning" />
               <h3 className="text-sm font-semibold">Blocking Truth</h3>
             </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
               {visibleBlockingTruth.length ? (
                 visibleBlockingTruth.slice(0, 6).map((blocker: JsonMap) => (
                   <div key={String(blocker.id || blocker.reason)} className="rounded-md border border-warning/20 bg-warning/5 p-3">
-                    <div className="truncate text-sm font-medium text-warning">{String(blocker.id || "blocker")}</div>
-                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(blocker.reason || "No reason published.")}</div>
+                    <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium text-warning">{String(blocker.id || "blocker")}</div>
+                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{blockerReason(blocker.reason, "No reason published.")}</div>
                   </div>
                 ))
               ) : (
@@ -475,7 +487,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <Radio className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Live Stream Command Deck</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Live Stream Command Deck</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldLiveStreamDeck.status || "live deck waiting")} tone={toneForStatus(String(goldLiveStreamDeck.status || ""))} />
@@ -486,19 +498,19 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Read-only live GOLD analytics: what Aureon is doing now, what comes next, what it would act on, the result, Capital profile, leverage/margin status, chart streams, and the HNC/Auris feedback loop.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Doing Now" value={String(liveDeckNow.state || "hold")} hint={String(liveDeckResult.state || "result held").replace(/_/g, " ")} />
             <Metric label="Doing Next" value={String(liveDeckNext.targeting || "refresh").replace(/_/g, " ")} hint={String(liveDeckNext.next_refresh_action || "next action")} />
             <Metric label="Act On" value={String(liveDeckAct.candidate || "Capital GOLD")} hint={`${String(liveDeckAct.side || "HOLD")} ${String(liveDeckAct.allowed_action || "hold")}`} />
-            <Metric label="Capital Profile" value={effectiveCapitalProfile.snapshot_fresh ? "fresh" : "stale"} hint={`${fmtNumber(effectiveCapitalProfile.snapshot_age_seconds, 0)}s old`} />
+            <Metric label="Capital Profile" value={effectiveCapitalProfileFresh ? "fresh" : effectiveCapitalProfileAgeValid ? "stale" : "unavailable"} hint={effectiveCapitalProfileAgeValid ? `Estimated ${fmtNumber(effectiveCapitalProfileAge, 0)}s source age` : "age unavailable"} />
             <Metric label="Leverage" value={fmtNumber(liveLeverageMargin.leverage_estimate, 2)} hint={`margin ${fmtNumber(liveLeverageMargin.margin_factor_pct, 2)}%`} />
             <Metric label="Min Margin" value={fmtNumber(liveLeverageMargin.margin_required_for_min_deal, 2)} hint="for min deal" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-            <div className="grid gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Capital Data Profile</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-3 text-xs">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3 text-xs">
                   <div className="rounded border border-border/40 bg-background/35 p-2">
                     <div className="text-muted-foreground">bid / ask</div>
                     <div className="font-semibold">{fmtNumber(effectiveCapitalProfile.bid, 2)} / {fmtNumber(effectiveCapitalProfile.ask, 2)}</div>
@@ -527,26 +539,26 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">What Happens Next</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {liveDeckVisibleBlockers.length ? liveDeckVisibleBlockers.slice(0, 4).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">Terminal-state GOLD proof is fresh; live order mutation still stays behind interval validation and runtime authority gates.</div>}
                 </div>
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Live Stream Channels</div>
-                <ScrollArea className="mt-2 h-48 pr-3">
-                  <div className="grid gap-2">
+                <div className="overflow-y-auto min-w-0 mt-2 h-48 pr-3">
+                  <div className="grid grid-cols-1 gap-2">
                     {liveStreamChannels.map((channel: JsonMap) => (
                       <div key={String(channel.id || channel.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate font-medium">{String(channel.label || channel.id)}</div>
+                            <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(channel.label || channel.id)}</div>
                             <div className="mt-1 line-clamp-2 text-muted-foreground">{String(channel.next_action || "")}</div>
                           </div>
                           <Pill label={String(channel.status || "waiting")} tone={channel.fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -554,17 +566,17 @@ export function AureonGoldCapitalIntelligenceConsole({
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Chart Analytics And HNC Feedback</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {liveChartStreams.map((chart: JsonMap) => (
                     <div key={String(chart.id || chart.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(chart.label || chart.id)}</div>
-                          <div className="mt-1 truncate text-muted-foreground">{String(chart.chart_type || "chart")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(chart.label || chart.id)}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(chart.chart_type || "chart")}</div>
                         </div>
                         <Pill label={chart.fresh ? "fresh" : "held"} tone={chart.fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                       </div>
@@ -581,7 +593,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <Gauge className="h-4 w-4 shrink-0 text-warning" />
-              <h3 className="truncate text-sm font-semibold">GOLD Margin Signal Action Loop</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Margin Signal Action Loop</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldMarginSignalActionLoop.status || "action loop waiting")} tone={toneForStatus(String(goldMarginSignalActionLoop.status || ""))} />
@@ -592,7 +604,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             This is the proof bridge from GOLD intelligence into margin action: signals, intervals, HNC/Auris, margin unity, portfolio uplift, and the action command must all agree before a shadow margin intent can be published.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Acting State" value={String(goldMarginSignalActionLoop.acting_state || "held").replace(/_/g, " ")} hint={String(goldMarginSignalActionLoop.next_action || "next action")} />
             <Metric label="Ready Stages" value={`${fmtNumber(goldMarginSignalActionLoop.ready_stage_count, 0)}/${fmtNumber(goldMarginSignalActionLoop.stage_count, 0)}`} hint="signal to action" />
             <Metric label="Shadow Intent" value={marginSignalAuthority.shadow_margin_intent_allowed ? "allowed" : "held"} hint={String(marginSignalIntent.intent_state || "held for proof").replace(/_/g, " ")} />
@@ -600,15 +612,15 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Live Margin" value={marginSignalAuthority.margin_order_allowed ? "armed" : "blocked"} hint="existing gates only" />
             <Metric label="HNC Feedback" value={String(marginSignalHncFeedback.feedback_action || "waiting").replace(/_/g, " ")} hint={`nodes ${fmtNumber(marginSignalHncFeedback.node_count, 0)}`} />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Signal To Action Pipeline</div>
-              <div className="grid gap-2 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {marginSignalPipeline.map((stage: JsonMap) => (
                   <div key={String(stage.id || stage.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate font-medium">{String(stage.label || stage.id)}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(stage.label || stage.id)}</div>
                         <div className="mt-1 line-clamp-2 text-muted-foreground">{String(stage.proof || "")}</div>
                       </div>
                       <Pill label={stage.ready ? "ready" : "held"} tone={stage.ready ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -617,10 +629,10 @@ export function AureonGoldCapitalIntelligenceConsole({
                 ))}
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Margin Intent</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2 text-xs">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 text-xs">
                   <div className="rounded border border-border/40 bg-background/35 p-2">
                     <div className="text-muted-foreground">entry / target</div>
                     <div className="font-semibold">{fmtNumber(effectiveMarginEntry, 2)} / {fmtNumber(marginSignalIntent.target_level, 2)}</div>
@@ -645,11 +657,11 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="mt-2 text-xs text-muted-foreground">
                   Aureon feeds the current margin intent state, blocker ids, and interval proof back through the cognitive layer before confidence can rise.
                 </div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {liveMarginSignalBlockers.slice(0, 4).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   ))}
                 </div>
@@ -662,7 +674,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Process Logic Flow Guard</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Process Logic Flow Guard</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldProcessLogicFlowGuard.status || "flow guard waiting")} tone={goldProcessLogicFlowGuard.flow_correct ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -673,7 +685,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             This guard checks process order. Blocked upstream proof is acceptable only when every downstream action gate stays held; any fake pass or authority leak is surfaced here.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Flow Correct" value={goldProcessLogicFlowGuard.flow_correct ? "yes" : "attention"} hint={String(goldProcessLogicFlowGuard.flow_state || "flow")} />
             <Metric label="Ready Gates" value={`${fmtNumber(goldProcessLogicFlowGuard.ready_gate_count, 0)}/${fmtNumber(goldProcessLogicFlowGuard.gate_count, 0)}`} hint="ordered chain" />
             <Metric label="Fake Passes" value={fmtNumber(goldProcessLogicFlowGuard.fake_pass_count, 0)} hint="must stay zero" />
@@ -681,15 +693,15 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="All Gates" value={goldProcessLogicFlowGuard.all_gates_ready ? "ready" : "held"} hint="before shadow intent" />
             <Metric label="Next Check" value={String(goldProcessLogicFlowGuard.next_validation_action || "inspect").replace(/_/g, " ")} hint="validation action" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Gate Sequence</div>
-              <div className="grid gap-2 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {processFlowGates.map((gate: JsonMap) => (
                   <div key={String(gate.id || gate.order)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate font-medium">{fmtNumber(gate.order, 0)}. {String(gate.label || gate.id)}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{fmtNumber(gate.order, 0)}. {String(gate.label || gate.id)}</div>
                         <div className="mt-1 line-clamp-2 text-muted-foreground">{String(gate.proof || "")}</div>
                       </div>
                       <Pill label={gate.ready ? "ready" : "held"} tone={gate.ready ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -698,15 +710,15 @@ export function AureonGoldCapitalIntelligenceConsole({
                 ))}
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Authority Leak Checks</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {processAuthorityChecks.slice(0, 6).map((check: JsonMap) => (
                     <div key={String(check.id)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(check.id || "authority").replace(/_/g, " ")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(check.id || "authority").replace(/_/g, " ")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(check.reason || "")}</div>
                         </div>
                         <Pill label={check.allowed ? "leak" : "blocked"} tone={check.allowed ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-success/30 bg-success/10 text-success"} />
@@ -717,7 +729,7 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Flow Violations</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {processFlowViolations.length ? processFlowViolations.slice(0, 5).map((violation: JsonMap) => (
                     <div key={String(violation.id || violation.reason)} className="rounded border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
                       <div className="font-medium">{String(violation.id || "violation").replace(/_/g, " ")}</div>
@@ -734,7 +746,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <Radio className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Data Sensemaking Router</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Data Sensemaking Router</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldDataSensemakingRouter.status || "sensemaking waiting")} tone={toneForStatus(String(goldDataSensemakingRouter.status || ""))} />
@@ -745,7 +757,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             This router proves Aureon is reading data, classifying what it means for GOLD, and sending each packet to the gate that needs it.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Sensemaking Score" value={fmtPercent(goldDataSensemakingRouter.sensemaking_score)} hint="read plus routed" />
             <Metric label="Present Sources" value={`${fmtNumber(goldDataSensemakingRouter.present_source_count, 0)}/${fmtNumber(goldDataSensemakingRouter.source_count, 0)}`} hint="readable" />
             <Metric label="Fresh Sources" value={fmtNumber(goldDataSensemakingRouter.fresh_source_count, 0)} hint="not stale" />
@@ -753,35 +765,35 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Destinations" value={fmtNumber(goldDataSensemakingRouter.destination_count, 0)} hint="gates fed" />
             <Metric label="Router Blockers" value={fmtNumber(sensemakingBlockers.length, 0)} hint="stale or unmapped" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Source Routes</div>
-              <ScrollArea className="h-56 pr-3">
-                <div className="grid gap-2">
+              <div className="overflow-y-auto min-w-0 h-56 pr-3">
+                <div className="grid grid-cols-1 gap-2">
                   {sensemakingSourceRoutes.map((route: JsonMap) => (
                     <div key={String(route.id || route.path)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(route.id || "source").replace(/_/g, " ")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(route.id || "source").replace(/_/g, " ")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(route.meaning || "")}</div>
-                          <div className="mt-1 truncate text-muted-foreground">{(Array.isArray(route.destinations) ? route.destinations : []).slice(0, 4).join(" -> ")}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{(Array.isArray(route.destinations) ? route.destinations : []).slice(0, 4).join(" -> ")}</div>
                         </div>
                         <Pill label={route.route_ready ? "routed" : "held"} tone={route.route_ready ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                       </div>
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Meaning Packets</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {sensemakingMeaningPackets.map((packet: JsonMap) => (
                     <div key={String(packet.id || packet.destination)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(packet.id || "packet").replace(/_/g, " ")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(packet.id || "packet").replace(/_/g, " ")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(packet.meaning || "")}</div>
                         </div>
                         <Pill label={packet.ready ? "ready" : "held"} tone={packet.ready ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -792,13 +804,13 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Driver Placement</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {sensemakingDriverRoutes.slice(0, 5).map((driver: JsonMap) => (
                     <div key={String(driver.id || driver.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(driver.label || driver.id)}</div>
-                          <div className="mt-1 truncate text-muted-foreground">{String(driver.action_use || "")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(driver.label || driver.id)}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(driver.action_use || "")}</div>
                         </div>
                         <Pill label={String(driver.destination || "destination").replace(/_/g, " ")} tone="border-primary/30 bg-primary/10 text-primary" />
                       </div>
@@ -808,11 +820,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Sensemaking Blockers</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {sensemakingBlockers.length ? sensemakingBlockers.slice(0, 4).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">All readable data has a GOLD destination route.</div>}
                 </div>
@@ -825,7 +837,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">Verified Real Data Gate</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">Verified Real Data Gate</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(verifiedRealDataGate.status || "data gate waiting")} tone={summary.verified_real_data_action_allowed ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -833,26 +845,26 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Pill label={`${fmtNumber(verifiedSignalChecks.filter((item: JsonMap) => item.verified_for_action).length, 0)}/${fmtNumber(verifiedSignalChecks.length, 0)} action signals`} tone="border-warning/30 bg-warning/10 text-warning" />
             </div>
           </div>
-          <div className="grid gap-3 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[0.9fr_1.1fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Policy</div>
               <div className="mt-1 text-xs text-muted-foreground">{String(verifiedRealDataGate.policy || "Only fresh verified market/runtime evidence can unlock action.")}</div>
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                 {verifiedDataBlockers.slice(0, 4).map((blocker: JsonMap) => (
                   <div key={String(blocker.id || blocker.reason)} className="rounded-md border border-warning/20 bg-warning/5 p-2">
-                    <div className="truncate text-xs font-medium text-warning">{String(blocker.id || "blocker")}</div>
-                    <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{String(blocker.reason || "")}</div>
+                    <div className="whitespace-normal [overflow-wrap:anywhere] text-xs font-medium text-warning">{String(blocker.id || "blocker")}</div>
+                    <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{blockerReason(blocker.reason)}</div>
                   </div>
                 ))}
               </div>
             </div>
-            <ScrollArea className="h-52 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+            <div className="overflow-y-auto min-w-0 h-52 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {verifiedSourceChecks.map((source: JsonMap) => (
                   <div key={String(source.id || source.source_status)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(source.id || "source").replace(/_/g, " ")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(source.id || "source").replace(/_/g, " ")}</div>
                         <div className="mt-1 text-xs text-muted-foreground">{fmtNumber(source.age_seconds, 0)}s / {fmtNumber(source.max_age_seconds, 0)}s</div>
                       </div>
                       <Pill label={source.fresh ? "fresh" : "blocked"} tone={source.fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -860,7 +872,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </section>
 
@@ -868,7 +880,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-              <h3 className="truncate text-sm font-semibold">GOLD Fresh Signal Validation</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Fresh Signal Validation</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldSignalFreshnessMatrix.status || "freshness waiting")} tone={toneForStatus(String(goldSignalFreshnessMatrix.status || ""))} />
@@ -879,7 +891,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             No GOLD signal, projection, HNC score, margin idea, or portfolio-growth claim may influence action unless the source lanes are fresh and the projection has passed tick, 1m, 5m, 15m, 1h, and session validation.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Fresh Sources" value={`${fmtNumber(summary.gold_ticker_source_fresh_lane_count || goldTickerSourceMesh.fresh_lane_count, 0)}/${fmtNumber(summary.gold_ticker_source_lane_count || goldTickerSourceMesh.lane_count, 0)}`} hint="ticker mesh" />
             <Metric label="Fresh Rows" value={`${fmtNumber(summary.gold_signal_fresh_row_count || goldSignalFreshnessMatrix.fresh_row_count, 0)}/${fmtNumber(summary.gold_signal_row_count || goldSignalFreshnessMatrix.row_count, 0)}`} hint="signals" />
             <Metric label="Action Rows" value={fmtNumber(summary.gold_signal_action_influence_row_count || goldSignalFreshnessMatrix.action_influence_row_count, 0)} hint="source-linked" />
@@ -887,17 +899,17 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Shadow P/L" value={fmtNumber(goldPortfolioUpliftGuard.validated_shadow_p_l_effect || summary.gold_portfolio_uplift_shadow_pl, 5)} hint="validated only" />
             <Metric label="Order Intent" value={goldPortfolioUpliftGuard.order_intent_consideration_allowed ? "consider" : "blocked"} hint="3p plus risk" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-            <div className="grid gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Ticker Source Mesh</div>
-                <ScrollArea className="mt-2 h-52 pr-3">
-                  <div className="grid gap-2">
+                <div className="overflow-y-auto min-w-0 mt-2 h-52 pr-3">
+                  <div className="grid grid-cols-1 gap-2">
                     {goldTickerSourceLanes.map((lane: JsonMap) => (
                       <div key={String(lane.id || lane.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate font-medium">{String(lane.label || lane.id)}</div>
+                            <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(lane.label || lane.id)}</div>
                             <div className="mt-1 line-clamp-2 text-muted-foreground">{(Array.isArray(lane.symbols) ? lane.symbols : []).join(", ")} | {String(lane.venue || "")}</div>
                           </div>
                           <Pill label={lane.fresh ? "fresh" : "held"} tone={lane.fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -905,11 +917,11 @@ export function AureonGoldCapitalIntelligenceConsole({
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">HNC/Auris Action Gate</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2 text-xs">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2 text-xs">
                   <div className="rounded border border-border/40 bg-background/35 p-2">
                     <div className="text-muted-foreground">coherence</div>
                     <div className="font-semibold">{fmtPercent(goldHncActionCoherenceGate.auris_coherence)}</div>
@@ -922,16 +934,16 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">{String(goldHncActionCoherenceGate.weapon_policy || "HNC/Auris cannot promote stale evidence.")}</div>
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Projection Intervals</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {goldProjectionIntervals.map((interval: JsonMap) => (
                     <div key={String(interval.id || interval.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(interval.label || interval.id)}</div>
-                          <div className="mt-1 truncate text-muted-foreground">{String(interval.forecast_direction || "waiting")} | {String(interval.hit_miss || "unvalidated")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(interval.label || interval.id)}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(interval.forecast_direction || "waiting")} | {String(interval.hit_miss || "unvalidated")}</div>
                         </div>
                         <Pill label={interval.validated ? "validated" : "missing"} tone={interval.validated ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                       </div>
@@ -941,11 +953,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Fresh-Proof Blockers</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {([...goldSignalFreshnessBlockers, ...goldProjectionBlockers, ...goldPortfolioUpliftBlockers] as JsonMap[]).slice(0, 6).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "fresh proof blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   ))}
                   {!goldSignalFreshnessBlockers.length && !goldProjectionBlockers.length && !goldPortfolioUpliftBlockers.length ? (
@@ -961,7 +973,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <LineChart className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Evolving Projection Path</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Evolving Projection Path</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldEvolvingProjectionPath.status || "projection path waiting")} tone={toneForStatus(String(goldEvolvingProjectionPath.status || ""))} />
@@ -972,7 +984,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Rolling GOLD projections from seconds to months. Every horizon carries fresh-input proof, validation deadline, hit/miss state, confidence delta, and the next roll-forward action.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Horizons" value={fmtNumber(goldEvolvingProjectionPath.horizon_count, 0)} hint="seconds to months" />
             <Metric label="Fresh Horizons" value={fmtNumber(goldEvolvingProjectionPath.fresh_horizon_count, 0)} hint="input fresh" />
             <Metric label="Validated" value={fmtNumber(goldEvolvingProjectionPath.validated_horizon_count, 0)} hint="outcome checked" />
@@ -980,17 +992,17 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Next Roll" value={String(goldEvolvingProjectionPath.next_roll_forward_action || "refresh").replace(/_/g, " ")} hint="live path" />
             <Metric label="Path Blockers" value={fmtNumber(evolvingProjectionBlockers.length, 0)} hint="missing/stale/miss" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Second-To-Month Horizon Ladder</div>
-              <ScrollArea className="h-60 pr-3">
-                <div className="grid gap-2 lg:grid-cols-2">
+              <div className="overflow-y-auto min-w-0 h-60 pr-3">
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {evolvingProjectionHorizons.map((horizon: JsonMap) => (
                     <div key={String(horizon.id || horizon.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(horizon.label || horizon.id)}</div>
-                          <div className="mt-1 truncate text-muted-foreground">{String(horizon.validation_state || "waiting").replace(/_/g, " ")} | {String(horizon.hit_miss || "unvalidated")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(horizon.label || horizon.id)}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(horizon.validation_state || "waiting").replace(/_/g, " ")} | {String(horizon.hit_miss || "unvalidated")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(horizon.next_action || "")}</div>
                         </div>
                         <Pill label={horizon.input_fresh ? "fresh" : "stale"} tone={horizon.input_fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -998,15 +1010,15 @@ export function AureonGoldCapitalIntelligenceConsole({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Projection Path Blockers</div>
-              <div className="mt-2 grid gap-2">
+              <div className="mt-2 grid grid-cols-1 gap-2">
                 {evolvingProjectionBlockers.length ? evolvingProjectionBlockers.slice(0, 8).map((blocker: JsonMap) => (
                   <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                     <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                    <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                    <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                   </div>
                 )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">All projection horizons are rolling forward cleanly.</div>}
               </div>
@@ -1018,7 +1030,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <Activity className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Dynamic Market Edge Stream</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Dynamic Market Edge Stream</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldDynamicMarketEdgeStream.status || "edge stream waiting")} tone={toneForStatus(String(goldDynamicMarketEdgeStream.status || ""))} />
@@ -1029,24 +1041,24 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Live GOLD edge watch: Capital GOLD is the target stream, related markets are confirmation lanes, and waveform movement can only become shadow intent after fresh proof, interval validation, HNC/Auris, and 3p portfolio gates pass.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Edge Score" value={fmtPercent(goldDynamicMarketEdgeStream.edge_score)} hint={String(goldDynamicMarketEdgeStream.edge_state || "watching").replace(/_/g, " ")} />
-            <Metric label="Target Fresh" value={liveGoldSource.ready || goldDynamicMarketEdgeStream.target_stream_fresh ? "yes" : "no"} hint={liveGoldSource.ready ? "terminal-state GOLD" : "Capital GOLD"} />
+            <Metric label="Target Fresh" value={runtimeObservation.sourceCurrent ? "observed" : "unavailable"} hint={liveGoldSource.ready ? "terminal-state GOLD" : "Capital GOLD"} />
             <Metric label="Context Fresh" value={fmtNumber(goldDynamicMarketEdgeStream.context_fresh_count, 0)} hint="related lanes" />
             <Metric label="Waveform" value={String(goldDynamicMarketEdgeStream.waveform_state || "waiting").replace(/_/g, " ")} hint="move timing" />
             <Metric label="Candidate Side" value={liveCandidateSide} hint={`${String(dynamicEdgeCandidate.state || "held").replace(/_/g, " ")} / ${fmtPercent(liveCandidateConfidence)}`} />
             <Metric label="Next Edge Step" value={effectiveNextEdgeStep} hint="shadow only" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Streaming Edge Lanes</div>
-              <ScrollArea className="h-60 pr-3">
-                <div className="grid gap-2 lg:grid-cols-2">
+              <div className="overflow-y-auto min-w-0 h-60 pr-3">
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {liveDynamicEdgeRows.map((row: JsonMap) => (
                     <div key={String(row.id || row.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(row.label || row.id)}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(row.label || row.id)}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{(Array.isArray(row.symbols) ? row.symbols : []).join(", ")} | {String(row.edge_use || "")}</div>
                           <div className="mt-1 text-muted-foreground">score {fmtPercent(row.edge_score)} | age {fmtNumber(row.age_seconds, 0)}s</div>
                         </div>
@@ -1055,12 +1067,12 @@ export function AureonGoldCapitalIntelligenceConsole({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Edge Trigger Map</div>
-                <div className="mt-2 grid gap-2 text-xs">
+                <div className="mt-2 grid grid-cols-1 gap-2 text-xs">
                   <div className="rounded border border-border/40 bg-background/35 p-2">
                     <div className="text-muted-foreground">side</div>
                     <div className="font-semibold">{String(liveRuntimeProof.candidate_side || dynamicEdgeTriggerMap.side || dynamicEdgeCandidate.side || "HOLD")}</div>
@@ -1081,11 +1093,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Edge Blockers</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {liveDynamicEdgeBlockers.length ? liveDynamicEdgeBlockers.slice(0, 8).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">Dynamic edge stream is clean for shadow validation.</div>}
                 </div>
@@ -1098,7 +1110,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <LineChart className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD HNC History Future Bridge</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD HNC History Future Bridge</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldHncHistoryFutureBridge.status || "history future waiting")} tone={toneForStatus(String(goldHncHistoryFutureBridge.status || ""))} />
@@ -1109,7 +1121,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Historical GOLD replay becomes a future hypothesis only through HNC/Auris. Validated rows, replay lanes, waveform memory, dynamic edge proof, and Auris coherence must agree before history can raise confidence.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Memory Score" value={fmtPercent(goldHncHistoryFutureBridge.historical_memory_score)} hint="history signal" />
             <Metric label="Validated History" value={fmtNumber(goldHncHistoryFutureBridge.validated_history_count, 0)} hint={`hit ${goldHncHistoryFutureBridge.historical_hit_rate == null ? "held" : fmtPercent(goldHncHistoryFutureBridge.historical_hit_rate)}`} />
             <Metric label="Replay Lanes" value={`${fmtNumber(goldHncHistoryFutureBridge.ready_replay_lane_count, 0)}/${fmtNumber(goldHncHistoryFutureBridge.replay_lane_count, 0)}`} hint="historical map" />
@@ -1117,16 +1129,16 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Auris" value={fmtPercent(goldHncHistoryFutureBridge.auris_coherence)} hint={String(goldHncHistoryFutureBridge.hnc_confidence_effect || "hold")} />
             <Metric label="Bridge" value={goldHncHistoryFutureBridge.bridge_ready ? "ready" : "held"} hint={String(historyFuturePacket.act || "hold").replace(/_/g, " ")} />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Historical Analogs</div>
-              <ScrollArea className="h-56 pr-3">
-                <div className="grid gap-2">
+              <div className="overflow-y-auto min-w-0 h-56 pr-3">
+                <div className="grid grid-cols-1 gap-2">
                   {historyFutureAnalogs.map((analog: JsonMap) => (
                     <div key={String(analog.id || analog.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(analog.label || analog.id)}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(analog.label || analog.id)}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(analog.future_use || "")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(analog.next_action || "")}</div>
                         </div>
@@ -1135,16 +1147,16 @@ export function AureonGoldCapitalIntelligenceConsole({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Future Windows</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {historyFutureWindows.slice(0, 8).map((window: JsonMap) => (
                     <div key={String(window.id || window.label)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
-                      <div className="truncate font-medium">{String(window.label || window.id)}</div>
-                      <div className="mt-1 truncate text-muted-foreground">{String(window.validation_state || "waiting").replace(/_/g, " ")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(window.label || window.id)}</div>
+                      <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(window.validation_state || "waiting").replace(/_/g, " ")}</div>
                       <Pill label={window.ready ? "ready" : "held"} tone={window.ready ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                     </div>
                   ))}
@@ -1152,11 +1164,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">History Future Blockers</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {historyFutureBlockers.length ? historyFutureBlockers.slice(0, 8).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">History-to-future bridge is passing for shadow evidence.</div>}
                 </div>
@@ -1169,7 +1181,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <Activity className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Creative Dream Hypothesis Engine</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Creative Dream Hypothesis Engine</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldCreativeDreamEngine.status || "dream engine waiting")} tone={toneForStatus(String(goldCreativeDreamEngine.status || ""))} />
@@ -1180,7 +1192,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             More ideas means more search paths, but every dream stays non-mutating until fresh sources, interval validation, HNC/Auris coherence, and the 3p floor can prove it.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Dream Count" value={fmtNumber(goldCreativeDreamEngine.dream_count, 0)} hint="creative breadth" />
             <Metric label="Ready Dreams" value={fmtNumber(goldCreativeDreamEngine.ready_dream_count, 0)} hint="shadow validation" />
             <Metric label="Creativity" value={fmtPercent(goldCreativeDreamEngine.average_creativity_score)} hint="idea spread" />
@@ -1188,16 +1200,16 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Research Packets" value={fmtNumber(goldCreativeDreamEngine.research_packet_count, 0)} hint="local source packets" />
             <Metric label="Action Influence" value={goldCreativeDreamEngine.action_influence_allowed ? "allowed" : "blocked"} hint="idea only" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="mb-2 text-sm font-medium">Dream Bank</div>
-              <ScrollArea className="h-64 pr-3">
-                <div className="grid gap-2">
+              <div className="overflow-y-auto min-w-0 h-64 pr-3">
+                <div className="grid grid-cols-1 gap-2">
                   {creativeDreams.map((dream: JsonMap) => (
                     <div key={String(dream.id || dream.title)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(dream.title || dream.id)}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(dream.title || dream.id)}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(dream.premise || "")}</div>
                           <div className="mt-1 flex flex-wrap gap-1">
                             <Pill label={String(dream.imagination_lane || "dream").replace(/_/g, " ")} tone="border-primary/30 bg-primary/10 text-primary" />
@@ -1210,16 +1222,16 @@ export function AureonGoldCapitalIntelligenceConsole({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Validation Queue</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {creativeDreamQueue.slice(0, 6).map((item: JsonMap) => (
                     <div key={String(item.dream_id || item.priority)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">{String(item.dream_id || "dream").replace(/_/g, " ")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(item.dream_id || "dream").replace(/_/g, " ")}</div>
                         <Pill label={String(item.priority || "medium")} tone={String(item.priority || "").includes("high") ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                       </div>
                       <div className="mt-1 line-clamp-2 text-muted-foreground">{String(item.next_validation_action || "")}</div>
@@ -1229,11 +1241,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Dream Blockers</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {creativeDreamBlockers.length ? creativeDreamBlockers.slice(0, 6).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">Dream breadth is ready for shadow validation queueing.</div>}
                 </div>
@@ -1246,7 +1258,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <LineChart className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">GOLD Probability Projection Forecast</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">GOLD Probability Projection Forecast</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldProbabilityProjectionForecast.status || "probability forecast waiting")} tone={toneForStatus(String(goldProbabilityProjectionForecast.status || ""))} />
@@ -1257,7 +1269,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Forecasts stay probabilistic: Aureon shows BUY/SELL/HOLD distribution, validated claims, contradictions, and truth discipline before any forecast can influence a margin action.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Calibrated Direction" value={String(probabilityForecastDistribution.calibrated_direction || "HOLD")} hint={`confidence ${fmtPercent(probabilityForecastDistribution.calibrated_confidence)}`} />
             <Metric label="BUY Probability" value={fmtPercent(probabilityForecastDistribution.buy_probability)} hint="weighted claims" />
             <Metric label="SELL Probability" value={fmtPercent(probabilityForecastDistribution.sell_probability)} hint="weighted claims" />
@@ -1265,12 +1277,12 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Validated Claims" value={fmtNumber(probabilityValidatedForecast.validated_claim_count, 0)} hint={`hit rate ${probabilityValidatedForecast.hit_rate == null ? "held" : fmtPercent(probabilityValidatedForecast.hit_rate)}`} />
             <Metric label="Truth Claim" value={probabilityTruthDiscipline.truth_claim_allowed ? "allowed" : "blocked"} hint="no fake certainty" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="grid gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Truth Discipline</div>
                 <div className="mt-2 text-xs text-muted-foreground">{String(probabilityTruthDiscipline.operator_language || "Use probability, proof, blockers, and next validation action.")}</div>
-                <div className="mt-3 grid gap-2 md:grid-cols-2 text-xs">
+                <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 text-xs">
                   <div className="rounded border border-border/40 bg-background/35 p-2">
                     <div className="text-muted-foreground">quality score</div>
                     <div className="font-semibold">{fmtPercent(probabilityForecastDistribution.organism_quality_score)}</div>
@@ -1291,38 +1303,38 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Forecast Blockers</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {probabilityForecastBlockers.length ? probabilityForecastBlockers.slice(0, 5).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">Probability forecast gates are passing.</div>}
                 </div>
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Probability Forecast Claims</div>
-                <ScrollArea className="mt-2 h-48 pr-3">
-                  <div className="grid gap-2">
+                <div className="overflow-y-auto min-w-0 mt-2 h-48 pr-3">
+                  <div className="grid grid-cols-1 gap-2">
                     {probabilityForecastClaims.map((claim: JsonMap) => (
                       <div key={String(claim.id || claim.interval)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate font-medium">{String(claim.interval || "interval")} {String(claim.side || "HOLD")}</div>
-                            <div className="mt-1 truncate text-muted-foreground">prob {fmtPercent(claim.probability)} | confidence {fmtPercent(claim.confidence)}</div>
+                            <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(claim.interval || "interval")} {String(claim.side || "HOLD")}</div>
+                            <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">prob {fmtPercent(claim.probability)} | confidence {fmtPercent(claim.confidence)}</div>
                           </div>
                           <Pill label={String(claim.truth_status || "hypothesis").replace(/_/g, " ")} tone={String(claim.truth_status || "").includes("hit") ? "border-success/30 bg-success/10 text-success" : String(claim.truth_status || "").includes("miss") ? "border-warning/30 bg-warning/10 text-warning" : "border-slate-500/30 bg-slate-500/10 text-slate-200"} />
                         </div>
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Contradiction Checks</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {probabilityContradictions.length ? probabilityContradictions.slice(0, 5).map((item: JsonMap) => (
                     <div key={String(item.id || item.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(item.id || "contradiction").replace(/_/g, " ")}</div>
@@ -1339,7 +1351,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">HNC/Auris Quantum Probability Route</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">HNC/Auris Quantum Probability Route</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(cognitiveRoute.status || "cognitive route waiting")} tone={cognitiveRoute.route_passed ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -1350,7 +1362,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             GOLD shadow logic must pass through Auris nodes, lambda history, HNC proof, quantum route context, and probability evidence before any candidate can be promoted.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Auris Nodes" value={`${fmtNumber(cognitiveAurisNodes.node_count, 0)}/9`} hint={`coherence ${fmtPercent(cognitiveAurisNodes.coherence)}`} />
             <Metric label="Lambda" value={cognitiveLambda.fresh ? "fresh" : "held"} hint={`latest ${fmtNumber(cognitiveLambda.latest_lambda, 3)}`} />
             <Metric label="HNC" value={cognitiveHnc.passed ? "passing" : "held"} hint={`score ${fmtNumber(cognitiveHnc.master_formula_score, 3)}`} />
@@ -1358,15 +1370,15 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Probability" value={`${fmtNumber(cognitiveProbability.present_surface_count, 0)}/${fmtNumber(cognitiveProbability.surface_count, 0)}`} hint={`${fmtNumber(cognitiveProbability.gold_row_count, 0)} GOLD rows`} />
             <Metric label="Blockers" value={fmtNumber(cognitiveRouteBlockers.length, 0)} hint="route gate" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Route Blockers</div>
-              <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                 {cognitiveRouteBlockers.length ? (
                   cognitiveRouteBlockers.slice(0, 6).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/20 bg-warning/5 p-2 text-xs">
-                      <div className="truncate font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2 text-muted-foreground">{String(blocker.reason || "")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
+                      <div className="mt-1 line-clamp-2 text-muted-foreground">{blockerReason(blocker.reason)}</div>
                     </div>
                   ))
                 ) : (
@@ -1374,14 +1386,14 @@ export function AureonGoldCapitalIntelligenceConsole({
                 )}
               </div>
             </div>
-            <ScrollArea className="h-52 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+            <div className="overflow-y-auto min-w-0 h-52 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {cognitiveRouteSurfaces.map((surface: JsonMap) => (
                   <div key={String(surface.id || surface.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(surface.id || "route surface").replace(/_/g, " ")}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{String(surface.family || "family")} | {String(surface.route_use || "route")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(surface.id || "route surface").replace(/_/g, " ")}</div>
+                        <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(surface.family || "family")} | {String(surface.route_use || "route")}</div>
                       </div>
                       <Pill label={surface.present ? "present" : "missing"} tone={surface.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                     </div>
@@ -1389,7 +1401,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </section>
 
@@ -1397,7 +1409,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <Gauge className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">HFT Speed And Validated Predictions Gate</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">HFT Speed And Validated Predictions Gate</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(hftSpeedGate.status || "speed gate waiting")} tone={hftSpeedGate.gate_passed ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -1408,7 +1420,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             High-frequency GOLD logic is only trusted when the inputs are fast enough and the prediction stream has fresh, outcome-validated GOLD/XAU rows.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Speed Score" value={fmtPercent(hftSpeedGate.speed_score)} hint="latency plus validation" />
             <Metric label="Fresh Predictions" value={fmtNumber(hftPredictionValidation.fresh_gold_prediction_count, 0)} hint="GOLD/XAU only" />
             <Metric label="Validated" value={fmtNumber(hftPredictionValidation.validated_gold_prediction_count, 0)} hint="outcome checked" />
@@ -1416,15 +1428,15 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Speed Surfaces" value={`${fmtNumber(hftSpeedGate.present_surface_count, 0)}/${fmtNumber(hftSpeedGate.surface_count, 0)}`} hint="repo route" />
             <Metric label="Blockers" value={fmtNumber(hftBlockers.length, 0)} hint="promotion gate" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Speed Blockers</div>
-              <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                 {hftBlockers.length ? (
                   hftBlockers.slice(0, 6).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/20 bg-warning/5 p-2 text-xs">
-                      <div className="truncate font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2 text-muted-foreground">{String(blocker.reason || "")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
+                      <div className="mt-1 line-clamp-2 text-muted-foreground">{blockerReason(blocker.reason)}</div>
                     </div>
                   ))
                 ) : (
@@ -1432,14 +1444,14 @@ export function AureonGoldCapitalIntelligenceConsole({
                 )}
               </div>
             </div>
-            <ScrollArea className="h-52 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+            <div className="overflow-y-auto min-w-0 h-52 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {hftLatencyChecks.map((check: JsonMap) => (
                   <div key={String(check.id || check.status)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(check.id || "latency").replace(/_/g, " ")}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{fmtNumber(check.age_ms, 0)}ms / {fmtNumber(check.max_age_ms, 0)}ms</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(check.id || "latency").replace(/_/g, " ")}</div>
+                        <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{fmtNumber(check.age_ms, 0)}ms / {fmtNumber(check.max_age_ms, 0)}ms</div>
                       </div>
                       <Pill label={check.fresh_for_hft ? "fast" : "held"} tone={check.fresh_for_hft ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                     </div>
@@ -1449,7 +1461,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   <div key={String(surface.id || surface.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(surface.id || "speed surface").replace(/_/g, " ")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(surface.id || "speed surface").replace(/_/g, " ")}</div>
                         <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(surface.role || "")}</div>
                       </div>
                       <Pill label={surface.present ? "present" : "missing"} tone={surface.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
@@ -1457,7 +1469,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </section>
 
@@ -1465,7 +1477,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <LineChart className="h-4 w-4 shrink-0 text-primary" />
-              <h3 className="truncate text-sm font-semibold">Gold Historical Stress Test</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">Gold Historical Stress Test</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(historicalStress.status || "historical stress waiting")} tone={historicalStress.stress_passed ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -1476,7 +1488,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Historical proof is a separate replay gate: GOLD/XAU prediction rows must be timestamped, outcome-validated, and replayable through existing backtest/history surfaces before the system can claim handover-ready shadow logic.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <Metric label="Prediction Rows" value={fmtNumber(historicalStressValidation.row_count, 0)} hint="GOLD/XAU only" />
             <Metric label="Validated Rows" value={fmtNumber(historicalStressValidation.validated_count, 0)} hint="outcome checked" />
             <Metric label="Correct Rows" value={fmtNumber(historicalStressValidation.validated_correct_count, 0)} hint="direction proof" />
@@ -1484,16 +1496,16 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Metric label="Stress Scenarios" value={`${fmtNumber(historicalStressScenarios.filter((scenario: JsonMap) => scenario.state === "passed").length, 0)}/${fmtNumber(historicalStressScenarios.length, 0)}`} hint="replay checks" />
             <Metric label="Replay Surfaces" value={`${fmtNumber(historicalStress.present_surface_count, 0)}/${fmtNumber(historicalStress.surface_count, 0)}`} hint="repo route" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Stress Scenarios</div>
-              <div className="mt-2 grid gap-2">
+              <div className="mt-2 grid grid-cols-1 gap-2">
                 {historicalStressScenarios.length ? (
                   historicalStressScenarios.map((scenario: JsonMap) => (
                     <div key={String(scenario.id || scenario.label)} className="rounded border border-border/50 bg-background/40 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(scenario.label || scenario.id || "scenario")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(scenario.label || scenario.id || "scenario")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(scenario.proof || "")}</div>
                         </div>
                         <Pill label={String(scenario.state || "waiting")} tone={scenario.state === "passed" ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -1507,23 +1519,23 @@ export function AureonGoldCapitalIntelligenceConsole({
             </div>
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Historical Blockers</div>
-              <div className="mt-2 grid gap-2 md:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                 {historicalStressBlockers.length ? (
                   historicalStressBlockers.slice(0, 6).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/20 bg-warning/5 p-2 text-xs">
-                      <div className="truncate font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2 text-muted-foreground">{String(blocker.reason || "")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
+                      <div className="mt-1 line-clamp-2 text-muted-foreground">{blockerReason(blocker.reason)}</div>
                     </div>
                   ))
                 ) : (
                   <div className="rounded border border-success/20 bg-success/5 p-2 text-xs text-success">Historical replay gate is passing for shadow evidence.</div>
                 )}
               </div>
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                 {historicalStressSurfaces.slice(0, 6).map((surface: JsonMap) => (
                   <div key={String(surface.id || surface.path)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="truncate font-medium">{String(surface.id || "surface").replace(/_/g, " ")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(surface.id || "surface").replace(/_/g, " ")}</div>
                       <Pill label={surface.present ? "present" : "missing"} tone={surface.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                     </div>
                     <div className="mt-1 line-clamp-2 text-muted-foreground">{String(surface.role || "")}</div>
@@ -1549,23 +1561,23 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             GOLD agents can use the coding organism, capability forge, dynamic prompt filter, ThoughtBus, and monitor surfaces to request tools, publish evidence, and keep the whole GOLD mission visible without bypassing live-trading gates.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Metric label="Support Surfaces" value={`${fmtNumber(agentCodingSupport.present_surface_count, 0)}/${fmtNumber(agentCodingSupport.surface_count, 0)}`} hint="code routes" />
             <Metric label="Support Artifacts" value={`${fmtNumber(agentCodingSupport.present_artifact_count, 0)}/${fmtNumber(agentCodingSupport.artifact_count, 0)}`} hint="public/state proof" />
             <Metric label="Fresh Artifacts" value={fmtNumber(agentCodingSupport.fresh_artifact_count, 0)} hint="15m freshness" />
             <Metric label="Monitor Targets" value={fmtNumber(summary.gold_agent_monitor_target_count || agentMonitorTargets.length, 0)} hint="GOLD gates watched" />
             <Metric label="Support Blockers" value={fmtNumber(agentSupportBlockers.length, 0)} hint="agent lane holds" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="grid gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Agent Chat Lanes</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {agentChatLanes.map((lane: JsonMap) => (
                     <div key={String(lane.id || lane.label)} className="rounded border border-border/50 bg-background/40 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(lane.label || lane.id)}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(lane.label || lane.id)}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(lane.use_for_gold || "")}</div>
                         </div>
                         <Pill label={String(lane.status || "waiting")} tone={toneForStatus(String(lane.status || ""))} />
@@ -1576,12 +1588,12 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Agent Tool Lanes</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {agentToolLanes.map((lane: JsonMap) => (
                     <div key={String(lane.id || lane.label)} className="rounded border border-border/50 bg-background/40 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(lane.label || lane.id)}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(lane.label || lane.id)}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(lane.use_for_gold || "")}</div>
                         </div>
                         <Pill label={String(lane.status || "waiting")} tone={toneForStatus(String(lane.status || ""))} />
@@ -1591,32 +1603,32 @@ export function AureonGoldCapitalIntelligenceConsole({
                 </div>
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Gold Monitor Targets</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {agentMonitorTargets.map((target: JsonMap) => (
                     <div key={String(target.id || target.label)} className="rounded border border-border/50 bg-background/40 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(target.label || target.id)}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(target.label || target.id)}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(target.agent_action || "")}</div>
                         </div>
                         <Pill label={target.ready ? "ready" : "held"} tone={target.ready ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                       </div>
-                      <div className="mt-1 truncate text-muted-foreground">{String(target.status || "")}</div>
+                      <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(target.status || "")}</div>
                     </div>
                   ))}
                 </div>
               </div>
-              <ScrollArea className="h-52 pr-3">
-                <div className="grid gap-2 md:grid-cols-2">
+              <div className="overflow-y-auto min-w-0 h-52 pr-3">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                   {agentSupportArtifacts.map((artifact: JsonMap) => (
                     <div key={String(artifact.id || artifact.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{String(artifact.id || "artifact").replace(/_/g, " ")}</div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">{String(artifact.status || "status")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(artifact.id || "artifact").replace(/_/g, " ")}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(artifact.status || "status")}</div>
                         </div>
                         <Pill label={artifact.present ? artifact.fresh ? "fresh" : "stale" : "missing"} tone={artifact.present ? artifact.fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                       </div>
@@ -1626,15 +1638,15 @@ export function AureonGoldCapitalIntelligenceConsole({
                     <div key={String(surface.id || surface.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{String(surface.id || "surface").replace(/_/g, " ")}</div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">{String(surface.family || "support")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(surface.id || "surface").replace(/_/g, " ")}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(surface.family || "support")}</div>
                         </div>
                         <Pill label={surface.present ? "present" : "missing"} tone={surface.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                       </div>
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </div>
         </section>
@@ -1643,7 +1655,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-warning" />
-              <h3 className="truncate text-sm font-semibold">Gold Action Command</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">Gold Action Command</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldActionCommand.status || "command waiting")} tone={toneForStatus(String(goldActionCommand.status || ""))} />
@@ -1651,8 +1663,8 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Pill label={`${fmtNumber(commandSystems.length, 0)} command systems`} tone="border-primary/30 bg-primary/10 text-primary" />
             </div>
           </div>
-          <div className="grid gap-3 xl:grid-cols-[0.95fr_1.05fr]">
-            <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-[0.95fr_1.05fr]">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-[11px] uppercase tracking-normal text-muted-foreground">who</div>
                 <div className="mt-1 text-sm font-medium">{String(goldActionWho.commander || "Gold Strategy Steward")}</div>
@@ -1674,13 +1686,13 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(goldAction.instruction || "Hold until proof is fresh.")}</div>
               </div>
             </div>
-            <ScrollArea className="h-52 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+            <div className="overflow-y-auto min-w-0 h-52 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {goldProofChain.map((item: JsonMap) => (
                   <div key={String(item.id || item.question)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(item.id || "proof").replace(/_/g, " ")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(item.id || "proof").replace(/_/g, " ")}</div>
                         <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(item.question || "")}</div>
                       </div>
                       <Pill label={String(item.state || "waiting")} tone={toneForStatus(String(item.state || ""))} />
@@ -1689,7 +1701,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             {(Array.isArray(goldActionHow.ready_driver_ids) ? goldActionHow.ready_driver_ids : []).slice(0, 6).map((driver: string) => (
@@ -1705,7 +1717,7 @@ export function AureonGoldCapitalIntelligenceConsole({
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <LineChart className="h-4 w-4 shrink-0 text-warning" />
-              <h3 className="truncate text-sm font-semibold">Gold Shadow Trading Focus</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">Gold Shadow Trading Focus</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldShadowFocus.status || "shadow focus waiting")} tone={toneForStatus(String(goldShadowFocus.status || ""))} />
@@ -1716,14 +1728,14 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             The shadow lane treats Capital GOLD as the only tradable target candidate. Oil, energy, USD/rates, miners, VIX, crypto liquidity, and geopolitics are confirmation lanes until the real-data and 3p gates pass.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Metric label="Gold Candidates" value={fmtNumber(goldShadowFocus.gold_related_shadow_count, 0)} hint="target lane only" />
             <Metric label="Context Items" value={fmtNumber(goldShadowFocus.context_shadow_count, 0)} hint="confirmation only" />
             <Metric label="Energy Lanes" value={fmtNumber(summary.gold_shadow_focus_energy_lane_count || goldShadowEnergyLanes.length, 0)} hint="gold drivers" />
             <Metric label="Excluded Generic Shadows" value={fmtNumber(goldShadowFocus.excluded_shadow_count, 0)} hint="not promoted" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="grid gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-medium">Promotion Gate</div>
@@ -1750,8 +1762,8 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="mt-3 space-y-2">
                   {(Array.isArray(goldShadowPromotionGate.blockers) ? goldShadowPromotionGate.blockers : []).slice(0, 4).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/20 bg-warning/5 p-2 text-xs">
-                      <div className="truncate font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2 text-muted-foreground">{String(blocker.reason || "")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium text-warning">{String(blocker.id || "blocker").replace(/_/g, " ")}</div>
+                      <div className="mt-1 line-clamp-2 text-muted-foreground">{blockerReason(blocker.reason)}</div>
                     </div>
                   ))}
                 </div>
@@ -1762,7 +1774,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   {goldShadowCandidates.length ? (
                     goldShadowCandidates.slice(0, 4).map((candidate: JsonMap) => (
                       <div key={`${String(candidate.source)}-${String(candidate.symbol)}-${String(candidate.side)}`} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
-                        <div className="truncate font-medium">{String(candidate.symbol || "GOLD")} {String(candidate.side || "CONTEXT")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(candidate.symbol || "GOLD")} {String(candidate.side || "CONTEXT")}</div>
                         <div className="mt-1 text-muted-foreground">confidence {fmtPercent(candidate.confidence)} | {String(candidate.source || "shadow")}</div>
                       </div>
                     ))
@@ -1772,15 +1784,15 @@ export function AureonGoldCapitalIntelligenceConsole({
                 </div>
               </div>
             </div>
-            <div className="grid gap-3">
-              <ScrollArea className="h-64 pr-3">
-                <div className="grid gap-2 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3">
+              <div className="overflow-y-auto min-w-0 h-64 pr-3">
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                   {goldShadowEnergyLanes.map((lane: JsonMap) => (
                     <div key={String(lane.id || lane.label)} className="rounded-md border border-border/60 bg-background/50 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{String(lane.label || lane.id)}</div>
-                          <div className="mt-1 truncate text-xs text-muted-foreground">{String(lane.lane_role || "context")} | {String(lane.target_authority || "context")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(lane.label || lane.id)}</div>
+                          <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(lane.lane_role || "context")} | {String(lane.target_authority || "context")}</div>
                         </div>
                         <Pill label={String(lane.driver_state || "waiting")} tone={toneForStatus(String(lane.driver_state || ""))} />
                       </div>
@@ -1788,10 +1800,10 @@ export function AureonGoldCapitalIntelligenceConsole({
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Focus Rules</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                   {goldShadowFocusRules.slice(0, 4).map((rule: string) => (
                     <div key={rule} className="rounded border border-border/40 bg-background/35 p-2 text-xs text-muted-foreground">{rule}</div>
                   ))}
@@ -1809,19 +1821,19 @@ export function AureonGoldCapitalIntelligenceConsole({
           </div>
         </section>
 
-        <div className="grid gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <section className="rounded-md border border-border/70 bg-background/35 p-4">
             <div className="mb-3 flex items-center gap-2">
               <LineChart className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold">Signals</h3>
             </div>
-            <ScrollArea className="h-64 pr-3">
+            <div className="overflow-y-auto min-w-0 h-64 pr-3">
               <div className="space-y-2">
                 {signals.slice(0, 8).map((signal: JsonMap) => (
                   <div key={String(signal.id || signal.label)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(signal.label || signal.id)}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(signal.label || signal.id)}</div>
                         <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(signal.reason || "")}</div>
                       </div>
                       <Pill label={String(signal.direction || "signal")} tone={signal.fresh ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -1829,7 +1841,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </section>
 
           <section className="rounded-md border border-border/70 bg-background/35 p-4">
@@ -1837,17 +1849,17 @@ export function AureonGoldCapitalIntelligenceConsole({
               <ShieldCheck className="h-4 w-4 text-success" />
               <h3 className="text-sm font-semibold">Company Roles</h3>
             </div>
-            <ScrollArea className="h-64 pr-3">
+            <div className="overflow-y-auto min-w-0 h-64 pr-3">
               <div className="space-y-2">
                 {roles.slice(0, 12).map((role: JsonMap) => (
                   <div key={String(role.role)} className="rounded-md border border-border/60 bg-background/50 p-3">
-                    <div className="truncate text-sm font-medium">{String(role.role || "role")}</div>
+                    <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(role.role || "role")}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{String(role.department || "department")} | {String(role.authority || "authority")}</div>
                     <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(role.mission || "")}</div>
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </section>
 
           <section className="rounded-md border border-border/70 bg-background/35 p-4">
@@ -1855,11 +1867,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Radio className="h-4 w-4 text-primary" />
               <h3 className="text-sm font-semibold">Next Actions</h3>
             </div>
-            <ScrollArea className="h-64 pr-3">
+            <div className="overflow-y-auto min-w-0 h-64 pr-3">
               <div className="space-y-2">
                 {nextActions.slice(0, 8).map((action: JsonMap) => (
                   <div key={String(action.id || action.action)} className="rounded-md border border-border/60 bg-background/50 p-3">
-                    <div className="truncate text-sm font-medium">{String(action.id || "next_action")}</div>
+                    <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(action.id || "next_action")}</div>
                     <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(action.action || "")}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Pill label={String(action.owner || "Aureon")} />
@@ -1868,11 +1880,11 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </section>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-md border border-border/70 bg-background/35 p-4">
             <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
@@ -1884,14 +1896,14 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <Pill label={`${fmtNumber(summary.local_research_packet_count, 0)} research packets`} tone="border-primary/30 bg-primary/10 text-primary" />
               </div>
             </div>
-            <ScrollArea className="h-72 pr-3">
-              <div className="grid gap-2 md:grid-cols-2">
+            <div className="overflow-y-auto min-w-0 h-72 pr-3">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {goldIntelligenceMap.slice(0, 16).map((surface: JsonMap) => (
                   <div key={String(surface.id || surface.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(surface.id || "gold organ").replace(/_/g, " ")}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{String(surface.department || "department")} | {String(surface.tool_type || "tool")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(surface.id || "gold organ").replace(/_/g, " ")}</div>
+                        <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(surface.department || "department")} | {String(surface.tool_type || "tool")}</div>
                       </div>
                       <Pill label={String(surface.status || "waiting")} tone={surface.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                     </div>
@@ -1899,7 +1911,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </section>
 
           <section className="rounded-md border border-border/70 bg-background/35 p-4">
@@ -1907,10 +1919,10 @@ export function AureonGoldCapitalIntelligenceConsole({
               <LineChart className="h-4 w-4 text-warning" />
               <h3 className="text-sm font-semibold">Gold Market Universe</h3>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {Object.entries(marketBuckets).map(([bucket, count]) => (
                 <div key={bucket} className="rounded-md border border-border/60 bg-background/50 p-3">
-                  <div className="truncate text-[11px] uppercase tracking-normal text-muted-foreground">{bucket.replace(/_/g, " ")}</div>
+                  <div className="whitespace-normal [overflow-wrap:anywhere] text-[11px] uppercase tracking-normal text-muted-foreground">{bucket.replace(/_/g, " ")}</div>
                   <div className="mt-1 text-lg font-semibold">{fmtNumber(count, 0)}</div>
                 </div>
               ))}
@@ -1920,7 +1932,7 @@ export function AureonGoldCapitalIntelligenceConsole({
               {intelligenceGaps.length ? (
                 intelligenceGaps.slice(0, 5).map((gap: JsonMap) => (
                   <div key={String(gap.id || gap.gap)} className="rounded-md border border-warning/20 bg-warning/5 p-2">
-                    <div className="truncate text-xs font-medium text-warning">{String(gap.id || "gap")}</div>
+                    <div className="whitespace-normal [overflow-wrap:anywhere] text-xs font-medium text-warning">{String(gap.id || "gap")}</div>
                     <div className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{String(gap.next_action || gap.gap || "")}</div>
                   </div>
                 ))
@@ -1942,14 +1954,14 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Pill label={`compile ${String(swarmCompileGate.state || "waiting")}`} tone="border-primary/30 bg-primary/10 text-primary" />
             </div>
           </div>
-          <ScrollArea className="h-80 pr-3">
-            <div className="grid gap-2 lg:grid-cols-3">
+          <div className="overflow-y-auto min-w-0 h-80 pr-3">
+            <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
               {swarmAgents.map((agent: JsonMap) => (
                 <div key={String(agent.id || agent.role)} className="rounded-md border border-border/60 bg-background/50 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{String(agent.role || agent.id)}</div>
-                      <div className="mt-1 truncate text-xs text-muted-foreground">{String(agent.department || "department")} | {String(agent.mode || "mode")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(agent.role || agent.id)}</div>
+                      <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(agent.department || "department")} | {String(agent.mode || "mode")}</div>
                     </div>
                     <Pill label={String(agent.state || "waiting")} tone={agent.state === "active" ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                   </div>
@@ -1962,14 +1974,14 @@ export function AureonGoldCapitalIntelligenceConsole({
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </section>
 
         <section className="rounded-md border border-warning/30 bg-warning/5 p-4">
           <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div className="flex min-w-0 items-center gap-2">
               <LineChart className="h-4 w-4 shrink-0 text-warning" />
-              <h3 className="truncate text-sm font-semibold">Gold Priority Workbench</h3>
+              <h3 className="whitespace-normal [overflow-wrap:anywhere] text-sm font-semibold">Gold Priority Workbench</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               <Pill label={String(goldPriorityWorkbench.status || "priority waiting")} tone={toneForStatus(String(goldPriorityWorkbench.status || ""))} />
@@ -1977,10 +1989,10 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Pill label={`${fmtNumber(forecastPoints.length, 0)} forecast points`} tone="border-primary/30 bg-primary/10 text-primary" />
             </div>
           </div>
-          <div className="grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.85fr_1.15fr]">
             <div className="rounded-md border border-border/60 bg-background/50 p-3">
               <div className="text-sm font-medium">Forecast Artifacts</div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {priorityArtifactManifest.html_url ? (
                   <a className="inline-flex items-center justify-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-2 text-xs text-primary hover:bg-primary/20" href={String(priorityArtifactManifest.html_url)} target="_blank" rel="noreferrer">
                     Open forecast dashboard <ExternalLink className="h-3.5 w-3.5" />
@@ -1995,26 +2007,26 @@ export function AureonGoldCapitalIntelligenceConsole({
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                 <div className="rounded border border-border/40 bg-background/35 p-2">
                   <div className="text-muted-foreground">focus</div>
-                  <div className="truncate font-semibold">{String(goldPriorityWorkbench.priority_focus || "GOLD")}</div>
+                  <div className="whitespace-normal [overflow-wrap:anywhere] font-semibold">{String(goldPriorityWorkbench.priority_focus || "GOLD")}</div>
                 </div>
                 <div className="rounded border border-border/40 bg-background/35 p-2">
                   <div className="text-muted-foreground">handover</div>
-                  <div className="truncate font-semibold">{String((goldPriorityWorkbench.chart_contract || {}).handover || "review")}</div>
+                  <div className="whitespace-normal [overflow-wrap:anywhere] font-semibold">{String((goldPriorityWorkbench.chart_contract || {}).handover || "review")}</div>
                 </div>
                 <div className="rounded border border-border/40 bg-background/35 p-2">
                   <div className="text-muted-foreground">authority</div>
-                  <div className="truncate font-semibold">{String((goldPriorityWorkbench.chart_contract || {}).authority || "read-only")}</div>
+                  <div className="whitespace-normal [overflow-wrap:anywhere] font-semibold">{String((goldPriorityWorkbench.chart_contract || {}).authority || "read-only")}</div>
                 </div>
               </div>
             </div>
-            <ScrollArea className="h-56 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+            <div className="overflow-y-auto min-w-0 h-56 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {priorityDataQueue.map((item: JsonMap) => (
                   <div key={String(item.id || item.agent)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(item.id || "gold data task").replace(/_/g, " ")}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{String(item.agent || "agent")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(item.id || "gold data task").replace(/_/g, " ")}</div>
+                        <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(item.agent || "agent")}</div>
                       </div>
                       <Pill label={String(item.priority || "P?")} tone="border-warning/30 bg-warning/10 text-warning" />
                     </div>
@@ -2023,7 +2035,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           </div>
         </section>
 
@@ -2042,22 +2054,22 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             Capital.com is the primary GOLD target venue. Alpaca, Binance, Kraken, energy, USD/rates, equities, crypto liquidity, and macro feeds are monitored as confirmation lanes only unless a separate authority gate allows more.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Metric label="Optimization Score" value={fmtPercent(goldExchangeOptimization.optimization_score || summary.gold_exchange_optimization_score)} hint="venue coverage" />
             <Metric label="Ready Venues" value={`${fmtNumber(goldExchangeOptimization.ready_venue_count, 0)}/${fmtNumber(goldExchangeOptimization.venue_count, 0)}`} hint="monitoring route" />
             <Metric label="Watchlist Buckets" value={fmtNumber(exchangeWatchlists.length, 0)} hint="related assets" />
             <Metric label="Monitor Contracts" value={fmtNumber(exchangeMonitorContracts.length, 0)} hint="cadence lanes" />
             <Metric label="Exchange Blockers" value={fmtNumber(exchangeOptimizationBlockers.length, 0)} hint="holds visible" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <ScrollArea className="h-72 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="overflow-y-auto min-w-0 h-72 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {optimizedVenues.map((venue: JsonMap) => (
                   <div key={String(venue.id || venue.label)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(venue.label || venue.id)}</div>
-                        <div className="mt-1 truncate text-xs text-muted-foreground">{String(venue.role || "exchange role").replace(/_/g, " ")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(venue.label || venue.id)}</div>
+                        <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(venue.role || "exchange role").replace(/_/g, " ")}</div>
                       </div>
                       <Pill label={venue.ready_for_gold_monitoring ? "optimized" : "attention"} tone={venue.ready_for_gold_monitoring ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
                     </div>
@@ -2087,16 +2099,16 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
-            <div className="grid gap-3">
+            </div>
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Related Asset Watchlists</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {exchangeWatchlists.map((item: JsonMap) => (
                     <div key={String(item.bucket || item.venue)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(item.bucket || "watchlist").replace(/_/g, " ")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(item.bucket || "watchlist").replace(/_/g, " ")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{(Array.isArray(item.symbols) ? item.symbols : []).join(", ")}</div>
                         </div>
                         <Pill label={String(item.authority || "context")} />
@@ -2107,11 +2119,11 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Dynamic Monitor Contracts</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {exchangeMonitorContracts.map((contract: JsonMap) => (
                     <div key={String(contract.id || contract.cadence_seconds)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="truncate font-medium">{String(contract.id || "monitor").replace(/_/g, " ")}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(contract.id || "monitor").replace(/_/g, " ")}</div>
                         <Pill label={`${fmtNumber(contract.cadence_seconds, 0)}s`} tone="border-primary/30 bg-primary/10 text-primary" />
                       </div>
                       <div className="mt-1 line-clamp-2 text-muted-foreground">{(Array.isArray(contract.inputs) ? contract.inputs : []).join(", ")}</div>
@@ -2138,23 +2150,23 @@ export function AureonGoldCapitalIntelligenceConsole({
           <p className="mb-3 text-sm text-muted-foreground">
             The margin trader stack is commanded as one Capital GOLD lane. Crypto, ETF/miner, oil/energy, USD/rates, equities, and geopolitics stay as context; margin sizing stays shadow-only until fresh verified proof clears every gate.
           </p>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Metric label="Target Venue" value={String(marginTraderUnity.target_venue || "Capital.com")} hint={String(marginTraderUnity.target_symbol || "GOLD")} />
             <Metric label="Margin Roles" value={fmtNumber(marginRoles.length, 0)} hint="workers unified" />
             <Metric label="Unity Surfaces" value={`${fmtNumber(marginTraderUnity.present_surface_count, 0)}/${fmtNumber(marginTraderUnity.surface_count, 0)}`} hint="repo routes" />
             <Metric label="Unity Blockers" value={fmtNumber(liveMarginUnityBlockers.length, 0)} hint="proof holds" />
             <Metric label="Order Authority" value={marginCommand.live_order_allowed || marginCommand.margin_order_allowed ? "armed" : "blocked"} hint="shadow before live" />
           </div>
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_1fr]">
-            <div className="grid gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr]">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Margin Roles</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {marginRoles.map((role: JsonMap) => (
                     <div key={String(role.surface_id || role.role)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(role.role || "Margin worker")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(role.role || "Margin worker")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(role.job || "")}</div>
                         </div>
                         <Pill label={String(role.surface_id || "surface").replace(/_/g, " ")} />
@@ -2165,12 +2177,12 @@ export function AureonGoldCapitalIntelligenceConsole({
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Mission Directives</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {marginDirectives.map((directive: JsonMap) => (
                     <div key={String(directive.id || directive.directive)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{String(directive.id || "directive").replace(/_/g, " ")}</div>
+                          <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(directive.id || "directive").replace(/_/g, " ")}</div>
                           <div className="mt-1 line-clamp-2 text-muted-foreground">{String(directive.directive || "")}</div>
                         </div>
                         <Pill label={String(directive.state || "active")} tone={toneForStatus(String(directive.state || ""))} />
@@ -2180,32 +2192,32 @@ export function AureonGoldCapitalIntelligenceConsole({
                 </div>
               </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Margin Surface Map</div>
-                <ScrollArea className="mt-2 h-52 pr-3">
-                  <div className="grid gap-2">
+                <div className="overflow-y-auto min-w-0 mt-2 h-52 pr-3">
+                  <div className="grid grid-cols-1 gap-2">
                     {marginSurfaces.map((surface: JsonMap) => (
                       <div key={String(surface.id || surface.path)} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate font-medium">{String(surface.id || "surface").replace(/_/g, " ")}</div>
-                            <div className="mt-1 truncate text-muted-foreground">{String(surface.role || "")}</div>
+                            <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(surface.id || "surface").replace(/_/g, " ")}</div>
+                            <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-muted-foreground">{String(surface.role || "")}</div>
                           </div>
                           <Pill label={surface.present ? "present" : "missing"} tone={surface.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                         </div>
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="text-sm font-medium">Margin Blocking Truth</div>
-                <div className="mt-2 grid gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2">
                   {liveMarginUnityBlockers.length ? liveMarginUnityBlockers.slice(0, 6).map((blocker: JsonMap) => (
                     <div key={String(blocker.id || blocker.reason)} className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning">
                       <div className="font-medium">{String(blocker.id || "margin blocker").replace(/_/g, " ")}</div>
-                      <div className="mt-1 line-clamp-2">{String(blocker.reason || "")}</div>
+                      <div className="mt-1 line-clamp-2">{blockerReason(blocker.reason)}</div>
                     </div>
                   )) : <div className="rounded border border-success/30 bg-success/10 p-2 text-xs text-success">No margin-unity blockers. Live mutation still stays behind the runtime authority gates.</div>}
                 </div>
@@ -2226,14 +2238,14 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Pill label={`${fmtNumber(summary.lead_lag_candidate_count, 0)} lead/lag`} tone="border-primary/30 bg-primary/10 text-primary" />
             </div>
           </div>
-          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <ScrollArea className="h-80 pr-3">
-              <div className="grid gap-2 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="overflow-y-auto min-w-0 h-80 pr-3">
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
                 {historicalReplayLanes.map((lane: JsonMap) => (
                   <div key={String(lane.id || lane.label)} className="rounded-md border border-border/60 bg-background/50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{String(lane.label || lane.id)}</div>
+                        <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(lane.label || lane.id)}</div>
                         <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(lane.source || "")}</div>
                       </div>
                       <Pill label={String(lane.state || "waiting")} tone={toneForStatus(String(lane.state || ""))} />
@@ -2243,8 +2255,8 @@ export function AureonGoldCapitalIntelligenceConsole({
                   </div>
                 ))}
               </div>
-            </ScrollArea>
-            <div className="grid gap-3">
+            </div>
+            <div className="grid grid-cols-1 gap-3">
               <div className="rounded-md border border-border/60 bg-background/50 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-medium">Cross-Asset Lead/Lag</div>
@@ -2253,7 +2265,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="mt-2 space-y-2">
                   {leadLagCandidates.slice(0, 3).map((candidate: JsonMap) => (
                     <div key={`${String(candidate.leader)}-${String(candidate.follower)}-${String(candidate.symbol)}`} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
-                      <div className="truncate font-medium">{String(candidate.leader || "?")}{" -> "}{String(candidate.follower || candidate.symbol || "?")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(candidate.leader || "?")}{" -> "}{String(candidate.follower || candidate.symbol || "?")}</div>
                       <div className="mt-1 text-muted-foreground">corr {fmtNumber(candidate.correlation, 2)} | lag {fmtNumber(candidate.lag_seconds, 0)}s | {String(candidate.relationship_to_gold || "context")}</div>
                     </div>
                   ))}
@@ -2281,7 +2293,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                 <div className="mt-2 space-y-2">
                   {orderbookSamples.slice(0, 2).map((sample: JsonMap) => (
                     <div key={`${String(sample.symbol)}-${String(sample.side)}-${String(sample.orderbook_alignment)}`} className="rounded border border-border/40 bg-background/35 p-2 text-xs">
-                      <div className="truncate font-medium">{String(sample.symbol || "symbol")} {String(sample.side || "")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] font-medium">{String(sample.symbol || "symbol")} {String(sample.side || "")}</div>
                       <div className="mt-1 text-muted-foreground">score {fmtPercent(sample.orderbook_score)} | {String(sample.orderbook_alignment || "alignment")}</div>
                     </div>
                   ))}
@@ -2311,13 +2323,13 @@ export function AureonGoldCapitalIntelligenceConsole({
               <Pill label={`score ${fmtPercent(summary.cross_market_driver_score)}`} tone="border-primary/30 bg-primary/10 text-primary" />
             </div>
           </div>
-          <ScrollArea className="h-80 pr-3">
-            <div className="grid gap-2 lg:grid-cols-2">
+          <div className="overflow-y-auto min-w-0 h-80 pr-3">
+            <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
               {crossMarketDrivers.map((driver: JsonMap) => (
                 <div key={String(driver.id || driver.label)} className="rounded-md border border-border/60 bg-background/50 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{String(driver.label || driver.id)}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(driver.label || driver.id)}</div>
                       <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(driver.driver_role || "")}</div>
                     </div>
                     <Pill label={String(driver.driver_state || "driver")} tone={driver.driver_state === "ready_shadow_driver" ? "border-success/30 bg-success/10 text-success" : "border-warning/30 bg-warning/10 text-warning"} />
@@ -2340,7 +2352,7 @@ export function AureonGoldCapitalIntelligenceConsole({
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </section>
 
         <section className="rounded-md border border-border/70 bg-background/35 p-4">
@@ -2348,10 +2360,10 @@ export function AureonGoldCapitalIntelligenceConsole({
             <Radio className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-semibold">Tool Activation Plan</h3>
           </div>
-          <div className="grid gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
             {toolActivationPlan.slice(0, 8).map((item: JsonMap) => (
               <div key={String(item.id || item.phase)} className="rounded-md border border-border/60 bg-background/50 p-3">
-                <div className="truncate text-sm font-medium">{String(item.phase || item.id || "phase").replace(/_/g, " ")}</div>
+                <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(item.phase || item.id || "phase").replace(/_/g, " ")}</div>
                 <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(item.expected_output || "")}</div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {(Array.isArray(item.tools) ? item.tools : []).slice(0, 4).map((tool: string) => (
@@ -2374,14 +2386,14 @@ export function AureonGoldCapitalIntelligenceConsole({
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
           </div>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             <div className="space-y-2">
               {sourceEvidence.slice(0, 5).map((source: JsonMap) => (
                 <div key={String(source.id || source.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{String(source.id || "source")}</div>
-                      <div className="mt-1 truncate text-xs text-muted-foreground">{String(source.status || "present")}</div>
+                      <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(source.id || "source")}</div>
+                      <div className="mt-1 whitespace-normal [overflow-wrap:anywhere] text-xs text-muted-foreground">{String(source.status || "present")}</div>
                     </div>
                     <Pill label={source.present ? "present" : "missing"} tone={source.present ? "border-success/30 bg-success/10 text-success" : "border-destructive/30 bg-destructive/10 text-destructive"} />
                   </div>
@@ -2391,7 +2403,7 @@ export function AureonGoldCapitalIntelligenceConsole({
             <div className="space-y-2">
               {[...sourcePackets, ...localResearchPackets].slice(0, 8).map((packet: JsonMap) => (
                 <div key={String(packet.title || packet.id || packet.source_url || packet.path)} className="rounded-md border border-border/60 bg-background/50 p-3">
-                  <div className="truncate text-sm font-medium">{String(packet.title || packet.id || "reference packet")}</div>
+                  <div className="whitespace-normal [overflow-wrap:anywhere] text-sm font-medium">{String(packet.title || packet.id || "reference packet")}</div>
                   <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{String(packet.guidance || "")}</div>
                   {packet.source_url ? (
                     <a className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:text-primary" href={String(packet.source_url)} target="_blank" rel="noreferrer">
@@ -2410,5 +2422,7 @@ export function AureonGoldCapitalIntelligenceConsole({
         </div>
       </CardContent>
     </Card>
+    </GeneratedReportBoundary>
+    </div>
   );
 }

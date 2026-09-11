@@ -163,7 +163,9 @@ def _supervise_cycle(dry_run: bool = False) -> dict:
                 )
                 continue
 
-        # Attempt restart (unless dry-run).
+        # Recover a missing process (unless dry-run). The status snapshot can
+        # age while another operator starts the organ. Idempotent start rechecks
+        # liveness under the registry lock; restart would stop that new process.
         if dry_run:
             decisions.append({
                 "organ": name,
@@ -173,23 +175,24 @@ def _supervise_cycle(dry_run: bool = False) -> dict:
             continue
 
         try:
-            result = organ_registry.restart(name)
+            result = organ_registry.start(name)
         except Exception as exc:
             result = {"ok": False, "error": str(exc)}
 
         decision = {
             "organ": name,
-            "action": "restart",
+            "action": "ensure_running",
             "result": result,
         }
         decisions.append(decision)
         if result.get("ok") and result.get("state") in ("started", "already_running"):
-            restarts.append({
-                "organ": name,
-                "pid": result.get("pid"),
-                "state": result.get("state"),
-                "ts": _iso(ts),
-            })
+            if result.get("state") == "started":
+                restarts.append({
+                    "organ": name,
+                    "pid": result.get("pid"),
+                    "state": result.get("state"),
+                    "ts": _iso(ts),
+                })
             # Refresh the fleet entry so the same-cycle snapshot reflects
             # the new process rather than the stale stopped state.
             entry.update({
@@ -199,7 +202,7 @@ def _supervise_cycle(dry_run: bool = False) -> dict:
             })
             events.publish_event(
                 "unity_supervisor",
-                "supervisor.restarted",
+                "supervisor.restarted" if result.get("state") == "started" else "supervisor.already_running",
                 {"organ": name, "pid": result.get("pid"), "state": result.get("state")},
                 priority=7,
             )
@@ -255,6 +258,18 @@ def _supervise_cycle(dry_run: bool = False) -> dict:
         },
         priority=5,
     )
+
+    # Phase 6: write the observed process identity receipt so the upstream
+    # gateway can verify registered PIDs without scanning the fleet itself.
+    try:
+        organ_registry.write_observed_process_identity()
+    except Exception as exc:
+        events.publish_event(
+            "unity_supervisor",
+            "supervisor.identity_receipt_failed",
+            {"error": str(exc)},
+            priority=7,
+        )
 
     return payload
 

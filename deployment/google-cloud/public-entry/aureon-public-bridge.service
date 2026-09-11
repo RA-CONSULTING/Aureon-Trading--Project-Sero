@@ -1,0 +1,46 @@
+[Unit]
+Description=Aureon authenticated private HTTPS bridge
+After=network-online.target aureon-cloud-ui.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aureon-public
+Group=aureon-public
+WorkingDirectory=/srv/aureon/public-entry
+EnvironmentFile=/etc/aureon-public/bridge.env
+Environment=AUREON_PUBLIC_ROLE=bridge
+Environment=AUREON_DEPLOYMENT_HOLD=1
+Environment=AUREON_DISABLE_REAL_ORDERS=1
+Environment=AUREON_DISABLE_EXCHANGE_MUTATIONS=1
+Environment=AUREON_ORDER_INTENT_PUBLISH=0
+Environment=AUREON_LIVE_TRADING=0
+Environment=AUREON_UNIFIED_ORDER_EXECUTOR=0
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/srv/aureon/public-venv/bin/gunicorn --bind 10.40.0.2:8443 --certfile /etc/aureon-public/bridge-cert.pem --keyfile /etc/aureon-public/bridge-key.pem --workers 2 --threads 4 --timeout 60 --limit-request-field_size 32768 --access-logfile /dev/null --error-logfile - public_entry:create_app()
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+MemoryMax=768M
+TasksMax=64
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+InaccessiblePaths=/srv/aureon/runtime /srv/aureon/import /srv/aureon/cache
+
+[Install]
+WantedBy=multi-user.target

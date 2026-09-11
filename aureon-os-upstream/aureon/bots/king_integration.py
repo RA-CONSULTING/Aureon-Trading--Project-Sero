@@ -33,6 +33,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # ── Lazy Kraken fee tracker (auto-calculates correct fee for Kraken trades) ──
@@ -303,6 +305,10 @@ def sync_king_from_exchanges():
     Pull trade history from exchanges and import into the King.
     This is a heavy operation - call sparingly.
     """
+    if no_external_api_calls():
+        logger.info("sync_king_from_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {"synced": 0}
+
     king = _get_king()
     synced = 0
 
@@ -346,6 +352,10 @@ def sync_king_from_exchanges():
 
 def reconcile_all_exchanges() -> Dict[str, Any]:
     """Reconcile the King's books with all exchange balances."""
+    if no_external_api_calls():
+        logger.info("reconcile_all_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {}
+
     king = _get_king()
     results = {}
 
@@ -369,6 +379,21 @@ def reconcile_all_exchanges() -> Dict[str, Any]:
 
 def get_king_dashboard() -> Dict[str, Any]:
     """Get a comprehensive dashboard view from the King."""
+    if no_external_api_calls():
+        logger.info("get_king_dashboard blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "royal_decree": "",
+            "financial_summary": {},
+            "portfolio": {},
+            "pnl_30d": {},
+            "audit": {},
+            "trial_balance": {},
+            "balance_sheet": {},
+            "truth_status": "no_source",
+            "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+        }
+
     king = _get_king()
     ledger = _get_ledger()
 
@@ -635,6 +660,17 @@ def king_reconcile_history(trade_history_file: str = "trade_history_audit.json",
     Returns:
         Summary dict with stats
     """
+    if no_external_api_calls():
+        logger.info("king_reconcile_history blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return {
+            "processed": 0,
+            "buys": 0,
+            "sells": 0,
+            "realized_pnl": 0.0,
+            "truth_status": "no_source",
+            "reason": "AUREON_NO_EXTERNAL_API_CALLS",
+        }
+
     from collections import defaultdict as _dd
 
     # Load trade history

@@ -25,6 +25,9 @@ from aureon.queen.queen_force_trade_governance import (
     evaluate_queen_force_trade_authority,
 )
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 CANONICAL_FORCE_TRADE_PLANS: tuple[ForceTradePlan, ...] = (
     ForceTradePlan(
         provider="kraken",
@@ -73,6 +76,9 @@ def preflight_force_trade_all_platforms(
 ) -> dict[str, Any]:
     """Return a non-consuming, non-network status for every canonical plan."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.force_trade_all_platforms.preflight_force_trade_all_platforms blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     plans: list[dict[str, Any]] = []
     for plan in CANONICAL_FORCE_TRADE_PLANS:
         decision = evaluate_queen_force_trade_authority(
@@ -185,6 +191,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.force_trade_all_platforms.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return 0
     build_argument_parser().parse_args(argv)
     report = preflight_force_trade_all_platforms()
     print(json.dumps(report, indent=2, sort_keys=True))

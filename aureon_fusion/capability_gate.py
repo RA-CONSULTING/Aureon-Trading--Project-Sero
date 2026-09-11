@@ -85,6 +85,8 @@ def _load_matrix() -> dict:
 
 def release_authorized() -> bool:
     """True only if the owner-decree flag file carries the exact release line."""
+    if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
+        return False
     try:
         if FLAG_FILE.exists():
             with open(FLAG_FILE, "r", encoding="utf-8") as f:
@@ -153,6 +155,16 @@ def check(domain_action: str) -> dict:
 
 def _check_verdict(domain_action: str) -> dict:
     """Enforceable verdict for a 'domain:action' gate key."""
+    if os.environ.get("AUREON_DEPLOYMENT_HOLD") == "1":
+        # Restored approvals remain historical until this host is commissioned.
+        domain = domain_action.partition(":")[0]
+        held = domain in {"trading_execution", "external_communication", "code_generation", "process_control"}
+        held = held or (domain == "network_access" and domain_action != "network_access:fetch_public_data")
+        if held:
+            return {"gate": domain_action, "matrix_file": str(MATRIX_FILE),
+                    "verdict": "HOLD", "allowed": False, "deployment_hold": True,
+                    "pinned": domain_action == PINNED_GATE,
+                    "reason": "Cloud commissioning HOLD; no consequential actions authorized"}
     gates = _load_matrix()
     gate = gates.get(domain_action)
 

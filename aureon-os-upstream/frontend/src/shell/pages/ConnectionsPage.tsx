@@ -10,7 +10,8 @@
  * writes POST /api/connections/<id>(+/test).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { GlassPageHeader } from "@/shell/GlassPage";
 import { Radar, Eye, EyeOff, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/services/apiClient";
+import { ApiError, api } from "@/services/apiClient";
+import { createReadOnlyPoller } from "@/services/readOnlyPoller";
+import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { CONFIGURATION_RECEIPT_MAX_AGE_MS, captureTestReceipt, configurationMessage, configurationStatus, datedTestEvidence, validKeyCoverage, type DatedTestReceipt } from "@/lib/accountConfigurationEvidence";
 import { LiveDataNotice } from "@/shell/Page";
 
 interface Conn {
@@ -51,25 +55,37 @@ interface Readiness {
 }
 interface Draft { apiKey: string; extra: Record<string, string>; show: boolean; testing: boolean; saving: boolean; }
 
-export default function ConnectionsPage() {
-  const [sections, setSections] = useState<Section[] | null | undefined>(undefined);
-  const [readiness, setReadiness] = useState<Readiness | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [showMissing, setShowMissing] = useState(false);
-
-  async function load() {
-    try {
-      const [c, r] = await Promise.all([
-        api.get<{ categories?: Section[] }>("/api/connections"),
-        api.get<Readiness>("/api/connections/readiness").catch(() => null),
-      ]);
-      setSections(c.categories ?? []);
-      setReadiness(r);
-    } catch {
-      setSections(null);
+const connectionStore = createReadOnlyPoller<{ sections: Section[]; readiness: Readiness }>({
+  receiptMaxAgeMs: CONFIGURATION_RECEIPT_MAX_AGE_MS,
+  read: async options => {
+    // Both handlers read configuration/recorded metadata; neither performs a test.
+    const [connections, readiness] = await Promise.all([
+      api.get<{ categories?: Section[] }>('/api/connections', options),
+      api.get<Readiness>('/api/connections/readiness', options),
+    ]);
+    if (!Array.isArray(connections?.categories) || connections.categories.some(section =>
+      !section || typeof section.category !== 'string' || !Array.isArray(section.connections)
+      || section.connections.some(connection => !connection || typeof connection.id !== 'string'
+        || typeof connection.has_key !== 'boolean' || !['required', 'optional', 'keyless'].includes(connection.requirement)))
+      || !validKeyCoverage(readiness)) {
+      throw new ApiError('Connection configuration response is incomplete', { status: 200, path: '/api/connections' });
     }
-  }
-  useEffect(() => { load(); }, []);
+    return { sections: connections.categories, readiness };
+  },
+});
+
+export default function ConnectionsPage() {
+  const receipt = useReadOnlyPoller(connectionStore, 15_000, 8_000);
+  const sections = receipt.loading ? undefined : receipt.data?.sections ?? null;
+  const readiness = receipt.data?.readiness ?? null;
+  const status = configurationStatus(receipt);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [tests, setTests] = useState<Record<string, DatedTestReceipt>>({});
+  const [showMissing, setShowMissing] = useState(false);
+  const version = useRef(receipt.resetVersion);
+  version.current = receipt.resetVersion;
+  useEffect(() => { if (!sections) { setDrafts({}); setTests({}); } }, [sections]);
+  useEffect(() => { setDrafts({}); setTests({}); setShowMissing(false); }, [receipt.resetVersion]);
 
   const draft = (c: Conn): Draft => drafts[c.id] ?? { apiKey: "", extra: {}, show: false, testing: false, saving: false };
   const patch = (id: string, f: Partial<Draft>) =>
@@ -84,60 +100,63 @@ export default function ConnectionsPage() {
   }
 
   async function save(c: Conn) {
+    const operationVersion = version.current;
     patch(c.id, { saving: true });
     try {
-      const v = await api.post<{ ok?: boolean; error?: string }>(`/api/connections/${c.id}`, body(c));
-      if (v.ok === false) throw new Error(v.error || "save failed");
+      const v = await api.post<{ ok?: boolean; error?: string }>(`/api/connections/${encodeURIComponent(c.id)}`, body(c));
+      if (version.current !== operationVersion) return;
+      if (v?.ok !== true) throw new Error(v?.error || "The server did not confirm this save. Your entered values have been kept.");
       toast.success(`${c.label} saved`, {
         description: c.category === "exchange" ? "written to .env — trader picks it up on restart" : undefined,
       });
       patch(c.id, { apiKey: "", extra: {} });
-      await load();
+      receipt.invalidate();
     } catch (e) {
-      toast.error(`Could not save ${c.label}`, { description: e instanceof Error ? e.message : undefined });
+      if (version.current === operationVersion) toast.error(`Could not save ${c.label}`, { description: e instanceof Error ? e.message : undefined });
     } finally {
-      patch(c.id, { saving: false });
+      if (version.current === operationVersion) patch(c.id, { saving: false });
     }
   }
 
   async function test(c: Conn) {
+    const operationVersion = version.current;
+    setTests(prev => { const next = { ...prev }; delete next[c.id]; return next; });
     patch(c.id, { testing: true });
     try {
       const v = await api.post<{ ok?: boolean; latency_ms?: number; error?: string }>(
-        `/api/connections/${c.id}/test`,
+        `/api/connections/${encodeURIComponent(c.id)}/test`,
         body(c),
         { timeoutMs: 30000 },
       );
-      if (v.ok) toast.success(`${c.label} reachable`, { description: v.latency_ms ? `${v.latency_ms} ms` : undefined });
+      if (version.current !== operationVersion) return;
+      const result = captureTestReceipt(v, Date.now());
+      setTests(prev => ({ ...prev, [c.id]: result }));
+      if (v.ok === true) toast.success(`${c.label} test passed`, { description: `Response received ${new Date(result.receivedAt).toISOString()}` });
       else toast.error(`${c.label} test failed`, { description: v.error });
     } catch {
-      toast.error(`${c.label} test failed`, { description: "gateway unreachable" });
+      if (version.current === operationVersion) toast.error(`${c.label} test unavailable`, { description: 'No completed test receipt was returned.' });
     } finally {
-      patch(c.id, { testing: false });
+      if (version.current === operationVersion) patch(c.id, { testing: false });
     }
   }
 
   function dot(c: Conn) {
-    const live = c.connected === true || c.runtime_ready === true;
-    const color = live ? "bg-emerald-500" : c.requirement === "keyless" ? "bg-sky-500" : c.has_key ? "bg-amber-500" : "bg-muted-foreground/40";
-    const title = live ? "connected" : c.requirement === "keyless" ? "keyless / public" : c.has_key ? "key set" : "needs key";
+    const test = datedTestEvidence(tests[c.id]);
+    const color = test.current ? test.ok ? 'bg-emerald-500' : 'bg-destructive' : c.requirement === 'keyless' ? 'bg-sky-500' : c.has_key ? 'bg-amber-500' : 'bg-muted-foreground/40';
+    const title = test.current ? `Requested test ${test.ok ? 'passed' : 'failed'} at ${test.timestamp}` : c.requirement === 'keyless' ? 'Public endpoint; availability untested' : c.has_key ? 'Key configured; availability untested' : 'Key not configured';
     return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} title={title} />;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Radar className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Connections</h1>
-          <p className="text-sm text-muted-foreground">
-            Every external source Aureon uses — from trading exchanges to NASA — with keys, live
-            status, and what it takes to run at full operational capacity.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader icon={Radar} eyebrow="External sources" title="Connections"
+          description={<>
+            External-source configuration and separately dated connection tests.
+            Key presence and runtime flags do not establish current source availability.
+          </>} />
 
       <LiveDataNotice />
+      {receipt.isReceiptCurrent && <p className="text-xs text-muted-foreground">Configuration received {new Date(receipt.lastReceivedAt!).toISOString()}.</p>}
 
       {/* Readiness banner */}
       {readiness && (
@@ -145,17 +164,18 @@ export default function ConnectionsPage() {
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-base">
-                Full operational capacity: {readiness.summary.capacity_pct}%
+                Key configuration coverage: {readiness.summary.capacity_pct}%
               </CardTitle>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Badge variant={readiness.summary.all_connected ? "default" : "secondary"}>
-                  {readiness.summary.keyed_present}/{readiness.summary.keyed_total} keyed connected
+                <Badge variant="secondary">
+                  {readiness.summary.keyed_present}/{readiness.summary.keyed_total} keys configured
                 </Badge>
-                <Badge variant="outline">{readiness.summary.keyless} keyless feeds</Badge>
+                <Badge variant="outline">{readiness.summary.keyless} public endpoints</Badge>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
+            <p className="text-xs text-muted-foreground">Configuration inventory only. These counts do not measure connection health, data freshness or operational capacity.</p>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div className="h-full bg-primary transition-all" style={{ width: `${readiness.summary.capacity_pct}%` }} />
             </div>
@@ -181,8 +201,8 @@ export default function ConnectionsPage() {
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 w-full" />)}</div>
       )}
       {sections === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Start the operator and retry.</CardContent></Card>
+        <Card><CardHeader><CardTitle>Connection configuration unavailable</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground"><p>{configurationMessage(status, receipt.error)}</p><Button variant="outline" onClick={receipt.refresh}>Retry read</Button></CardContent></Card>
       )}
 
       {Array.isArray(sections) && sections.map((sec) => sec.connections.length > 0 && (
@@ -192,6 +212,7 @@ export default function ConnectionsPage() {
             {sec.connections.map((c) => {
               const d = draft(c);
               const keyed = c.requirement !== "keyless";
+              const observedTest = datedTestEvidence(tests[c.id]);
               return (
                 <Card key={c.id} className="flex flex-col">
                   <CardContent className="flex flex-1 flex-col gap-2 pt-4">
@@ -201,6 +222,12 @@ export default function ConnectionsPage() {
                       {c.requirement === "keyless" && <Badge variant="outline" className="text-[10px]">keyless</Badge>}
                     </div>
                     {c.unlocks && <p className="text-xs text-muted-foreground">{c.unlocks}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {observedTest.current
+                        ? `Requested test ${observedTest.ok ? 'passed' : 'failed'} · response received ${observedTest.timestamp}${observedTest.latencyMs !== null ? ` · ${observedTest.latencyMs} ms` : ''}. Point-in-time result.`
+                        : 'No current dated connection-test result.'}
+                    </p>
+                    {(c.connected !== undefined || c.runtime_ready !== undefined) && <p className="text-xs text-muted-foreground">Runtime attachment/readiness flag: {c.connected === true || c.runtime_ready === true ? 'reported' : 'not confirmed'}. No source timestamp is supplied for this flag.</p>}
 
                     {keyed && (
                       <div className="flex gap-2">

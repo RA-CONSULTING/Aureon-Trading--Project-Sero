@@ -18,8 +18,10 @@ class _Bridge:
     timeout_s = 2.0
     api_key = "not-reported"
 
-    def __init__(self, models):
+    def __init__(self, models, base_url=None):
         self.models = models
+        if base_url is not None:
+            self.base_url = base_url
         self.calls = 0
 
     def snapshot(self):
@@ -144,6 +146,50 @@ def test_hnc_organizing_band_avoids_oversized_model_when_fast_candidate_exists(m
 
     assert selection.model == "gpt-oss:20b"
     assert receipt.coherence_band == "organizing"
+    assert validate_hnc_model_routing_receipt(receipt)
+
+
+def test_hnc_route_allows_protected_local_loopback_provider(monkeypatch):
+    switchboard = OllamaModelSwitchboard(
+        bridge=_Bridge(["qwen2.5:0.5b", "kimi-k2.7-code"], base_url="http://127.0.0.1:11434"),
+        field_reader=lambda: _field(0.91),
+        clock=lambda: 1_787_000_001.0,
+    )
+    monkeypatch.setattr(
+        switchboard,
+        "_probe_selection",
+        lambda selection, force=False: (True, "live_probe_passed"),
+    )
+
+    selection, receipt = switchboard.route_nerve("coding", nerve_id="agent:Local Builder")
+
+    assert receipt.decision == "ROUTE"
+    assert receipt.provider_mode == "ollama_local_hnc_protected"
+    assert selection.source.startswith("live_probe_passed:hnc_local_loopback_active:")
+    assert receipt.selection_source == selection.source
+    assert validate_hnc_model_routing_receipt(receipt)
+    assert not validate_hnc_model_routing_receipt(
+        replace(receipt, provider_mode="ollama_local_unverified")
+    )
+
+
+def test_hnc_route_holds_for_non_loopback_http_provider(monkeypatch):
+    switchboard = OllamaModelSwitchboard(
+        bridge=_Bridge(["qwen2.5:0.5b"], base_url="http://192.168.1.10:11434"),
+        field_reader=lambda: _field(0.91),
+        clock=lambda: 1_787_000_001.0,
+    )
+    monkeypatch.setattr(
+        switchboard,
+        "_probe_selection",
+        lambda selection, force=False: (True, "live_probe_passed"),
+    )
+
+    _selection, receipt = switchboard.route_nerve("coding", nerve_id="agent:Remote Builder")
+
+    assert receipt.decision == "HOLD"
+    assert receipt.reason == "hnc_protected_ollama_endpoint_required"
+    assert receipt.provider_mode == "ollama_cloud_primary"
     assert validate_hnc_model_routing_receipt(receipt)
 
 

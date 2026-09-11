@@ -416,6 +416,7 @@ def _stub_fac():
 
 
 def _inject_engines(mind, fac, sentience):
+    # SIMULATED stub auris input for wiring probe only (never live trading)
     auris = ns(time=0.0, price=1.0, high=1.0, low=1.0, volume=0.0,
                change_pct=0.0, coherenceIndex=0.5, unityIndex=0.5,
                dataIntegrity=0.5, choeranceDrift=0.0, inerchaVector=0.0,

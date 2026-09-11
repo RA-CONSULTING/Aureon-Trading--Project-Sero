@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { GlassPageHeader } from "@/shell/GlassPage";
+import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
+import { consoleNumber } from "@/lib/generatedConsoleEvidence";
+import { useEffect, useState, type ReactNode } from "react";
 import { BrainCircuit, Code2, Globe2, SearchCheck, ShieldCheck, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Generated report fields retain their existing schema boundary.
 type JsonMap = Record<string, any>;
 
 async function fetchJson(url: string): Promise<JsonMap> {
   try {
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
     if (!response.ok) return {};
     return await response.json();
   } catch {
@@ -17,8 +20,8 @@ async function fetchJson(url: string): Promise<JsonMap> {
 }
 
 function fmt(value: unknown): string {
-  const number = Number(value || 0);
-  return Number.isFinite(number) ? number.toLocaleString() : String(value || "0");
+  const number = consoleNumber(value);
+  return number === null ? "Unavailable" : number.toLocaleString();
 }
 
 export function AureonCodingAgentSkillBaseConsole() {
@@ -44,9 +47,12 @@ export function AureonCodingAgentSkillBaseConsole() {
   const logicMap = profile.coding_logic_map || {};
   const logicRules = Array.isArray(logicMap.rules) ? logicMap.rules : [];
   const sources = Array.isArray(profile.official_learning_sources) ? profile.official_learning_sources : [];
-  const visibleOrders = useMemo(() => orders.slice(0, 30), [orders]);
+  const visibleOrders = orders.slice(0, 30);
 
   return (
+    <div className="space-y-5">
+    <GlassPageHeader eyebrow="Coding System" title="Coding skills" description="Recorded agent capabilities, repository coverage and learning sources." icon={BrainCircuit} />
+    <GeneratedReportBoundary report={profile} source="/aureon_coding_agent_skill_base.json" scope="recorded">
     <Card className="mb-5 bg-card/80">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -57,19 +63,19 @@ export function AureonCodingAgentSkillBaseConsole() {
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="border-success/40 bg-success/10 text-success">{profile.status || "pending"}</Badge>
-          <Badge variant="outline" className="border-border bg-muted/20 text-muted-foreground">updated {profile.generated_at ? new Date(profile.generated_at).toLocaleTimeString() : "pending"}</Badge>
-          <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">web tools {summary.web_tools_ready ? "ready" : "attention"}</Badge>
+          <Badge variant="outline" className="border-border bg-muted/20 text-muted-foreground">Recorded source {profile.generated_at ? new Date(profile.generated_at).toLocaleString() : "pending"}</Badge>
+          <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">web tools {summary.web_tools_ready === true ? "recorded ready" : summary.web_tools_ready === false ? "recorded attention" : "Unavailable"}</Badge>
           <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">{logicMap.status || "logic pending"}</Badge>
         </div>
-        <div className="grid gap-2 md:grid-cols-6">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-6">
           <Stat icon={UsersRound} label="coder agents" value={summary.coder_agent_count} />
           <Stat icon={Code2} label="repo files" value={repoCode.file_count} />
           <Stat icon={BrainCircuit} label="skills" value={summary.skill_count} />
-          <Stat icon={Globe2} label="learning sources" value={sources.length} />
-          <Stat icon={ShieldCheck} label="logic rules" value={logicRules.length} />
-          <Stat icon={SearchCheck} label="work orders" value={orders.length} />
+          <Stat icon={Globe2} label="learning sources" value={Array.isArray(profile.official_learning_sources) ? sources.length : null} />
+          <Stat icon={ShieldCheck} label="logic rules" value={Array.isArray(logicMap.rules) ? logicRules.length : null} />
+          <Stat icon={SearchCheck} label="work orders" value={Array.isArray(profile.coding_work_orders) ? orders.length : null} />
         </div>
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <Panel title="Agents">
             {agents.slice(0, 6).map((agent: JsonMap) => (
               <div key={agent.name} className="rounded-md border border-border/40 bg-muted/10 p-3">
@@ -80,7 +86,7 @@ export function AureonCodingAgentSkillBaseConsole() {
           </Panel>
           <Panel title="Skill And Tool State">
             <Mini label="In-house tools" value={tools.inhouse_tool_count} />
-            <Mini label="Missing coder tools" value={(tools.missing_required_coder_tools || []).length} />
+            <Mini label="Missing coder tools" value={Array.isArray(tools.missing_required_coder_tools) ? tools.missing_required_coder_tools.length : null} />
             <Mini label="Languages" value={Object.keys(languages).length} />
             <Mini label="Domains" value={Object.keys(domains).length} />
           </Panel>
@@ -88,14 +94,14 @@ export function AureonCodingAgentSkillBaseConsole() {
             {sources.slice(0, 7).map((source: JsonMap) => (
               <div key={source.id} className="rounded-md border border-border/40 bg-muted/10 p-2">
                 <div className="text-xs font-medium">{source.title}</div>
-                <div className="truncate font-mono text-[10px] text-muted-foreground">{source.url}</div>
+                <div className="whitespace-normal [overflow-wrap:anywhere] font-mono text-[10px] text-muted-foreground">{source.url}</div>
               </div>
             ))}
           </Panel>
         </div>
         <Panel title="Who What Where When How">
           <div className="text-xs text-muted-foreground">{logicMap.principle || "Coding route pending."}</div>
-          <div className="grid gap-2 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {logicRules.slice(0, 6).map((rule: JsonMap) => (
               <div key={rule.id} className="rounded-md border border-border/40 bg-muted/10 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -103,12 +109,12 @@ export function AureonCodingAgentSkillBaseConsole() {
                   <Badge variant="outline" className="border-border bg-muted/20 text-muted-foreground">{(rule.who || []).slice(0, 2).join(" + ")}</Badge>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">{rule.what}</div>
-                <div className="mt-2 truncate font-mono text-[10px] text-success">{(rule.where || []).slice(0, 3).join(" | ")}</div>
+                <div className="mt-2 whitespace-normal [overflow-wrap:anywhere] font-mono text-[10px] text-success">{(rule.where || []).slice(0, 3).join(" | ")}</div>
               </div>
             ))}
           </div>
         </Panel>
-        <ScrollArea className="h-[320px] pr-3">
+        <div className="overflow-y-auto min-w-0 h-[320px] pr-3">
           <div className="space-y-2">
             {visibleOrders.map((order: JsonMap) => (
               <div key={order.id} className="rounded-md border border-border/40 bg-muted/10 p-3">
@@ -123,13 +129,15 @@ export function AureonCodingAgentSkillBaseConsole() {
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
+    </GeneratedReportBoundary>
+    </div>
   );
 }
 
-function Stat({ icon: Icon, label, value }: { icon: any; label: string; value: unknown }) {
+function Stat({ icon: Icon, label, value }: { icon: typeof BrainCircuit; label: string; value: unknown }) {
   return (
     <div className="rounded-md border border-border/40 bg-muted/10 p-3">
       <div className="flex items-center gap-2 text-[11px] uppercase text-muted-foreground"><Icon className="h-3.5 w-3.5" />{label}</div>

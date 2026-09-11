@@ -13,6 +13,9 @@ Using minimal position sizes (~$5-10) with tight TP targets.
 Gary Leckey | December 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -36,6 +39,9 @@ def get_binance_client():
 
 def execute_binance_scalp(symbol: str, side: str, quantity: float, target_pct: float = 0.3):
     """Execute a quick scalp trade on Binance"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_real_trades.execute_binance_scalp blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     client = get_binance_client()
     
     print(f"\n{'='*60}")
@@ -125,6 +131,9 @@ def execute_kraken_scalp(pair: str, side: str, volume: float):
 
 def round_trip_trade_binance(symbol: str, usdt_amount: float = 6.0):
     """Execute a round-trip BUY then SELL for net profit"""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_real_trades.round_trip_trade_binance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     client = get_binance_client()
     
     print(f"\n{'='*70}")
@@ -239,6 +248,9 @@ def round_trip_trade_binance(symbol: str, usdt_amount: float = 6.0):
         return None
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_real_trades.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*70)
     print("💰 EXECUTING 3 REAL MONEY NET PROFIT TRADES")
     print("="*70)

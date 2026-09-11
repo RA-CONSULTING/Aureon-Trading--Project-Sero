@@ -14,6 +14,9 @@ This is the LIVE trading version. It will:
 TRD_GRP_039 = BTC pairs ONLY (no USDT)
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import math
@@ -89,9 +92,15 @@ class BinanceClient:
             return {"error": str(e)}
     
     def get_account(self) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_account blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self._request("GET", "/api/v3/account", signed=True)
     
     def get_btc_balance(self) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_btc_balance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         account = self.get_account()
         if 'balances' in account:
             for b in account['balances']:
@@ -100,15 +109,24 @@ class BinanceClient:
         return 0.0
     
     def get_all_tickers(self) -> Dict[str, float]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_all_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         tickers = self._request("GET", "/api/v3/ticker/price")
         if isinstance(tickers, list):
             return {t['symbol']: float(t['price']) for t in tickers}
         return {}
     
     def get_24h_stats(self, symbol: str) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_24h_stats blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self._request("GET", "/api/v3/ticker/24hr", {"symbol": symbol})
     
     def get_klines(self, symbol: str, interval: str = "15m", limit: int = 50) -> List:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_klines blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         data = self._request("GET", "/api/v3/klines", {
             "symbol": symbol,
             "interval": interval,
@@ -117,10 +135,16 @@ class BinanceClient:
         return data if isinstance(data, list) else []
     
     def get_exchange_info(self) -> dict:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_exchange_info blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self._request("GET", "/api/v3/exchangeInfo")
     
     def get_btc_pairs(self) -> List[dict]:
         """Get all tradeable BTC pairs with their lot sizes"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.get_btc_pairs blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         info = self.get_exchange_info()
         pairs = []
         if 'symbols' in info:
@@ -149,6 +173,9 @@ class BinanceClient:
     
     def place_order(self, symbol: str, side: str, quantity: float) -> dict:
         """Place a market order"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.BinanceClient.place_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         params = {
             "symbol": symbol,
             "side": side.upper(),
@@ -178,6 +205,9 @@ class OmegaAnalyzer:
         - signal: BUY/SELL/HOLD
         - confidence: 0-1
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.OmegaAnalyzer.analyze_pair blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not klines or len(klines) < 10:
             return {"signal": "HOLD", "confidence": 0, "reason": "Insufficient data"}
         
@@ -334,6 +364,9 @@ class AureonOmegaLive:
     
     def scan_opportunities(self) -> List[dict]:
         """Scan all BTC pairs for trading opportunities"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.AureonOmegaLive.scan_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         print("\n🔍 Scanning BTC pairs...")
         
         btc_pairs = self.client.get_btc_pairs()
@@ -383,6 +416,9 @@ class AureonOmegaLive:
     
     def execute_trade(self, opportunity: dict) -> Optional[dict]:
         """Execute a trade based on opportunity"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.AureonOmegaLive.execute_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         symbol = opportunity['symbol']
         
         # Check rate limit
@@ -448,6 +484,9 @@ class AureonOmegaLive:
     
     def run(self, duration_minutes: int = 60):
         """Run the live trading loop"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_omega_live.AureonOmegaLive.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("""
 ═══════════════════════════════════════════════════════════════════════════════
       AUREON OMEGA LIVE - REAL TRADING ACTIVATED

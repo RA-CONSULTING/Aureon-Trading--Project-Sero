@@ -12,11 +12,16 @@ Gary Leckey & GitHub Copilot | December 2025
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import json
+import logging
 import math
 import time
 import numpy as np
 from datetime import datetime
 from typing import Dict, List
+
+from aureon.core.no_external_calls import no_external_api_calls
+
+logger = logging.getLogger(__name__)
 
 os.environ.setdefault('LIVE', '1')
 
@@ -85,10 +90,14 @@ def map_frequency_to_solfeggio(freq: float) -> str:
 
 def run_live_wave_monitor():
     """Run real-time wave monitoring"""
+    if no_external_api_calls():
+        logger.info("run_live_wave_monitor blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     # Use WebSocket client for streaming data
     from aureon.exchanges.binance_ws_client import BinanceWebSocketClient
     from aureon.strategies.hnc_probability_matrix import HNCProbabilityIntegration
-    
+
     # Try to initialize ThoughtBus for system integration
     try:
         from aureon.core.aureon_thought_bus import ThoughtBus, Thought

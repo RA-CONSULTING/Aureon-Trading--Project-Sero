@@ -454,6 +454,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from _console_utf8_shim import ensure_utf8_stdout
+
+    ensure_utf8_stdout()
     if "--once" in sys.argv:
         sys.exit(run_once())
     main()

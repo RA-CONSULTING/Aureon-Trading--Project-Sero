@@ -31,6 +31,8 @@ Gary Leckey & GitHub Copilot | November 2025
 "From Atom to Multiverse - We don't quit!"
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 # WINDOWS UTF-8 FIX - MUST BE AT VERY TOP BEFORE ALL OTHER IMPORTS
@@ -969,6 +971,9 @@ def load_penny_profit_config():
     The engine works WITHOUT a config file using dynamic calculation.
     Config file only needed to override default fee rates or target.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.load_penny_profit_config blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     global PENNY_PROFIT_CONFIG, PENNY_PROFIT_ENABLED, PENNY_TARGET_NET
     config_path = os.path.join(ROOT_DIR, 'penny_profit_config.json')
     
@@ -1025,6 +1030,9 @@ def get_exchange_fee_rate(exchange: str) -> float:
     2. penny_profit_config.json fee_rate
     3. DEFAULT_FEE_RATES fallback
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.get_exchange_fee_rate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return 0.0
     ex_lower = (exchange or 'binance').lower()
     
     # Priority 1: Check global CONFIG for actual observed fees
@@ -1109,6 +1117,9 @@ def get_penny_threshold(exchange: str, trade_size: float) -> dict:
     Returns:
         dict with: required_pct, win_gte, stop_lte, fee_rate, trade_size, target_net
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.get_penny_threshold blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     if not PENNY_PROFIT_ENABLED:
         return None
     
@@ -1251,6 +1262,9 @@ def check_penny_exit(exchange: str, entry_value: float, gross_pnl: float, symbol
         {'should_tp': bool, 'should_sl': bool, 'threshold': dict, 'gross_pnl': float,
          'sniper_active': bool, 'realized_net_ok': Optional[bool], 'realized_net': Optional[float]}
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.check_penny_exit blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     threshold = get_penny_threshold(exchange, entry_value)
     
     if not threshold:
@@ -1312,6 +1326,9 @@ def get_exchange_lot_size(exchange: str, symbol: str, client=None) -> Tuple[Opti
     Module-level lot size lookup for any exchange.
     Returns (step_size, min_qty) or (None, None) if unavailable.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.get_exchange_lot_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     global _MODULE_LOT_SIZE_CACHE
     cache_key = f"{exchange}:{symbol}"
     
@@ -1419,6 +1436,9 @@ def validate_order_quantity(exchange: str, symbol: str, quantity: float, price: 
     Validate and adjust quantity for exchange lot size requirements.
     Returns (adjusted_quantity, error_message) - error_message is None if valid.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.validate_order_quantity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     if quantity is None or quantity <= 0:
         return None, "Invalid quantity"
         
@@ -1826,6 +1846,9 @@ CONFIG = {
 
 def get_max_positions_limit() -> Optional[int]:
     """Return the active position cap or None for unlimited trading."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.get_max_positions_limit blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     if CONFIG.get('UNLIMITED_POSITIONS'):
         return None
 
@@ -1840,6 +1863,9 @@ def get_max_positions_limit() -> Optional[int]:
 
 def max_positions_label() -> str:
     """Human-readable label for max position status."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.max_positions_label blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ''
     limit = get_max_positions_limit()
     return "unlimited" if limit is None else str(limit)
 
@@ -2218,6 +2244,9 @@ def has_one_minute_profit_consensus(opp: Dict) -> Tuple[bool, str, Dict[str, Any
     Returns (ok, reason, details) where `ok` indicates entry is allowed.
     """
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.has_one_minute_profit_consensus blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     qk = opp.get('quick_kill')
     if not isinstance(qk, dict):
         qk = {}
@@ -2312,6 +2341,9 @@ _BRAIN_CACHE_TIME: float = 0.0
 
 def load_brain_state() -> Dict[str, Any]:
     """Load cached Quantum Brain/Piano state if recently updated."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.load_brain_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     global _BRAIN_CACHE, _BRAIN_CACHE_TIME
     try:
         now = time.time()
@@ -2339,6 +2371,9 @@ def load_brain_state() -> Dict[str, Any]:
 
 def get_brain_multiplier() -> float:
     """Compute a trading multiplier from Piano/Brain resonance."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.get_brain_multiplier blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return 0.0
     brain = load_brain_state()
     if not isinstance(brain, dict):
         return 1.0
@@ -2459,6 +2494,9 @@ class MinerStateConnector:
         Returns:
             True if miner is connected and sending fresh data
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MinerStateConnector.check_connection blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         now = time.time()
         
         # Rate limit reads
@@ -2537,6 +2575,9 @@ class MinerStateConnector:
             Dict with quantum state from miner (or defaults if not connected)
         """
         # Always check connection first
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MinerStateConnector.get_quantum_context blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         self.check_connection()
         
         return {
@@ -2556,6 +2597,9 @@ class MinerStateConnector:
     
     def get_status(self) -> Dict[str, Any]:
         """Get connector status for display."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MinerStateConnector.get_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return {
             'connected': self._miner_connected,
             'connection_time': self._connection_time,
@@ -2649,6 +2693,9 @@ class EcosystemBrainBridge:
         Returns:
             Full wisdom result with trading recommendations
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.EcosystemBrainBridge.run_wisdom_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not brain:
             return {}
         
@@ -2977,6 +3024,9 @@ class SmartOrderRouter:
         Get best quote across all exchanges for a symbol.
         Returns: {'exchange': str, 'price': float, 'effective_price': float, 'savings': float}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.SmartOrderRouter.get_best_quote blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         quotes = []
         base_symbol = symbol.replace('/', '').upper()
         
@@ -3058,6 +3108,9 @@ class SmartOrderRouter:
         Returns order result with routing metadata.
         """
         # Get best quote
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.SmartOrderRouter.route_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         best = self.get_best_quote(symbol, side, quantity)
         if not best:
             return {'error': 'No quotes available', 'symbol': symbol}
@@ -3138,6 +3191,9 @@ class SmartOrderRouter:
             
     def get_routing_stats(self) -> Dict[str, Any]:
         """Get routing performance statistics."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.SmartOrderRouter.get_routing_stats blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.route_history:
             return {'total_routes': 0}
             
@@ -3178,6 +3234,9 @@ class CrossExchangeArbitrageScanner:
         """
         Scan for direct arbitrage: buy on exchange A, sell on exchange B.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.CrossExchangeArbitrageScanner.scan_direct_arbitrage blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         brain_mult = get_brain_multiplier()
         
@@ -3294,6 +3353,9 @@ class CrossExchangeArbitrageScanner:
     def get_top_opportunities(self, limit: int = 5) -> List[Dict]:
         """Get top arbitrage opportunities."""
         # Refresh if stale
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.CrossExchangeArbitrageScanner.get_top_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if time.time() - self.last_scan > self.scan_interval:
             self.scan_direct_arbitrage()
         return self.opportunities[:limit]
@@ -3303,6 +3365,9 @@ class CrossExchangeArbitrageScanner:
         Execute an arbitrage opportunity.
         Returns: {'success': bool, 'profit': float, 'details': dict}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.CrossExchangeArbitrageScanner.execute_arbitrage blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         evidence_record = {
             **opportunity,
             'price': opportunity.get('buy_price'),
@@ -3422,6 +3487,9 @@ class UnifiedTradeConfirmation:
                                quantity: float, quote_qty: float,
                                result: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize an already-executed order response into a unified confirmation."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedTradeConfirmation.normalize_order_result blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not result:
             return {'status': 'FAILED', 'error': 'No response'}
 
@@ -3487,6 +3555,9 @@ class UnifiedTradeConfirmation:
         """
         # Normalize symbol per exchange to ensure BUY/SELL works across venues
         # (e.g. BTCUSD → BTCUSDT on Binance, BTC/USD on Alpaca, XBTUSD on Kraken).
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedTradeConfirmation.submit_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         original_symbol = symbol
         try:
             if hasattr(self.client, 'normalize_symbol'):
@@ -3675,6 +3746,9 @@ class UnifiedTradeConfirmation:
         
     def get_statistics(self) -> Dict[str, Any]:
         """Get trade confirmation statistics."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedTradeConfirmation.get_statistics blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.confirmed_trades:
             return {'total': 0}
             
@@ -3811,6 +3885,9 @@ class PortfolioRebalancer:
         Calculate trades needed to rebalance portfolio to target allocation.
         Returns list of trades: [{'asset': str, 'action': 'BUY'|'SELL', 'amount_usd': float, 'exchange': str}]
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PortfolioRebalancer.calculate_rebalance_trades blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if not self.target_allocations:
             return []
             
@@ -3875,6 +3952,9 @@ class PortfolioRebalancer:
         Execute portfolio rebalance.
         Returns: {'success': bool, 'trades_executed': int, 'trades': list}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PortfolioRebalancer.execute_rebalance blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         trades = self.calculate_rebalance_trades()
         
         if not trades:
@@ -3962,6 +4042,9 @@ class PortfolioRebalancer:
         
     def get_rebalance_summary(self) -> str:
         """Get human-readable rebalance summary."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PortfolioRebalancer.get_rebalance_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         current = self.get_current_allocation()
         trades = self.calculate_rebalance_trades()
         
@@ -4108,6 +4191,9 @@ class PredictionValidator:
         Returns:
             List of newly validated predictions with results
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PredictionValidator.validate_predictions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         now = time.time()
         newly_validated = []
         still_pending = []
@@ -4330,6 +4416,9 @@ class PredictionValidator:
         
         Returns: Multiplier (0.8 to 1.2)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PredictionValidator.get_accuracy_boost blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         boosts = []
         
         # Exchange accuracy boost
@@ -4597,6 +4686,9 @@ class MultiExchangeOrchestrator:
         Scan all enabled exchanges for opportunities.
         Returns opportunities organized by exchange.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MultiExchangeOrchestrator.scan_all_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         all_opportunities = {}
         
         for exchange in self.get_enabled_exchanges():
@@ -5137,6 +5229,9 @@ class MultiExchangeOrchestrator:
             
     def get_best_opportunity(self) -> Optional[Dict]:
         """Get the single best opportunity across all exchanges."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MultiExchangeOrchestrator.get_best_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         all_opps = self.scan_all_exchanges()
         
         # Flatten and sort
@@ -5152,6 +5247,9 @@ class MultiExchangeOrchestrator:
         
     def get_learning_summary(self) -> str:
         """Get formatted learning summary."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MultiExchangeOrchestrator.get_learning_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         m = self.learning_metrics
         lines = [
             "═══════════════════════════════════════",
@@ -5284,6 +5382,9 @@ class UnifiedStateAggregator:
         
     def load_all_sources(self) -> Dict[str, Any]:
         """Load and aggregate data from all JSON sources."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.load_all_sources blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         self.aggregated_state['sources_loaded'] = []
         self.load_organism_thoughts()  # Load thoughts first
         all_trades = []
@@ -5690,6 +5791,9 @@ class UnifiedStateAggregator:
             
     def get_symbol_insight(self, symbol: str) -> Dict[str, Any]:
         """Get aggregated insight for a specific symbol."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.get_symbol_insight blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         base_symbol = symbol.replace('USDT', '').replace('USD', '').replace('GBP', '').replace('EUR', '')
         
         # Check all symbol variations
@@ -5750,6 +5854,9 @@ class UnifiedStateAggregator:
         
     def get_frequency_recommendation(self, freq: float) -> Dict[str, Any]:
         """Get recommendation based on historical frequency performance."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.get_frequency_recommendation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         freq_band = self._get_freq_band(freq)
         perf = self.aggregated_state.get('frequency_performance', {}).get(freq_band, {})
         
@@ -5778,6 +5885,9 @@ class UnifiedStateAggregator:
         
     def get_coherence_recommendation(self, coherence: float) -> Dict[str, Any]:
         """Get recommendation based on historical coherence performance."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.get_coherence_recommendation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         band = 'low' if coherence < 0.5 else 'mid' if coherence < 0.7 else 'high'
         perf = self.aggregated_state.get('coherence_bands', {}).get(band, {})
         
@@ -5794,6 +5904,9 @@ class UnifiedStateAggregator:
 
     def get_top_signals(self, n: int = 5) -> Dict[str, List[Tuple[str, Dict[str, Any]]]]:
         """Return top probability and analytics signals plus largest positions for visibility."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.get_top_signals blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         probs = sorted(
             self.aggregated_state.get('probability_insights', {}).items(),
             key=lambda kv: kv[1].get('probability', 0) or 0,
@@ -5829,6 +5942,9 @@ class UnifiedStateAggregator:
         
     def load_organism_thoughts(self, limit: int = 50):
         """Load recent thoughts to determine organism health."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.load_organism_thoughts blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             filepath = os.path.join(ROOT_DIR, self.LOG_FILES['thoughts'])
             if not os.path.exists(filepath):
@@ -5891,6 +6007,9 @@ class UnifiedStateAggregator:
 
     def save_aggregated_state(self):
         """Save multi-exchange learning state for persistence."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.save_aggregated_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             filepath = os.path.join(ROOT_DIR, self.STATE_FILES['multi_exchange_learning'])
             with open(filepath, 'w') as f:
@@ -5908,6 +6027,9 @@ class UnifiedStateAggregator:
             
     def get_summary(self) -> str:
         """Get formatted summary of aggregated state."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UnifiedStateAggregator.get_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         state = self.aggregated_state
         
         # Calculate TRUE P&L
@@ -6141,6 +6263,9 @@ class CognitiveImmuneSystem:
         Calculate overall system health using weighted probability matrix.
         Returns (overall_score, individual_scores) where scores are 0-100.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.CognitiveImmuneSystem.calculate_health_score blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         scores = {}
         now = time.time()
         
@@ -6303,6 +6428,9 @@ class CognitiveImmuneSystem:
         2. Predict health trend using historical data
         3. Auto-heal BEFORE problems become critical
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.CognitiveImmuneSystem.scan_and_heal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         now = time.time()
         if not force and (now - self.last_scan) < self.scan_interval:
             return
@@ -7031,6 +7159,9 @@ class AdaptiveLearningEngine:
         - frequency, coherence, score
         - entry_time, hnc_action, probability
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.record_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.trade_history.append(trade_data)
         if len(self.trade_history) > self.max_history:
             self.trade_history = self.trade_history[-self.max_history:]
@@ -7047,6 +7178,9 @@ class AdaptiveLearningEngine:
         Analyze trade history and optimize thresholds.
         Only adjusts if we have statistical confidence.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.optimize_thresholds blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         total_trades = len(self.trade_history)
         if total_trades < self.min_samples_for_learning:
             return  # Not enough data
@@ -7220,6 +7354,9 @@ class AdaptiveLearningEngine:
         
     def get_learning_summary(self) -> str:
         """Get human-readable learning summary."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_learning_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         total = len(self.trade_history)
         wins = sum(1 for t in self.trade_history if t.get('pnl', 0) > 0)
         
@@ -7268,6 +7405,9 @@ class AdaptiveLearningEngine:
         Returns learned insights based on historical performance for similar conditions.
         This is what was missing - the system now TELLS YOU what to expect.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_entry_recommendation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if current_hour is None:
             current_hour = datetime.now().hour
             
@@ -7436,6 +7576,9 @@ class AdaptiveLearningEngine:
         
     def get_recommendation_summary(self, recommendation: Dict) -> str:
         """Format recommendation as human-readable summary for logging."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_recommendation_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         lines = []
         
         conf_emoji = {'high': '🟢', 'medium': '🟡', 'low': '⚪'}.get(recommendation['confidence'], '⚪')
@@ -7472,6 +7615,9 @@ class AdaptiveLearningEngine:
                 - manipulation_risk (0-1)
                 - civilization_agreement (0-1)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.record_brain_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not hasattr(self, 'brain_state_history'):
             self.brain_state_history = []
             
@@ -7494,6 +7640,9 @@ class AdaptiveLearningEngine:
         
         Returns insights about which brain states lead to winning trades.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_brain_correlation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not hasattr(self, 'brain_state_history') or not self.brain_state_history:
             return {'status': 'no_data'}
         
@@ -7557,6 +7706,9 @@ class AdaptiveLearningEngine:
                 - timestamp: When discovered
                 - market_context: Optional market state at time
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.record_knowledge_event blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not hasattr(self, 'knowledge_event_history'):
             self.knowledge_event_history = []
             
@@ -7589,6 +7741,9 @@ class AdaptiveLearningEngine:
                 - stock_sentiment: float
                 - risk_level: normal/elevated/high
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.record_news_sentiment blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not hasattr(self, 'news_sentiment_history'):
             self.news_sentiment_history = []
             
@@ -7611,6 +7766,9 @@ class AdaptiveLearningEngine:
     
     def get_news_sentiment_at_time(self, timestamp: float) -> Dict:
         """Get the news sentiment closest to a given timestamp."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_news_sentiment_at_time blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not hasattr(self, 'news_sentiment_history') or not self.news_sentiment_history:
             return {'label': 'neutral', 'sentiment': 0.0, 'confidence': 0.0}
         
@@ -7623,6 +7781,9 @@ class AdaptiveLearningEngine:
         Correlate a completed trade with the news sentiment at entry time.
         Updates metrics to learn which news states lead to winning trades.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.correlate_trade_with_news blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not hasattr(self, 'metrics_by_news_sentiment'):
             self.metrics_by_news_sentiment = {}
         
@@ -7652,6 +7813,9 @@ class AdaptiveLearningEngine:
         Returns:
             Dict with win rates by news sentiment type
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_news_correlation_insights blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         insights = {
             'status': 'analyzing',
             'by_sentiment': {},
@@ -7707,6 +7871,9 @@ class AdaptiveLearningEngine:
         Returns:
             float modifier (1.0 = neutral, >1 = boost, <1 = penalize)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_knowledge_probability_modifier blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not hasattr(self, 'knowledge_event_history'):
             return 1.0
         
@@ -7743,6 +7910,9 @@ class AdaptiveLearningEngine:
         Call this instead of record_trade to get full learning integration.
         """
         # Correlate with news sentiment
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.enhanced_record_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.correlate_trade_with_news(trade_data)
         
         # Get knowledge modifier that was active during entry
@@ -7779,6 +7949,9 @@ class AdaptiveLearningEngine:
     
     def get_learning_summary_enhanced(self) -> str:
         """Get enhanced learning summary including knowledge/news insights."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.get_learning_summary_enhanced blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         base_summary = self.get_learning_summary()
         
         # Add news insights
@@ -7818,6 +7991,9 @@ class AdaptiveLearningEngine:
         2. Planning optimal moves before they happen
         3. Learning which patterns lead to profits
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.feed_labyrinth_intelligence blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not hasattr(self, 'labyrinth_history'):
             self.labyrinth_history = []
         
@@ -7880,6 +8056,9 @@ class AdaptiveLearningEngine:
         Returns:
             List of planned moves with confidence scores
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AdaptiveLearningEngine.plan_labyrinth_moves blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         planned_moves = []
         
         # 1️⃣ ANALYZE CONVERSION PATHS
@@ -8045,6 +8224,9 @@ def sync_exchange_trades_to_brain():
     - Running balance history for drawdown analysis
     - Cross-exchange learning (what works on Kraken vs Binance)
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.sync_exchange_trades_to_brain blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     from datetime import datetime
     
     total_synced = 0
@@ -8807,6 +8989,9 @@ class ProbabilityReportGenerator:
     
     def get_top_signals(self, min_probability: float = 0.70, limit: int = 10) -> List[Dict]:
         """Get current top signals above threshold."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ProbabilityReportGenerator.get_top_signals blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         with self._lock:
             all_results = self.last_results.get('all', [])
             filtered = [r for r in all_results if r.get('probability', 0) >= min_probability]
@@ -9309,6 +9494,9 @@ class UniversalMarketIntelligence:
         Returns:
             Comprehensive market intelligence dict
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UniversalMarketIntelligence.scan_all_assets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         now = time.time()
         if (now - self.last_scan_time) < self.scan_interval and self.market_intelligence['total_assets_scanned'] > 0:
             return self.market_intelligence  # Return cached
@@ -9467,6 +9655,9 @@ class UniversalMarketIntelligence:
         Returns:
             Dict with brain-ready market context
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UniversalMarketIntelligence.get_brain_context blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         intel = self.market_intelligence
         
         return {
@@ -9483,6 +9674,9 @@ class UniversalMarketIntelligence:
         
     def get_status(self) -> Dict[str, Any]:
         """Get current scanner status."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.UniversalMarketIntelligence.get_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return {
             'available': self.UNIVERSAL_AVAILABLE,
             'last_scan': self.last_scan_time,
@@ -9917,6 +10111,9 @@ class NotificationManager:
             data: Optional additional data for webhook
         """
         # Check if this alert level is enabled
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NotificationManager.send_alert blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if not self.alert_levels.get(level, False):
             return False
             
@@ -9976,6 +10173,9 @@ class NotificationManager:
     def notify_trade(self, symbol: str, side: str, price: float, 
                     quantity: float, exchange: str):
         """Send trade execution notification."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NotificationManager.notify_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         curr = "£" if CONFIG.get('BASE_CURRENCY') == 'GBP' else "$"
         value = price * quantity
         
@@ -9989,6 +10189,9 @@ class NotificationManager:
         
     def notify_close(self, symbol: str, pnl: float, pct: float, reason: str):
         """Send position close notification."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NotificationManager.notify_close blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         level = 'PROFIT' if pnl > 0 else 'LOSS'
         curr = "£" if CONFIG.get('BASE_CURRENCY') == 'GBP' else "$"
         
@@ -10001,6 +10204,9 @@ class NotificationManager:
         
     def notify_circuit_breaker(self, reason: str, drawdown: float):
         """Send circuit breaker alert."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NotificationManager.notify_circuit_breaker blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         msg = (f"⚠️ TRADING HALTED\n"
                f"Reason: {reason}\n"
                f"Drawdown: {drawdown:.1f}%\n"
@@ -10010,6 +10216,9 @@ class NotificationManager:
         
     def notify_arbitrage(self, opportunity: Dict):
         """Send arbitrage opportunity alert."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NotificationManager.notify_arbitrage blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         msg = (f"Symbol: {opportunity.get('symbol')}\n"
                f"Buy: {opportunity.get('buy_exchange')} @ {opportunity.get('buy_price'):.6f}\n"
                f"Sell: {opportunity.get('sell_exchange')} @ {opportunity.get('sell_price'):.6f}\n"
@@ -10109,6 +10318,9 @@ class NexusIntegration:
         - volume_ratio: 0.0 to 1.0
         - correlation: 0.0 to 1.0
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NexusIntegration.calculate_master_equation blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.enabled or not self.master_equation:
             return self._fallback_signal()
             
@@ -10223,6 +10435,9 @@ class NexusIntegration:
         
         Calculates volatility, momentum, trend_strength etc. from OHLCV data.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.NexusIntegration.convert_klines_to_market_data blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not klines or len(klines) < 2:
             return {
                 'volatility': 0.5,
@@ -10432,6 +10647,9 @@ class CapitalPool:
         
     def allocate(self, symbol: str, amount: float) -> bool:
         """Allocate capital to a position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.CapitalPool.allocate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         available = self.total_equity - sum(self.allocated.values()) - self.reserved
         if available >= amount:
             self.allocated[symbol] = self.allocated.get(symbol, 0) + amount
@@ -11299,6 +11517,9 @@ class ClownfishNode(AurisNode):
         
         Combines all factors with sacred-geometry-inspired weighting.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ClownfishNode.compute blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         symbol = state.symbol
         self._ensure_symbol_memory(symbol)
         
@@ -11426,10 +11647,16 @@ class ClownfishNode(AurisNode):
     
     def get_micro_signals(self, symbol: str) -> Dict:
         """Return detailed micro-signals for a symbol"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ClownfishNode.get_micro_signals blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self.micro_signals.get(symbol, {})
     
     def get_signal_strength(self, symbol: str) -> str:
         """Get human-readable signal strength"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ClownfishNode.get_signal_strength blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         signals = self.micro_signals.get(symbol, {})
         response = signals.get('final_response', 0.5)
         strong = signals.get('strong_signals', 0)
@@ -11600,6 +11827,9 @@ class AurisEngine:
             E(t) = Echo (avg(Λ[t-5:t]) × 0.2) - memory
             H(t) = Harmonic (HNC frequency coherence × 0.25) - global frequency
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.compute_coherence blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         total_weight = sum(n.weight for n in self.nodes)
         weighted_sum = 0
         
@@ -11676,6 +11906,9 @@ class AurisEngine:
     
     def update_hnc_state(self, symbol: str, price: float, change_24h: float, coherence: float, score: float):
         """Update HNC frequency state for a symbol and get harmonic analysis"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.update_hnc_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.hnc_bridge:
             return None
         
@@ -11720,6 +11953,9 @@ class AurisEngine:
     
     def get_hnc_position_modifier(self) -> float:
         """Get position size modifier based on HNC frequency state"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_hnc_position_modifier blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not self.hnc_bridge or not CONFIG.get('ENABLE_HNC_FREQUENCY', True):
             return 1.0
         
@@ -11731,6 +11967,9 @@ class AurisEngine:
     
     def get_hnc_status(self) -> Dict[str, Any]:
         """Get current HNC status for display"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_hnc_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.hnc_bridge or not CONFIG.get('ENABLE_HNC_FREQUENCY', True):
             return {
                 'composite_freq': 256.0,
@@ -11771,6 +12010,9 @@ class AurisEngine:
         Hour +1 (forecast) is the primary trading window.
         Hour +2 fine-tunes Hour +1 predictions.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_probability_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.prob_matrix or not CONFIG.get('ENABLE_PROB_MATRIX', True):
             return {
                 'probability': 0.5,
@@ -11807,6 +12049,9 @@ class AurisEngine:
     
     def get_high_probability_assets(self, min_prob: float = 0.65) -> List[Dict]:
         """Get assets with high probability forecasts"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_high_probability_assets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if not self.prob_matrix:
             return []
         return self.prob_matrix.get_high_probability_opportunities(
@@ -11822,6 +12067,9 @@ class AurisEngine:
         Get Imperial Predictability forecast for a symbol.
         Uses cosmic synchronization + temporal forecasting.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_imperial_prediction blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.imperial or not CONFIG.get('ENABLE_IMPERIAL', True):
             return {
                 'probability': 0.5,
@@ -11863,6 +12111,9 @@ class AurisEngine:
         Enhance a trading opportunity with Imperial predictability.
         Adds cosmic-aware position sizing and probability forecasts.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.enhance_opportunity_imperial blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.imperial or not CONFIG.get('ENABLE_IMPERIAL', True):
             return opp
         
@@ -11878,6 +12129,9 @@ class AurisEngine:
         Get Imperial position size modifier for a symbol.
         Returns multiplier (0.1 to 1.5) based on cosmic state.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_imperial_position_modifier blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not self.imperial or not CONFIG.get('ENABLE_IMPERIAL', True):
             return 1.0
         
@@ -11888,6 +12142,9 @@ class AurisEngine:
     
     def get_cosmic_status(self) -> Dict[str, Any]:
         """Get current cosmic state for display"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_cosmic_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.imperial or not CONFIG.get('ENABLE_IMPERIAL', True):
             return {
                 'phase': 'DISABLED',
@@ -11913,6 +12170,9 @@ class AurisEngine:
         Check if cosmic state supports trading.
         Returns (should_trade, reason).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.should_trade_imperial blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not self.imperial or not CONFIG.get('ENABLE_IMPERIAL', True):
             return True, "Imperial disabled - trading allowed"
         
@@ -11923,6 +12183,9 @@ class AurisEngine:
     
     def get_earth_resonance_status(self) -> Dict[str, Any]:
         """Get current Earth Resonance Engine status"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_earth_resonance_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.earth_engine or not CONFIG.get('ENABLE_EARTH_RESONANCE', True):
             return {'enabled': False, 'reason': 'Earth Resonance disabled'}
         
@@ -11946,6 +12209,9 @@ class AurisEngine:
         Check if Earth Resonance supports trading.
         Returns (should_trade, reason).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.should_trade_earth blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not self.earth_engine or not CONFIG.get('ENABLE_EARTH_RESONANCE', True):
             return True, "Earth Resonance disabled - trading allowed"
         
@@ -11965,6 +12231,9 @@ class AurisEngine:
         🧠 BRAIN GATE: 7 Civilizations + Quantum Brain must approve trades.
         Returns (should_trade, reason).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.should_trade_brain blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not hasattr(self, 'brain_bridge') or not self.brain_bridge:
             return True, "Brain Bridge not initialized - trading allowed"
         
@@ -12000,6 +12269,9 @@ class AurisEngine:
         Combined gate check: Imperial + HNC + Earth Resonance + BRAIN.
         Returns (should_trade, reason).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.should_trade_all_gates blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         reasons = []
         
         # Check Imperial gate
@@ -12040,6 +12312,9 @@ class AurisEngine:
         
         Returns (should_trade, reason, adjusted_confidence)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.should_trade_ui_validated blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not self.ui_bridge_enabled or not self.ui_bridge:
             return True, "UI Bridge not enabled - trade allowed", confidence
         
@@ -12147,6 +12422,9 @@ class AurisEngine:
         
         Returns complete signal data for trade execution.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_enhanced_nexus_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not ENHANCED_NEXUS_AVAILABLE or not self.enhanced_probability_nexus:
             return {'available': False}
         
@@ -12181,6 +12459,9 @@ class AurisEngine:
     
     def get_enhanced_nexus_status(self) -> Dict[str, Any]:
         """Get the status of the Enhanced Probability Nexus"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_enhanced_nexus_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not ENHANCED_NEXUS_AVAILABLE or not self.enhanced_probability_nexus:
             return {'available': False}
         
@@ -12205,6 +12486,9 @@ class AurisEngine:
         🏥 COMPREHENSIVE SYSTEM HEALTH CHECK 🏥
         Ensures all subsystems are operational and communicating.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_system_health_report blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         report = {
             'timestamp': datetime.now().isoformat(),
             'systems': {},
@@ -12393,6 +12677,9 @@ class AurisEngine:
         Print a formatted system health report to console.
         Shows all active systems and their communication status.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.print_system_health blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         report = self.get_system_health_report()
         
         print("\n" + "═" * 80)
@@ -12458,6 +12745,9 @@ class AurisEngine:
     
     def update_cosmic_state(self, market_data: Optional[Dict] = None) -> None:
         """Update cosmic state with optional market data"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.update_cosmic_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self.imperial and CONFIG.get('ENABLE_IMPERIAL', True):
             try:
                 self.cosmic_state = self.imperial.update_cosmic_state(market_data)
@@ -12472,6 +12762,9 @@ class AurisEngine:
     
     def get_frequency_distribution(self) -> Dict[str, int]:
         """Get count of assets at each frequency band"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_frequency_distribution blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         distribution = {
             '174_FOUNDATION': 0,
             '256_ROOT': 0,
@@ -12515,6 +12808,9 @@ class AurisEngine:
     
     def get_harmonic_count(self) -> Dict[str, int]:
         """Get count of harmonic vs distorted assets"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_harmonic_count blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         harmonic = sum(1 for a in self.asset_frequencies.values() if a.get('is_harmonic', False))
         distortion = sum(1 for a in self.asset_frequencies.values() if 435 <= a.get('frequency', 256) <= 445)
         neutral = len(self.asset_frequencies) - harmonic - distortion
@@ -12522,6 +12818,9 @@ class AurisEngine:
     
     def get_harmonic_assets(self) -> List[str]:
         """Get list of assets currently in harmonic resonance"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_harmonic_assets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         return [
             asset['symbol'] for asset in self.asset_frequencies.values()
             if asset.get('is_harmonic', False)
@@ -12529,6 +12828,9 @@ class AurisEngine:
     
     def get_distorted_assets(self) -> List[str]:
         """Get list of assets in 440Hz distortion field"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_distorted_assets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         return [
             asset['symbol'] for asset in self.asset_frequencies.values()
             if 435 <= asset.get('frequency', 256) <= 445
@@ -12539,6 +12841,9 @@ class AurisEngine:
         Scan market for anomalies using CoinAPI cross-exchange data.
         Returns detected anomalies and applies algorithm refinements.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.scan_for_anomalies blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if not self.coinapi_detector or not CONFIG.get('ENABLE_COINAPI', False):
             return []
         
@@ -12621,10 +12926,16 @@ class AurisEngine:
     
     def get_coherence_adjustment(self, symbol: str) -> float:
         """Get coherence threshold adjustment for symbol"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.get_coherence_adjustment blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         return self.coherence_adjustments.get(symbol, 1.0)
     
     def print_frequency_grid(self, top_n: int = 10):
         """Print a visual frequency grid for assets"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AurisEngine.print_frequency_grid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.asset_frequencies:
             print("   📡 No asset frequencies tracked yet")
             return
@@ -13119,6 +13430,9 @@ class MyceliumNetwork:
         
     def propagate(self, probability_map: Dict[str, float] = None) -> Dict[str, float]:
         """Propagate signals through the network"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MyceliumNetwork.propagate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         new_activations = {}
         for symbol, activation in self.activations.items():
             new_activations[symbol] = activation
@@ -13224,6 +13538,9 @@ class MyceliumNetwork:
     # ─────────────────────────────────────────────────────────
     def get_symbol_memory(self, symbol: str) -> Dict[str, Any]:
         """Return learned memory for a symbol (read-only query)."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MyceliumNetwork.get_symbol_memory blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         stats = self.symbol_stats.get(symbol)
         if stats:
             trades = int(stats.get('trades', 0) or 0)
@@ -13242,6 +13559,9 @@ class MyceliumNetwork:
 
     def get_exchange_friction(self, exchange: str) -> Dict[str, Any]:
         """Return rejection stats for an exchange (read-only query)."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MyceliumNetwork.get_exchange_friction blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         ex = self.exchange_rejects.get(exchange.lower())
         if ex:
             return {'reject_count': int(ex.get('count', 0) or 0), 'last_reject_ts': ex.get('last_ts', 0.0)}
@@ -13249,6 +13569,9 @@ class MyceliumNetwork:
 
     def rank_symbols_by_memory(self, symbols: List[str], ascending: bool = False) -> List[str]:
         """Return symbols sorted by learned win-rate * activation (descending by default)."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MyceliumNetwork.rank_symbols_by_memory blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         def _score(sym: str) -> float:
             mem = self.get_symbol_memory(sym)
             return float(mem.get('win_rate', 0.5)) * float(mem.get('activation', 0.5))
@@ -13256,6 +13579,9 @@ class MyceliumNetwork:
 
     def get_network_state(self) -> Dict[str, Any]:
         """Get full neural network state for display"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MyceliumNetwork.get_network_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         state = {
             "pattern_nodes": len(self.activations),
             "pattern_synapses": sum(len(s) for s in self.synapses.values()),
@@ -13279,6 +13605,9 @@ class MyceliumNetwork:
     
     def display_neural_status(self):
         """Display neural network status"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.MyceliumNetwork.display_neural_status blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         state = self.get_network_state()
         queen_emoji = "👑" if state["queen_signal"] > 0.3 else "👸" if state["queen_signal"] > -0.3 else "💀"
         signal_bar = "█" * int(abs(state["queen_signal"]) * 10)
@@ -13477,6 +13806,9 @@ class PerformanceTracker:
     def record_trade(self, net_pnl: float, fees: float, symbol: str, reason: str, 
                      hold_time_sec: float = 0, platform: str = 'kraken', volume: float = 0.0):
         """Record a completed trade with platform attribution - THE SNIPER MAKES THE KILLS"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PerformanceTracker.record_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.total_trades += 1
         self.total_fees += fees
         result = 'WIN' if net_pnl > 0 else 'LOSS'
@@ -13596,6 +13928,9 @@ class PerformanceTracker:
         
         Returns: Position size as fraction of balance
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PerformanceTracker.calculate_position_size blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if CONFIG['USE_KELLY_SIZING'] and self.total_trades >= 10:
             # Need at least 10 trades for stable Kelly calculation
             avg_win = CONFIG['TAKE_PROFIT_PCT'] / 100.0
@@ -13654,6 +13989,9 @@ class PerformanceTracker:
 
     def get_platform_summary(self) -> str:
         """Generate a summary of metrics by platform."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.PerformanceTracker.get_platform_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         lines = ["\n   📊 PLATFORM METRICS"]
         lines.append("   " + "─" * 60)
         
@@ -13744,6 +14082,9 @@ class ElephantMemory:
     
     def load(self):
         # 1. Load local memory
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ElephantMemory.load blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             with open(self.filepath) as f:
                 self.symbols = json.load(f)
@@ -13776,6 +14117,9 @@ class ElephantMemory:
     
     def record_hunt(self, symbol: str, volume: float = 0, change: float = 0):
         """Remember we hunted this symbol (Quackers style)"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ElephantMemory.record_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if symbol not in self.symbols:
             self.symbols[symbol] = {
                 'hunts': 0, 'trades': 0, 'wins': 0, 'losses': 0,
@@ -13804,6 +14148,9 @@ class ElephantMemory:
     
     def record(self, symbol: str, profit_usd: float):
         """Record trade result"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ElephantMemory.record blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if symbol not in self.symbols:
             self.symbols[symbol] = {
                 'hunts': 0, 'trades': 0, 'wins': 0, 'losses': 0,
@@ -13860,6 +14207,9 @@ class ElephantMemory:
     
     def should_avoid(self, symbol: str) -> bool:
         # Check local memory
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ElephantMemory.should_avoid blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if self._check_avoid(self.symbols.get(symbol)):
             return True
             
@@ -13896,6 +14246,9 @@ class ElephantMemory:
         return None
     
     def get_win_rate(self) -> float:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.ElephantMemory.get_win_rate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         total_wins = sum(s.get('wins', 0) for s in self.symbols.values())
         total_losses = sum(s.get('losses', 0) for s in self.symbols.values())
         if total_wins + total_losses == 0:
@@ -13928,6 +14281,9 @@ class SystemFluxPredictor:
         }
         """
         # Filter valid tickers
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.SystemFluxPredictor.predict blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         valid_tickers = []
         for symbol, data in tickers.items():
             if data.get('volume', 0) > 10000 and data.get('price', 0) > 0:
@@ -17104,6 +17460,9 @@ class AureonKrakenEcosystem:
         return CONFIG['BASE_CURRENCY'].upper()
 
     def ensure_quote_liquidity(self, exchange: str, quote_asset: str, required: float) -> Tuple[bool, float, Optional[str]]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.ensure_quote_liquidity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         required_amount = _finite_number(required, positive=True)
         if self.dry_run:
             return False, 0.0, 'dry run does not create live quote liquidity'
@@ -17218,6 +17577,9 @@ class AureonKrakenEcosystem:
         Always fetches real balances from exchanges, regardless of dry_run mode.
         Dry run only affects order execution, not balance queries.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.compute_total_equity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         base = CONFIG['BASE_CURRENCY']
         holdings_value: Dict[str, float] = {}
         total_equity = 0.0
@@ -17327,6 +17689,9 @@ class AureonKrakenEcosystem:
         return total_equity, cash_balance, holdings_value
 
     def refresh_equity(self, mark_cycle: bool = False) -> Optional[float]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.refresh_equity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self._liquidity_warnings.clear()
         total, cash, holdings = self.compute_total_equity()
         if total is None or cash is None:
@@ -17407,6 +17772,9 @@ class AureonKrakenEcosystem:
         
         Returns (should_trade, reason).
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.should_trade_brain blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         if not hasattr(self, 'brain_bridge') or not self.brain_bridge:
             return True, "Brain Bridge not initialized - trading allowed"
         
@@ -17455,6 +17823,9 @@ class AureonKrakenEcosystem:
         If is_force_scout=True, bypass most gates - we're going IN!
         """
         # Minimal sanity checks
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.should_enter_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         if pos_size <= 0 or self.total_equity_gbp <= 0:
             opp['entry_reject_reason'] = 'invalid position size or equity'
             return False
@@ -18042,6 +18413,9 @@ class AureonKrakenEcosystem:
         
         This compounds leftover positions from previous runs.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.harvest_existing_assets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print("\n" + "="*70)
         print("🌾 STARTUP HARVESTER: Scanning existing assets for compounding...")
         print("="*70)
@@ -18344,6 +18718,9 @@ class AureonKrakenEcosystem:
         to determine WHEN to exit based on predicted price movement patterns
         """
         # 🔮 CHECK ETA ORACLE - Query predicted exit time from Timeline Oracle
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.should_exit_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         exit_ready = self._check_eta_oracle_exit(pos, current_price, reason)
         if exit_ready is False:  # Explicitly False means not ready (None means check other logic)
             return False
@@ -18505,6 +18882,9 @@ class AureonKrakenEcosystem:
     
     def load_state(self):
         """Load previous state from file"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.load_state blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             if not os.path.exists(CONFIG['STATE_FILE']):
                 return
@@ -18568,6 +18948,9 @@ class AureonKrakenEcosystem:
         
         ⚠️ SAFETY: Does NOT delete positions if API calls fail!
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.sync_positions_with_exchange blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if self.dry_run:
             print("   🔄 Position sync skipped (dry run mode)")
             return
@@ -18826,6 +19209,9 @@ class AureonKrakenEcosystem:
         """Handle WebSocket connection for real-time prices from ALL exchanges"""
         
         # Split pairs by exchange and populate mappings
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.websocket_handler blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         kraken_pairs = []
         binance_pairs = []
         alpaca_pairs = []
@@ -19011,6 +19397,9 @@ class AureonKrakenEcosystem:
         """Start WebSocket in background thread"""
         # We pass raw symbols to handler which will handle splitting and mapping
             
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.start_websocket blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         def run_ws():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -19022,6 +19411,9 @@ class AureonKrakenEcosystem:
         
     def get_realtime_price(self, symbol: str) -> Optional[float]:
         """Get real-time price from WebSocket"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.get_realtime_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         with self.price_lock:
             if symbol in self.realtime_prices:
                 evidence = self.realtime_price_evidence.get(symbol)
@@ -19040,6 +19432,9 @@ class AureonKrakenEcosystem:
     
     def refresh_tickers(self) -> int:
         """Refresh ticker data from REST API with orchestrator enrichment"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.refresh_tickers blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0
         try:
             tickers_list = self.client.get_24h_tickers()
             
@@ -19145,6 +19540,9 @@ class AureonKrakenEcosystem:
 
     def sync_bridge(self):
         """Sync state with Aureon Bridge for Ultimate ↔ Unified communication"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.sync_bridge blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.bridge_enabled or not self.bridge:
             return
         
@@ -19198,6 +19596,9 @@ class AureonKrakenEcosystem:
     
     def publish_opportunities_to_bridge(self, opportunities: List[Dict]):
         """Publish top opportunities to bridge for Ultimate system"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.publish_opportunities_to_bridge blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.bridge_enabled or not self.bridge:
             return
         
@@ -19269,6 +19670,9 @@ class AureonKrakenEcosystem:
     
     def check_bridge_commands(self):
         """Process control commands from bridge"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.check_bridge_commands blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self.bridge_enabled or not self.bridge:
             return
         
@@ -19315,6 +19719,9 @@ class AureonKrakenEcosystem:
     
     def find_opportunities(self) -> List[Dict]:
         """Find best trading opportunities using all analysis methods - TRADES EVERYTHING"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.find_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         # Safety check
@@ -20045,6 +20452,9 @@ class AureonKrakenEcosystem:
         Route an order through SmartOrderRouter for best execution.
         Automatically selects best exchange based on price/fees.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.smart_route_order blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         result = self.smart_router.route_order(
             symbol, side, quantity, quote_qty, preferred_exchange, account_evidence
         )
@@ -20102,6 +20512,9 @@ class AureonKrakenEcosystem:
         """
         Execute an arbitrage trade. If no opportunity provided, uses best available.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.execute_arbitrage blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not opportunity:
             opportunities = self.arb_scanner.get_top_opportunities(limit=1)
             if not opportunities:
@@ -20171,6 +20584,9 @@ class AureonKrakenEcosystem:
         Get dynamic TP/SL percentages based on ATR.
         Returns: {'tp_pct': float, 'sl_pct': float, 'atr': float, 'is_dynamic': bool}
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.get_dynamic_tp_sl blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self.atr_calculator.get_dynamic_tp_sl(
             symbol,
             base_tp=CONFIG.get('TAKE_PROFIT_PCT', 2.0),
@@ -20291,6 +20707,9 @@ class AureonKrakenEcosystem:
         Returns:
             List of positions that should be closed due to trailing stop
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.update_trailing_stops blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if not CONFIG.get('ENABLE_TRAILING_STOP', True):
             return []
             
@@ -20385,6 +20804,9 @@ class AureonKrakenEcosystem:
         - SELL when Γ < 0.70
         - NEUTRAL otherwise
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.get_nexus_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.nexus.enabled:
             return {'signal': 'NEUTRAL', 'coherence': 0.5, 'confidence': 0.5}
             
@@ -20406,6 +20828,9 @@ class AureonKrakenEcosystem:
         Enhance an opportunity with Nexus Master Equation signal.
         Adds nexus_signal, nexus_coherence, nexus_boost to opportunity.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.enhance_opportunity_with_nexus blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         if not self.nexus.enabled:
             return opp
             
@@ -20448,6 +20873,9 @@ class AureonKrakenEcosystem:
         Check if Nexus suggests exiting a position.
         Returns True if coherence falls below 0.70.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.check_nexus_exit_signal blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return False
         nexus_result = self.get_nexus_signal(symbol)
         return nexus_result.get('signal') == 'SELL'
     
@@ -20578,6 +21006,9 @@ class AureonKrakenEcosystem:
         
         🏴⚔️ MULTI-BATTLEFIELD: Routes to correct exchange and prevents duplicates!
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.open_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         def deny(status: str, reason: str, truth_status: str = 'no_data') -> Dict[str, Any]:
             receipt = {
                 'execution_status': status,
@@ -21696,6 +22127,9 @@ class AureonKrakenEcosystem:
         
     def check_positions(self):
         """Check all positions for TP/SL with HNC frequency optimization and Earth Resonance"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.check_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         to_close = []
         
         # �⚡ ACTIVE KILL SCANNER - INTELLIGENT HUNTING SCAN ⚡🎯
@@ -22238,6 +22672,9 @@ class AureonKrakenEcosystem:
         Dynamic portfolio rebalancing - sell underperformers to buy better opportunities.
         Returns: Amount of capital freed up for new trades.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.rebalance_portfolio blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if not CONFIG['ENABLE_REBALANCING']:
             return 0.0
             
@@ -22290,6 +22727,9 @@ class AureonKrakenEcosystem:
     def close_position(self, symbol: str, reason: str, pct: float, price: float,
                        market_evidence: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Close a position"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.close_position blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         def close_receipt(status: str, detail: str, truth_status: str = 'no_data') -> Dict[str, Any]:
             return {
                 'execution_status': status,
@@ -22932,6 +23372,9 @@ class AureonKrakenEcosystem:
             coherence >= 0.85                                      → FAST
             otherwise                                              → REJECT
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.get_signal_tier blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ''
         coherence = float(opp.get('coherence', 0.0) or 0.0)
         cr = cog_report or getattr(self, '_last_cognitive_report', None) or {}
 
@@ -23028,6 +23471,9 @@ class AureonKrakenEcosystem:
     
     def print_heartbeat(self):
         """Print a periodic heartbeat with key metrics."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.print_heartbeat blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         now = datetime.now().strftime("%H:%M:%S")
         uptime_mins = (time.time() - self.start_time) / 60
         
@@ -23134,6 +23580,9 @@ class AureonKrakenEcosystem:
     
     def run_one_cycle(self):
         """Run a single trading cycle"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.run_one_cycle blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         self.iteration += 1
         now = datetime.now().strftime("%H:%M:%S")
         
@@ -23984,6 +24433,9 @@ class AureonKrakenEcosystem:
         """
         # 🛠️ CRITICAL: Compute REAL wallet balance BEFORE banner!
         # This fixes the "Fake $1000 Balance" bug by detecting actual portfolio value first.
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         total, cash, holdings = self.compute_total_equity()
         if total is None or cash is None:
             logger.warning("NO_DATA: authenticated account equity unavailable; live entries remain blocked")
@@ -25230,6 +25682,9 @@ class AureonKrakenEcosystem:
         Returns:
             CognitiveTickReport dict with fresh states from all subsystems.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.cognitive_watch_tick blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         market_context = market_context or {}
         t0 = time.time()
         report: Dict[str, Any] = {"timestamp": t0, "valid": False}
@@ -25634,6 +26089,9 @@ class AureonKrakenEcosystem:
 
     def final_report(self):
         """Print final statistics"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_unified_ecosystem.AureonKrakenEcosystem.final_report blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print(f"""
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║          🐙🌌 AUREON KRAKEN ECOSYSTEM - FINAL REPORT 🌌🐙               ║
@@ -25698,6 +26156,9 @@ class AureonKrakenEcosystem:
 def main():
     # 🛡️ CRITICAL: Sanitize logging environment before starting
     # This removes any handlers added by imports (e.g. alpaca-py, urllib3)
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_unified_ecosystem.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     sanitize_logging_environment()
 
     # Configuration from environment

@@ -43,6 +43,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, runtime_checkable
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 LOG = logging.getLogger("aureon.connectors")
 
 # The optional Google stack. Both are needed: `googleapiclient` builds the
@@ -248,6 +250,13 @@ def build_google_service(
     string ends up in logs and on the thought bus. The type plus the variable
     name is enough to act on without that risk.
     """
+    if no_external_api_calls():
+        LOG.info("build_google_service blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None, ConnectorStatus.blocked(
+            "AUREON_NO_EXTERNAL_API_CALLS is set; outbound Google API calls are disabled",
+            source="air_gap",
+        )
+
     blocker = missing_dependency()
     if blocker:
         return None, ConnectorStatus.blocked(blocker)

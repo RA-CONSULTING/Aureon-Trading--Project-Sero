@@ -23,6 +23,8 @@ Gary Leckey | January 2026 | TURBO MODE
 ═══════════════════════════════════════════════════════════════════
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -126,6 +128,9 @@ class RealTimeSpreadTracker:
     
     def get_current_spread(self, exchange: str, symbol: str = None) -> float:
         """Get current spread estimate for an exchange/symbol."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.RealTimeSpreadTracker.get_current_spread blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         if symbol:
             key = f"{exchange}:{symbol}"
             if key in self.spread_history and self.spread_history[key]:
@@ -215,6 +220,9 @@ class FeeTierOptimizer:
     
     def record_trade_volume(self, exchange: str, volume_usd: float):
         """Record trade volume for tier tracking."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.FeeTierOptimizer.record_trade_volume blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         exchange = exchange.lower()
         if exchange in self.volume_30d:
             self.volume_30d[exchange] += volume_usd
@@ -236,6 +244,9 @@ class FeeTierOptimizer:
     
     def get_fees(self, exchange: str, is_maker: bool = True) -> float:
         """Get current fee rate for exchange."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.FeeTierOptimizer.get_fees blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return 0.0
         exchange = exchange.lower()
         tier = self.current_tiers.get(exchange)
         if tier:
@@ -247,6 +258,9 @@ class FeeTierOptimizer:
     
     def get_fee_savings(self, exchange: str) -> Dict:
         """Calculate how much we're saving vs worst-case fees."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.FeeTierOptimizer.get_fee_savings blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         exchange = exchange.lower()
         tiers = self.tiers.get(exchange, [])
         if not tiers:
@@ -459,6 +473,9 @@ class FlashProfitDetector:
     
     def record_price(self, symbol: str, exchange: str, price: float):
         """Record a price tick."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.FlashProfitDetector.record_price blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         key = f"{exchange}:{symbol}"
         if key not in self.price_history:
             self.price_history[key] = deque(maxlen=1000)
@@ -589,6 +606,9 @@ class ProbabilityWeightedThresholds:
         
         Returns: (adjusted_win, adjusted_stop)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.ProbabilityWeightedThresholds.get_adjusted_threshold blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return ()
         key = f"{exchange}:{symbol}"
         outcomes = self.outcomes.get(key, [])
         
@@ -623,6 +643,9 @@ class ProbabilityWeightedThresholds:
     
     def get_symbol_stats(self, symbol: str, exchange: str) -> Dict:
         """Get statistics for a symbol."""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.ProbabilityWeightedThresholds.get_symbol_stats blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         key = f"{exchange}:{symbol}"
         outcomes = self.outcomes.get(key, [])
         
@@ -741,6 +764,9 @@ class PennyProfitTurbo:
         - Probability-adjusted targets
         - Compound optimization
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.PennyProfitTurbo.get_enhanced_thresholds blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         exchange = exchange.lower()
         
         # 1. Get current spread
@@ -811,6 +837,9 @@ class PennyProfitTurbo:
         
         Wrapper for get_enhanced_thresholds for convenience.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.penny_profit_turbo.PennyProfitTurbo.get_enhanced_threshold blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return {}
         return self.get_enhanced_thresholds(exchange, symbol, value_usd)
     
     def get_flash_signal(self, exchange: str, symbol: str) -> Optional[Dict]:

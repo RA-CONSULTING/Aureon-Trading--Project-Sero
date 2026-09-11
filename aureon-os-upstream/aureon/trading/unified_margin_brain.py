@@ -18,6 +18,9 @@ from datetime import datetime
 from typing import Any, Dict, Mapping, Optional, Sequence
 
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 def _finite(value: Any, default: float = 0.0) -> float:
     try:
         number = float(value)
@@ -140,6 +143,9 @@ class UnifiedMarginDecisionBrain:
         population_scores: Sequence[float] = (),
         now: Optional[float] = None,
     ) -> MarginBrainDecision:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.unified_margin_brain.UnifiedMarginDecisionBrain.evaluate_candidate blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         ctx = dict(cognition_context or {})
         sources = _as_mapping(ctx.get("sources"))
         projection = _as_mapping(sources.get("projection") or ctx.get("projection"))

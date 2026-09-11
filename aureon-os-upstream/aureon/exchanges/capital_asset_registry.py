@@ -456,6 +456,7 @@ def build_capital_asset_registry(
         "generated_at": generated_at,
         "source": "aureon.exchanges.capital_asset_registry",
         "capital_client_enabled": enabled,
+        "credential_bootstrap": getattr(client, "credential_bootstrap_report", {}),
         "catalogue_source": "CapitalClient.get_all_markets",
         "snapshot_source": "CapitalClient._get_market_snapshot",
         "execution_contract": {

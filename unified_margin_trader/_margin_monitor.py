@@ -14,6 +14,7 @@ Only exceptions:
   — 1-hour ride limit reached (rotate to next stallion)
 """
 import argparse
+import hashlib
 import math
 import os, sys, time, json, logging
 from datetime import datetime
@@ -154,6 +155,141 @@ def _complete_terminal_fill(receipt, now=None):
     return receipt, None
 
 
+def _observe_positions(client):
+    """Fetch open margin positions and attest observation provenance.
+
+    The client's OpenPositions payload carries no receipt envelope, so this
+    wrapper annotates the values that were genuinely observed from the private
+    endpoint just now. Numbers are left untouched — only metadata is added —
+    and the existing receipt gates still validate every field before use.
+    """
+    received_at = time.time()
+    raw = client.get_open_margin_positions()
+    if not isinstance(raw, list) or not raw:
+        return []
+    observed = []
+    for pos in raw:
+        if not isinstance(pos, dict):
+            continue
+        entry = dict(pos)
+        # Client field names → receipt field names expected by _complete_position.
+        entry.setdefault('opentm', entry.get('open_time'))
+        entry.setdefault('type', entry.get('side'))
+        payload_material = "|".join(
+            f"{key}={entry.get(key)}"
+            for key in ('pair', 'type', 'volume', 'volume_closed', 'cost', 'fee', 'margin', 'opentm')
+        )
+        entry.update({
+            'truth_status': 'real_observed',
+            'generated_values': False,
+            'source_id': 'kraken:/0/private/OpenPositions',
+            'receipt_id': 'kraken_open_positions:' + hashlib.sha256(
+                payload_material.encode('utf-8')
+            ).hexdigest(),
+            'source_timestamp': received_at,
+            'received_at': received_at,
+        })
+        observed.append(entry)
+    return observed
+
+
+def _probe_quote(client, pair, now=None):
+    """Fresh two-sided quote or (None, problem). Prefers the provenance-carrying
+    receipt API; fails closed when the venue cannot attest a live quote.
+    Staleness is measured at validation time (after the HTTP round-trip), not
+    at the caller's possibly-old reference timestamp."""
+    if hasattr(client, 'get_ticker_receipt'):
+        receipt = client.get_ticker_receipt(pair)
+    else:
+        receipt = client.get_ticker(pair)
+    validated_at = time.time() if now is None else max(now, time.time())
+    return _complete_quote(receipt, validated_at)
+
+
+def _status_snapshot(client):
+    """One read-only monitoring cycle. Never closes or opens anything."""
+    now = time.time()
+    snapshot = {'generated_at': datetime.now().isoformat(), 'positions': [], 'errors': []}
+
+    positions = _observe_positions(client)
+    position_problem = next(
+        (problem for problem in (_complete_position(pos, now) for pos in positions) if problem),
+        None,
+    ) if positions else None
+    if position_problem:
+        snapshot['errors'].append(f'positions: {position_problem}')
+    snapshot['open_positions'] = 0 if position_problem else len(positions)
+
+    tb = client.get_trade_balance()
+    account_problem = _fresh_observed_receipt(tb, now) if isinstance(tb, dict) else 'account receipt is not a mapping'
+    margin_level = _finite_number(tb.get('margin_level')) if isinstance(tb, dict) else None
+    free_margin = _finite_number(tb.get('free_margin')) if isinstance(tb, dict) else None
+    if account_problem or margin_level is None or free_margin is None:
+        if not positions and not position_problem:
+            # No open margin positions and no margin account: normal state for a
+            # spot-only account, report as info rather than an error.
+            snapshot['account_note'] = f'no margin account receipt ({account_problem or "margin_level/free_margin missing"})'
+        else:
+            snapshot['errors'].append(f'account: {account_problem or "margin_level/free_margin missing"}')
+        snapshot['margin_level'] = None
+        snapshot['free_margin'] = None
+    else:
+        snapshot['margin_level'] = margin_level
+        snapshot['free_margin'] = free_margin
+        snapshot['equity'] = _finite_number(tb.get('equity_value'))
+
+    for pos in ([] if position_problem else positions):
+        pair = pos.get('pair', '?')
+        quote, quote_problem = _probe_quote(client, pair, now)
+        row = {
+            'pair': pair,
+            'side': pos.get('type') or pos.get('side'),
+            'volume': _finite_number(pos.get('volume')),
+            'volume_closed': _finite_number(pos.get('volume_closed')),
+            'cost': _finite_number(pos.get('cost')),
+            'fee': _finite_number(pos.get('fee')),
+            'leverage': pos.get('leverage'),
+        }
+        if quote_problem:
+            row['quote_error'] = quote_problem
+            row['current_bid'] = None
+            row['current_ask'] = None
+        else:
+            row['current_bid'], row['current_ask'] = quote
+        snapshot['positions'].append(row)
+
+    if not positions:
+        # No positions: still attest venue liveness with one quote probe.
+        _, quote_problem = _probe_quote(client, 'ETHUSD', now)
+        snapshot['venue_probe'] = 'ok' if quote_problem is None else f'no_data: {quote_problem}'
+
+    return snapshot
+
+
+def _print_status_snapshot(snapshot):
+    print("=" * 70)
+    print("  MARGIN STATUS SNAPSHOT (read-only, no orders)")
+    print(f"  Generated: {snapshot['generated_at']}")
+    print("=" * 70)
+    if snapshot.get('margin_level') is not None:
+        print(f"  Margin level: {snapshot['margin_level']:.1f}% | Free margin: ${snapshot['free_margin']:.2f} | Equity: ${snapshot.get('equity') or 0:.2f}")
+    else:
+        print("  Account telemetry: no_data (margin account receipt unavailable)")
+    print(f"  Open margin positions: {snapshot['open_positions']}")
+    for row in snapshot['positions']:
+        if row['current_bid'] is None:
+            print(f"  • {row['pair']} {row['side']} vol={row['volume']} — quote no_data: {row['quote_error']}")
+        else:
+            print(f"  • {row['pair']} {row['side']} vol={row['volume']} | bid=${row['current_bid']:,.2f} ask=${row['current_ask']:,.2f}")
+    if 'venue_probe' in snapshot:
+        print(f"  Venue probe (ETHUSD): {snapshot['venue_probe']}")
+    if snapshot.get('account_note'):
+        print(f"  ℹ {snapshot['account_note']}")
+    for err in snapshot['errors']:
+        print(f"  ⚠ {err}")
+    print("=" * 70)
+
+
 def _configure_runtime_components():
     """Create optional runtime helpers only after the monitor is explicitly started."""
     global _DTP_AVAILABLE, DynamicTakeProfit, DTP_CONFIG
@@ -193,7 +329,23 @@ def _configure_runtime_components():
 def main(argv=None):
     parser = argparse.ArgumentParser(description='Monitor verified margin-position receipts.')
     parser.add_argument('--run', action='store_true', help='explicitly enable provider monitoring')
+    parser.add_argument('--status', action='store_true', help='one read-only telemetry snapshot, then exit (no orders)')
     args = parser.parse_args(argv)
+    if args.status:
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+        _configure_runtime_components()
+        from aureon.exchanges.kraken_client import KrakenClient
+        client = KrakenClient()
+        snapshot = _status_snapshot(client)
+        _print_status_snapshot(snapshot)
+        out_path = '_margin_monitor_status.json'
+        try:
+            with open(out_path, 'w') as f:
+                json.dump(snapshot, f, indent=2)
+            print(f"Snapshot written to {out_path}")
+        except Exception as exc:
+            print(f"Snapshot could not be written: {exc}")
+        return 0 if not snapshot['errors'] else 1
     if not args.run:
         print('No provider monitoring started: pass --run with receipt-capable adapters.')
         return 0
@@ -240,7 +392,7 @@ def main(argv=None):
         try:
             # ── Get open margin positions ───────────────────────────────────
             receipt_now = time.time()
-            positions = client.get_open_margin_positions()
+            positions = _observe_positions(client)
             if not isinstance(positions, list) or not positions:
                 print('  no_data: no complete fresh provider position receipts; monitoring is vetoed.')
                 time.sleep(CHECK_INTERVAL)
@@ -265,8 +417,7 @@ def main(argv=None):
                 continue
 
             # ── Get ETH price ───────────────────────────────────────────────
-            ticker = client.get_ticker('ETHUSD')
-            quote, quote_problem = _complete_quote(ticker, receipt_now)
+            quote, quote_problem = _probe_quote(client, 'ETHUSD', receipt_now)
             if quote_problem:
                 print(f'  no_data: {quote_problem}; monitoring is vetoed.')
                 time.sleep(CHECK_INTERVAL)
@@ -278,8 +429,7 @@ def main(argv=None):
             if _multiverse is not None:
                 for cpair in CANDIDATE_PAIRS:
                     try:
-                        ct = client.get_ticker(cpair)
-                        candidate_quote, candidate_problem = _complete_quote(ct, receipt_now)
+                        candidate_quote, candidate_problem = _probe_quote(client, cpair, receipt_now)
                         if not candidate_problem:
                             candidate_prices[cpair] = candidate_quote[0]
                     except Exception:

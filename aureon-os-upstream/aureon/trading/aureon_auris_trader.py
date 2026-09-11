@@ -30,6 +30,8 @@ Author: Aureon System / Gary Leckey
 Date: November 28, 2025
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -242,6 +244,9 @@ class AurisTrader:
         self.history = {}  # For calculating volatility/momentum
         
     def get_market_snapshot(self, symbol: str) -> Optional[MarketSnapshot]:
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_auris_trader.AurisTrader.get_market_snapshot blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             # Get 24h ticker for volume/change
             ticker = self.client.session.get(
@@ -285,6 +290,9 @@ class AurisTrader:
             return None
 
     def run(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_auris_trader.AurisTrader.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         print(f"""
 ╔═══════════════════════════════════════════════════════════════════════════════╗
 ║                    🦉 AUREON AURIS TRADER LIVE 🦉                             ║
@@ -316,6 +324,9 @@ class AurisTrader:
                 time.sleep(1)
 
     def scan_and_enter(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_auris_trader.AurisTrader.scan_and_enter blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         best_opp = None
         best_coherence = 0.0
         
@@ -367,6 +378,9 @@ class AurisTrader:
             logger.error(f"Buy failed: {e}")
 
     def check_exits(self):
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_auris_trader.AurisTrader.check_exits blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         for symbol in list(self.positions.keys()):
             pos = self.positions[symbol]
             snapshot = self.get_market_snapshot(symbol)

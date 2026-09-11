@@ -15,6 +15,8 @@ allowing the portfolio to grow faster with zero losses.
 ═══════════════════════════════════════════════════════════════
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import sys
 import os
@@ -202,6 +204,9 @@ class QueenValidatedTrader:
         4. Execute ONLY 100% validated trades
         5. Measure results and update Queen's knowledge
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_validated_trader.QueenValidatedTrader.start_live_trading blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("\n" + "="*70)
         logger.info("👑 QUEEN VALIDATED TRADER - LIVE MODE STARTED 👑")
         logger.info("="*70)
@@ -296,6 +301,9 @@ class QueenValidatedTrader:
         - Actual market movement matches prediction
         - Stargate timeline anchored (if available)
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_validated_trader.QueenValidatedTrader.find_100_percent_opportunities blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         if not self.mycelium_engine or not self.mycelium_engine.validations:
@@ -421,6 +429,9 @@ class QueenValidatedTrader:
         4. Anchor the timeline in Stargate
         5. Track the result
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_queen_validated_trader.QueenValidatedTrader.execute_validated_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info(f"\n💎 EXECUTING VALIDATED TRADE: {trade.symbol}")
         logger.info(f"   Action: {trade.action}")
         logger.info(f"   Validation: {trade.validation_score:.0%}")
@@ -579,6 +590,9 @@ class QueenValidatedTrader:
 
 async def main():
     """Run the Queen Validated Trader."""
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_queen_validated_trader.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     import argparse
     
     parser = argparse.ArgumentParser(description='Queen Validated Trader')

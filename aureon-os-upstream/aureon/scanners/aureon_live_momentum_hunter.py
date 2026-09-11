@@ -72,6 +72,8 @@ if _env_path.is_file():
 
 logger = logging.getLogger(__name__)
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 🌍 SACRED CONSTANTS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -620,9 +622,13 @@ class LiveMomentumHunter:
     def hunt(self) -> List[HuntResult]:
         """
         Execute a full momentum hunt cycle.
-        
+
         Returns list of validated opportunities ready for execution.
         """
+        if no_external_api_calls():
+            logger.info("LiveMomentumHunter.hunt blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         print("\n" + "=" * 70)
         print("🎯🐺 AUREON MOMENTUM HUNT STARTING 🐺🎯")
         print("=" * 70)
@@ -845,9 +851,13 @@ class LiveMomentumHunter:
     
     def execute_best(self, results: List[HuntResult] = None) -> Optional[HuntResult]:
         """Execute the best opportunity from hunt results."""
+        if no_external_api_calls():
+            logger.info("LiveMomentumHunter.execute_best blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         if results is None:
             results = self.hunt()
-        
+
         if not results:
             print("❌ No opportunities to execute")
             return None
@@ -972,6 +982,10 @@ class LiveMomentumHunter:
     
     def run_continuous(self, interval_seconds: int = 60, max_cycles: int = None):
         """Run continuous hunting loop."""
+        if no_external_api_calls():
+            logger.info("LiveMomentumHunter.run_continuous blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print("\n🐺 Starting continuous hunt mode...")
         print(f"   Interval: {interval_seconds}s")
         print(f"   Max cycles: {max_cycles or 'infinite'}")
@@ -1010,11 +1024,15 @@ class LiveMomentumHunter:
     def find_best_hunting_grounds(self) -> List[Dict]:
         """
         🦈 Find the BEST hunting grounds using Orca's venue intelligence.
-        
+
         Score = (volatility - cost) × liquidity
-        
+
         Returns venues sorted by hunt_score (best first).
         """
+        if no_external_api_calls():
+            logger.info("LiveMomentumHunter.find_best_hunting_grounds blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return []
+
         if not self.hunting_grounds:
             print("❌ Hunting Grounds not available!")
             return []
@@ -1113,9 +1131,9 @@ class LiveMomentumHunter:
     def orca_kill_chain(self) -> Optional[Dict]:
         """
         🦈🔪 THE COMPLETE ORCA KILL CHAIN 🔪🦈
-        
+
         Wires together ALL systems for maximum growth:
-        
+
         1. 🎯 HUNTING GROUNDS - Find best venues (volatility - cost) × liquidity
         2. 🫒 BARTER MATRIX - Find conversion paths if stuck assets exist
         3. 🌊 OCEAN SCANNER - Scan 13,000+ symbols globally
@@ -1123,9 +1141,13 @@ class LiveMomentumHunter:
         5. 🔮 PROBABILITY NEXUS - 3-pass validation
         6. 👑 QUEEN - 4th pass final decision
         7. 💰 EXECUTE - Quick kill for growth!
-        
+
         Returns the executed trade result or None.
         """
+        if no_external_api_calls():
+            logger.info("LiveMomentumHunter.orca_kill_chain blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return None
+
         print("\n" + "=" * 70)
         print("🦈🔪 ORCA KILL CHAIN - HUNTING FOR GROWTH 🔪🦈")
         print("=" * 70)
@@ -1328,9 +1350,13 @@ class LiveMomentumHunter:
     def continuous_kill_chain(self, interval_seconds: int = 60, max_cycles: int = None):
         """
         🦈 Run continuous Orca Kill Chain hunting.
-        
+
         This is the GROWTH MODE - continuously hunting for quick kills.
         """
+        if no_external_api_calls():
+            logger.info("LiveMomentumHunter.continuous_kill_chain blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return
+
         print("\n" + "=" * 70)
         print("🦈🔪 ORCA CONTINUOUS KILL CHAIN - GROWTH MODE 🔪🦈")
         print("=" * 70)
@@ -1378,12 +1404,20 @@ class LiveMomentumHunter:
 
 def quick_scan():
     """Quick scan - find opportunities without executing."""
+    if no_external_api_calls():
+        logger.info("quick_scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     hunter = LiveMomentumHunter(dry_run=False)
     return hunter.hunt()
 
 
 def quick_hunt():
     """Quick hunt - find and execute best opportunity."""
+    if no_external_api_calls():
+        logger.info("quick_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     hunter = LiveMomentumHunter(dry_run=False)
     results = hunter.hunt()
     if results:
@@ -1393,36 +1427,60 @@ def quick_hunt():
 
 def continuous_hunt(interval: int = 60):
     """Run continuous hunting."""
+    if no_external_api_calls():
+        logger.info("continuous_hunt blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     hunter = LiveMomentumHunter(dry_run=False)
     hunter.run_continuous(interval_seconds=interval)
 
 
 def smart_scan():
     """🦈 Smart scan - use Orca's hunting grounds to find best venues."""
+    if no_external_api_calls():
+        logger.info("smart_scan blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     hunter = LiveMomentumHunter(dry_run=False)
     return hunter.smart_hunt()
 
 
 def find_hunting_grounds():
     """🎯 Show the best hunting grounds across all exchanges."""
+    if no_external_api_calls():
+        logger.info("find_hunting_grounds blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return []
+
     hunter = LiveMomentumHunter(dry_run=False)
     return hunter.find_best_hunting_grounds()
 
 
 def orca_kill():
     """🦈🔪 Run the full Orca Kill Chain for GROWTH."""
+    if no_external_api_calls():
+        logger.info("orca_kill blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     hunter = LiveMomentumHunter(dry_run=False)
     return hunter.orca_kill_chain()
 
 
 def orca_kill_dry():
     """🦈 Run Orca Kill Chain in dry-run mode (no real trades)."""
+    if no_external_api_calls():
+        logger.info("orca_kill_dry blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return None
+
     hunter = LiveMomentumHunter(dry_run=False)
     return hunter.orca_kill_chain()
 
 
 def orca_growth_mode(interval: int = 60):
     """🦈📈 Run continuous Orca Kill Chain for portfolio GROWTH."""
+    if no_external_api_calls():
+        logger.info("orca_growth_mode blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     hunter = LiveMomentumHunter(dry_run=False)
     hunter.continuous_kill_chain(interval_seconds=interval)
 
@@ -1432,8 +1490,12 @@ def orca_growth_mode(interval: int = 60):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def main():
+    if no_external_api_calls():
+        logger.info("Live Momentum Hunter main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='🎯 Aureon Live Momentum Hunter')
     parser.add_argument('--dry-run', action='store_true', help='Dry run mode (no real trades)')
     parser.add_argument('--execute', action='store_true', help='Execute best opportunity')

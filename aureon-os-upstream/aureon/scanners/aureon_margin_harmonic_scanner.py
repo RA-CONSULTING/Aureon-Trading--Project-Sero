@@ -62,6 +62,8 @@ if sys.platform == 'win32':
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 logger = logging.getLogger('margin_harmonic_scanner')
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 
 def _optional_init_log(message: str) -> None:
     if os.getenv("AUREON_QUIET_STARTUP", "0") == "1":
@@ -1274,7 +1276,7 @@ class HarmonicMarginWaveformScanner:
 def main():
     """
     Main loop — monitors margin positions through the harmonic waveform scanner.
-    
+
     Every tick:
       1. Fetch real margin position data from Kraken
       2. Map price → frequency, P&L → amplitude through liquid aluminium
@@ -1283,6 +1285,10 @@ def main():
       5. Generate LONG/SHORT/HOLD signal from lighthouse consensus
       6. Stream the living waveform to terminal
     """
+    if no_external_api_calls():
+        logger.info("margin_harmonic_scanner main blocked by AUREON_NO_EXTERNAL_API_CALLS")
+        return
+
     from aureon.exchanges.kraken_client import KrakenClient
     client = KrakenClient()
     assert not client.dry_run, "ERROR: Client is in dry-run mode!"

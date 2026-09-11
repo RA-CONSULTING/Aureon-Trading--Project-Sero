@@ -23,6 +23,8 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # UTF-8 fix
 if sys.platform == 'win32':
     os.environ['PYTHONIOENCODING'] = 'utf-8'
@@ -222,6 +224,10 @@ class LadderClimber:
     
     def fetch_prices(self) -> Dict[str, float]:
         """Fetch current prices from Binance."""
+        if no_external_api_calls():
+            logger.warning("LadderClimber.fetch_prices blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return {}
+
         try:
             url = "https://api.binance.com/api/v3/ticker/price"
             req = urllib.request.Request(url, headers={'User-Agent': 'Aureon/1.0'})

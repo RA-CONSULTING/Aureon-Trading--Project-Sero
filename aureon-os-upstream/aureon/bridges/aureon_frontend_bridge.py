@@ -106,6 +106,15 @@ except ImportError:
     ALPACA_AVAILABLE = False
     print("   ⚠️ Alpaca Client: Not available")
 
+# Capital.com (CFDs) — Live Bridge strip
+try:
+    from aureon.exchanges.capital_client import CapitalClient
+    CAPITAL_AVAILABLE = True
+    print("   Capital Client: LOADED")
+except ImportError:
+    CAPITAL_AVAILABLE = False
+    print("   Capital Client: Not available")
+
 # ════════════════════════════════════════════════════════════════════════════
 # TRADING SYSTEMS
 # ════════════════════════════════════════════════════════════════════════════
@@ -258,6 +267,7 @@ class AureonFrontendBridge:
         self.kraken = None
         self.binance = None
         self.alpaca = None
+        self.capital = None
         
         # Trading systems
         self.hub = None
@@ -314,6 +324,14 @@ class AureonFrontendBridge:
                 print("   🦙 Alpaca: CONNECTED")
             except Exception as e:
                 print(f"   ❌ Alpaca error: {e}")
+
+        if CAPITAL_AVAILABLE:
+            try:
+                self.capital = CapitalClient()
+                self.exchange_data['capital'] = ExchangeData(name='capital', connected=True)
+                print("   Capital: CONNECTED")
+            except Exception as e:
+                print(f"   Capital error: {e}")
         
         # ════════════════════════════════════════════════════════════════
         # TRADING SYSTEMS
@@ -499,11 +517,11 @@ class AureonFrontendBridge:
     async def fetch_alpaca_data(self) -> ExchangeData:
         """Fetch all data from Alpaca."""
         data = self.exchange_data.get('alpaca', ExchangeData(name='alpaca'))
-        
+
         if not self.alpaca:
             data.error = "Client not available"
             return data
-        
+
         try:
             # Get account
             if hasattr(self.alpaca, 'get_account'):
@@ -511,7 +529,7 @@ class AureonFrontendBridge:
                 if account:
                     data.total_value_usd = float(account.get('portfolio_value', 0))
                     data.balances['USD'] = float(account.get('cash', 0))
-            
+
             # Get positions
             if hasattr(self.alpaca, 'get_positions'):
                 positions = self.alpaca.get_positions() or []
@@ -521,18 +539,58 @@ class AureonFrontendBridge:
                     qty = float(pos.get('qty', 0))
                     if qty > 0:
                         data.balances[symbol] = qty
-            
+
             data.connected = True
             data.last_update = time.time()
             data.error = None
-            
+
         except Exception as e:
             data.error = str(e)
             logger.error(f"Alpaca fetch error: {e}")
-        
+
         return data
-    
+
+    async def fetch_capital_data(self) -> ExchangeData:
+        """Fetch Capital.com balances + a live GOLD ticker for the Live Bridge strip."""
+        data = self.exchange_data.get('capital', ExchangeData(name='capital'))
+
+        if not self.capital:
+            data.error = "Client not available"
+            return data
+
+        try:
+            balances = {}
+            if hasattr(self.capital, 'get_account_balance'):
+                balances = self.capital.get_account_balance() or {}
+            data.balances = {str(k): float(v) for k, v in balances.items() if float(v) != 0}
+
+            # UK Capital accounts are GBP. UI still prefixes $; Asset row shows GBP
+            # and Value mirrors the GBP figure (claim: GBP not USD-converted).
+            gbp = float(data.balances.get('GBP', 0) or 0)
+            data.total_value_usd = gbp
+
+            if hasattr(self.capital, 'get_ticker'):
+                gold = self.capital.get_ticker('GOLD') or {}
+                price = float(gold.get('price') or 0)
+                if price > 0:
+                    data.tickers['GOLD'] = {
+                        'price': price,
+                        'bid': float(gold.get('bid') or 0),
+                        'ask': float(gold.get('ask') or 0),
+                    }
+                    self.prices['GOLD'] = price
+
+            data.connected = True
+            data.last_update = time.time()
+            data.error = None
+        except Exception as e:
+            data.error = str(e)
+            logger.error(f"Capital fetch error: {e}")
+
+        return data
+
     async def collect_signals(self) -> List[SystemSignal]:
+
         """Collect signals from all trading systems."""
         signals = []
         now = time.time()
@@ -698,9 +756,13 @@ class AureonFrontendBridge:
             self.exchange_data['binance'] = await self.fetch_binance_data()
         if self.alpaca:
             self.exchange_data['alpaca'] = await self.fetch_alpaca_data()
+        if self.capital:
+            self.exchange_data['capital'] = await self.fetch_capital_data()
         
         # Build exchange summary
         for name, data in self.exchange_data.items():
+            if data is None:
+                continue
             payload.exchanges[name] = {
                 'connected': data.connected,
                 'total_value': data.total_value_usd,

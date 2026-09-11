@@ -46,6 +46,8 @@ from dataclasses import dataclass, field
 from collections import deque
 from enum import Enum
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 # Proper astronomical ephemeris for geocentric ecliptic longitudes
 try:
     import ephem as _ephem
@@ -172,6 +174,8 @@ class SeerVision:
     margin_recommendation: str = "NONE"  # LONG / SHORT / NONE
     margin_leverage: int = 0     # 0 = no margin, 2-5 = recommended leverage
     margin_conviction: float = 0.0  # 0-1 directional confidence for margin
+    truth_status: str = "live"
+    reason: Optional[str] = None
 
 
 @dataclass
@@ -3015,6 +3019,25 @@ class AureonTheSeer:
         Take a complete reading from all 9 Oracles and combine
         into a unified vision. This is the Seer's primary method.
         """
+        if no_external_api_calls():
+            logger.info("AureonTheSeer.see blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            now = time.time()
+            return SeerVision(
+                timestamp=now,
+                unified_score=0.0,
+                grade="BLIND",
+                prophecy="External API calls disabled by AUREON_NO_EXTERNAL_API_CALLS.",
+                action="HOLD",
+                risk_modifier=1.0,
+                tactical_mode="STANDARD",
+                war_counsel="Hold all positions; no external perception available.",
+                margin_recommendation="NONE",
+                margin_leverage=0,
+                margin_conviction=0.0,
+                truth_status='no_source',
+                reason='AUREON_NO_EXTERNAL_API_CALLS',
+            )
+
         with self._lock:
             gaia = self.oracle_gaia.read()
             cosmos = self.oracle_cosmos.read()
@@ -3104,6 +3127,9 @@ class AureonTheSeer:
         tests) the Seer stays fully usable synchronously but no background
         threads are started. Live runs don't set the flag — unchanged behavior."""
         if self._running:
+            return
+        if no_external_api_calls():
+            logger.info("AureonTheSeer.start_autonomous blocked by AUREON_NO_EXTERNAL_API_CALLS")
             return
         if os.getenv("AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS", "").lower() in {"1", "true", "yes", "on"}:
             logger.debug("Seer autonomous threads suppressed (AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS)")

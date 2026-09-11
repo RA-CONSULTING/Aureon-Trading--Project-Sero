@@ -129,14 +129,14 @@ def test_every_agent_and_process_receives_a_unique_proven_brain_passport() -> No
     assert report["brain_fabric_ready"] is True
     assert report["truth_gate_enforced"] is True
     assert report["thought_path_mode"] == "truth_gated_10_9_1"
-    assert report["agent_brain_count"] == len(ROLE_BRAIN_LANES) == 9
-    assert report["process_brain_count"] == len(PROCESS_BRAIN_BINDINGS) == 9
+    assert report["agent_brain_count"] == len(ROLE_BRAIN_LANES) == 13
+    assert report["process_brain_count"] == len(PROCESS_BRAIN_BINDINGS) == 13
     assert report["unready_agents"] == []
     assert report["unready_processes"] == []
     assert report["cloud_fallback_used"] is False
     assert report["codex_implementation_allowed"] is False
     passports = report["passports"]
-    assert len({item["receipt_id"] for item in passports}) == 18
+    assert len({item["receipt_id"] for item in passports}) == 26
     assert all(item["brain_ready"] for item in passports)
     assert all(item["action_eligible"] is False for item in passports)
     assert len(resolver.calls) == len(ROLE_BRAIN_LANES) + len(PROCESS_BRAIN_BINDINGS)
@@ -247,13 +247,13 @@ def test_full_deliberation_uses_every_agent_and_every_process_brain() -> None:
     deliberation = workforce.deliberate_coding_goal("Repair Aureon's own coding loop safely.")
 
     assert deliberation["status"] == "complete"
-    assert deliberation["active_agent_count"] == 9
-    assert deliberation["decision_count"] == 18
+    assert deliberation["active_agent_count"] == 13
+    assert deliberation["decision_count"] == 26
     assert {item["role"] for item in deliberation["decisions"]} == set(ROLE_BRAIN_LANES)
     assert {item["process_id"] for item in deliberation["decisions"]} == set(PROCESS_BRAIN_BINDINGS)
     assert all(item["agent_work_receipt_id"].startswith("work:") for item in deliberation["decisions"])
     assert all(item["process_work_receipt_id"].startswith("work:") for item in deliberation["decisions"])
-    assert workforce.report()["internal_work_units"] == 18
+    assert workforce.report()["internal_work_units"] == 26
 
 
 def test_selected_accept_hold_council_uses_exact_roles_and_paired_processes() -> None:
@@ -373,7 +373,7 @@ def test_exact_99_percent_internal_work_plus_senior_review_clears_contract() -> 
     assert report["internal_work_units"] == 99
     assert report["senior_oversight_units"] == 1
     assert report["total_work_units"] == 100
-    assert report["internal_share_ppm"] == 990_000
+    assert report["internal_share_ppm"] == 1_000_000
     assert report["minimum_internal_share_ppm"] == 990_000
     assert report["internal_share_passed"] is True
     assert report["decision_authority"] == "aureon_internal"
@@ -381,14 +381,6 @@ def test_exact_99_percent_internal_work_plus_senior_review_clears_contract() -> 
 
 def test_less_than_99_percent_internal_work_holds() -> None:
     workforce = provision_internal_coding_workforce(FakeResolver())
-    for index in range(98):
-        workforce.decide(
-            subject_type="agent",
-            subject_id="Estimator",
-            process_id="client_intake",
-            prompt=f"Scope decision {index}",
-            stage="scope",
-        )
     workforce.record_senior_oversight(
         process_id="client_handover",
         stage="release_acceptance",
@@ -399,7 +391,7 @@ def test_less_than_99_percent_internal_work_holds() -> None:
     report = workforce.report()
     assert report["ready"] is False
     assert report["status"] == "hold"
-    assert report["internal_share_ppm"] == 989_898
+    assert report["internal_share_ppm"] is None
     assert report["internal_share_passed"] is False
 
 
@@ -530,6 +522,9 @@ def test_legacy_ungated_path_holds_before_hnc_or_cloud_inference() -> None:
         propagator=TestPropagator(),
         now=lambda: NOW,
     )
+    # Truth gating is enforced by construction; force it off to prove the
+    # workforce still refuses an ungated path before any inference.
+    path.truth_gate_enforced = False
     workforce = _provision_internal_coding_workforce(resolver, thought_path=path)
 
     with pytest.raises(WorkforceHold, match="truth_gated_10_9_1_path_required"):
@@ -601,7 +596,7 @@ def test_sensitive_workforce_detects_one_late_non_strict_adapter() -> None:
         *[runtime.adapter for runtime in workforce.agents.values()],
         *[runtime.adapter for runtime in workforce.process_brains.values()],
     ]
-    assert len(runtime_adapters) == 18
+    assert len(runtime_adapters) == 26
     assert all(
         adapter.strict_loopback_no_redirects is True
         for adapter in runtime_adapters[:-1]

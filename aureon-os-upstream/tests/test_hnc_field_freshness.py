@@ -21,6 +21,7 @@ When nothing fresh is flowing the honest answer is ``available=False``.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import time
 
 import pytest
@@ -101,6 +102,93 @@ def _canonical_envelope(now=None, **overrides):
     if "source_timestamp" in overrides and "ts" not in overrides:
         envelope["ts"] = overrides["source_timestamp"]
     return envelope
+
+
+@pytest.mark.parametrize("ending", [b"", b"\n", b"\r\n", b"\r", b"\n \t\n"])
+def test_canonical_trace_tail_preserves_final_record_and_source_clocks(field, monkeypatch, ending):
+    hf, _, tmp = field
+    now = 1_800_000_000.0
+    monkeypatch.setattr(hf.time, "time", lambda: now)
+    envelope = _canonical_envelope(now=now)
+    (tmp / "hnc_live_trace.jsonl").write_bytes(b"{}\n" + json.dumps(envelope).encode() + ending)
+
+    got = hf._read_field_from_trace()
+
+    assert got == hf._canonical_field_from_envelope(envelope, evidence_transport="persisted_trace")
+    assert got.source_timestamp == envelope["source_timestamp"]
+    assert got.received_at == envelope["received_at"]
+
+
+@pytest.mark.parametrize("contents", [b"", b" \n\r\n\t"])
+def test_canonical_trace_empty_tail_is_unavailable(field, contents):
+    hf, _, tmp = field
+    (tmp / "hnc_live_trace.jsonl").write_bytes(contents)
+    assert hf._read_field_from_trace() == hf._EMPTY
+
+
+@pytest.mark.parametrize("last", [b"{malformed", b"\xffinvalid-utf8"])
+def test_canonical_trace_does_not_fall_back_past_a_bad_final_record(field, last):
+    hf, _, tmp = field
+    earlier = json.dumps(_canonical_envelope()).encode()
+    (tmp / "hnc_live_trace.jsonl").write_bytes(earlier + b"\n" + last + b"\n")
+    assert hf._read_field_from_trace() == hf._EMPTY
+
+
+def test_canonical_trace_oversized_final_record_is_unavailable(field):
+    hf, _, tmp = field
+    earlier = json.dumps(_canonical_envelope()).encode()
+    oversized = json.dumps(_canonical_envelope(padding="x" * hf._FIELD_TRACE_TAIL_BYTES)).encode()
+    (tmp / "hnc_live_trace.jsonl").write_bytes(earlier + b"\n" + oversized + b"\n")
+    assert hf._read_field_from_trace() == hf._EMPTY
+
+
+def test_canonical_trace_large_history_reads_only_bounded_tail(field, monkeypatch):
+    hf, _, tmp = field
+    now = 1_800_000_000.0
+    monkeypatch.setattr(hf.time, "time", lambda: now)
+    envelope = _canonical_envelope(now=now)
+    target = tmp / "hnc_live_trace.jsonl"
+    with target.open("wb") as stream:
+        block = b"{}\n" * 22_000
+        for _ in range(256):
+            stream.write(block)
+        stream.write(json.dumps(envelope).encode() + b"\n")
+    assert target.stat().st_size > 16 * 1024 * 1024
+    read_sizes = []
+    original_open = Path.open
+
+    class CountedReader:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.stream.close()
+
+        def __getattr__(self, name):
+            return getattr(self.stream, name)
+
+        def read(self, size=-1):
+            assert 0 <= size <= hf._FIELD_TRACE_TAIL_BYTES
+            value = self.stream.read(size)
+            read_sizes.append(len(value))
+            return value
+
+        def __iter__(self):
+            raise AssertionError("trace reader iterated the entire history")
+
+    def counted_open(path, *args, **kwargs):
+        stream = original_open(path, *args, **kwargs)
+        return CountedReader(stream) if path == target else stream
+
+    monkeypatch.setattr(Path, "open", counted_open)
+
+    got = hf._read_field_from_trace()
+
+    assert got == hf._canonical_field_from_envelope(envelope, evidence_transport="persisted_trace")
+    assert sum(read_sizes) == hf._FIELD_TRACE_TAIL_BYTES
 
 
 def _read_canonical_transport(hf, tmp_path, transport, envelope):

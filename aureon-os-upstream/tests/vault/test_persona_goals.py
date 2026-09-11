@@ -16,6 +16,14 @@ from aureon.vault.voice.persona_action import PersonaAction, PersonaActuator
 from aureon.vault.voice.persona_vacuum import PersonaVacuum
 
 
+@pytest.fixture(autouse=True)
+def _default_held(monkeypatch, tmp_path) -> None:
+    """Default every test to the fail-closed HOLD: point the release
+    record at a path that does not exist."""
+    monkeypatch.setenv(
+        "GOAL_DISPATCH_RELEASE_RECORD", str(tmp_path / "missing.json"))
+
+
 class _Trap:
     def __getattribute__(self, _name: str) -> Any:
         raise AssertionError("release-held goal path touched an effect owner")

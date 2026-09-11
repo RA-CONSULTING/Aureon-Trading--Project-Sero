@@ -15,6 +15,9 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 FEE_TRANSACTION_TYPES = frozenset(
     {
         "FX_COMMISSION",
@@ -74,6 +77,9 @@ def derive_capital_fee_receipt(
     separately through the confirmed fill prices and is never labelled a fee.
     """
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_transaction_evidence.derive_capital_fee_receipt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     deal_id = _text(provider_deal_id, "provider_deal_id")
     instrument = _text(instrument_name, "instrument_name").upper()
     current = _number(now, "now")

@@ -17,6 +17,8 @@ Strategy:
 - Zero fear, maximum aggression
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -143,6 +145,9 @@ class MogollonWarrior:
     
     async def initialize_exchanges(self):
         """Connect to all available exchanges"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultra_aggression.MogollonWarrior.initialize_exchanges blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("🌐 Connecting to ALL exchanges...")
         
         if not EXCHANGES_AVAILABLE:
@@ -212,6 +217,9 @@ class MogollonWarrior:
     
     async def scan_opportunity(self, exchange: str, symbol: str) -> Optional[dict]:
         """Scan a single symbol for trading opportunity"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultra_aggression.MogollonWarrior.scan_opportunity blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         try:
             # Get current price
             price = await self._get_price(exchange, symbol)
@@ -282,6 +290,9 @@ class MogollonWarrior:
     
     async def scan_all_markets(self) -> List[dict]:
         """Scan ALL markets across ALL exchanges"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultra_aggression.MogollonWarrior.scan_all_markets blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         opportunities = []
         
         tasks = []
@@ -352,6 +363,9 @@ class MogollonWarrior:
     
     async def manage_positions(self):
         """Check and close positions at target/stop"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultra_aggression.MogollonWarrior.manage_positions blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         to_close = []
         
         for pos_id, pos in list(self.active_positions.items()):
@@ -478,6 +492,9 @@ class MogollonWarrior:
     
     async def run(self):
         """Main warrior loop - HUNT FOR PROFIT"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.aureon_ultra_aggression.MogollonWarrior.run blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         logger.info("🏹 MOGOLLON WARRIOR ENTERING THE PLAINS...\n")
         
         await self.initialize_exchanges()
@@ -555,6 +572,9 @@ async def main():
      For Gaia. For Truth. For Freedom."
     """
     
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.aureon_ultra_aggression.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("""
     ═══════════════════════════════════════════════════════════════════════════
     

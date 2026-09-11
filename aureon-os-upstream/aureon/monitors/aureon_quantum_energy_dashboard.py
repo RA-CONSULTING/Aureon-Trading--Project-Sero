@@ -48,11 +48,14 @@ if sys.platform == 'win32':
         pass
 
 import json
+import logging
 import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from enum import Enum
+
+from aureon.core.no_external_calls import no_external_api_calls
 
 # Exchange clients
 from aureon.exchanges.binance_client import BinanceClient, get_binance_client
@@ -60,6 +63,8 @@ from aureon.exchanges.kraken_client import KrakenClient, get_kraken_client
 from aureon.exchanges.alpaca_client import AlpacaClient
 from aureon.exchanges.capital_client import CapitalClient
 from aureon.portfolio.cost_basis_tracker import CostBasisTracker
+
+logger = logging.getLogger(__name__)
 
 # Sacred constants
 PHI = (1 + math.sqrt(5)) / 2           # 1.618 Golden ratio
@@ -508,9 +513,12 @@ class QuantumEnergyDashboard:
     
     def scan_quantum_portfolio(self) -> QuantumPortfolio:
         """Scan entire consciousness network"""
-        
+        if no_external_api_calls():
+            logger.info("QuantumEnergyDashboard.scan_quantum_portfolio blocked by AUREON_NO_EXTERNAL_API_CALLS")
+            return QuantumPortfolio()
+
         print("\n🌌 Scanning Queen's Quantum Energy Network...\n")
-        
+
         # Gather all energy nodes
         nodes = []
         nodes.extend(self._scan_binance_energy_nodes())

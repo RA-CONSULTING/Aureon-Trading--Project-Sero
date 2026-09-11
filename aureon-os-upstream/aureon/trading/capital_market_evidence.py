@@ -25,6 +25,9 @@ from statistics import fmean, pstdev
 from typing import Any
 from urllib.parse import urlparse
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 CAPITAL_SOURCE_SCHEMA = "aureon.capital-market-source.v1"
 CAPITAL_EVIDENCE_SCHEMA = "aureon.capital-council-evidence.v1"
 CAPITAL_SOURCE_PREFIX = "capital:market-source:"
@@ -194,6 +197,9 @@ def build_capital_market_source_receipt(
 ) -> dict[str, Any]:
     """Bind one observed provider/public-source payload without granting authority."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence.build_capital_market_source_receipt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     kind = _text(source_kind, "source_kind")
     if kind not in _SOURCE_KINDS:
         raise ValueError("recognized_capital_evidence_source_kind_required")
@@ -314,6 +320,9 @@ def validate_capital_market_source_receipt(
 ) -> dict[str, Any]:
     """Validate one exact source receipt, including its source-specific payload."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence.validate_capital_market_source_receipt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     if not isinstance(receipt, Mapping) or receipt.get("schema") != CAPITAL_SOURCE_SCHEMA:
         raise ValueError("capital_market_source_receipt_required")
     required = {
@@ -522,6 +531,9 @@ def build_capital_market_evidence_receipt(
 ) -> dict[str, Any]:
     """Build one exact Council-readable evidence packet from observed sources."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence.build_capital_market_evidence_receipt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     current = _number(now, "now")
     if not isinstance(source_receipts, Sequence) or isinstance(source_receipts, (str, bytes)):
         raise ValueError("capital_source_receipt_sequence_required")
@@ -627,6 +639,9 @@ def validate_capital_market_evidence_receipt(
 ) -> dict[str, Any]:
     """Recompute the complete evidence receipt and reject any causal drift."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence.validate_capital_market_evidence_receipt blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     if not isinstance(receipt, Mapping) or receipt.get("schema") != CAPITAL_EVIDENCE_SCHEMA:
         raise ValueError("capital_market_evidence_receipt_required")
     required = {
@@ -778,6 +793,9 @@ def validate_capital_market_evidence_receipt(
 def capital_market_provider_moment(receipt: Mapping[str, Any], *, now: float) -> dict[str, Any]:
     """Return the exact ProviderMoment material for the bounded Capital route."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence.capital_market_provider_moment blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     evidence = validate_capital_market_evidence_receipt(receipt, now=now)
     return {
         "receipt_ids": tuple(sorted({evidence["receipt_id"], *evidence["component_receipt_ids"]})),
@@ -792,6 +810,9 @@ def capital_market_provider_moment(receipt: Mapping[str, Any], *, now: float) ->
 def capital_market_decision_summary(receipt: Mapping[str, Any], *, now: float) -> dict[str, Any]:
     """Return bounded Council/Crown context; full receipt stays in trusted storage."""
 
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.capital_market_evidence.capital_market_decision_summary blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return {}
     evidence = validate_capital_market_evidence_receipt(receipt, now=now)
     probability = evidence["quantum_probability_validation"]
     return {

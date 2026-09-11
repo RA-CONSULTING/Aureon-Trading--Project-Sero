@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from collections.abc import Mapping
 from typing import Any, Dict, Optional, Tuple
 
+from aureon.core.no_external_calls import no_external_api_calls
+
 logger = logging.getLogger(__name__)
 
 # Define preferred stablecoins in order of preference
@@ -122,6 +124,9 @@ class SmartHarvestManager:
         Processes a winning trade, harvests profit, and updates the portfolio.
         This is the primary entry point for the harvesting process.
         """
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.smart_harvest_system.SmartHarvestManager.process_profit blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return None
         if not self._field(outcome, "is_win", False):
             return None
 

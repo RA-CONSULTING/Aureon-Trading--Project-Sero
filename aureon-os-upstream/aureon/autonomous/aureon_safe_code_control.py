@@ -136,6 +136,24 @@ class SafeCodeControl:
         self._persist()
         return {"ok": True, "proposal": item}
 
+    def mark_reviewed_applied(self, proposal: Dict[str, Any]) -> Dict[str, Any]:
+        """Mark a reviewed proposal as applied so it is not reloaded."""
+        created_at = proposal.get("created_at")
+        title = proposal.get("title")
+        matched = False
+        for item in self.recent_reviews:
+            if item.get("title") != title:
+                continue
+            if created_at is not None and item.get("created_at") != created_at:
+                continue
+            item["status"] = "applied"
+            item["applied_at"] = time.time()
+            matched = True
+            break
+        if matched:
+            self._persist()
+        return {"ok": matched, "matched": matched}
+
     def clear_pending(self) -> None:
         self.pending_proposals = []
         self._persist()

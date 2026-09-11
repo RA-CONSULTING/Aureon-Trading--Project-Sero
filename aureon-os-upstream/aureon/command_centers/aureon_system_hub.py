@@ -45,6 +45,7 @@ from pathlib import Path
 import json
 import re
 import warnings
+import stat
 from datetime import datetime
 from collections import defaultdict
 import ast
@@ -206,8 +207,12 @@ class SystemRegistry:
         for category in self.categories.values():
             category.systems.clear()
 
-        python_files = list(self._iter_python_files())
-        python_files = sorted(set(python_files))
+        # The pruned walk yields each path once. Keep the existing component-wise
+        # ordering without repeated Path hashing/comparisons for the whole tree.
+        python_files = sorted(
+            self._iter_python_files(),
+            key=lambda path: tuple(os.path.normcase(part) for part in path.parts),
+        )
         
         print(f"📁 Found {len(python_files)} Python modules")
         
@@ -227,18 +232,48 @@ class SystemRegistry:
         print(f"✅ Registered {len(self.systems)} systems across {len(self.categories)} categories")
 
     def _iter_python_files(self):
-        """Yield Python files while skipping cache/virtualenv/vendor folders."""
+        """Walk only this workspace, pruning dependencies before enumeration.
+
+        Filtering rglob results is too late: it still traverses every file in
+        node_modules and virtualenvs. Do not follow directory/file links or
+        Windows junctions into another tree; preserve real source directories.
+        """
         skip_dirs = {
             ".git",
+            ".hg",
+            ".svn",
             "__pycache__",
             ".venv",
             "venv",
             "node_modules",
+            ".cache",
+            ".pytest_cache",
+            ".mypy_cache",
+            ".ruff_cache",
+            ".tox",
+            ".nox",
         }
-        for path in self.workspace_path.rglob("*.py"):
-            if any(part in skip_dirs for part in path.parts):
-                continue
-            yield path
+
+        def is_link(path):
+            try:
+                # lstat also detects Windows junctions/reparse points, which
+                # are not consistently reported as symlinks by older Python.
+                status = path.lstat()
+                return stat.S_ISLNK(status.st_mode) or bool(getattr(status, "st_file_attributes", 0) & 0x400)
+            except OSError:
+                return True  # concurrently removed/inaccessible: never descend
+
+        for directory, dirnames, filenames in os.walk(self.workspace_path, topdown=True, followlinks=False):
+            base = Path(directory)
+            dirnames[:] = [
+                name for name in dirnames
+                if name.lower() not in skip_dirs and not is_link(base / name)
+            ]
+            for name in filenames:
+                if os.path.normcase(name).endswith(".py"):
+                    path = base / name
+                    if not is_link(path):
+                        yield path
     
     def _analyze_file(self, filepath: Path) -> Optional[SystemInfo]:
         """Analyze a Python file to extract system information."""

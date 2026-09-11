@@ -14,6 +14,9 @@ Gary Leckey | December 2025
 "From Prime to Probability - The Frequency Unfolds"
 """
 
+from aureon.core.no_external_calls import no_external_api_calls
+import logging
+
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
 import os
 import sys
@@ -101,6 +104,9 @@ class ProbabilityForecastEngine:
     
     def collect_price_data(self, symbol: str, duration_sec: int = 30, interval_sec: float = 0.5) -> List[PriceSnapshot]:
         """Collect price data for analysis"""
+        if no_external_api_calls():
+            logging.info(f'aureon.trading.execute_forecast_trades.ProbabilityForecastEngine.collect_price_data blocked by AUREON_NO_EXTERNAL_API_CALLS')
+            return []
         if symbol not in self.price_history:
             self.price_history[symbol] = deque(maxlen=self.max_history)
         
@@ -334,6 +340,9 @@ def execute_forecast_trade(client: BinanceClient, engine: ProbabilityForecastEng
     Execute a trade based on probability forecast.
     Only enters when forecast indicates net profit is likely.
     """
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_forecast_trades.execute_forecast_trade blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return ()
     print(f"\n{'='*60}")
     print(f"🎯 PROBABILITY FORECAST TRADE: {symbol}")
     print(f"{'='*60}")
@@ -488,6 +497,9 @@ def execute_forecast_trade(client: BinanceClient, engine: ProbabilityForecastEng
 
 
 def main():
+    if no_external_api_calls():
+        logging.info(f'aureon.trading.execute_forecast_trades.main blocked by AUREON_NO_EXTERNAL_API_CALLS')
+        return None
     print("\n" + "="*70)
     print("🎯💰 HNC PROBABILITY FORECAST TRADING 💰🎯")
     print("="*70)

@@ -1,3 +1,5 @@
+import { GlassPageHeader } from '@/shell/GlassPage';
+import { Button } from '@/components/ui/button';
 /**
  * Metacognition — watch the organism sense itself.
  *
@@ -17,7 +19,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LiveDataNotice } from "@/shell/Page";
+import { cognitiveSourceWindow } from "@/lib/cognitiveObservationEvidence";
+import { useAssessmentRead } from "@/hooks/useAssessmentRead";
+import { AssessmentDependencies } from "./AssessmentDependencies";
+import { CognitiveReadUnavailable } from "./cognitiveEvidenceCards";
 import { type TruthStatus, TRUTH_STATUS_STYLE } from "../truthStatus";
+import { currentModelSignal } from '@/lib/cognitionGlassValues';
 
 
 interface Signal {
@@ -99,36 +106,19 @@ function Metric({ label, value, series, colorClass, fmt }: {
 }
 
 export default function MetacognitionPage() {
-  const [data, setData] = useState<Assessment | null | undefined>(undefined);
+  const receipt = useAssessmentRead<Assessment>('metacognition');
+  const { data } = receipt;
   const [history, setHistory] = useState<Sample[]>([]);
-  const timer = useRef<number | null>(null);
-
+  const lastObservedAt = useRef<number | null>(null);
   useEffect(() => {
-    let alive = true;
-    async function poll() {
-      try {
-        const r = await fetch("/api/metacognition");
-        if (!r.ok) throw new Error(String(r.status));
-        const a: Assessment = await r.json();
-        if (!alive) return;
-        setData(a);
-        if (a.available) {
-          setHistory((h) => [
-            ...h.slice(-(MAX_SAMPLES - 1)),
-            { coherence: a.self_coherence, psi: a.psi, divergence: a.divergence },
-          ]);
-        }
-      } catch {
-        if (alive) setData((prev) => (prev === undefined ? null : prev));
-      }
+    const source = cognitiveSourceWindow(data);
+    if (!data?.available || !source) {
+      setHistory([]); lastObservedAt.current = null; return;
     }
-    poll();
-    timer.current = window.setInterval(poll, POLL_MS);
-    return () => {
-      alive = false;
-      if (timer.current) window.clearInterval(timer.current);
-    };
-  }, []);
+    if (lastObservedAt.current === source.observedAt) return;
+    lastObservedAt.current = source.observedAt;
+    setHistory(previous => [...previous.slice(-(MAX_SAMPLES - 1)), { coherence: data.self_coherence, psi: data.psi, divergence: data.divergence }]);
+  }, [data, receipt.resetVersion]);
 
   const coherenceSeries = history.map((s) => s.coherence ?? NaN);
   const psiSeries = history.map((s) => s.psi ?? NaN);
@@ -136,36 +126,15 @@ export default function MetacognitionPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Brain className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Metacognition</h1>
-          <p className="text-sm text-muted-foreground">
-            The organism senses its own signals, scores its self-coherence with the same Λ machinery
-            that computes the field, and loops the result back in. This is the live window onto that loop.
-          </p>
-        </div>
-      </div>
+      <GlassPageHeader title="Metacognition" icon={Brain} eyebrow="Cognition &amp; LLM" description="Current software self-assessment, dependency receipts and observed trends from the dedicated monitor." actions={<Button variant="outline" size="sm" onClick={receipt.refresh}>Refresh observation</Button>} />
 
       <LiveDataNotice />
 
       {data === undefined && (
         <div className="grid gap-3 md:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}</div>
       )}
-      {data === null && (
-        <Card><CardHeader><CardTitle>Gateway offline</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Start the operator and retry — this page polls /api/metacognition.</CardContent></Card>
-      )}
-
-      {data && data.available === false && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">No self-signals flowing yet</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            The monitor reports <span className="font-mono">no_data</span> — honest silence, not a fabricated
-            reading. Once the HNC daemon and organism breathe, the loop lights up here.
-          </CardContent>
-        </Card>
-      )}
+      {data === null && !receipt.raw && <CognitiveReadUnavailable {...receipt} />}
+      {receipt.raw && (!data || data.available === false) && <AssessmentDependencies payload={receipt.raw} />}
 
       {data && data.available && (
         <>
@@ -183,7 +152,7 @@ export default function MetacognitionPage() {
                   <StatusBadge status={data.truth_status} />
                   <Badge variant="outline" className="text-[10px]">{data.contributors} contributors</Badge>
                   <Badge variant="outline" className="text-[10px]">
-                    sim fallback: {data.provenance?.simulation_fallback_allowed ? "allowed" : "off"}
+                    synthetic fallback: {data.provenance?.simulation_fallback_allowed === true ? "allowed" : data.provenance?.simulation_fallback_allowed === false ? "off" : "unreported"}
                   </Badge>
                 </div>
               </div>
@@ -215,7 +184,7 @@ export default function MetacognitionPage() {
                       <span>{name.replace(/_/g, " ")}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {sig.value != null && <span className="font-mono text-xs tabular-nums">{sig.value.toFixed(3)}</span>}
+                      <span className="font-mono text-xs tabular-nums">{currentModelSignal(sig.value, sig.truth_status)?.toFixed(3) ?? 'Unavailable'}</span>
                       <StatusBadge status={sig.truth_status} />
                     </div>
                   </div>
