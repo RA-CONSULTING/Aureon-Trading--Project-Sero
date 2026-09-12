@@ -1,0 +1,49 @@
+{
+  "schema": "aureon.cloud-trading-authority-resources.v1",
+  "project": "aureon-trading",
+  "region": "europe-west1",
+  "keyring": "aureon-trading-prod",
+  "secret": {
+    "id": "aureon-owner-exchange-credentials-20260912",
+    "version": "1",
+    "reader": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
+  },
+  "stages": [
+    {
+      "role": "review",
+      "service_account": "aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
+      "input_subscription": "aureon-trade-review-v1",
+      "output_topic": "aureon-trade-reviewed-v1",
+      "signing_key": "aureon-review-signing",
+      "signing_key_version": "1"
+    },
+    {
+      "role": "dispatch",
+      "service_account": "aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+      "input_subscription": "aureon-trade-dispatch-v1",
+      "output_topic": "aureon-trade-dispatch-v1",
+      "signing_key": "aureon-dispatch-signing",
+      "signing_key_version": "1"
+    },
+    {
+      "role": "executor",
+      "service_account": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+      "input_subscription": "aureon-trade-executor-v1",
+      "output_topic": "aureon-trade-executor-results-v1",
+      "signing_key": "aureon-executor-signing",
+      "signing_key_version": "1"
+    },
+    {
+      "role": "receipt",
+      "service_account": "aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+      "input_subscription": "aureon-trade-receipt-v1",
+      "output_topic": "aureon-trade-terminal-receipts-v1",
+      "signing_key": "aureon-receipt-signing",
+      "signing_key_version": "1"
+    }
+  ],
+  "terminal_readback_subscription": "aureon-trade-terminal-readback-v1",
+  "live_execution_release": false,
+  "durable_budget_ledger": false,
+  "order_adapter_ready": false
+}
