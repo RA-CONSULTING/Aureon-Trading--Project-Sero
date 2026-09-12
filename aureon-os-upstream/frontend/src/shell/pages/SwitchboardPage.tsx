@@ -1,6 +1,6 @@
 /** Glass control desk backed by the operator's registered feature configuration. */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Activity, Brain, Loader2, Lock, RefreshCw, Settings, Shield, UserRound, type LucideIcon } from 'lucide-react';
+import { Activity, Brain, CheckCircle2, Loader2, Lock, RefreshCw, Settings, Shield, ShieldAlert, UserRound, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useReadOnlyPoller } from '@/hooks/useReadOnlyPoller';
 import { configurationMessage, configurationStatus } from '@/lib/accountConfigurationEvidence';
+import { releaseReadinessView, type ReleaseReadinessReceipt } from '@/lib/operatorReleaseReadiness';
 import { SwitchboardWriteGuard, type SwitchboardConfiguration, type SwitchboardFlag } from '@/lib/platformConfiguration';
 import { submitSwitchboardChange } from '@/lib/switchboardControl';
-import { switchboardStore } from '@/services/platformReads';
+import { operatorReleaseReadinessStore, switchboardStore } from '@/services/platformReads';
 
 const GOLD = '#FFB800';
 const CYAN = '#00E5FF';
@@ -72,6 +73,7 @@ export function SwitchboardConfigurationCards({ configuration, canManage, saving
               <div className="flex flex-wrap items-center gap-1.5"><span className="text-[13px] font-medium text-zinc-100">{flag.label}</span>
                 <StatusBadge>{flag.effect === 'live' ? 'Operator applies now' : 'Restart required for changes'}</StatusBadge>
                 {flag.armed && <StatusBadge>Armed configuration</StatusBadge>}
+                {flag.env_hold === true && <StatusBadge>Runtime hold active</StatusBadge>}
                 {flag.pending_restart === true && <StatusBadge>Pending restart</StatusBadge>}
                 {flag.effect === 'restart' && flag.pending_restart === null && <StatusBadge>Restart status unknown</StatusBadge>}
               </div>
@@ -94,8 +96,48 @@ export function SwitchboardConfigurationCards({ configuration, canManage, saving
   </div>;
 }
 
+function ReleaseHandoffPanel({ receipt }: { receipt: ReleaseReadinessReceipt }) {
+  const release = releaseReadinessView(receipt);
+  const data = receipt.data;
+  const blockers = data?.requirements.filter(row => row.state !== 'integrated') ?? [];
+  const integrated = data?.requirements.filter(row => row.state === 'integrated').length ?? 0;
+  return <GlassPanel className="px-4 py-3">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-3">
+        <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Live release gate</p>
+          <p className="mt-1 text-[12px] text-zinc-300">{release.message}</p>
+        </div>
+      </div>
+      <StatusBadge active={release.state === 'held'}>{release.state}</StatusBadge>
+    </div>
+    {data && <div className="mt-3 grid gap-3 md:grid-cols-[0.8fr_1.2fr]">
+      <div className="rounded border border-zinc-800 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500">Operator handoff</p>
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-zinc-300">
+          <CheckCircle2 className="h-3 w-3" style={{ color: CYAN }} />
+          Intent can be recorded
+        </p>
+        <p className="mt-1 text-[11px] text-zinc-500">Execution release: blocked until production evidence passes.</p>
+        <p className="mt-2 text-[10px] text-zinc-500">Receipt: {release.receivedAt === null ? 'unavailable' : new Date(release.receivedAt).toISOString()}</p>
+      </div>
+      <div className="rounded border border-zinc-800 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500">{blockers.length} blockers · {integrated} integrated</p>
+        <div className="mt-2 grid gap-1.5">
+          {blockers.slice(0, 4).map(row => <Link key={row.id} to={row.owner_surface}
+            className="rounded border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-300 hover:border-cyan-300">
+            {row.label}: {row.state.replace(/_/g, ' ')}
+          </Link>)}
+        </div>
+      </div>
+    </div>}
+  </GlassPanel>;
+}
+
 export default function SwitchboardPage() {
   const receipt = useReadOnlyPoller(switchboardStore, 15_000, 8_000);
+  const releaseReceipt = useReadOnlyPoller(operatorReleaseReadinessStore, 15_000, 8_000);
   const identity = useIdentity();
   const status = configurationStatus(receipt);
   const configuration = status === 'observed' ? receipt.data : null;
@@ -126,7 +168,13 @@ export default function SwitchboardPage() {
         description: result.stored !== result.enabled ? `${result.applied} Effective operator configuration remains ${result.enabled ? 'ON' : 'OFF'}.` : result.applied,
       });
     } catch (error) {
-      if (alive.current) toast.error(`Could not confirm ${flag.label}`, { description: error instanceof Error ? error.message : 'Configuration request failed' });
+      if (alive.current) {
+        const message = error instanceof Error ? error.message : 'Configuration request failed';
+        const releaseBlocked = flag.kind === 'hard_boundary' && /hnc_ingress_quarantined|production_magic_star_release_unavailable/.test(message);
+        toast.error(releaseBlocked ? `Release still held for ${flag.label}` : `Could not confirm ${flag.label}`, {
+          description: releaseBlocked ? releaseReadinessView(releaseReceipt).message : message,
+        });
+      }
     } finally {
       if (alive.current) {
         setSaving(null);
@@ -160,12 +208,13 @@ export default function SwitchboardPage() {
         <div className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[11px] uppercase tracking-wider"
           style={{ borderColor: GOLD, color: GOLD, background: `${GOLD}12` }}><UserRound className="h-3.5 w-3.5" />
           {!identity.known ? 'Checking operator access' : identity.identity.isAdmin ? 'Operator controls' : 'View only'}</div>
-        <button type="button" onClick={receipt.refresh} disabled={saving !== null}
+        <button type="button" onClick={() => { receipt.refresh(); releaseReceipt.refresh(); }} disabled={saving !== null}
           className="inline-flex items-center gap-1.5 rounded border border-zinc-700 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-cyan-300 disabled:opacity-50">
           <RefreshCw className="h-3 w-3" /> Refresh configuration
         </button>
       </div>
     </div>
+    <ReleaseHandoffPanel receipt={releaseReceipt} />
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

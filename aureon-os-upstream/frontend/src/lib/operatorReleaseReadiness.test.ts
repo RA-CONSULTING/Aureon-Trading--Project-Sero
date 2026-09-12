@@ -11,7 +11,11 @@ const contract = () => ({ schema: 'aureon.operator.release-readiness.v1', scope:
     blocked_until: `${id}_attested`, work_order: `Complete ${row.label}`, evidence_required: [`${row.label} receipt`] })),
   work_orders: Object.entries(RELEASE_REQUIREMENTS).map(([id, row]) => ({
     id: `release:${id}`, title: row.label, status: row.state, owner_surface: '/ops/operational', verification_route: '/api/operator/release-readiness',
-    blocked_until: `${id}_attested`, evidence_required: [`${row.label} receipt`] })) });
+    blocked_until: `${id}_attested`, evidence_required: [`${row.label} receipt`] })),
+  operator_handoff: { state: 'blocked', control_surface: '/platform/switchboard', release_status_route: '/api/operator/release-readiness',
+    protected_request_policy: 'mutating requests require HNC custody and release authority before handlers run',
+    operator_can_record_intent: true, operator_can_release_execution: false,
+    blocked_requirement_ids: Object.entries(RELEASE_REQUIREMENTS).filter(([, row]) => row.state !== 'integrated').map(([id]) => id) } });
 const receipt = (): ReleaseReadinessReceipt => ({ data: readOperatorReleaseReadiness(contract()), loading: false, error: null,
   httpStatus: null, isReceiptCurrent: true, lastReceivedAt: 100_000 });
 
@@ -24,11 +28,15 @@ test('strict held contract preserves unavailable attestations without inventing 
   assert.equal(parsed.work_orders.length, 7);
   assert.match(releaseReadinessView(receipt(), 100_000).message, /4 production release work orders still block production; 3 integrated/);
   assert.equal(releaseReadinessView(receipt(), 100_000).state, 'held');
+  assert.equal(parsed.operator_handoff.operator_can_record_intent, true);
+  assert.equal(parsed.operator_handoff.operator_can_release_execution, false);
 });
 
 test('unknown versions, missing fields, positive release claims and arbitrary attestations fail closed', () => {
   for (const patch of [{ schema: 'future' }, { state: 'ready' }, { release_available: true }, { production_ready: true },
-    { source_attestation: {} }, { configuration_attestation: 'verified' }, { work_orders: [] }, { extra: 'secret-bearing-field' }]) {
+    { source_attestation: {} }, { configuration_attestation: 'verified' }, { work_orders: [] },
+    { operator_handoff: { ...contract().operator_handoff, operator_can_release_execution: true } },
+    { extra: 'secret-bearing-field' }]) {
     assert.throws(() => readOperatorReleaseReadiness({ ...contract(), ...patch }));
   }
   assert.throws(() => readOperatorReleaseReadiness({}));

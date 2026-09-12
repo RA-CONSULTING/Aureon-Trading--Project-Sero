@@ -107,6 +107,17 @@ _RELEASE_REQUIREMENTS = (
     },
 )
 
+_OPERATOR_HANDOFF = {
+    "state": "blocked",
+    "control_surface": "/platform/switchboard",
+    "release_status_route": "/api/operator/release-readiness",
+    "protected_request_policy": (
+        "mutating requests require HNC custody and release authority before handlers run"
+    ),
+    "operator_can_record_intent": True,
+    "operator_can_release_execution": False,
+}
+
 
 def _requirement_row(requirement: dict) -> dict:
     return {
@@ -140,6 +151,11 @@ def build_operator_release_readiness() -> dict:
     provider, source-attestation, or deployment-health measurement. HTTP clients
     may date and expire their receipt independently.
     """
+    blocked_requirement_ids = [
+        requirement["id"]
+        for requirement in _RELEASE_REQUIREMENTS
+        if requirement["state"] != "integrated"
+    ]
     return {
         "schema": "aureon.operator.release-readiness.v1",
         "scope": "operator_protected_http_ingress",
@@ -158,4 +174,8 @@ def build_operator_release_readiness() -> dict:
             _work_order_row(requirement)
             for requirement in _RELEASE_REQUIREMENTS
         ],
+        "operator_handoff": {
+            **_OPERATOR_HANDOFF,
+            "blocked_requirement_ids": blocked_requirement_ids,
+        },
     }

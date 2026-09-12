@@ -28,6 +28,15 @@ export interface ReleaseWorkOrder {
   blocked_until: string;
   evidence_required: string[];
 }
+export interface OperatorReleaseHandoff {
+  state: 'blocked';
+  control_surface: string;
+  release_status_route: string;
+  protected_request_policy: string;
+  operator_can_record_intent: true;
+  operator_can_release_execution: false;
+  blocked_requirement_ids: RequirementId[];
+}
 export interface OperatorReleaseReadiness {
   schema: 'aureon.operator.release-readiness.v1';
   scope: 'operator_protected_http_ingress';
@@ -40,6 +49,7 @@ export interface OperatorReleaseReadiness {
   configuration_attestation: null;
   requirements: ReleaseRequirement[];
   work_orders: ReleaseWorkOrder[];
+  operator_handoff: OperatorReleaseHandoff;
 }
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const hasOwn = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
@@ -76,11 +86,25 @@ function parseWorkOrder(value: unknown, requirements: Map<RequirementId, Release
     || evidence_required.join('\\n') !== requirement.evidence_required.join('\\n')) throw new Error('Release work order evidence unavailable');
   return { id: row.id as `release:${RequirementId}`, title, status: row.status as RequirementState, owner_surface, verification_route, blocked_until, evidence_required };
 }
+function parseOperatorHandoff(value: unknown, requirements: ReleaseRequirement[]): OperatorReleaseHandoff {
+  const row = record(value);
+  if (!row || !exactKeys(row, ['state', 'control_surface', 'release_status_route', 'protected_request_policy', 'operator_can_record_intent', 'operator_can_release_execution', 'blocked_requirement_ids'])
+    || row.state !== 'blocked' || row.operator_can_record_intent !== true || row.operator_can_release_execution !== false) throw new Error('Release operator handoff contract unavailable');
+  const control_surface = nonEmptyText(row.control_surface), release_status_route = nonEmptyText(row.release_status_route);
+  const protected_request_policy = nonEmptyText(row.protected_request_policy);
+  if (!control_surface?.startsWith('/') || !release_status_route?.startsWith('/') || !protected_request_policy) throw new Error('Release operator handoff routes unavailable');
+  const expected = requirements.filter(item => item.state !== 'integrated').map(item => item.id);
+  const blocked = Array.isArray(row.blocked_requirement_ids) ? row.blocked_requirement_ids : null;
+  if (!blocked || blocked.length !== expected.length || blocked.some(item => typeof item !== 'string' || !hasOwn(RELEASE_REQUIREMENTS, item))
+    || blocked.join('\n') !== expected.join('\n')) throw new Error('Release operator handoff blockers unavailable');
+  return { state: 'blocked', control_surface, release_status_route, protected_request_policy,
+    operator_can_record_intent: true, operator_can_release_execution: false, blocked_requirement_ids: blocked as RequirementId[] };
+}
 
 /** V1 only describes the held implementation. It cannot convey permission. */
 export function readOperatorReleaseReadiness(value: unknown): OperatorReleaseReadiness {
   const raw = record(value);
-  if (!raw || !exactKeys(raw, ['schema', 'scope', 'basis', 'state', 'reason_code', 'release_available', 'production_ready', 'source_attestation', 'configuration_attestation', 'requirements', 'work_orders'])
+  if (!raw || !exactKeys(raw, ['schema', 'scope', 'basis', 'state', 'reason_code', 'release_available', 'production_ready', 'source_attestation', 'configuration_attestation', 'requirements', 'work_orders', 'operator_handoff'])
     || raw.schema !== 'aureon.operator.release-readiness.v1' || raw.scope !== 'operator_protected_http_ingress'
     || raw.basis !== 'serving_implementation_contract' || raw.state !== 'held'
     || raw.reason_code !== 'production_magic_star_release_unavailable' || raw.release_available !== false || raw.production_ready !== false
@@ -91,10 +115,11 @@ export function readOperatorReleaseReadiness(value: unknown): OperatorReleaseRea
   const requirements = raw.requirements.map(value => parseRequirement(value, seen));
   const requirementMap = new Map(requirements.map(row => [row.id, row]));
   const work_orders = raw.work_orders.map(value => parseWorkOrder(value, requirementMap));
+  const operator_handoff = parseOperatorHandoff(raw.operator_handoff, requirements);
   if (new Set(work_orders.map(row => row.id)).size !== work_orders.length) throw new Error('Duplicate release work order contract');
   return { schema: raw.schema, scope: raw.scope, basis: raw.basis, state: raw.state,
     reason_code: raw.reason_code, release_available: false, production_ready: false,
-    source_attestation: null, configuration_attestation: null, requirements, work_orders };
+    source_attestation: null, configuration_attestation: null, requirements, work_orders, operator_handoff };
 }
 
 export interface ReleaseReadinessReceipt {
@@ -116,7 +141,8 @@ export function releaseReadinessView(receipt: ReleaseReadinessReceipt, now = Dat
   }
   const remaining = receipt.data.work_orders.filter(row => row.status !== 'integrated').length;
   const integrated = receipt.data.work_orders.length - remaining;
-  return { state: 'held' as const, message: `${remaining} production release work orders still block production; ${integrated} integrated. Model connection alone does not release protected requests.`, receivedAt: stamp };
+  return { state: 'held' as const, message: `${remaining} production release work orders still block production; ${integrated} integrated. Operator intent can be recorded, but execution release is still blocked.`, receivedAt: stamp,
+    remaining, integrated };
 }
 
 /** Missing or unfamiliar verdicts must never acquire an approval badge. */

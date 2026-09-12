@@ -7,7 +7,7 @@ export interface SwitchboardFlag {
   id: string; env_var: string; label: string; group: string;
   kind: 'safe' | 'hard_boundary'; effect: 'live' | 'restart'; effect_note: string; description: string;
   default: boolean; enabled: boolean; stored: boolean | null; source: 'store' | 'env' | 'default';
-  armed: boolean; decided_at: number | null; pending_restart: boolean | null;
+  armed: boolean; decided_at: number | null; pending_restart: boolean | null; env_hold?: boolean;
 }
 export interface SwitchboardConfiguration {
   groups: { label: string; flags: SwitchboardFlag[] }[];
