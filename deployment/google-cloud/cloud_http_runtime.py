@@ -33,6 +33,10 @@ HOLDS = {
     "AUREON_LIVE_TRADING": "0",
     "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
 }
+CONTROLLER_KEY_VERSION = (
+    "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/"
+    "cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1"
+)
 PORTS = {"operator": 8080, "ui-gateway": 5173}
 HEALTH_PATH = "/__aureon_health"
 HEALTH_SCHEMA = "aureon.cloud-http-health.v1"
@@ -539,6 +543,7 @@ def build_operator(source_root, revision, bearer, tenant_config):
         "AUREON_RELEASE_LEDGER_PATH": "/srv/aureon/cache/release-ledger/release-ledger.jsonl",
         "AUREON_CLOUD_TRADE_READBACK_PATH": "/srv/aureon/cache/trading-control/latest-terminal-receipt.json",
         "AUREON_OPERATOR_REVISION": revision,
+        "AUREON_CONTROLLER_KEY_VERSION": CONTROLLER_KEY_VERSION,
     }
     os.environ.update(settings)
     sys.path[:0] = [str(root), str(root.parent)]
