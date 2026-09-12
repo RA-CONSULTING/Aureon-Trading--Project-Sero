@@ -236,6 +236,8 @@ def test_terminal_receipt_collector_is_a_distinct_held_service():
     unit = "aureon-cloud-trade-receipt.service"
     body = release.render_unit(unit, PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "", "", "").decode()
     assert "cloud_trade_receipt_collector.py" in body
+    assert "--revision " + REVISION in body
+    assert "Environment=AUREON_RELEASE_LEDGER_PATH=/srv/aureon/cache/release-ledger/release-ledger.jsonl" in body
     assert "User=aureon" in body and "ReadWritePaths=/srv/aureon/runtime/workspace /srv/aureon/cache" in body
     for key, value in release.HOLDS.items():
         assert "Environment=" + key + "=" + value in body

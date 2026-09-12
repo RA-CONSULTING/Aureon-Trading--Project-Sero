@@ -185,7 +185,10 @@ def render_unit(unit: str, workspace: Path, revision: str, project: str, secret:
                 raise ReleaseError("pinned_cloud_tenant_secret_identifiers_required")
             command += f" --tenant-secret {tenant_secret} --tenant-secret-version {tenant_version}"
     elif unit in COLLECTOR_UNITS:
-        command = f"/srv/aureon/venv/bin/python {runner}/{COLLECTOR_UNITS[unit]}"
+        command = (
+            f"/srv/aureon/venv/bin/python {runner}/{COLLECTOR_UNITS[unit]} "
+            f"--revision {revision}"
+        )
     else:
         command = f"/srv/aureon/venv/bin/python {runner}/cloud_read_organ.py {organ_name(unit)}"
     environment = {**HOLDS, "SERO_WORKSPACE": str(workspace),
@@ -199,6 +202,8 @@ def render_unit(unit: str, workspace: Path, revision: str, project: str, secret:
         # It is never read, copied into the bundle or written by this installer.
         if (Path(str(workspace)) / "aureon_radar" / ".env").is_file():
             environment["AUREON_ENV_FILE"] = f"{workspace}/aureon_radar/.env"
+    if unit in COLLECTOR_UNITS:
+        environment["AUREON_RELEASE_LEDGER_PATH"] = "/srv/aureon/cache/release-ledger/release-ledger.jsonl"
     lines = ["# Managed source release; no action release authority.", "[Unit]",
              "Description=Aureon held cloud service", "After=network-online.target", "Wants=network-online.target",
              "StartLimitIntervalSec=300", "StartLimitBurst=4", "[Service]", "Type=simple", "User=aureon", "Group=aureon",

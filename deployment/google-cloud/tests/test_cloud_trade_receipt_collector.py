@@ -189,3 +189,58 @@ def test_collector_binds_provider_observed_live_order_receipt():
     assert summary["outcome_status"] == "provider_observed"
     assert summary["venue"] == "alpaca" and summary["provider_order_id"] == "provider-order-1"
     assert summary["orders_attempted"] == summary["orders_submitted"] == 1
+
+
+def test_active_lease_publishes_canonical_held_probe_without_order():
+    calls = []
+
+    def reader(url, **kwargs):
+        calls.append((url, kwargs))
+        if url == collector.METADATA:
+            return json.dumps({"access_token": "x" * 40, "expires_in": 3600}).encode()
+        assert url == collector.PROBE_TOPIC
+        return b'{"messageIds":["123456789"]}'
+
+    result = collector.publish_control_probe(
+        revision="a" * 40,
+        reader=reader,
+        current_time=lambda: 1_800_000_000,
+        environ=dict(collector.REQUIRED_PROBE_HOLDS),
+        authorization_builder=lambda **_kwargs: {
+            "active": True,
+            "ledger_event_sha256": "1" * 64,
+            "expires_at": 1_800_003_600,
+        },
+    )
+    assert result and result["message_id"] == "123456789"
+    body = json.loads(calls[-1][1]["body"])
+    probe = json.loads(base64.b64decode(body["messages"][0]["data"], validate=True))
+    assert probe["kind"] == "control_plane_probe" and probe["dry_run"] is True
+    assert probe["order"] is None and probe["authorization"]["mutation_authority"] is False
+    assert probe["requested_controls"] == {
+        "AUREON_DEPLOYMENT_HOLD": True,
+        "AUREON_DISABLE_REAL_ORDERS": True,
+        "AUREON_DISABLE_EXCHANGE_MUTATIONS": True,
+        "AUREON_LIVE_TRADING": False,
+        "AUREON_ORDER_INTENT_PUBLISH": False,
+        "AUREON_UNIFIED_ORDER_EXECUTOR": False,
+    }
+
+
+def test_probe_publisher_requires_holds_and_active_lease():
+    inactive = collector.publish_control_probe(
+        revision="a" * 40,
+        environ=dict(collector.REQUIRED_PROBE_HOLDS),
+        current_time=lambda: 1_800_000_000,
+        authorization_builder=lambda **_kwargs: {"active": False},
+    )
+    assert inactive is None
+    weakened = dict(collector.REQUIRED_PROBE_HOLDS)
+    weakened["AUREON_DISABLE_REAL_ORDERS"] = "0"
+    with pytest.raises(RuntimeError, match="probe_runtime_holds_not_enforced"):
+        collector.publish_control_probe(
+            revision="a" * 40,
+            environ=weakened,
+            current_time=lambda: 1_800_000_000,
+            authorization_builder=lambda **_kwargs: {"active": False},
+        )

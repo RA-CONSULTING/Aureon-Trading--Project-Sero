@@ -5,6 +5,7 @@ import argparse
 import base64
 import binascii
 import json
+import math
 import os
 import re
 import sys
@@ -36,6 +37,7 @@ from contract import (  # noqa: E402
     validate_intent,
     validate_stage,
 )
+from make_probe import build_probe  # noqa: E402
 
 
 PROJECT = "aureon-trading"
@@ -44,6 +46,10 @@ SUBSCRIPTION = "aureon-trade-terminal-readback-v1"
 METADATA = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 PUBSUB = (
     f"https://pubsub.googleapis.com/v1/projects/{PROJECT}/subscriptions/{SUBSCRIPTION}"
+)
+PROBE_TOPIC = (
+    f"https://pubsub.googleapis.com/v1/projects/{PROJECT}/topics/"
+    "aureon-trade-intents-v1:publish"
 )
 KEY_PREFIX = (
     f"projects/{PROJECT}/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys"
@@ -58,6 +64,17 @@ DEFAULT_OUTPUT = Path("/srv/aureon/cache/trading-control/latest-terminal-receipt
 DEFAULT_LIVE_OUTPUT = Path("/srv/aureon/cache/trading-control/latest-live-terminal-receipt.json")
 _MESSAGE_ID = re.compile(r"[0-9]{1,64}")
 _PROVIDER_ID = re.compile(r"[A-Za-z0-9._:/-]{1,256}")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+_REVISION = re.compile(r"[0-9a-f]{40,64}")
+PROBE_INTERVAL_SECONDS = 120.0
+REQUIRED_PROBE_HOLDS = {
+    "AUREON_DEPLOYMENT_HOLD": "1",
+    "AUREON_DISABLE_REAL_ORDERS": "1",
+    "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+    "AUREON_ORDER_INTENT_PUBLISH": "0",
+    "AUREON_LIVE_TRADING": "0",
+    "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+}
 
 
 class CollectorError(RuntimeError):
@@ -107,6 +124,65 @@ def _cloud_json(raw: bytes, code: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise CollectorError(code)
     return value
+
+
+def publish_control_probe(*, revision: str, reader=_http, current_time=time.time,
+                          environ: Mapping[str, str] | None = None,
+                          authorization_builder=None) -> dict[str, str] | None:
+    """Publish one held, zero-mutation probe while the owner lease is active."""
+    env = os.environ if environ is None else environ
+    if not _REVISION.fullmatch(str(revision or "")):
+        raise CollectorError("probe_revision_invalid")
+    if any(env.get(key) != value for key, value in REQUIRED_PROBE_HOLDS.items()):
+        raise CollectorError("probe_runtime_holds_not_enforced")
+    try:
+        now = float(current_time())
+    except (TypeError, ValueError) as exc:
+        raise CollectorError("probe_clock_invalid") from exc
+    if not math.isfinite(now) or now <= 0:
+        raise CollectorError("probe_clock_invalid")
+    if authorization_builder is None:
+        from aureon.operator.authorization_lease import build_operator_authorization_receipt
+
+        authorization_builder = build_operator_authorization_receipt
+    authorization = authorization_builder(now=now)
+    if not isinstance(authorization, Mapping):
+        raise CollectorError("probe_authorization_invalid")
+    if authorization.get("active") is not True:
+        return None
+    event_sha256 = authorization.get("ledger_event_sha256")
+    expires_at = authorization.get("expires_at")
+    if (not _HEX64.fullmatch(str(event_sha256 or ""))
+            or isinstance(expires_at, bool) or not isinstance(expires_at, (int, float))
+            or not math.isfinite(float(expires_at)) or float(expires_at) <= now
+            or float(expires_at) > now + 259_200):
+        raise CollectorError("probe_authorization_invalid")
+    probe = build_probe(
+        event_sha256=str(event_sha256),
+        lease_expires_at_ms=int(float(expires_at) * 1000),
+        revision=revision,
+        now_ms=int(now * 1000),
+    )
+    token = access_token(reader)
+    response = reader(
+        PROBE_TOPIC,
+        method="POST",
+        headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+        body=json.dumps({"messages": [{
+            "data": base64.b64encode(canonical_bytes(probe)).decode("ascii"),
+            "attributes": {"schema": probe["schema"]},
+            "orderingKey": probe["intent_id"],
+        }]}, separators=(",", ":")).encode("ascii"),
+        timeout=15,
+    )
+    token = ""
+    value = _cloud_json(response, "probe_publish_response_invalid")
+    message_ids = value.get("messageIds")
+    if (not isinstance(message_ids, list) or len(message_ids) != 1
+            or not isinstance(message_ids[0], str)
+            or not _MESSAGE_ID.fullmatch(message_ids[0])):
+        raise CollectorError("probe_publish_response_invalid")
+    return {"message_id": message_ids[0], "intent_id": probe["intent_id"]}
 
 
 def _verify_signature(stage: Mapping[str, Any], expected_key: str, *, token: str,
@@ -360,8 +436,22 @@ def pull_once(*, output: Path = DEFAULT_OUTPUT, reader=_http,
     return True
 
 
-def run(*, output: Path = DEFAULT_OUTPUT) -> None:
+def run(*, revision: str, output: Path = DEFAULT_OUTPUT,
+        probe_interval: float = PROBE_INTERVAL_SECONDS) -> None:
+    if not _REVISION.fullmatch(str(revision or "")):
+        raise CollectorError("probe_revision_invalid")
+    if not math.isfinite(probe_interval) or not 30 <= probe_interval <= 240:
+        raise CollectorError("probe_interval_invalid")
+    next_probe = 0.0
     while True:
+        current = time.time()
+        if current >= next_probe:
+            try:
+                published = publish_control_probe(revision=revision)
+                next_probe = current + (probe_interval if published is not None else 60.0)
+            except CollectorError as exc:
+                print(str(exc), file=sys.stderr, flush=True)
+                next_probe = current + 30.0
         try:
             if not pull_once(output=output):
                 time.sleep(1)
@@ -374,11 +464,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--revision")
     args = parser.parse_args()
     if args.once:
         print(json.dumps({"collected": pull_once(output=args.output)}))
     else:
-        run(output=args.output)
+        if not args.revision:
+            parser.error("--revision is required for continuous collection")
+        run(revision=args.revision, output=args.output)
 
 
 if __name__ == "__main__":

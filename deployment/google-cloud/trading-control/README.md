@@ -23,6 +23,10 @@ the deployment hold, real-order hold and exchange-mutation hold to remain active
 Its executor outcome records zero attempted and submitted orders. `order` intents
 fail closed until all three release controls are explicitly true:
 
+The supervised cloud receipt collector publishes this held probe every two minutes
+while the owner authorization lease is active. It stops publishing when the lease
+is inactive and refuses to publish if any of the six runtime holds has weakened.
+
 * `AUREON_LIVE_EXECUTION_RELEASE=1`
 * `AUREON_DURABLE_BUDGET_LEDGER=1`
 * `AUREON_ORDER_ADAPTER_READY=1`
