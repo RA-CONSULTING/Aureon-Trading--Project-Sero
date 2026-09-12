@@ -3,6 +3,7 @@ import { createReadOnlyPoller } from "./readOnlyPoller";
 import type { RuntimeSourceObservation } from "@/lib/runtimeSourceStatus";
 import { readBillingStatus, readRecordedCompanyProfile, readSwitchboardConfiguration } from "../lib/platformConfiguration";
 import { readOperatorReleaseReadiness } from "../lib/operatorReleaseReadiness";
+import { readOperatorAuthorizationLease } from "../lib/operatorAuthorization";
 
 export interface PlatformStatus {
   status?: string;
@@ -34,5 +35,10 @@ export const companyStore = createReadOnlyPoller({
 
 export const operatorReleaseReadinessStore = createReadOnlyPoller({
   read: async options => readOperatorReleaseReadiness(await api.get("/api/operator/release-readiness", options)),
+  receiptMaxAgeMs: 45_000,
+});
+
+export const operatorAuthorizationLeaseStore = createReadOnlyPoller({
+  read: async options => readOperatorAuthorizationLease(await api.get("/api/operator/authorization-lease", options)),
   receiptMaxAgeMs: 45_000,
 });

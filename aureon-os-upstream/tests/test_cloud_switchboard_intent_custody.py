@@ -61,7 +61,11 @@ def _token(key, *, now, revision, path, body, **changes):
         "path": path,
         "query_sha256": __import__("hashlib").sha256(b"").hexdigest(),
         "revision": revision,
-        "route_rule": "/api/switchboard/<flag_id>",
+        "route_rule": (
+            "/api/operator/authorization-lease"
+            if path == "/api/operator/authorization-lease"
+            else "/api/switchboard/<flag_id>"
+        ),
         "schema": INTENT_SCHEMA,
     }
     claims.update(changes)
@@ -76,7 +80,11 @@ def _authorize(custody, token, *, now, body=b'{"enabled":true}', path="/api/swit
         token=token,
         method="POST",
         path=path,
-        route_rule="/api/switchboard/<flag_id>",
+        route_rule=(
+            "/api/operator/authorization-lease"
+            if path == "/api/operator/authorization-lease"
+            else "/api/switchboard/<flag_id>"
+        ),
         query=b"",
         body=body,
         identity_kind="admin",
@@ -238,3 +246,49 @@ def test_operator_accepts_exact_owner_intent_but_keeps_runtime_hold(tmp_path, mo
     )
     assert replay.status_code == 403
     assert replay.get_json()["error"]["reason_code"] == "cloud_intent_receipt_replayed"
+
+
+def test_owner_can_record_and_revoke_bounded_authorization_lease(tmp_path, monkeypatch):
+    key, cert = _fixture(tmp_path)
+    revision = "a" * 40
+    for name in ("AUREON_HNC_PACKET_MASTER_KEY", "HNC_PACKET_MASTER_KEY", "AUREON_SUPABASE_JWT_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AUREON_OPERATOR_ENV", "test")
+    monkeypatch.setenv("AUREON_OPERATOR_API_KEY", "operator-secret")
+    monkeypatch.setenv("AUREON_LLM_OFFLINE", "1")
+    monkeypatch.setenv("AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS", "1")
+    monkeypatch.setenv("AUREON_OPERATOR_INTENT_CERT_FILE", str(cert))
+    monkeypatch.setenv("AUREON_OPERATOR_INTENT_LEDGER", str(tmp_path / "replay.sqlite3"))
+    monkeypatch.setenv("AUREON_OPERATOR_REVISION", revision)
+    monkeypatch.setenv("AUREON_RELEASE_LEDGER_PATH", str(tmp_path / "release-ledger.jsonl"))
+    import aureon.operator.operator_server as server
+
+    server = importlib.reload(server)
+    app = server.create_app(operator=SimpleNamespace(providers={}, bus=None))
+    body = (
+        b'{"action":"grant","confirm":"AUREON_72_HOUR_OPERATOR_AUTHORIZATION",'
+        b'"duration_seconds":259200}'
+    )
+    now = int(time.time())
+    token = _token(
+        key, now=now, revision=revision,
+        path="/api/operator/authorization-lease", body=body,
+    )
+    response = app.test_client().post(
+        "/api/operator/authorization-lease",
+        data=body,
+        content_type="application/json",
+        headers={"Authorization": "Bearer operator-secret", "X-Aureon-Operator-Intent": token},
+        base_url="http://127.0.0.1:8080",
+    )
+    assert response.status_code == 200
+    lease = response.get_json()["lease"]
+    assert lease["active"] is True and 259190 <= lease["remaining_seconds"] <= 259200
+    assert lease["release_authority"] is False and lease["mutation_authority"] is False
+    readback = app.test_client().get(
+        "/api/operator/authorization-lease",
+        headers={"Authorization": "Bearer operator-secret"},
+        base_url="http://127.0.0.1:8080",
+    ).get_json()
+    assert readback["active"] is True
+    assert readback["ledger_event_sha256"] == lease["ledger_event_sha256"]

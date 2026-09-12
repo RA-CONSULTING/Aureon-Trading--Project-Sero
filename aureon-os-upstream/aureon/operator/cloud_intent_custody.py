@@ -32,6 +32,7 @@ INTENT_HEADER = "X-Aureon-Operator-Intent"
 MAX_INTENT_TOKEN_BYTES = 8 * 1024
 MAX_INTENT_LIFETIME_SECONDS = 15
 _FLAG_PATH = re.compile(r"/api/switchboard/[A-Z0-9_]{1,64}")
+_AUTHORIZATION_PATH = "/api/operator/authorization-lease"
 _REVISION = re.compile(r"[0-9a-f]{40}")
 _JTI = re.compile(r"[A-Za-z0-9_-]{24,96}")
 _CLAIMS = frozenset(
@@ -218,12 +219,19 @@ class CloudSwitchboardIntentCustody:
         is_admin: bool,
         now: int | None = None,
     ) -> dict[str, Any]:
+        expected_route = (
+            "/api/switchboard/<flag_id>"
+            if _FLAG_PATH.fullmatch(path)
+            else _AUTHORIZATION_PATH
+            if path == _AUTHORIZATION_PATH
+            else None
+        )
         if (
             identity_kind != "admin"
             or is_admin is not True
             or method != "POST"
-            or not _FLAG_PATH.fullmatch(path)
-            or route_rule != "/api/switchboard/<flag_id>"
+            or expected_route is None
+            or route_rule != expected_route
             or query
         ):
             raise CloudIntentCustodyError("cloud_intent_scope_denied")
@@ -300,7 +308,7 @@ class CloudSwitchboardIntentCustody:
             "schema": "aureon.operator.cloud-switchboard-intent-custody.v1",
             "configured": True,
             "intent_recording_authority": True,
-            "scope": "owner_iap_switchboard_intent_only",
+            "scope": "owner_iap_operator_control_intent_only",
             "durable_replay_ledger": True,
             "certificate_fingerprint_sha256": self._fingerprint,
             "production_action_release": False,

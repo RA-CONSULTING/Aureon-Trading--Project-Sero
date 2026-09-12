@@ -40,6 +40,7 @@ _SKIP_SUBSTR = ("/stream", "/metrics")
 _SHELL_ENDPOINTS: List[str] = [
     "/api/pulse", "/api/status", "/api/billing/status", "/api/organism", "/api/automation",
     "/api/defense", "/api/org", "/api/company", "/api/pursuit", "/api/approvals",
+    "/api/operator/authorization-lease",
     "/api/approvals/<item_id>", "/api/metacognition", "/api/switchboard", "/api/switchboard/<flag_id>",
     "/api/providers", "/api/providers/<provider_id>", "/api/providers/<provider_id>/test",
     "/api/affect", "/api/soul", "/api/inner-work", "/api/consciousness", "/api/connections",

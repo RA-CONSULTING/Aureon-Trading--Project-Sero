@@ -1,6 +1,6 @@
 /** Glass control desk backed by the operator's registered feature configuration. */
 import React, { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Activity, Brain, CheckCircle2, Loader2, Lock, RefreshCw, Settings, Shield, ShieldAlert, UserRound, type LucideIcon } from 'lucide-react';
+import { Activity, Brain, CheckCircle2, Clock3, Loader2, Lock, RefreshCw, Settings, Shield, ShieldAlert, UserRound, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -10,9 +10,10 @@ import { useIdentity } from '@/hooks/useIdentity';
 import { useReadOnlyPoller } from '@/hooks/useReadOnlyPoller';
 import { configurationMessage, configurationStatus } from '@/lib/accountConfigurationEvidence';
 import { releaseReadinessView, type ReleaseReadinessReceipt } from '@/lib/operatorReleaseReadiness';
+import { grantOperatorAuthorization, OPERATOR_AUTHORIZATION_CONFIRM, revokeOperatorAuthorization } from '@/lib/operatorAuthorization';
 import { SwitchboardWriteGuard, type SwitchboardConfiguration, type SwitchboardFlag } from '@/lib/platformConfiguration';
 import { submitSwitchboardChange } from '@/lib/switchboardControl';
-import { operatorReleaseReadinessStore, switchboardStore } from '@/services/platformReads';
+import { operatorAuthorizationLeaseStore, operatorReleaseReadinessStore, switchboardStore } from '@/services/platformReads';
 
 const GOLD = '#FFB800';
 const CYAN = '#00E5FF';
@@ -139,6 +140,63 @@ function ReleaseHandoffPanel({ receipt }: { receipt: ReleaseReadinessReceipt }) 
   </GlassPanel>;
 }
 
+function AuthorizationLeasePanel({ canManage }: { canManage: boolean }) {
+  const receipt = useReadOnlyPoller(operatorAuthorizationLeaseStore, 15_000, 8_000);
+  const lease = receipt.isReceiptCurrent ? receipt.data : null;
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const active = lease?.active === true;
+  async function submit() {
+    if (!canManage || saving || confirm !== OPERATOR_AUTHORIZATION_CONFIRM) return;
+    setSaving(true);
+    try {
+      await grantOperatorAuthorization();
+      toast.success('72-hour operator authorization recorded', { description: 'Trading release evidence and runtime gates still decide whether requested controls can apply.' });
+      setOpen(false); setConfirm(''); operatorAuthorizationLeaseStore.invalidate();
+    } catch (error) {
+      toast.error('Could not record operator authorization', { description: error instanceof Error ? error.message : 'Authorization request failed' });
+    } finally { setSaving(false); }
+  }
+  async function revoke() {
+    if (!canManage || saving) return;
+    setSaving(true);
+    try {
+      await revokeOperatorAuthorization();
+      toast.success('Operator authorization revoked'); operatorAuthorizationLeaseStore.invalidate();
+    } catch (error) {
+      toast.error('Could not revoke operator authorization', { description: error instanceof Error ? error.message : 'Revocation request failed' });
+    } finally { setSaving(false); }
+  }
+  return <>
+    <GlassPanel className="px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: active ? CYAN : GOLD }} />
+          <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Human operator authorization</p>
+            <p className="mt-1 text-[12px] text-zinc-300">{!lease ? 'Current lease is unavailable.' : active
+              ? `Active until ${lease.expires_at_iso}. ${Math.ceil(lease.remaining_seconds / 3600)} hours remain.`
+              : `No active production trading lease (${lease.state}).`}</p>
+            <p className="mt-1 text-[10px] text-zinc-500">A lease records human approval. Provider, risk, execution, and release gates remain mandatory.</p></div></div>
+        <div className="flex gap-2"><StatusBadge active={active}>{active ? 'active' : lease?.state ?? 'unavailable'}</StatusBadge>
+          {active ? <button type="button" disabled={!canManage || saving} onClick={() => void revoke()}
+            className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-300 disabled:opacity-50">Revoke</button>
+            : <button type="button" disabled={!canManage || saving} onClick={() => setOpen(true)}
+              className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: GOLD, color: '#0a0a0a' }}>Authorize 72 hours</button>}</div>
+      </div>
+    </GlassPanel>
+    <AlertDialog open={open} onOpenChange={value => { setOpen(value); if (!value) setConfirm(''); }}>
+      <AlertDialogContent style={{ background: BG, borderColor: BORDER_GOLD }} className="text-zinc-100">
+        <AlertDialogHeader><AlertDialogTitle>Record 72-hour operator authorization?</AlertDialogTitle>
+          <AlertDialogDescription className="text-zinc-400">This records the human operator decision for the owner cloud account. It expires automatically and does not bypass the production release gates.</AlertDialogDescription></AlertDialogHeader>
+        <div className="space-y-2"><Label htmlFor="operator-lease-confirm">Type <code className="break-all" style={{ color: GOLD }}>{OPERATOR_AUTHORIZATION_CONFIRM}</code></Label>
+          <Input id="operator-lease-confirm" value={confirm} autoComplete="off" onChange={event => setConfirm(event.target.value)} /></div>
+        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={!canManage || saving || confirm !== OPERATOR_AUTHORIZATION_CONFIRM}
+          style={{ background: GOLD, color: '#0a0a0a' }} onClick={() => void submit()}>Record authorization</AlertDialogAction></AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>;
+}
+
 export default function SwitchboardPage() {
   const receipt = useReadOnlyPoller(switchboardStore, 15_000, 8_000);
   const releaseReceipt = useReadOnlyPoller(operatorReleaseReadinessStore, 15_000, 8_000);
@@ -219,6 +277,7 @@ export default function SwitchboardPage() {
       </div>
     </div>
     <ReleaseHandoffPanel receipt={releaseReceipt} />
+    <AuthorizationLeasePanel canManage={canManage} />
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

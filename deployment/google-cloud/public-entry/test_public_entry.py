@@ -381,6 +381,20 @@ def test_bridge_signs_only_exact_owner_switchboard_intent(keys, verifier):
     assert ordinary.status_code == 200
     assert entry.INTENT_HEADER not in calls[-1][2]
 
+    authorization = c.post(
+        "/api/operator/authorization-lease",
+        base_url=base,
+        headers=headers(keys, bridge=True),
+        json={
+            "action": "grant",
+            "confirm": "AUREON_72_HOUR_OPERATOR_AUTHORIZATION",
+            "duration_seconds": 259200,
+        },
+    )
+    assert authorization.status_code == 200
+    assert calls[-1][2][entry.INTENT_HEADER] == "signed.owner.intent"
+    assert signed_calls[-1]["target"] == "/api/operator/authorization-lease"
+
 
 def test_operator_intent_signer_binds_exact_request_and_expires_quickly(tmp_path, keys):
     key_path = tmp_path / "bridge-key.pem"
@@ -418,6 +432,23 @@ def test_operator_intent_signer_binds_exact_request_and_expires_quickly(tmp_path
     assert claims["body_sha256"] == __import__("hashlib").sha256(body).hexdigest()
     assert claims["path"] == "/api/switchboard/AUREON_LIVE_TRADING"
     assert claims["revision"] == BASE.revision
+    lease_token = signer.sign(
+        method="POST",
+        target="/api/operator/authorization-lease",
+        body=b'{"action":"grant"}',
+        mode="iap",
+        revision=BASE.revision,
+    )
+    lease_claims = jwt.decode(
+        lease_token,
+        keys[1].public_key(),
+        algorithms=["RS256"],
+        audience=entry.INTENT_AUDIENCE,
+        issuer=entry.INTENT_ISSUER,
+        options={"verify_exp": False, "verify_iat": False},
+    )
+    assert lease_claims["path"] == "/api/operator/authorization-lease"
+    assert lease_claims["route_rule"] == "/api/operator/authorization-lease"
     for change in (
         {"method": "GET"},
         {"target": "/api/connections/binance"},

@@ -49,6 +49,15 @@ INTENT_ISSUER = "aureon-private-bridge"
 INTENT_SCHEMA = "aureon.operator.cloud-switchboard-intent.v1"
 INTENT_HEADER = "X-Aureon-Operator-Intent"
 _INTENT_PATH = re.compile(r"/api/switchboard/[A-Z0-9_]{1,64}")
+_AUTHORIZATION_PATH = "/api/operator/authorization-lease"
+
+
+def _intent_route_rule(target):
+    if _INTENT_PATH.fullmatch(target):
+        return "/api/switchboard/<flag_id>"
+    if target == _AUTHORIZATION_PATH:
+        return _AUTHORIZATION_PATH
+    return None
 
 
 class BoundaryError(RuntimeError):
@@ -155,7 +164,8 @@ class OperatorIntentSigner:
         self._nonce = nonce
 
     def sign(self, *, method, target, body, mode, revision):
-        if method != "POST" or not _INTENT_PATH.fullmatch(target) or mode != "iap":
+        route_rule = _intent_route_rule(target)
+        if method != "POST" or route_rule is None or mode != "iap":
             raise BoundaryError("intent_signing_scope_denied")
         now = int(self._clock())
         claims = {
@@ -170,7 +180,7 @@ class OperatorIntentSigner:
             "path": target,
             "query_sha256": hashlib.sha256(b"").hexdigest(),
             "revision": revision,
-            "route_rule": "/api/switchboard/<flag_id>",
+            "route_rule": route_rule,
             "schema": INTENT_SCHEMA,
         }
         return jwt.encode(
@@ -526,7 +536,7 @@ def create_app(
                 # the bridge supply same-origin evidence to the loopback gateway.
                 # Any client Authorization/failed marker remains present exactly.
                 headers.update({"Origin": "http://127.0.0.1:5173", "Sec-Fetch-Site": "same-origin"})
-                if request.method == "POST" and _INTENT_PATH.fullmatch(target):
+                if request.method == "POST" and _intent_route_rule(target) is not None:
                     if entry_mode != "iap" or intent_signer is None:
                         raise BoundaryError("intent_signer_unavailable")
                     headers[INTENT_HEADER] = intent_signer.sign(

@@ -13,7 +13,7 @@ import json
 import math
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -222,7 +222,7 @@ def append_release_ledger_event(
         "event_type": event,
         "actor": _safe_text(actor),
         "recorded_at": current,
-        "recorded_at_iso": datetime.fromtimestamp(current, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "recorded_at_iso": datetime.fromtimestamp(current, UTC).isoformat().replace("+00:00", "Z"),
         "payload_digest_sha256": _sha(clean),
         "payload": clean,
         "previous_hash": previous,
@@ -256,6 +256,19 @@ def read_release_ledger(*, path: Path | None = None, limit: int = 25) -> dict[st
     }
 
 
+def read_operator_approval_events(*, path: Path | None = None) -> list[dict[str, Any]]:
+    """Return validated approval rows for trusted in-process receipt builders.
+
+    This helper is not an HTTP projection.  It refuses the complete result if
+    any row or hash-chain link is invalid.
+    """
+
+    rows, invalid, read_error = _read_raw_rows(path)
+    if not _validate_chain(rows, invalid, read_error)["chain_valid"]:
+        return []
+    return [dict(row) for row in rows if row.get("event_type") == "operator_approval"]
+
+
 def build_release_ledger_receipt(*, path: Path | None = None, limit: int = 25, now: float | None = None) -> dict[str, Any]:
     current = _finite_time(now)
     readback = read_release_ledger(path=path, limit=limit)
@@ -263,7 +276,7 @@ def build_release_ledger_receipt(*, path: Path | None = None, limit: int = 25, n
         "schema": RECEIPT_SCHEMA,
         "generated_values": False,
         "observed_at": current,
-        "observed_at_iso": datetime.fromtimestamp(current, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "observed_at_iso": datetime.fromtimestamp(current, UTC).isoformat().replace("+00:00", "Z"),
         "read_route": "/api/operator/release-ledger",
         "append_route": "/api/operator/release-ledger/events",
         "append_route_mode": "operator_only_hnc_protected",
@@ -282,6 +295,7 @@ __all__ = [
     "append_release_ledger_event",
     "build_release_ledger_receipt",
     "read_release_ledger",
+    "read_operator_approval_events",
     "release_ledger_path",
 ]
 

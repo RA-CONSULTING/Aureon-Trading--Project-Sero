@@ -34,6 +34,7 @@ import logging
 import os
 import struct
 import threading
+from datetime import UTC
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Final
@@ -88,18 +89,29 @@ from aureon.observability import (  # noqa: E402
     install_flask_request_correlation,
 )
 from aureon.operator.aureon_operator import AureonOperator  # noqa: E402  (after guarded flask import)
-from aureon.operator.providers import build_provider_set, describe_provider_set  # noqa: E402
-from aureon.operator.release_readiness import build_operator_release_readiness  # noqa: E402
-from aureon.operator.capability_runtime_attestation import build_operator_capability_runtime_attestation  # noqa: E402
-from aureon.operator.release_ledger import append_release_ledger_event, build_release_ledger_receipt  # noqa: E402
-from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
+from aureon.operator.authority_map import build_authority_map_receipt  # noqa: E402
+from aureon.operator.authorization_lease import (  # noqa: E402
+    LEASE_CONFIRM,
+    MAX_LEASE_SECONDS,
+    build_operator_authorization_receipt,
+    record_operator_authorization,
+)
+from aureon.operator.capability_runtime_attestation import (  # noqa: E402
+    build_operator_capability_runtime_attestation,
+)
 from aureon.operator.cloud_intent_custody import (  # noqa: E402
+    INTENT_HEADER,
     CloudIntentCustodyError,
     CloudSwitchboardIntentCustody,
-    INTENT_HEADER,
 )
 from aureon.operator.executor_isolation import build_executor_isolation_receipt  # noqa: E402
-from aureon.operator.authority_map import build_authority_map_receipt  # noqa: E402
+from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
+from aureon.operator.providers import build_provider_set, describe_provider_set  # noqa: E402
+from aureon.operator.release_ledger import (  # noqa: E402
+    append_release_ledger_event,
+    build_release_ledger_receipt,
+)
+from aureon.operator.release_readiness import build_operator_release_readiness  # noqa: E402
 from aureon.operator.result_binding import build_result_binding_receipt  # noqa: E402
 from aureon.plumber.os_protection import (  # noqa: E402
     DEFAULT_MAX_INGRESS_BYTES,
@@ -150,7 +162,7 @@ def _test_provider_adapter(
     attest whether a connection test was ever completed.
     """
     import time
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from aureon.operator import keystore
 
@@ -195,7 +207,7 @@ def _test_provider_adapter(
     keystore.save_provider(
         provider_id,
         tenant=tenant,
-        last_test_at=datetime.now(timezone.utc).isoformat(),
+        last_test_at=datetime.now(UTC).isoformat(),
         last_test_ok=result["ok"],
         last_test_latency_ms=result["latency_ms"],
         last_test_error=result["error"],
@@ -670,7 +682,10 @@ def create_app(
             "source_truth_established_by_local_wrapping": False,
             "production_magic_star_release_available": False,
         }
-        if _cloud_intent_custody is not None and rule == "/api/switchboard/<flag_id>":
+        if _cloud_intent_custody is not None and rule in {
+            "/api/switchboard/<flag_id>",
+            "/api/operator/authorization-lease",
+        }:
             try:
                 g.operator_cloud_intent_custody = (
                     _cloud_intent_custody.authorize_and_consume(
@@ -972,6 +987,37 @@ def create_app(
     @app.get("/api/operator/release-ledger")
     def operator_release_ledger():
         response = jsonify(_json_safe(build_release_ledger_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/authorization-lease")
+    def operator_authorization_lease():
+        response = jsonify(_json_safe(build_operator_authorization_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.post("/api/operator/authorization-lease")
+    def operator_authorization_lease_set():
+        denied = _admin_denied()
+        if denied is not None:
+            return denied
+        body: Dict[str, Any] = request.get_json(silent=True) or {}
+        action = body.get("action")
+        required = LEASE_CONFIRM if action == "grant" else "REVOKE_AUREON_OPERATOR_AUTHORIZATION"
+        if body.get("confirm") != required:
+            return _err(400, "operator authorization requires exact confirmation", confirm_required=required)
+        duration = body.get("duration_seconds") if action == "grant" else None
+        if action == "grant" and (type(duration) is not int or not 60 <= duration <= MAX_LEASE_SECONDS):
+            return _err(400, "operator authorization duration must be between 60 and 259200 seconds")
+        try:
+            record_operator_authorization(
+                action=str(action or ""),
+                duration_seconds=duration,
+                actor=str(getattr(g, "identity_kind", "operator")),
+            )
+        except ValueError as exc:
+            return _err(400, str(exc))
+        response = jsonify({"ok": True, "lease": build_operator_authorization_receipt()})
         response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -1655,8 +1701,8 @@ def create_app(
     # Dedicated analytical/review handlers remain behind this app's identity and
     # protected ingress gates. Their default capabilities disclose unavailable
     # release dispatch; registration cannot itself confer execution authority.
-    from aureon.operator.historical_backtest import register_historical_backtest_routes
     from aureon.operator.coding_artifact_review import register_coding_review_routes
+    from aureon.operator.historical_backtest import register_historical_backtest_routes
 
     register_historical_backtest_routes(app)
     register_coding_review_routes(app, root=Path(__file__).resolve().parents[2])

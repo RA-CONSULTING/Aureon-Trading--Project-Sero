@@ -536,6 +536,7 @@ def build_operator(source_root, revision, bearer, tenant_config):
         "AUREON_SUPABASE_PUBLISHABLE_KEY": tenant_config["publishable_key"],
         "AUREON_OPERATOR_INTENT_CERT_FILE": "/etc/aureon-public/bridge-cert.pem",
         "AUREON_OPERATOR_INTENT_LEDGER": "/srv/aureon/cache/operator-intent-replay.sqlite3",
+        "AUREON_RELEASE_LEDGER_PATH": "/srv/aureon/cache/release-ledger/release-ledger.jsonl",
         "AUREON_OPERATOR_REVISION": revision,
     }
     os.environ.update(settings)
