@@ -2,7 +2,7 @@
 Aureon Operator — feature switchboard tests.
 
 The human control plane that turns system features on/off. Covers the registry
-(every flag well-formed; hard-boundary flags default OFF), the encrypted store
+(every flag well-formed; hard-boundary flags default safe), the encrypted store
 (round-trip; corrupt store degrades), apply_to_env (sets/leaves env honestly),
 the bootstrap integration (persisted flags reach the env at boot), and the
 /api/switchboard surface (grouped list; safe flip; hard-boundary needs the typed
@@ -44,17 +44,21 @@ def test_registry_is_well_formed():
     for f in fs.FLAGS:
         assert f.env_var == f.id and f.id.isupper()
         assert f.kind in ("safe", "hard_boundary")
-        assert f.effect in ("live", "restart")
+        assert f.effect in ("live", "restart", "handoff")
         assert f.effect_note and f.description
+        assert isinstance(f.risk_value, bool)
 
 
-def test_hard_boundary_flags_default_off():
+def test_hard_boundary_flags_default_safe():
     hard = [f for f in fs.FLAGS if f.kind == "hard_boundary"]
     assert hard, "there should be hard-boundary flags"
-    assert all(f.default is False for f in hard)
+    assert all(f.default != f.risk_value for f in hard)
     # the canonical dangerous set is represented
     ids = {f.id for f in hard}
-    for expected in ("AUREON_LIVE_TRADING", "AUREON_LOCAL_ACTIONS_ARMED",
+    for expected in ("AUREON_DEPLOYMENT_HOLD", "AUREON_DISABLE_REAL_ORDERS",
+                     "AUREON_DISABLE_EXCHANGE_MUTATIONS", "AUREON_LIVE_TRADING",
+                     "AUREON_ORDER_INTENT_PUBLISH", "AUREON_UNIFIED_ORDER_EXECUTOR",
+                     "AUREON_LOCAL_ACTIONS_ARMED",
                      "AUREON_SOUL_ACT", "AUREON_BILLING_CHARGE_ENABLED",
                      "AUREON_SOVEREIGN_MODE"):
         assert expected in ids
@@ -95,6 +99,18 @@ def test_apply_to_env_sets_and_leaves(temp_store, monkeypatch):
     assert os.environ.get("AUREON_LLM_OFFLINE") == "0"
 
 
+def test_cloud_handoff_intent_never_mutates_operator_environment(temp_store, monkeypatch):
+    monkeypatch.delenv("AUREON_LIVE_TRADING", raising=False)
+    fs.save_flag("AUREON_LIVE_TRADING", True)
+    assert "AUREON_LIVE_TRADING" not in os.environ
+    view = fs.flag_view(fs.get_flag("AUREON_LIVE_TRADING"))
+    assert view["stored"] is True
+    assert view["enabled"] is False
+    assert view["requested_armed"] is True
+    assert view["armed"] is False
+    assert view["pending_handoff"] is True
+
+
 def test_flag_view_source_precedence(temp_store, monkeypatch):
     flag = fs.get_flag("AUREON_APPROVAL_EMAIL")
     monkeypatch.delenv("AUREON_APPROVAL_EMAIL", raising=False)
@@ -122,21 +138,17 @@ def test_grouped_view_shape(temp_store):
 # ── pending-restart signal (decided_at vs last_awakened_at) ──────────────────────
 
 def test_save_flag_records_decided_at(temp_store, monkeypatch):
-    # save_flag applies AUREON_LIVE_TRADING=1 to os.environ — a HARD-BOUNDARY
-    # arm. Without this monkeypatch the whole remaining suite ran with live
-    # trading believed armed (measured: tests/test_grounded_action.py saw
-    # dry_run=False). monkeypatch restores the prior env at teardown.
-    monkeypatch.delenv("AUREON_LIVE_TRADING", raising=False)
-    entry = fs.save_flag("AUREON_LIVE_TRADING", True)
+    monkeypatch.delenv("AUREON_APPROVAL_EMAIL", raising=False)
+    entry = fs.save_flag("AUREON_APPROVAL_EMAIL", True)
     assert isinstance(entry["decided_at"], float)
-    assert isinstance(fs.load()["AUREON_LIVE_TRADING"]["decided_at"], float)
+    assert isinstance(fs.load()["AUREON_APPROVAL_EMAIL"]["decided_at"], float)
 
 
 def test_pending_restart_truth_table(temp_store, monkeypatch):
-    flag = fs.get_flag("AUREON_LIVE_TRADING")  # a restart-tier hard-boundary flag
-    monkeypatch.delenv("AUREON_LIVE_TRADING", raising=False)  # save_flag applies to env
-    fs.save_flag("AUREON_LIVE_TRADING", True)
-    decided = fs.load()["AUREON_LIVE_TRADING"]["decided_at"]
+    flag = fs.get_flag("AUREON_APPROVAL_EMAIL")
+    monkeypatch.delenv("AUREON_APPROVAL_EMAIL", raising=False)
+    fs.save_flag("AUREON_APPROVAL_EMAIL", True)
+    decided = fs.load()["AUREON_APPROVAL_EMAIL"]["decided_at"]
 
     # organism never awoke → unknown, honest None (never a fabricated "applied")
     monkeypatch.setattr(fs, "_last_awakened_at", lambda: None)
@@ -166,9 +178,9 @@ def test_pending_restart_no_decision_is_false(temp_store, monkeypatch):
 
 def test_pending_restart_legacy_entry_is_none(temp_store, monkeypatch):
     # a stored decision without decided_at (pre-Phase-55) → no_data, never fabricated
-    fs._persist({"AUREON_LIVE_TRADING": {"enabled": True}})
+    fs._persist({"AUREON_APPROVAL_EMAIL": {"enabled": True}})
     monkeypatch.setattr(fs, "_last_awakened_at", lambda: 1.0)
-    assert fs.flag_view(fs.get_flag("AUREON_LIVE_TRADING"))["pending_restart"] is None
+    assert fs.flag_view(fs.get_flag("AUREON_APPROVAL_EMAIL"))["pending_restart"] is None
 
 
 def test_last_awakened_at_guarded(monkeypatch):
@@ -185,21 +197,24 @@ def test_summary_counts_are_honest(temp_store, monkeypatch):
     assert base["total"] == len(fs.FLAGS)
     assert base["hard_boundary_total"] == sum(1 for f in fs.FLAGS if f.kind == "hard_boundary")
     assert base["armed"] == 0
-    # arming a hard-boundary flag bumps enabled + armed by one
+    # A cloud hard-boundary request does not change effective runtime counts.
     fs.save_flag("AUREON_LIVE_TRADING", True)
     s = fs.summary()
-    assert s["armed"] == 1
-    assert s["enabled"] == base["enabled"] + 1
+    assert s["armed"] == 0
+    assert s["enabled"] == base["enabled"]
+    assert s["requested_armed"] == 1
+    assert s["requested_enabled"] == base["requested_enabled"] + 1
+    assert s["pending_handoff"] == 1
     # a safe flag on adds to enabled but not armed
     fs.save_flag("AUREON_LLM_OFFLINE", True)
-    assert fs.summary()["armed"] == 1
+    assert fs.summary()["armed"] == 0
 
 
 def test_summary_pending_restart_count(temp_store, monkeypatch):
     for f in fs.FLAGS:
         monkeypatch.delenv(f.id, raising=False)
-    fs.save_flag("AUREON_LIVE_TRADING", True)
-    decided = fs.load()["AUREON_LIVE_TRADING"]["decided_at"]
+    fs.save_flag("AUREON_APPROVAL_EMAIL", True)
+    decided = fs.load()["AUREON_APPROVAL_EMAIL"]["decided_at"]
     monkeypatch.setattr(fs, "_last_awakened_at", lambda: decided - 100)  # booted before → pending
     assert fs.summary()["pending_restart"] == 1
     monkeypatch.setattr(fs, "_last_awakened_at", lambda: decided + 100)  # booted after → applied
@@ -210,7 +225,8 @@ def test_pulse_includes_switchboard(temp_store):
     c = _client()
     body = c.get("/api/pulse").get_json()
     assert "switchboard" in body
-    assert set(body["switchboard"]) >= {"total", "enabled", "armed", "pending_restart"}
+    assert set(body["switchboard"]) >= {"total", "enabled", "requested_enabled", "armed",
+                                          "requested_armed", "pending_restart", "pending_handoff"}
 
 
 def test_switchboard_in_governance_catalog():
@@ -278,9 +294,33 @@ def test_route_hard_boundary_requires_confirm(temp_store, monkeypatch):
     # arm WITH the typed confirm → accepted
     r = c.post("/api/switchboard/AUREON_LIVE_TRADING",
                json={"enabled": True, "confirm": "AUREON_LIVE_TRADING"})
-    assert r.status_code == 200 and r.get_json()["flag"]["armed"] is True
+    body = r.get_json()
+    assert r.status_code == 200 and body["flag"]["requested_armed"] is True
+    assert body["flag"]["armed"] is False
+    assert body["flag"]["pending_handoff"] is True
     # disabling never needs a confirm
     assert c.post("/api/switchboard/AUREON_LIVE_TRADING", json={"enabled": False}).status_code == 200
+
+
+def test_route_safety_hold_requires_confirm_when_turned_off(temp_store, monkeypatch):
+    monkeypatch.setenv("AUREON_DEPLOYMENT_HOLD", "1")
+    c = _client()
+    r = c.post("/api/switchboard/AUREON_DEPLOYMENT_HOLD", json={"enabled": False})
+    assert r.status_code == 400
+    assert fs.load().get("AUREON_DEPLOYMENT_HOLD") is None
+    r = c.post("/api/switchboard/AUREON_DEPLOYMENT_HOLD", json={
+        "enabled": False, "confirm": "AUREON_DEPLOYMENT_HOLD",
+    })
+    body = r.get_json()
+    assert r.status_code == 200 and body["flag"]["stored"] is False
+    assert body["flag"]["enabled"] is True
+    assert body["flag"]["requested_armed"] is True
+    assert body["flag"]["pending_handoff"] is True
+
+
+def test_route_rejects_non_boolean_enabled(temp_store):
+    c = _client()
+    assert c.post("/api/switchboard/AUREON_LLM_OFFLINE", json={"enabled": "false"}).status_code == 400
 
 
 def test_route_unknown_flag_404(temp_store):

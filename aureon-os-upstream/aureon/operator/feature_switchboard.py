@@ -11,14 +11,15 @@ mode 0600), applied to ``os.environ`` at each daemon's boot via
 Two tiers:
 
 * **safe / reversible** — organism & connectome, cognition routing, notifications.
-* **hard boundary** — live trading, armed local actions, soul-act autonomy, billing
-  charge, sovereign mode. These are flippable *by a human* behind an explicit
-  armed-confirm ceremony (see the route layer), and default OFF.
+* **hard boundary** — live trading, cloud execution holds, armed local actions,
+  soul-act autonomy, billing charge, sovereign mode. Entering each flag's risky
+  value requires an explicit typed-confirm ceremony (see the route layer).
 
 The load-bearing invariant: this module is a **human control plane**. Flipping a
-flag ONLY sets that flag's own env var. ``apply_to_env()`` imports nothing from
+flag either sets that flag's own env var or records a cloud handoff request.
+``apply_to_env()`` imports nothing from
 the trading/conscience/runtime layer and calls no executor. Arming a hard-boundary
-flag records the human's intent in the env — it does **not** remove any downstream
+flag records the human's intent — it does **not** remove any downstream
 gate: the conscience veto, the approval queue (records, never executes), and the
 runtime dry-run gates all stay in force, and no internal score self-arms anything.
 """
@@ -50,10 +51,11 @@ class FeatureFlag:
     label: str
     group: str
     kind: str  # "safe" | "hard_boundary"
-    effect: str  # "live" (operator rebuilds now) | "restart" (consumer re-reads at boot)
+    effect: str  # "live" | "restart" | "handoff" (cloud supervisor must apply)
     effect_note: str
     description: str
     default: bool = False  # the consuming process's own default when the flag is unset
+    risk_value: bool = True  # value which requires the typed-confirm ceremony
 
     @property
     def env_var(self) -> str:
@@ -70,6 +72,7 @@ class FeatureFlag:
             "effect_note": self.effect_note,
             "description": self.description,
             "default": self.default,
+            "risk_value": self.risk_value,
         }
 
 
@@ -123,11 +126,39 @@ FLAGS: List[FeatureFlag] = [
         "safe", "restart", "The approval-email loop reads at boot.",
         "Email the owner each prepared big play and read replies as decisions (records, never executes).",
     ),
-    # ── Hard boundary (armed toggle + warning; gates stay in force; default OFF) ──
+    # ── Hard boundary (risky value needs exact typed confirmation) ──
+    FeatureFlag(
+        "AUREON_DEPLOYMENT_HOLD", "Deployment hold", "Hard Boundary",
+        "hard_boundary", "handoff", "Saved for a governed cloud runtime handoff; running services remain unchanged.",
+        "Keep the production deployment held. Turning this OFF requests release, but does not bypass release evidence or authority checks.",
+        default=True, risk_value=False,
+    ),
+    FeatureFlag(
+        "AUREON_DISABLE_REAL_ORDERS", "Disable real orders", "Hard Boundary",
+        "hard_boundary", "handoff", "Saved for a governed cloud runtime handoff; running services remain unchanged.",
+        "Keep real orders disabled. Turning this OFF requests order permission, subject to every downstream execution gate.",
+        default=True, risk_value=False,
+    ),
+    FeatureFlag(
+        "AUREON_DISABLE_EXCHANGE_MUTATIONS", "Disable exchange mutations", "Hard Boundary",
+        "hard_boundary", "handoff", "Saved for a governed cloud runtime handoff; running services remain unchanged.",
+        "Keep exchange mutations disabled. Turning this OFF requests mutation permission, subject to provider and runtime authority.",
+        default=True, risk_value=False,
+    ),
     FeatureFlag(
         "AUREON_LIVE_TRADING", "Live trading", "Hard Boundary",
-        "hard_boundary", "restart", "Trading swarm re-reads on restart; the runtime gate still applies.",
-        "Arm live order execution. The conscience veto + runtime gates remain in force regardless.",
+        "hard_boundary", "handoff", "Saved for a governed cloud runtime handoff; running services remain unchanged.",
+        "Request live order execution. The conscience veto, release evidence and runtime gates remain in force.",
+    ),
+    FeatureFlag(
+        "AUREON_ORDER_INTENT_PUBLISH", "Publish order intents", "Hard Boundary",
+        "hard_boundary", "handoff", "Saved for a governed cloud runtime handoff; running services remain unchanged.",
+        "Request publication of governed order intents to the execution boundary.",
+    ),
+    FeatureFlag(
+        "AUREON_UNIFIED_ORDER_EXECUTOR", "Unified order executor", "Hard Boundary",
+        "hard_boundary", "handoff", "Saved for a governed cloud runtime handoff; running services remain unchanged.",
+        "Request the unified execution consumer. Credentials, provider health and production authority remain mandatory.",
     ),
     FeatureFlag(
         "AUREON_LOCAL_ACTIONS_ARMED", "Local actions armed", "Hard Boundary",
@@ -184,19 +215,18 @@ def is_hard_boundary(flag_id: str) -> bool:
     return bool(f and f.kind == "hard_boundary")
 
 
-def _env_holds_off(flag: FeatureFlag) -> bool:
-    """True when the runtime environment explicitly disables a hard boundary.
+def _env_holds_safe(flag: FeatureFlag) -> bool:
+    """True when the runtime environment explicitly keeps a boundary safe.
 
-    Hard boundaries are armed only by a human decision. If the process env has
-    the flag present and falsy (e.g. AUREON_LIVE_TRADING=0), the runtime is
-    holding that boundary OFF regardless of any stored intent. Safe flags keep
+    Hard boundaries are armed only by a human decision. The risky value can be
+    true (live trading) or false (disabling a deployment hold). Safe flags keep
     their normal precedence so launcher/.env defaults do not silently override
     a human decision.
     """
     if flag.kind != "hard_boundary":
         return False
     value = os.environ.get(flag.env_var)
-    return value is not None and not _env_truthy(value)
+    return value is not None and _env_truthy(value) != flag.risk_value
 
 
 # ── Encrypted store (mirrors keystore.py) ──────────────────────────────────────
@@ -276,7 +306,7 @@ def _pending_restart(flag: FeatureFlag, source: str, decided_at: float | None) -
     "applied". ``live`` flags are applied in-process immediately, and a flag with
     no stored human decision is nothing the human is waiting on → ``False``.
     """
-    if flag.effect == "live" or source != "store":
+    if flag.effect in {"live", "handoff"} or source != "store":
         return False
     if decided_at is None:  # legacy entry with no recorded decision time
         return None
@@ -297,7 +327,7 @@ def apply_to_env() -> None:
     data = load()
     for flag_id, entry in data.items():
         flag = _BY_ID.get(flag_id)
-        if flag is None:
+        if flag is None or flag.effect == "handoff":
             continue
         os.environ[flag.env_var] = "1" if bool(entry.get("enabled")) else "0"
 
@@ -309,26 +339,29 @@ def _env_truthy(value: str | None) -> bool:
 def flag_view(flag: FeatureFlag) -> Dict[str, Any]:
     """Honest per-flag view: effective value, where it came from, and its tier.
 
-    For hard boundaries, a runtime env hold (e.g. AUREON_LIVE_TRADING=0) takes
-    precedence over the encrypted store so the UI never shows armed while the
-    process is held safe. The stored value is reconciled to match so the
-    encrypted store itself reflects the effective runtime posture.
+    Cloud-handoff flags keep the operator's requested value separate from the
+    running environment. The request is never painted as effective and is never
+    destroyed merely because the supervised runtime remains held safe.
     """
     stored = load().get(flag.id)
     env_present = flag.env_var in os.environ
     env_value = os.environ.get(flag.env_var)
     env_enabled = _env_truthy(env_value) if env_present else None
 
-    # Reconcile the encrypted store to runtime reality for hard boundaries.
-    if flag.kind == "hard_boundary" and stored is not None and _env_holds_off(flag):
-        if bool(stored.get("enabled")) is True:
+    # Non-handoff flags historically apply inside this process. Reconcile an
+    # unsafe stored choice when the launcher explicitly holds the runtime safe.
+    if flag.effect != "handoff" and flag.kind == "hard_boundary" and stored is not None and _env_holds_safe(flag):
+        if bool(stored.get("enabled")) == flag.risk_value:
             data = load()
-            data[flag.id] = {"enabled": False, "decided_at": time.time(),
+            data[flag.id] = {"enabled": not flag.risk_value, "decided_at": time.time(),
                              "reconciled_by_env_hold": True}
             _persist(data)
             stored = data[flag.id]
 
-    if stored is not None and not (flag.kind == "hard_boundary" and _env_holds_off(flag)):
+    if flag.effect == "handoff":
+        enabled = env_enabled if env_present else flag.default
+        source = "env" if env_present else "default"
+    elif stored is not None and not (flag.kind == "hard_boundary" and _env_holds_safe(flag)):
         enabled = bool(stored.get("enabled"))
         source = "store"
     elif env_present:
@@ -341,15 +374,19 @@ def flag_view(flag: FeatureFlag) -> Dict[str, Any]:
     decided_at = stored.get("decided_at") if isinstance(stored, dict) else None
     if not isinstance(decided_at, (int, float)):
         decided_at = None
+    stored_enabled = bool(stored.get("enabled")) if stored is not None else None
+    requested_enabled = stored_enabled if stored_enabled is not None else bool(enabled)
     return {
         **flag.to_public_dict(),
         "enabled": enabled,
-        "stored": (bool(stored.get("enabled")) if stored is not None else None),
+        "stored": stored_enabled,
         "source": source,
-        "armed": bool(flag.kind == "hard_boundary" and enabled),
+        "armed": bool(flag.kind == "hard_boundary" and enabled == flag.risk_value),
+        "requested_armed": bool(flag.kind == "hard_boundary" and requested_enabled == flag.risk_value),
         "decided_at": decided_at,
         "pending_restart": _pending_restart(flag, source, decided_at),
-        "env_hold": _env_holds_off(flag),
+        "pending_handoff": bool(flag.effect == "handoff" and stored_enabled is not None and stored_enabled != enabled),
+        "env_hold": _env_holds_safe(flag),
     }
 
 
@@ -366,16 +403,20 @@ def grouped_view() -> List[Dict[str, Any]]:
 def summary() -> Dict[str, Any]:
     """The switchboard's safety posture at a glance — honest counts only.
 
-    ``armed`` counts hard-boundary flags currently ON; ``pending_restart`` counts
-    decisions not yet picked up by their consuming process (the real signal, not
-    the static label). Cheap and read-only — suitable for the composed vitals.
+    ``armed`` counts hard boundaries currently at their risky value. Requested
+    state and cloud handoff counts remain separate from effective runtime state.
+    ``pending_restart`` counts decisions not yet picked up by their consuming
+    process. Cheap and read-only — suitable for the composed vitals.
     """
     views = [flag_view(f) for f in FLAGS]
     return {
         "total": len(views),
         "enabled": sum(1 for v in views if v["enabled"]),
+        "requested_enabled": sum(1 for v in views if (v["stored"] if v["stored"] is not None else v["enabled"])),
         "armed": sum(1 for v in views if v["armed"]),
+        "requested_armed": sum(1 for v in views if v["requested_armed"]),
         "pending_restart": sum(1 for v in views if v["pending_restart"] is True),
+        "pending_handoff": sum(1 for v in views if v["pending_handoff"]),
         "hard_boundary_total": sum(1 for f in FLAGS if f.kind == "hard_boundary"),
     }
 

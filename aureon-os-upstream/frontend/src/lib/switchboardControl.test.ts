@@ -7,9 +7,13 @@ import { submitSwitchboardChange } from './switchboardControl';
 function fixture(patch: Partial<SwitchboardFlag> = {}) {
   const flag: SwitchboardFlag = { id: 'AUREON_TEST_SETTING', env_var: 'AUREON_TEST_SETTING', label: 'Fixture setting',
     group: 'Fixture', kind: 'safe', effect: 'live', effect_note: 'Applies now', description: 'Fixture only',
-    default: false, enabled: false, stored: null, source: 'default', armed: false, decided_at: null, pending_restart: false, ...patch };
+    default: false, enabled: false, stored: null, source: 'default', risk_value: true, armed: false,
+    requested_armed: false, decided_at: null, pending_restart: false, pending_handoff: false, env_hold: false, ...patch };
   const configuration: SwitchboardConfiguration = { groups: [{ label: 'Fixture', flags: [flag] }],
-    summary: { total: 1, enabled: Number(flag.enabled), armed: Number(flag.armed), pending_restart: Number(flag.pending_restart === true), hard_boundary_total: Number(flag.kind === 'hard_boundary') } };
+    summary: { total: 1, enabled: Number(flag.enabled), requested_enabled: Number(flag.stored ?? flag.enabled),
+      armed: Number(flag.armed), requested_armed: Number(flag.requested_armed),
+      pending_restart: Number(flag.pending_restart === true), pending_handoff: Number(flag.pending_handoff),
+      hard_boundary_total: Number(flag.kind === 'hard_boundary') } };
   return { flag, configuration, options: { guard: new SwitchboardWriteGuard(), flag, enabled: true,
     current: () => ({ data: configuration, isReceiptCurrent: true, resetVersion: 1 }), canManage: () => true } };
 }

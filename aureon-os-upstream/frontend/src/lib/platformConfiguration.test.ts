@@ -9,14 +9,17 @@ import {
 function flag(overrides: Partial<SwitchboardFlag> = {}): SwitchboardFlag {
   return { id: 'read_tool', env_var: 'READ_TOOL', label: 'Read tool', group: 'Tools', kind: 'safe',
     effect: 'live', effect_note: 'Applied in process', description: 'Existing read tool setting',
-    default: false, enabled: false, stored: null, source: 'default', armed: false,
-    decided_at: null, pending_restart: false, ...overrides };
+    default: false, enabled: false, stored: null, source: 'default', risk_value: true, armed: false,
+    requested_armed: false, decided_at: null, pending_restart: false, pending_handoff: false, env_hold: false, ...overrides };
 }
 function configuration(flags = [flag()]): SwitchboardConfiguration {
   const labels = [...new Set(flags.map(f => f.group))];
   return { groups: labels.map(label => ({ label, flags: flags.filter(f => f.group === label) })),
     summary: { total: flags.length, enabled: flags.filter(f => f.enabled).length,
-      armed: flags.filter(f => f.armed).length, pending_restart: flags.filter(f => f.pending_restart === true).length,
+      requested_enabled: flags.filter(f => f.stored ?? f.enabled).length,
+      armed: flags.filter(f => f.armed).length, requested_armed: flags.filter(f => f.requested_armed).length,
+      pending_restart: flags.filter(f => f.pending_restart === true).length,
+      pending_handoff: flags.filter(f => f.pending_handoff).length,
       hard_boundary_total: flags.filter(f => f.kind === 'hard_boundary').length } };
 }
 const deferred = <T>() => {
@@ -39,6 +42,7 @@ test('switchboard preserves explicit false and zero counts; incomplete control r
   assert.equal(readSwitchboardConfiguration(configuration()).summary.enabled, 0);
   for (const bad of [{}, { groups: [], summary: {} }, configuration([flag({ kind: 'unknown' as 'safe' })]),
     configuration([flag({ enabled: undefined as unknown as boolean })]), configuration([flag({ armed: true })]),
+    configuration([flag({ pending_handoff: true })]),
     configuration([flag({ decided_at: Infinity })]), configuration([flag(), flag()]),
     { ...configuration(), summary: { ...configuration().summary, total: 2 } }]) {
     assert.throws(() => readSwitchboardConfiguration(bad));
@@ -73,6 +77,16 @@ test('hard-boundary enable keeps exact typed confirmation; no-op requests are re
   await assert.rejects(f.guard.run(f.expected, false, undefined, f.io), /already matches/);
   assert.deepEqual(f.counts(), { reads: 0, writes: 0 });
   await f.guard.run(f.expected, true, 'armed_action', f.io);
+  assert.equal(f.counts().writes, 1);
+});
+
+test('turning a safety hold off is the confirmed hard-boundary action', async () => {
+  const expected = flag({ id: 'deployment_hold', kind: 'hard_boundary', effect: 'handoff',
+    default: true, enabled: true, risk_value: false });
+  const f = setup(expected);
+  await assert.rejects(f.guard.run(expected, false, undefined, f.io), /Typed flag confirmation/);
+  assert.deepEqual(f.counts(), { reads: 0, writes: 0 });
+  await f.guard.run(expected, false, expected.id, f.io);
   assert.equal(f.counts().writes, 1);
 });
 

@@ -1441,8 +1441,8 @@ def create_app(
 
     @app.post("/api/switchboard/<flag_id>")
     def switchboard_set(flag_id: str):
-        # Operator-only: flipping a flag writes os.environ, can re-apply the instance's own keys via
-        # _rebuild_switchboard, and can arm hard boundaries (e.g. live trading).
+        # Operator-only: a flag either applies in the operator process or records
+        # a cloud handoff request. Hard boundaries never self-apply here.
         denied = _admin_denied()
         if denied is not None:
             return denied
@@ -1452,15 +1452,20 @@ def create_app(
         body: Dict[str, Any] = request.get_json(silent=True) or {}
         if "enabled" not in body:
             return _err(400, "missing 'enabled'")
-        enabled = bool(body.get("enabled"))
-        # Hard-boundary flags need an explicit typed-confirm arming gesture.
-        if flag.kind == "hard_boundary" and enabled and body.get("confirm") != flag_id:
+        if not isinstance(body.get("enabled"), bool):
+            return _err(400, "'enabled' must be a boolean")
+        enabled = body["enabled"]
+        # Each hard boundary declares its risky value. Some risk is entered by
+        # turning a safety hold OFF, so confirmation cannot be ON-only.
+        if flag.kind == "hard_boundary" and enabled == flag.risk_value and body.get("confirm") != flag_id:
             return _err(400, "hard-boundary flag requires confirm == flag id", confirm_required=flag_id)
-        _switchboard.save_flag(flag_id, enabled)  # persists + applies to os.environ
+        _switchboard.save_flag(flag_id, enabled)  # persists; applies only non-handoff flags
         # Cognition-routing flags are consumed by the operator's own engine → hot-rebuild.
         if flag_id in _switchboard.LIVE_FLAG_IDS:
             _rebuild_switchboard()
-        applied = "applied to the operator now" if flag.effect == "live" else flag.effect_note
+        applied = ("applied to the operator now" if flag.effect == "live"
+                   else "saved for governed cloud runtime handoff; running services unchanged"
+                   if flag.effect == "handoff" else flag.effect_note)
         return jsonify({"ok": True, "flag": _switchboard.flag_view(flag), "applied": applied})
 
     # ── Unified Connections (all external sources: trading → NASA) ──────────────

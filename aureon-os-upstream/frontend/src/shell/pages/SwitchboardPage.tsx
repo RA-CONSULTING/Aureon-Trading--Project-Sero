@@ -1,5 +1,5 @@
 /** Glass control desk backed by the operator's registered feature configuration. */
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import React, { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Activity, Brain, CheckCircle2, Loader2, Lock, RefreshCw, Settings, Shield, ShieldAlert, UserRound, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
@@ -38,16 +38,17 @@ function StatusBadge({ children, active = false }: { children: ReactNode; active
 function ConfigurationToggle({ flag, disabled, saving, onToggle }: {
   flag: SwitchboardFlag; disabled: boolean; saving: boolean; onToggle(flag: SwitchboardFlag, next: boolean): void;
 }) {
+  const requested = flag.stored ?? flag.enabled;
   return <div className="flex shrink-0 flex-col items-center gap-1">
-    <button type="button" role="switch" aria-checked={flag.enabled} aria-label={`${flag.label} configuration`}
-      disabled={disabled} onClick={() => onToggle(flag, !flag.enabled)}
+    <button type="button" role="switch" aria-checked={requested} aria-label={`${flag.label} requested configuration`}
+      disabled={disabled} onClick={() => onToggle(flag, !requested)}
       className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
-      style={{ border: `1px solid ${flag.enabled ? CYAN : GOLD}`, background: flag.enabled ? `${CYAN}18` : 'rgba(0,0,0,0.55)' }}>
-      <span className={`absolute h-4 w-4 rounded-full transition-transform ${flag.enabled ? 'translate-x-6' : 'translate-x-1'}`}
-        style={{ background: flag.enabled ? CYAN : GOLD }} />
+      style={{ border: `1px solid ${requested ? CYAN : GOLD}`, background: requested ? `${CYAN}18` : 'rgba(0,0,0,0.55)' }}>
+      <span className={`absolute h-4 w-4 rounded-full transition-transform ${requested ? 'translate-x-6' : 'translate-x-1'}`}
+        style={{ background: requested ? CYAN : GOLD }} />
     </button>
-    <span className="flex items-center gap-1 font-mono text-[10px]" style={{ color: flag.enabled ? CYAN : GOLD }}>
-      {saving && <Loader2 className="h-3 w-3 animate-spin" />}{flag.enabled ? 'ON' : 'OFF'}
+    <span className="flex items-center gap-1 font-mono text-[10px]" style={{ color: requested ? CYAN : GOLD }}>
+      {saving && <Loader2 className="h-3 w-3 animate-spin" />}REQ {requested ? 'ON' : 'OFF'}
     </span>
   </div>;
 }
@@ -60,7 +61,7 @@ export function SwitchboardConfigurationCards({ configuration, canManage, saving
   return <div className="grid items-start gap-4 md:grid-cols-2">
     {configuration.groups.map(group => {
       const Icon = GROUP_ICONS[group.label] ?? Settings;
-      const enabled = group.flags.filter(flag => flag.enabled).length;
+      const enabled = group.flags.filter(flag => flag.stored ?? flag.enabled).length;
       return <GlassPanel key={group.label} className="overflow-hidden">
         <div className="flex items-start justify-between gap-3 border-b px-4 py-3" style={{ borderColor: BORDER_GOLD }}>
           <div className="flex items-center gap-2"><Icon className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
@@ -71,14 +72,17 @@ export function SwitchboardConfigurationCards({ configuration, canManage, saving
           {group.flags.map(flag => <li key={flag.id} className="flex items-start gap-3 py-4">
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="flex flex-wrap items-center gap-1.5"><span className="text-[13px] font-medium text-zinc-100">{flag.label}</span>
-                <StatusBadge>{flag.effect === 'live' ? 'Operator applies now' : 'Restart required for changes'}</StatusBadge>
-                {flag.armed && <StatusBadge>Armed configuration</StatusBadge>}
+                <StatusBadge>{flag.effect === 'live' ? 'Operator applies now' : flag.effect === 'handoff' ? 'Cloud handoff' : 'Restart required for changes'}</StatusBadge>
+                {flag.requested_armed && <StatusBadge>Risk value requested</StatusBadge>}
+                {flag.armed && <StatusBadge>Effective risk value</StatusBadge>}
                 {flag.env_hold === true && <StatusBadge>Runtime hold active</StatusBadge>}
+                {flag.pending_handoff && <StatusBadge>Pending cloud handoff</StatusBadge>}
                 {flag.pending_restart === true && <StatusBadge>Pending restart</StatusBadge>}
                 {flag.effect === 'restart' && flag.pending_restart === null && <StatusBadge>Restart status unknown</StatusBadge>}
               </div>
               <p className="text-[11px] leading-relaxed text-zinc-400">{flag.description}</p>
               <p className="text-[10px] leading-relaxed text-zinc-500">{flag.effect_note} · Source: {flag.source}</p>
+              <p className="text-[11px] text-zinc-400">Effective runtime value: <span className="font-mono">{flag.enabled ? 'ON' : 'OFF'}</span></p>
               {flag.stored !== null && flag.stored !== flag.enabled && <p className="text-[11px]" style={{ color: GOLD }}>
                 Saved intent {flag.stored ? 'ON' : 'OFF'} differs from effective operator configuration {flag.enabled ? 'ON' : 'OFF'}.
               </p>}
@@ -187,7 +191,7 @@ export default function SwitchboardPage() {
 
   function onToggle(flag: SwitchboardFlag, next: boolean) {
     if (!canManage || saving !== null) return;
-    if (flag.kind === 'hard_boundary' && next) { setArm(flag); setArmText(''); return; }
+    if (flag.kind === 'hard_boundary' && next === flag.risk_value) { setArm(flag); setArmText(''); return; }
     void save(flag, next);
   }
 
@@ -218,13 +222,16 @@ export default function SwitchboardPage() {
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ['Configured ON', `${configuration.summary.enabled}/${configuration.summary.total}`],
-          ['Armed settings', `${configuration.summary.armed}/${configuration.summary.hard_boundary_total}`],
-          ['Pending restart', String(configuration.summary.pending_restart)],
-          ['Restart status unknown', String(restartUnknown)],
+          ['Requested ON', `${configuration.summary.requested_enabled}/${configuration.summary.total}`],
+          ['Risk values requested', `${configuration.summary.requested_armed}/${configuration.summary.hard_boundary_total}`],
+          ['Effective risk values', `${configuration.summary.armed}/${configuration.summary.hard_boundary_total}`],
+          ['Pending cloud handoff', String(configuration.summary.pending_handoff)],
         ].map(([label, value]) => <GlassPanel key={label} className="px-4 py-3"><p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
           <p className="mt-1 font-mono text-2xl" style={{ color: CYAN }}>{value}</p></GlassPanel>)}
       </div>
+      {(configuration.summary.pending_restart > 0 || (restartUnknown ?? 0) > 0) && <p className="text-[10px] text-zinc-500">
+        Restart decisions pending: {configuration.summary.pending_restart} · Restart status unknown: {restartUnknown}
+      </p>}
       <div className="flex flex-wrap justify-between gap-2 text-[10px] text-zinc-500">
         <span>Configuration received: {receipt.lastReceivedAt === null ? 'Unavailable' : new Date(receipt.lastReceivedAt).toISOString()}</span>
         <span>Refreshes every 15 seconds</span>
@@ -248,7 +255,7 @@ export default function SwitchboardPage() {
     </div>
     <AlertDialog open={arm !== null} onOpenChange={open => { if (!open) { setArm(null); setArmText(''); } }}>
       <AlertDialogContent style={{ background: BG, borderColor: BORDER_GOLD }} className="text-zinc-100">
-        <AlertDialogHeader><AlertDialogTitle>Arm {arm?.label}?</AlertDialogTitle>
+        <AlertDialogHeader><AlertDialogTitle>Request {arm?.label}: {arm?.risk_value ? 'ON' : 'OFF'}?</AlertDialogTitle>
           <AlertDialogDescription className="text-zinc-400">{arm?.description} {arm?.effect_note}
             {' '}This saves your configuration decision. It does not prove execution readiness.</AlertDialogDescription></AlertDialogHeader>
         <div className="space-y-2"><Label htmlFor="switchboard-arm">Type <code className="break-all" style={{ color: GOLD }}>{arm?.id}</code> to confirm</Label>
@@ -259,8 +266,8 @@ export default function SwitchboardPage() {
             style={{ background: GOLD, color: '#0a0a0a' }} onClick={() => {
               if (!arm || armText !== arm.id) return;
               const flag = arm, confirm = armText;
-              setArm(null); setArmText(''); void save(flag, true, confirm);
-            }}>Save armed configuration</AlertDialogAction></AlertDialogFooter>
+              setArm(null); setArmText(''); void save(flag, flag.risk_value, confirm);
+            }}>Save requested configuration</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
     <div className="border-t pt-3 text-[10px] uppercase tracking-wider text-zinc-500" style={{ borderColor: BORDER }}>Aureon · operator switchboard</div>

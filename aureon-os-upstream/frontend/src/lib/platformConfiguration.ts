@@ -5,13 +5,15 @@ export const configurationCount = (value: unknown): number | null => typeof valu
 
 export interface SwitchboardFlag {
   id: string; env_var: string; label: string; group: string;
-  kind: 'safe' | 'hard_boundary'; effect: 'live' | 'restart'; effect_note: string; description: string;
+  kind: 'safe' | 'hard_boundary'; effect: 'live' | 'restart' | 'handoff'; effect_note: string; description: string;
   default: boolean; enabled: boolean; stored: boolean | null; source: 'store' | 'env' | 'default';
-  armed: boolean; decided_at: number | null; pending_restart: boolean | null; env_hold?: boolean;
+  risk_value: boolean; armed: boolean; requested_armed: boolean; decided_at: number | null;
+  pending_restart: boolean | null; pending_handoff: boolean; env_hold: boolean;
 }
 export interface SwitchboardConfiguration {
   groups: { label: string; flags: SwitchboardFlag[] }[];
-  summary: { total: number; enabled: number; armed: number; pending_restart: number; hard_boundary_total: number };
+  summary: { total: number; enabled: number; requested_enabled: number; armed: number; requested_armed: number;
+    pending_restart: number; pending_handoff: number; hard_boundary_total: number };
 }
 export function readSwitchboardConfiguration(value: unknown): SwitchboardConfiguration {
   const raw = record(value);
@@ -23,13 +25,15 @@ export function readSwitchboardConfiguration(value: unknown): SwitchboardConfigu
     const flags = group.flags.map(value => {
       const f = record(value);
       if (!f || !text(f.id) || !/^[a-zA-Z0-9_.-]{1,120}$/.test(f.id as string) || ids.has(f.id as string)
-        || !['safe', 'hard_boundary'].includes(String(f.kind)) || !['live', 'restart'].includes(String(f.effect))
+        || !['safe', 'hard_boundary'].includes(String(f.kind)) || !['live', 'restart', 'handoff'].includes(String(f.effect))
         || !['store', 'env', 'default'].includes(String(f.source)) || f.group !== group.label
         || ['env_var', 'label', 'effect_note', 'description'].some(key => !text(f[key]))
-        || ['enabled', 'default', 'armed'].some(key => typeof f[key] !== 'boolean')
+        || ['enabled', 'default', 'risk_value', 'armed', 'requested_armed', 'pending_handoff', 'env_hold'].some(key => typeof f[key] !== 'boolean')
         || (f.stored !== null && typeof f.stored !== 'boolean') || (f.pending_restart !== null && typeof f.pending_restart !== 'boolean')
         || (f.decided_at !== null && (typeof f.decided_at !== 'number' || !Number.isFinite(f.decided_at) || f.decided_at <= 0 || f.decided_at > 8_640_000_000_000))
-        || f.armed !== (f.kind === 'hard_boundary' && f.enabled)) throw new Error('Switchboard flag is malformed');
+        || f.armed !== (f.kind === 'hard_boundary' && f.enabled === f.risk_value)
+        || f.requested_armed !== (f.kind === 'hard_boundary' && (f.stored ?? f.enabled) === f.risk_value)
+        || f.pending_handoff !== (f.effect === 'handoff' && f.stored !== null && f.stored !== f.enabled)) throw new Error('Switchboard flag is malformed');
       ids.add(f.id as string);
       if (ids.size > 512) throw new Error('Switchboard flag limit exceeded');
       return { ...f } as unknown as SwitchboardFlag;
@@ -37,14 +41,19 @@ export function readSwitchboardConfiguration(value: unknown): SwitchboardConfigu
     return { label: group.label as string, flags };
   });
   const flags = groups.flatMap(group => group.flags);
-  const summary = { total: flags.length, enabled: flags.filter(f => f.enabled).length, armed: flags.filter(f => f.armed).length,
-    pending_restart: flags.filter(f => f.pending_restart === true).length, hard_boundary_total: flags.filter(f => f.kind === 'hard_boundary').length };
+  const summary = { total: flags.length, enabled: flags.filter(f => f.enabled).length,
+    requested_enabled: flags.filter(f => f.stored ?? f.enabled).length,
+    armed: flags.filter(f => f.armed).length, requested_armed: flags.filter(f => f.requested_armed).length,
+    pending_restart: flags.filter(f => f.pending_restart === true).length,
+    pending_handoff: flags.filter(f => f.pending_handoff).length,
+    hard_boundary_total: flags.filter(f => f.kind === 'hard_boundary').length };
   if (Object.entries(summary).some(([key, count]) => record(raw.summary)![key] !== count)) throw new Error('Switchboard summary does not match its flag records');
   return { groups, summary };
 }
 
 export function sameSwitchboardFlag(expected: SwitchboardFlag, actual: SwitchboardFlag | undefined): boolean {
-  return Boolean(actual && ['id', 'kind', 'enabled', 'env_var', 'effect', 'armed'].every(key => expected[key as keyof SwitchboardFlag] === actual[key as keyof SwitchboardFlag]));
+  return Boolean(actual && ['id', 'kind', 'enabled', 'stored', 'env_var', 'effect', 'risk_value', 'armed', 'requested_armed', 'pending_handoff']
+    .every(key => expected[key as keyof SwitchboardFlag] === actual[key as keyof SwitchboardFlag]));
 }
 type FlagSnapshot = { data: SwitchboardConfiguration | null; isReceiptCurrent: boolean; resetVersion: number };
 const findFlag = (data: SwitchboardConfiguration | null, id: string) => data?.groups.flatMap(group => group.flags).find(flag => flag.id === id);
@@ -68,8 +77,8 @@ export class SwitchboardWriteGuard {
     if (this.operation) throw new Error('A configuration request is already in progress');
     const initial = io.current();
     if (!initial.isReceiptCurrent || initial.resetVersion === this.blockedResetVersion || !sameSwitchboardFlag(expected, findFlag(initial.data, expected.id))) throw new Error('Read current flag configuration before changing it');
-    if (enabled === expected.enabled) throw new Error('Flag state already matches the requested value');
-    if (expected.kind === 'hard_boundary' && enabled && confirm !== expected.id) throw new Error('Typed flag confirmation is required');
+    if (enabled === (expected.stored ?? expected.enabled)) throw new Error('Flag state already matches the requested value');
+    if (expected.kind === 'hard_boundary' && enabled === expected.risk_value && confirm !== expected.id) throw new Error('Typed flag confirmation is required');
     const generation = this.generation;
     const controller = new AbortController();
     this.operation = controller;
