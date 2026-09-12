@@ -180,6 +180,50 @@ def test_public_user_entry_never_requires_or_forwards_iap_identity(verifier):
     assert captured[-1][2]["X-Aureon-Auth-Resolution"] == "tenant-bearer"
 
 
+@pytest.mark.parametrize("path", [
+    "/api/me",
+    "/api/terminal-state",
+    "/api/flight-test",
+    "/api/orca-observations",
+])
+def test_public_user_api_requires_bearer_before_any_bridge_access(path, verifier):
+    def forbidden(*args, **kwargs):
+        pytest.fail("anonymous public API request reached the bridge")
+
+    cfg = replace(BASE, access_mode="user")
+    c, base = client(verifier, transport=forbidden, config=cfg)
+    response = c.get(
+        path,
+        base_url=base,
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Origin": BASE.origin,
+            "Sec-Fetch-Site": "same-origin",
+        },
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("path", sorted(entry.INSTANCE_ONLY_API_PATHS))
+def test_public_user_entry_never_routes_instance_only_api_with_tenant_bearer(path, verifier):
+    def forbidden(*args, **kwargs):
+        pytest.fail("tenant request reached an instance-only loopback surface")
+
+    cfg = replace(BASE, access_mode="user")
+    c, base = client(verifier, transport=forbidden, config=cfg)
+    response = c.get(
+        path,
+        base_url=base,
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Origin": BASE.origin,
+            "Sec-Fetch-Site": "same-origin",
+            "Authorization": "Bearer header.payload.signature",
+        },
+    )
+    assert response.status_code == 403
+
+
 def test_public_user_entry_still_requires_exact_origin_for_mutation(verifier):
     cfg = replace(BASE, access_mode="user")
     c, base = client(verifier, config=cfg)
@@ -195,6 +239,7 @@ def test_public_user_entry_still_requires_exact_origin_for_mutation(verifier):
             "X-Forwarded-Proto": "https",
             "Origin": BASE.origin,
             "Sec-Fetch-Site": "same-origin",
+            "Authorization": "Bearer header.payload.signature",
         },
     ).status_code == 200
 
@@ -237,7 +282,7 @@ def test_bridge_requires_both_identities_before_any_loopback_access(keys, verifi
         assert c.get("/api/state", base_url=base, headers=h).status_code == 403
 
 
-def test_hybrid_bridge_accepts_service_authenticated_user_entry_without_admin_fallback(keys, verifier):
+def test_hybrid_bridge_rejects_anonymous_user_api_without_admin_fallback(keys, verifier):
     calls = []
 
     def transport(method, target, forwarded, body, **kwargs):
@@ -262,10 +307,8 @@ def test_hybrid_bridge_accepts_service_authenticated_user_entry_without_admin_fa
         "X-Aureon-Service-Authorization": "Bearer " + signed(keys, service=True),
     }
     response = c.get("/api/me", base_url=base, headers=h)
-    assert response.status_code == 401
-    assert calls[1][1]["X-Aureon-Auth-Resolution"] == "anonymous"
-    assert "Authorization" not in calls[1][1]
-    assert "X-Aureon-Iap-Assertion" not in calls[1][1]
+    assert response.status_code == 403
+    assert calls == []
 
     owner_headers = headers(keys, bridge=True)
     owner_headers.update({
@@ -277,7 +320,7 @@ def test_hybrid_bridge_accepts_service_authenticated_user_entry_without_admin_fa
 
     h.pop("X-Aureon-Entry-Mode")
     assert c.get("/api/me", base_url=base, headers=h).status_code == 403
-    assert len(calls) == 4
+    assert len(calls) == 2
 
 
 def test_bridge_checks_health_then_creates_loopback_origin_preserving_bad_auth(keys, verifier):

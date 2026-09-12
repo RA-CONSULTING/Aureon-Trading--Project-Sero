@@ -35,6 +35,11 @@ HEALTH = "/__aureon_health"
 MAX_BODY = 256 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
 SAFE_METHODS = {"GET", "HEAD"}
+INSTANCE_ONLY_API_PATHS = frozenset({
+    "/api/terminal-state",
+    "/api/flight-test",
+    "/api/orca-observations",
+})
 
 
 class BoundaryError(RuntimeError):
@@ -400,6 +405,17 @@ def create_app(config=None, *, verifier=None, transport=None, identity=None):
                     raise BoundaryError("entry_mode_denied")
             else:
                 entry_mode = config.access_mode
+            if entry_mode == "user" and (request.path == "/api" or request.path.startswith("/api/")):
+                # The customer origin must never rely on a downstream registrar
+                # to distinguish anonymous traffic from the instance's legacy
+                # telemetry processes. Require a tenant-shaped bearer for every
+                # API request at the outer boundary and keep the three non-
+                # operator loopback surfaces owner-only for every tenant.
+                authorization = request.headers.get("Authorization", "")
+                if not re.fullmatch(r"Bearer [A-Za-z0-9._-]{20,8192}", authorization):
+                    raise BoundaryError("tenant_bearer_required")
+                if request.path in INSTANCE_ONLY_API_PATHS:
+                    raise BoundaryError("instance_surface_denied")
             if entry_mode == "iap":
                 verifier.user(assertion, config)
             elif assertion:
