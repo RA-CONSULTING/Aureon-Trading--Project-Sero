@@ -208,8 +208,8 @@ def test_order_is_rejected_while_release_is_held():
         },
     })
     response, values = run_stage("review", value)
-    assert response.status_code == 400
-    assert response.get_json()["reason_code"] == "live_execution_release_held"
+    assert response.status_code == 204
+    assert response.data == b""
     assert values == []
 
 

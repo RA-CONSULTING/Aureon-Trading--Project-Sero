@@ -510,7 +510,10 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
             }), 204
         except ContractError as exc:
             app.logger.warning("authority_request_rejected reason_code=%s", str(exc))
-            return jsonify({"ok": False, "reason_code": str(exc), "retryable": False}), 400
+            # Pub/Sub push retries every non-2xx response. Contract failures are
+            # terminal and already retained in Cloud Logging, so acknowledge
+            # them once instead of creating a replay storm or provider load.
+            return "", 204
         except CloudBoundaryError as exc:
             app.logger.warning("authority_request_deferred reason_code=%s", str(exc))
             return jsonify({"ok": False, "reason_code": str(exc), "retryable": True}), 503
