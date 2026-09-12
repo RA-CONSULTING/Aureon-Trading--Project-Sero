@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import importlib
 import json
+import os
+import stat
 import time
 from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -93,6 +95,8 @@ def test_signed_intent_is_exact_one_use_and_never_action_authority(tmp_path):
         replay_ledger=str(tmp_path / "replay.sqlite3"),
         revision=revision,
     )
+    if os.name == "posix":
+        assert stat.S_IMODE((tmp_path / "replay.sqlite3").stat().st_mode) == 0o600
     token = _token(
         key,
         now=now,

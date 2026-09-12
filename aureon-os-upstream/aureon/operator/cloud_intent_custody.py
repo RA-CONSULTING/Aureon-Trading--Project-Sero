@@ -11,8 +11,10 @@ import base64
 import binascii
 import hashlib
 import json
+import os
 import re
 import sqlite3
+import stat
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -177,6 +179,12 @@ class CloudSwitchboardIntentCustody:
             "jti", "token_sha256", "path", "consumed_at", "expires_at"
         ]:
             raise CloudIntentCustodyError("intent_replay_ledger_schema_invalid")
+        try:
+            self._ledger.chmod(0o600)
+            if os.name == "posix" and stat.S_IMODE(self._ledger.stat().st_mode) != 0o600:
+                raise OSError("ledger_mode")
+        except OSError as exc:
+            raise CloudIntentCustodyError("intent_replay_ledger_permissions_invalid") from exc
 
     def _consume(self, *, jti: str, token: str, path: str, now: int, expires: int) -> None:
         try:
