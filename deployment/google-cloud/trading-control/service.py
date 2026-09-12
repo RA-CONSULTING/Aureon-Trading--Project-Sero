@@ -358,17 +358,22 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
                              live_release=config.live_execution_release)
     if dispatch["intent_id"] != intent["intent_id"] or dispatch["prior_sha256"] != digest(review):
         raise ContractError("dispatch_review_join_invalid")
+    execution_error: type[Exception] | tuple[()] = ()
+    if executor_factory is None:
+        from live_executor import ExecutionError, LiveExecutor
+        executor_factory = LiveExecutor
+        execution_error = ExecutionError
     if intent["kind"] == ORDER_KIND:
         if not config.durable_budget_ledger:
             raise ContractError("durable_budget_ledger_unconfigured")
         if not config.order_adapter_ready:
             raise ContractError("live_order_adapter_unavailable")
-        if executor_factory is None:
-            from live_executor import LiveExecutor
-            executor_factory = LiveExecutor
-        outcome = executor_factory(config.max_daily_budget_usd).execute(
-            intent, dispatch_sha256=digest(dispatch),
-        )
+        try:
+            outcome = executor_factory(config.max_daily_budget_usd).execute(
+                intent, dispatch_sha256=digest(dispatch),
+            )
+        except execution_error as exc:
+            raise CloudBoundaryError(str(exc)) from exc
         if not isinstance(outcome, Mapping) or outcome.get("schema") != "aureon.cloud-trade-live-result.v1":
             raise CloudBoundaryError("live_executor_result_invalid")
         outcome = dict(outcome)
@@ -377,10 +382,10 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
             raise ContractError("executor_probe_contract_invalid")
         provider_readback = None
         if config.provider_probe_enabled:
-            if executor_factory is None:
-                from live_executor import LiveExecutor
-                executor_factory = LiveExecutor
-            provider_readback = executor_factory(config.max_daily_budget_usd).provider_probe()
+            try:
+                provider_readback = executor_factory(config.max_daily_budget_usd).provider_probe()
+            except execution_error as exc:
+                raise CloudBoundaryError(str(exc)) from exc
         outcome = {
             "schema": "aureon.cloud-trade-probe-result.v1",
             "status": "probe_passed", "dry_run": True,
@@ -504,8 +509,10 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
                 "stage_id": result["stage_id"], "published": published is not None,
             }), 204
         except ContractError as exc:
+            app.logger.warning("authority_request_rejected reason_code=%s", str(exc))
             return jsonify({"ok": False, "reason_code": str(exc), "retryable": False}), 400
         except CloudBoundaryError as exc:
+            app.logger.warning("authority_request_deferred reason_code=%s", str(exc))
             return jsonify({"ok": False, "reason_code": str(exc), "retryable": True}), 503
         except Exception:
             return jsonify({"ok": False, "reason_code": "authority_service_failed", "retryable": True}), 503
