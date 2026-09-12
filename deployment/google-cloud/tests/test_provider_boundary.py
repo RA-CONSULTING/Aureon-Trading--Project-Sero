@@ -121,6 +121,14 @@ def test_all_four_read_only_provider_probes_emit_only_hashes():
         assert forbidden not in encoded
 
 
+def test_kraken_nonce_preserves_nanosecond_high_water_and_monotonicity():
+    boundary = provider.ProviderBoundary(requester=Providers(), clock=lambda: 1_789_000_000)
+    first = int(boundary._next_kraken_nonce())
+    second = int(boundary._next_kraken_nonce())
+    assert first == 1_789_000_000_000_000_000
+    assert second == first + 1
+
+
 @pytest.mark.parametrize("venue,symbol", [
     ("alpaca", "BTC/USD"), ("binance", "BTC/USDT"),
     ("kraken", "BTC/USD"), ("capital", "SILVER"),

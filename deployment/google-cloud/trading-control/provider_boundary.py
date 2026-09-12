@@ -12,8 +12,9 @@ import hmac
 import json
 import math
 import re
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 from urllib.parse import quote, urlencode
 
@@ -138,6 +139,17 @@ class ProviderBoundary:
     requester: Requester = requests.request
     clock: Callable[[], float] = time.time
     timeout_seconds: float = 8.0
+    _last_kraken_nonce: int = field(default=0, init=False, repr=False)
+    _kraken_nonce_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+
+    def _next_kraken_nonce(self) -> str:
+        # This production key has previously used nanosecond nonces. Kraken
+        # persists a key-wide high-water mark, so reverting to milliseconds or
+        # microseconds would strand every authenticated request below it.
+        with self._kraken_nonce_lock:
+            candidate = int(self.clock() * 1_000_000_000)
+            self._last_kraken_nonce = max(candidate, self._last_kraken_nonce + 1)
+            return str(self._last_kraken_nonce)
 
     def _json(self, method: str, url: str, *, statuses: tuple[int, ...] = (200,), **kwargs: Any) -> tuple[int, Any, Mapping[str, str]]:
         response = self.requester(method, url, timeout=self.timeout_seconds, **kwargs)
@@ -167,7 +179,7 @@ class ProviderBoundary:
         return self._json(method, url, statuses=statuses, headers={"X-MBX-APIKEY": credentials["BINANCE_API_KEY"]})
 
     def _kraken(self, path: str, credentials: Mapping[str, str], params: Mapping[str, Any]) -> Any:
-        values = {"nonce": str(int(self.clock() * 1_000_000)), **params}
+        values = {"nonce": self._next_kraken_nonce(), **params}
         encoded = urlencode(values)
         message = path.encode("ascii") + hashlib.sha256((values["nonce"] + encoded).encode("ascii")).digest()
         try:
