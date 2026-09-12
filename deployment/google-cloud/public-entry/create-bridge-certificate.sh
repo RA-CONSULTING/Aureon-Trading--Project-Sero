@@ -4,7 +4,10 @@ set -eu
 [ "$(id -u)" = 0 ] || { echo 'root_required' >&2; exit 1; }
 getent group aureon-public >/dev/null || groupadd --system aureon-public
 id aureon-public >/dev/null 2>&1 || useradd --system --gid aureon-public --home-dir /nonexistent --shell /usr/sbin/nologin aureon-public
-install -d -o root -g aureon-public -m 0750 /etc/aureon-public
+# The operator runs under a different unprivileged identity and needs to read
+# only the public certificate.  Execute-only access permits that exact known
+# path while the 0640 private key remains unavailable outside the bridge group.
+install -d -o root -g aureon-public -m 0751 /etc/aureon-public
 # Deliberately refuse to overwrite an existing TLS identity.
 [ ! -e /etc/aureon-public/bridge-key.pem ] && [ ! -e /etc/aureon-public/bridge-cert.pem ] || { echo 'tls_identity_already_exists' >&2; exit 1; }
 umask 0077
