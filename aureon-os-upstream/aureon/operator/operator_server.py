@@ -104,6 +104,9 @@ from aureon.operator.cloud_intent_custody import (  # noqa: E402
     CloudIntentCustodyError,
     CloudSwitchboardIntentCustody,
 )
+from aureon.operator.cloud_trading_control import (  # noqa: E402
+    build_cloud_trading_control_receipt,
+)
 from aureon.operator.executor_isolation import build_executor_isolation_receipt  # noqa: E402
 from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
 from aureon.operator.providers import build_provider_set, describe_provider_set  # noqa: E402
@@ -993,6 +996,12 @@ def create_app(
     @app.get("/api/operator/authorization-lease")
     def operator_authorization_lease():
         response = jsonify(_json_safe(build_operator_authorization_receipt()))
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/api/operator/cloud-trading-control")
+    def operator_cloud_trading_control():
+        response = jsonify(_json_safe(build_cloud_trading_control_receipt()))
         response.headers["Cache-Control"] = "no-store"
         return response
 

@@ -36,6 +36,7 @@ READ_ORGANS = frozenset({
 # Retain an already-active legacy service only; do not newly activate expansion.
 RETAIN_ONLY = frozenset({"sero_autonomous_expansion"})
 HTTP_UNITS = {"aureon-cloud-operator.service": "operator", "aureon-cloud-ui.service": "ui-gateway"}
+COLLECTOR_UNITS = {"aureon-cloud-trade-receipt.service": "cloud_trade_receipt_collector.py"}
 BLOCKED_PARTS = frozenset({".git", ".aureon", "logs", "uploads", "node_modules", "__pycache__", "backups", "private", "secrets"})
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_RELEASE_BYTES = 512 * 1024 * 1024
@@ -159,7 +160,7 @@ def organ_name(unit: str) -> str | None:
 def validate_service_names(services: list[str]) -> None:
     if not services or len(services) > 32 or len(set(services)) != len(services):
         raise ReleaseError("explicit_unique_owned_services_required")
-    if any(unit not in HTTP_UNITS and organ_name(unit) is None for unit in services):
+    if any(unit not in HTTP_UNITS and unit not in COLLECTOR_UNITS and organ_name(unit) is None for unit in services):
         raise ReleaseError("service_not_allowlisted")
 
 
@@ -183,6 +184,8 @@ def render_unit(unit: str, workspace: Path, revision: str, project: str, secret:
                     or not re.fullmatch(r"[1-9][0-9]*", tenant_version)):
                 raise ReleaseError("pinned_cloud_tenant_secret_identifiers_required")
             command += f" --tenant-secret {tenant_secret} --tenant-secret-version {tenant_version}"
+    elif unit in COLLECTOR_UNITS:
+        command = f"/srv/aureon/venv/bin/python {runner}/{COLLECTOR_UNITS[unit]}"
     else:
         command = f"/srv/aureon/venv/bin/python {runner}/cloud_read_organ.py {organ_name(unit)}"
     environment = {**HOLDS, "SERO_WORKSPACE": str(workspace),
@@ -191,6 +194,7 @@ def render_unit(unit: str, workspace: Path, revision: str, project: str, secret:
     if HTTP_UNITS.get(unit) == "operator":
         environment.update({"AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS": "1", "AUREON_AUDIT_MODE": "1",
                             "AUREON_LLM_ALLOW_HTTP_IN_AUDIT": "1", "AUREON_LLM_REQUEST_TIMEOUT_S": "25"})
+        environment["AUREON_CLOUD_TRADE_READBACK_PATH"] = "/srv/aureon/cache/trading-control/latest-terminal-receipt.json"
         # Preserve the already-restored private provider config by reference only.
         # It is never read, copied into the bundle or written by this installer.
         if (Path(str(workspace)) / "aureon_radar" / ".env").is_file():
@@ -233,9 +237,13 @@ class Systemd:
             allowed_fragments.add(str(self.unit_root / "aureon-organ@.service"))
         command = fields.get("ExecStart", "")
         shim = "cloud_operator.py" if HTTP_UNITS.get(unit) == "operator" else "cloud_ui_gateway.py"
-        runner_names = [shim] if unit in HTTP_UNITS else ["cloud_read_organ.py", "cloud_organ.py"]
+        if unit in HTTP_UNITS:
+            runner_names, role_argument = [shim], "--source-root "
+        elif unit in COLLECTOR_UNITS:
+            runner_names, role_argument = [COLLECTOR_UNITS[unit]], COLLECTOR_UNITS[unit]
+        else:
+            runner_names, role_argument = ["cloud_read_organ.py", "cloud_organ.py"], f" {organ_name(unit)}"
         runners = [str(self.workspace / "deployment/google-cloud" / name) for name in runner_names]
-        role_argument = "--source-root " if unit in HTTP_UNITS else f" {organ_name(unit)}"
         if fields.get("LoadState") != "loaded" or fields.get("User") != "aureon" or fragment not in allowed_fragments or not any(runner in command for runner in runners) or role_argument not in command:
             raise ReleaseError("existing_service_ownership_unverified")
         active = fields.get("ActiveState")

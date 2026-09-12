@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useReadOnlyPoller } from '@/hooks/useReadOnlyPoller';
 import { configurationMessage, configurationStatus } from '@/lib/accountConfigurationEvidence';
+import { cloudTradingBlockerLabel } from '@/lib/cloudTradingControl';
 import { releaseReadinessView, type ReleaseReadinessReceipt } from '@/lib/operatorReleaseReadiness';
 import { grantOperatorAuthorization, OPERATOR_AUTHORIZATION_CONFIRM, revokeOperatorAuthorization } from '@/lib/operatorAuthorization';
 import { SwitchboardWriteGuard, type SwitchboardConfiguration, type SwitchboardFlag } from '@/lib/platformConfiguration';
 import { submitSwitchboardChange } from '@/lib/switchboardControl';
-import { operatorAuthorizationLeaseStore, operatorReleaseReadinessStore, switchboardStore } from '@/services/platformReads';
+import { cloudTradingControlStore, operatorAuthorizationLeaseStore, operatorReleaseReadinessStore, switchboardStore } from '@/services/platformReads';
 
 const GOLD = '#FFB800';
 const CYAN = '#00E5FF';
@@ -197,6 +198,49 @@ function AuthorizationLeasePanel({ canManage }: { canManage: boolean }) {
   </>;
 }
 
+function CloudTradingControlPanel() {
+  const poller = useReadOnlyPoller(cloudTradingControlStore, 15_000, 8_000);
+  const control = poller.isReceiptCurrent ? poller.data : null;
+  const probe = control?.last_probe ?? null;
+  const stages = probe ? (['review', 'dispatch', 'executor', 'receipt'] as const) : [];
+  const canApply = control?.operator_can_apply_live === true;
+  return <GlassPanel className="px-4 py-3" data-cloud-trading-control={canApply ? 'ready' : 'held'}>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex min-w-0 items-start gap-3"><Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: canApply ? CYAN : GOLD }} />
+        <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Cloud trading authority</p>
+          <p className="mt-1 text-[12px] text-zinc-300">{!control ? 'Verified cloud control evidence is unavailable.'
+            : canApply ? 'All production evidence has passed. The governed handoff can apply the requested state.'
+              : 'The operator can request every switch. Live application remains held by the controls shown below.'}</p>
+          <p className="mt-1 text-[10px] text-zinc-500">A browser request never grants release or mutation authority by itself.</p></div></div>
+      <div className="flex items-center gap-2"><StatusBadge active={control?.operator_can_request_controls === true}>requests {control?.operator_can_request_controls ? 'enabled' : 'unavailable'}</StatusBadge>
+        <StatusBadge active={canApply}>live apply {canApply ? 'ready' : 'held'}</StatusBadge></div>
+    </div>
+    {control && <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="rounded border border-zinc-800 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[10px] uppercase tracking-wider text-zinc-500">Four-stage signed path</p>
+          <StatusBadge active={probe?.current === true}>{probe?.current ? 'current probe' : probe ? 'stale probe' : 'no probe'}</StatusBadge></div>
+        {probe ? <>
+          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+            {stages.map(stage => <div key={stage} className="rounded border border-zinc-800 px-2 py-1.5">
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: CYAN }}>{stage}</p>
+              <p className="truncate font-mono text-[10px] text-zinc-400" title={probe.authority_ids[stage]}>{probe.authority_ids[stage]}</p>
+            </div>)}
+          </div>
+          <p className="mt-2 text-[10px] text-zinc-500">Verified receipt {new Date(probe.received_at * 1_000).toISOString()} · mutations 0 · orders attempted 0 · orders submitted 0</p>
+        </> : <p className="mt-2 text-[11px]" style={{ color: GOLD }}>Waiting for the collector to verify a current terminal receipt.</p>}
+      </div>
+      <div className="rounded border border-zinc-800 p-3">
+        <p className="text-[10px] uppercase tracking-wider text-zinc-500">{control.blockers.length} live-application blockers</p>
+        {control.blockers.length > 0 ? <ul className="mt-2 grid gap-1.5">
+          {control.blockers.map(blocker => <li key={blocker} className="rounded border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-300">
+            {cloudTradingBlockerLabel(blocker)}
+          </li>)}
+        </ul> : <p className="mt-2 flex items-center gap-1 text-[11px]" style={{ color: CYAN }}><CheckCircle2 className="h-3 w-3" /> All handoff evidence passed</p>}
+      </div>
+    </div>}
+  </GlassPanel>;
+}
+
 export default function SwitchboardPage() {
   const receipt = useReadOnlyPoller(switchboardStore, 15_000, 8_000);
   const releaseReceipt = useReadOnlyPoller(operatorReleaseReadinessStore, 15_000, 8_000);
@@ -270,7 +314,7 @@ export default function SwitchboardPage() {
         <div className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-[11px] uppercase tracking-wider"
           style={{ borderColor: GOLD, color: GOLD, background: `${GOLD}12` }}><UserRound className="h-3.5 w-3.5" />
           {!identity.known ? 'Checking operator access' : identity.identity.isAdmin ? 'Operator controls' : 'View only'}</div>
-        <button type="button" onClick={() => { receipt.refresh(); releaseReceipt.refresh(); }} disabled={saving !== null}
+        <button type="button" onClick={() => { receipt.refresh(); releaseReceipt.refresh(); cloudTradingControlStore.invalidate(); operatorAuthorizationLeaseStore.invalidate(); }} disabled={saving !== null}
           className="inline-flex items-center gap-1.5 rounded border border-zinc-700 px-2.5 py-1.5 text-[11px] text-zinc-300 hover:border-cyan-300 disabled:opacity-50">
           <RefreshCw className="h-3 w-3" /> Refresh configuration
         </button>
@@ -278,6 +322,7 @@ export default function SwitchboardPage() {
     </div>
     <ReleaseHandoffPanel receipt={releaseReceipt} />
     <AuthorizationLeasePanel canManage={canManage} />
+    <CloudTradingControlPanel />
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

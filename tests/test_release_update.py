@@ -229,6 +229,17 @@ def test_operator_references_existing_private_config_without_reading_it(monkeypa
     body = release.render_unit("aureon-cloud-operator.service", PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "7",
                                "supabase-tenant", "3").decode()
     assert "Environment=AUREON_ENV_FILE=/srv/aureon/runtime/workspace/aureon_radar/.env" in body
+    assert "Environment=AUREON_CLOUD_TRADE_READBACK_PATH=/srv/aureon/cache/trading-control/latest-terminal-receipt.json" in body
+
+
+def test_terminal_receipt_collector_is_a_distinct_held_service():
+    unit = "aureon-cloud-trade-receipt.service"
+    body = release.render_unit(unit, PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "", "", "").decode()
+    assert "cloud_trade_receipt_collector.py" in body
+    assert "User=aureon" in body and "ReadWritePaths=/srv/aureon/runtime/workspace /srv/aureon/cache" in body
+    for key, value in release.HOLDS.items():
+        assert "Environment=" + key + "=" + value in body
+    release.validate_service_names([unit])
 
 
 def test_service_names_do_not_allow_foreign_units_or_duplicate_registry_http():

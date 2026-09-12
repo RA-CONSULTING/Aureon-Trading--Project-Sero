@@ -537,6 +537,7 @@ def build_operator(source_root, revision, bearer, tenant_config):
         "AUREON_OPERATOR_INTENT_CERT_FILE": "/etc/aureon-public/bridge-cert.pem",
         "AUREON_OPERATOR_INTENT_LEDGER": "/srv/aureon/cache/operator-intent-replay.sqlite3",
         "AUREON_RELEASE_LEDGER_PATH": "/srv/aureon/cache/release-ledger/release-ledger.jsonl",
+        "AUREON_CLOUD_TRADE_READBACK_PATH": "/srv/aureon/cache/trading-control/latest-terminal-receipt.json",
         "AUREON_OPERATOR_REVISION": revision,
     }
     os.environ.update(settings)
