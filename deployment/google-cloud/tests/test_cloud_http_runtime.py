@@ -373,6 +373,38 @@ class GatewayTests(unittest.TestCase):
                 with self.assertRaisesRegex(cloud.CloudHTTPError, "already_owned"):
                     cloud.reserve_port("operator")
 
+    def test_posix_listener_reuses_drained_address_without_reuseport(self):
+        class Listener:
+            def __init__(self):
+                self.options = []
+                self.bound = None
+                self.backlog = None
+
+            def setsockopt(self, level, option, value):
+                self.options.append((level, option, value))
+
+            def bind(self, address):
+                self.bound = address
+
+            def listen(self, backlog):
+                self.backlog = backlog
+
+            def close(self):
+                pass
+
+        listener = Listener()
+        with patch.object(cloud.os, "name", "posix"), patch.object(
+            cloud.socket, "socket", return_value=listener
+        ):
+            result = cloud.reserve_port("operator")
+        self.assertIs(result, listener)
+        self.assertEqual(
+            listener.options,
+            [(cloud.socket.SOL_SOCKET, cloud.socket.SO_REUSEADDR, 1)],
+        )
+        self.assertEqual(listener.bound, ("127.0.0.1", cloud.PORTS["operator"]))
+        self.assertEqual(listener.backlog, 128)
+
 
 class TransportTests(unittest.TestCase):
     def test_redirects_are_not_followed_and_credentials_never_leave_first_connection(self):

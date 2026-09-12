@@ -552,8 +552,12 @@ def build_operator(source_root, revision, bearer, tenant_config):
 
 def reserve_port(role):
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # No SO_REUSEPORT: fail before importing/booting a second operator process.
     try:
+        # Linux may retain a recently closed listener while public requests
+        # drain.  Reuse that address after the prior owner exits, but never set
+        # SO_REUSEPORT: a concurrent second owner must still fail closed.
+        if os.name == "posix":
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(("127.0.0.1", PORTS[role]))
         listener.listen(128)
     except OSError:
