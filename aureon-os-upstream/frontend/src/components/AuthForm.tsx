@@ -19,6 +19,7 @@ interface AuthFormProps {
 export function AuthForm({ onSuccess }: AuthFormProps) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState("signin");
   
   // Sign In State
   const [email, setEmail] = useState("");
@@ -28,9 +29,6 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [binanceApiKey, setBinanceApiKey] = useState("");
-  const [binanceApiSecret, setBinanceApiSecret] = useState("");
-  const [showApiSecret, setShowApiSecret] = useState(false);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,26 +48,27 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
         email: signUpEmail,
         password: signUpPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}/console`,
         }
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Failed to create account");
 
-      const { data: sessionData, error: sessionError } = await supabase.functions.invoke('create-aureon-session', {
-        body: {
-          userId: authData.user.id,
-          apiKey: binanceApiKey || null,
-          apiSecret: binanceApiSecret || null,
-        },
-      });
-      if (sessionError || !sessionData?.success) {
-        throw new Error(sessionError?.message || sessionData?.error || 'Session creation failed');
+      if (authData.session) {
+        toast.success("Account created. You're signed in.");
+        onSuccess();
+        return;
       }
 
-      toast.success("Account created! Welcome.");
-      onSuccess();
+      // Hosted Supabase projects normally require email confirmation. In that
+      // flow signUp deliberately returns no session, so no authenticated API or
+      // credential call may run until the confirmation link establishes one.
+      setEmail(signUpEmail);
+      setSignUpPassword("");
+      setConfirmPassword("");
+      setActiveTab("signin");
+      toast.success("Account created. Check your email, confirm your address, then sign in.");
       
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -120,11 +119,11 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           </div>
         </div>
         <CardTitle className="text-2xl font-bold">AUREON</CardTitle>
-        <CardDescription>Sign in to access trade feeds</CardDescription>
+        <CardDescription>Sign in to access your Aureon workspace</CardDescription>
       </CardHeader>
       
       <CardContent>
-        <Tabs defaultValue="signin" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
@@ -222,44 +221,9 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
                 )}
               </div>
 
-              <div className="border-t border-border/50 pt-4 mt-4">
-                <p className="text-xs text-muted-foreground mb-3">
-                  Binance API (optional - add later in Settings)
-                </p>
-                
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="binance-api-key">API Key</Label>
-                    <Input
-                      id="binance-api-key"
-                      type="text"
-                      placeholder="Your Binance API Key"
-                      value={binanceApiKey}
-                      onChange={(e) => setBinanceApiKey(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="binance-api-secret">API Secret</Label>
-                    <div className="relative">
-                      <Input
-                        id="binance-api-secret"
-                        type={showApiSecret ? "text" : "password"}
-                        placeholder="Your Binance API Secret"
-                        value={binanceApiSecret}
-                        onChange={(e) => setBinanceApiSecret(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiSecret(!showApiSecret)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        {showApiSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <p className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                Add exchange and model-provider credentials after sign-in. Credentials are never requested during account creation.
+              </p>
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating account..." : "Sign Up"}

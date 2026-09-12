@@ -1,13 +1,12 @@
 # Google Cloud HTTPS entry
 
-This package gives the existing VM UI one HTTPS `run.app` address, protected by Google IAP and an owner allowlist. It does not start another Aureon brain, contain the UI build, hold operator/provider credentials, or grant trading/release authority. The VM remains the sole daemon and UI-build owner.
+This package gives the existing VM UI one public product HTTPS `run.app` address plus a private owner entry. Both serve the same application and the same governed VM runtime; there is no demo or second Aureon brain. The public entry carries Supabase user bearers without gaining operator identity. The owner entry remains protected by Google IAP. Neither entry contains operator/provider credentials or grants trading/release authority.
 
 ## Request path
 
-1. Google Cloud Run IAP authenticates the browser and checks the IAP access policy.
-2. The entry independently verifies the signed IAP ES256 JWT, exact audience/issuer, short lifetime, and owner email. It checks the exact configured HTTPS host and same-origin API/unsafe-method evidence.
-3. It retrieves its own service-account Google ID token from the metadata server and sends it, plus the original signed IAP assertion, over certificate-pinned TLS to one private VM IP/port.
-4. The VM bridge verifies the Google service token's signature, audience, email, immutable numeric subject, and verified-email claim. It separately verifies the IAP assertion and browser origin.
+1. In `iap` mode, Google Cloud Run IAP authenticates the owner and the entry independently verifies the signed IAP ES256 JWT, exact audience/issuer, short lifetime, and owner email. In `user` mode, static pages are public and browser API calls retain only the supplied Supabase bearer. Both modes check the exact HTTPS host and same-origin API/unsafe-method evidence.
+2. The entry retrieves its own service-account Google ID token and sends an exact `iap` or `user` route-mode marker over certificate-pinned TLS to one private VM IP/port. IAP mode also carries the original signed IAP assertion.
+3. The VM bridge verifies the Google service token's signature, audience, email, immutable numeric subject, and verified-email claim. It accepts only configured route modes; `iap` independently verifies the owner assertion while `user` stamps an auth-resolution marker that prevents operator-bearer fallback.
 5. The bridge checks the matching-revision loopback UI health on every request. It requires the six deployment holds, `ready=true`, and `release_authority=false`, then proxies the single loopback UI at `127.0.0.1:5173`.
 
 Only after these checks does the bridge supply loopback same-origin evidence. Explicit empty/invalid `Authorization` and any `X-Aureon-Auth-Resolution` marker remain present; they cannot acquire fallback operator identity. Google/browser cookies and arbitrary forwarding/identity headers are never copied. Responses have a strict metadata allowlist, no browser cookies or redirect following, and no-store headers. All transports have finite body and wall-clock limits. Key caching lasts five minutes; unknown-key refresh is throttled.
@@ -21,7 +20,9 @@ Both roles require:
 | Variable | Value |
 |---|---|
 | `AUREON_PUBLIC_ROLE` | `entry` or `bridge` |
+| `AUREON_PUBLIC_ACCESS_MODE` | Entry: `user` for the public product or `iap` for the private owner entry. Bridge: `hybrid` to accept both signed entry paths. |
 | `AUREON_PUBLIC_ORIGIN` | Exact HTTPS origin from `gcloud run services describe ... --format=value(status.url)`; empty during bootstrap |
+| `AUREON_OWNER_ORIGIN` | Bridge-only exact HTTPS origin of the private owner entry when `AUREON_PUBLIC_ACCESS_MODE=hybrid` |
 | `AUREON_IAP_AUDIENCE` | `/projects/4435775023/locations/europe-west1/services/aureon-fusion-web` |
 | `AUREON_ALLOWED_USER_EMAILS` | `gaxlec@gmail.com` |
 | `AUREON_ENTRY_SERVICE_ACCOUNT_EMAIL` | `aureon-web-entry@aureon-trading.iam.gserviceaccount.com` |
@@ -57,7 +58,7 @@ Use a dedicated, verified unused `/26` subnet in `aureon-sero-network`, region `
 
 The dedicated entry service account needs no operator-secret access and no downloaded service-account key. Cloud Run metadata supplies its own ID token without granting it project-wide Token Creator. Its numeric subject is pinned in both applications.
 
-Create/modify only `aureon-fusion-web`; preserve the existing `skaila-demo` service. Deploy this image with direct IAP and no anonymous invoker:
+The customer-facing product is `aureon-fusion-web` in `user` mode and is the only address marketed to users. A private `aureon-fusion-operator` entry preserves owner-only IAP access to the same app/runtime. Deploy the public product with unauthenticated Cloud Run ingress because the application enforces Supabase authentication on console/API routes:
 
 ```sh
 gcloud run deploy aureon-fusion-web \
@@ -66,22 +67,36 @@ gcloud run deploy aureon-fusion-web \
   --service-account=aureon-web-entry@aureon-trading.iam.gserviceaccount.com \
   --network=aureon-sero-network --subnet=VERIFIED_ENTRY_SUBNET \
   --network-tags=aureon-web-entry --vpc-egress=private-ranges-only \
+  --cpu=1 --memory=512Mi --concurrency=8 --min=0 --max=20 \
+  --timeout=60 --allow-unauthenticated --no-iap \
+  --env-vars-file=PUBLIC_USER_CONFIG_YAML
+```
+
+Deploy the owner entry from the same immutable image digest with direct IAP and no anonymous invoker:
+
+```sh
+gcloud run deploy aureon-fusion-operator \
+  --project=aureon-trading --region=europe-west1 \
+  --image=REVIEWED_IMAGE_DIGEST \
+  --service-account=aureon-web-entry@aureon-trading.iam.gserviceaccount.com \
+  --network=aureon-sero-network --subnet=VERIFIED_ENTRY_SUBNET \
+  --network-tags=aureon-web-entry --vpc-egress=private-ranges-only \
   --cpu=1 --memory=512Mi --concurrency=8 --min=0 --max=2 \
   --timeout=60 --no-allow-unauthenticated --iap \
   --env-vars-file=PUBLIC_NON_SECRET_CONFIG_YAML
-gcloud run services add-iam-policy-binding aureon-fusion-web \
+gcloud run services add-iam-policy-binding aureon-fusion-operator \
   --project=aureon-trading --region=europe-west1 \
   --member=serviceAccount:service-4435775023@gcp-sa-iap.iam.gserviceaccount.com \
   --role=roles/run.invoker
 gcloud iap web add-iam-policy-binding \
   --project=aureon-trading --region=europe-west1 \
-  --resource-type=cloud-run --service=aureon-fusion-web \
+  --resource-type=cloud-run --service=aureon-fusion-operator \
   --member=user:gaxlec@gmail.com --role=roles/iap.httpsResourceAccessor
 ```
 
-This project has no organization. Google documents one-time console setup/custom OAuth for this case. Complete that normal setup if required; do not disable IAP, grant `allUsers`, spoof identity headers, or publish private telemetry as an auth workaround.
+This project has no organization. Google documents one-time console setup/custom OAuth for the owner IAP entry. Complete that normal setup if required; do not grant anonymous access to the owner service, spoof identity headers, or publish private telemetry as an auth workaround.
 
-Read `status.url`, configure that **exact same origin** in entry and bridge, then restart/update them. Read back IAP enabled, service account, image digest, revision, network, firewall rules, and user policy. Confirm anonymous access cannot reach UI/API, then test signed-in browser routes, fresh API telemetry, a protected harmless held operation, and service restart continuity. Only then hand over the URL and retire local services.
+Read both `status.url` values. Configure the public origin as `AUREON_PUBLIC_ORIGIN` on the bridge, the private owner origin as `AUREON_OWNER_ORIGIN`, and each entry with its own exact `AUREON_PUBLIC_ORIGIN`; then restart/update them. Read back the public invoker, owner IAP policy, service accounts, image digests, revision, network, firewall rules, and user policy. Confirm anonymous users can reach static marketing/sign-in but receive no operator identity, then test a signed-in tenant route, owner IAP routes, fresh API telemetry, a protected harmless held operation, and service restart continuity.
 
 ## Verification and operational limits
 

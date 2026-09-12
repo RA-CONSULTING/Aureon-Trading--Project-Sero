@@ -1269,18 +1269,27 @@ def register_saas_routes(app: Any) -> Any:
         return {**payload, "provenance": provenance_block(), "truth_status": truth_status}
 
     jwt_secret = str(os.environ.get("AUREON_SUPABASE_JWT_SECRET", "") or "")
+    tenant_auth_configured = bool(
+        jwt_secret
+        or (
+            str(os.environ.get("AUREON_SUPABASE_URL", "") or "").strip()
+            and str(os.environ.get("AUREON_SUPABASE_PUBLISHABLE_KEY", "") or "").strip()
+        )
+    )
 
     def _tenant_ok() -> bool:
         """When a Supabase JWT secret is configured, require a valid tenant token."""
-        if not jwt_secret:
+        if not tenant_auth_configured:
             return True  # tenancy bridge disabled
         # The admin/operator bearer is NOT a Supabase JWT, so it can never satisfy the check below.
         # Without this branch, stacking @_guarded over @_admin_only 401s the operator before the
         # admin check is even reached — locking every identity out of those control-plane routes.
         # ``g.is_admin`` is set only by the operator gate, which has already authenticated the
         # bearer in constant time; absent (bare-app mount) ⇒ False ⇒ the JWT path below, unchanged.
-        if getattr(g, "is_admin", False):
+        if getattr(g, "identity_kind", None) in {"admin", "tenant"}:
             return True
+        if not jwt_secret:
+            return False
         auth = request.headers.get("Authorization", "")
         if not auth.startswith("Bearer "):
             return False
@@ -1777,7 +1786,7 @@ def register_saas_routes(app: Any) -> Any:
                         "total_systems": catalog.get("total_systems", 0)})
 
     logger.info("SaaS gateway routes registered (tenancy bridge: %s)",
-                "on" if jwt_secret else "off")
+                "on" if tenant_auth_configured else "off")
     return app
 
 

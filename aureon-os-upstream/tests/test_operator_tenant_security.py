@@ -519,6 +519,56 @@ def test_jwt_verifier_rejects_dangerous_tokens():
     assert (ok.kind, ok.tenant, ok.ok) == ("tenant", "legit", True)
 
 
+def test_supabase_auth_server_verifier_is_pinned_bounded_and_fail_closed():
+    from aureon.operator.identity import SupabaseAuthVerifier, resolve_identity
+
+    user_id = "da9d48f0-6992-4cdb-9450-dd3a4aa8c5e5"
+    calls = []
+
+    def good_fetch(host, path, headers, timeout):
+        calls.append((host, path, headers, timeout))
+        return 200, json.dumps({"id": user_id, "email": "person@example.test"}).encode()
+
+    verifier = SupabaseAuthVerifier(
+        "https://siihxcwetdjdsrfdexmb.supabase.co",
+        "sb_publishable_fixture_value_123456",
+        fetch=good_fetch,
+    )
+    token = "header.payload.signature"
+    ident = resolve_identity(
+        f"Bearer {token}",
+        operator_key="ADMIN",
+        jwt_secret="",
+        tenant_verifier=verifier,
+    )
+    assert (ident.kind, ident.tenant, ident.ok) == ("tenant", user_id, True)
+    host, path, headers, timeout = calls.pop()
+    assert host == "siihxcwetdjdsrfdexmb.supabase.co"
+    assert path == "/auth/v1/user"
+    assert headers["Authorization"] == f"Bearer {token}"
+    assert headers["apikey"].startswith("sb_publishable_")
+    assert timeout == 5.0
+
+    for status, body in (
+        (401, b'{"id":"' + user_id.encode() + b'"}'),
+        (200, b'{"id":"not-a-uuid"}'),
+        (200, b"not-json"),
+        (200, b""),
+    ):
+        denied = SupabaseAuthVerifier(
+            "https://siihxcwetdjdsrfdexmb.supabase.co",
+            "sb_publishable_fixture_value_123456",
+            fetch=lambda *_args, pair=(status, body): pair,
+        )
+        assert denied(token) is None
+
+    with pytest.raises(ValueError, match="supabase_project_url_invalid"):
+        SupabaseAuthVerifier(
+            "https://example.test/supabase",
+            "sb_publishable_fixture_value_123456",
+        )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Round 3 — the SAME defect class appeared a third time: the write sibling of a
 # route pair was guarded and the read sibling kept serving. These pin the

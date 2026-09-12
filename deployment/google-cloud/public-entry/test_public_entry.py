@@ -149,6 +149,56 @@ def test_browser_navigation_allowed_but_api_requires_same_origin_evidence(keys, 
     assert c.get("/api/state", base_url=base, headers=h).status_code == 403
 
 
+def test_public_user_entry_never_requires_or_forwards_iap_identity(verifier):
+    captured = []
+
+    def transport(*args, **kwargs):
+        captured.append(args)
+        return 200, {"Content-Type": "application/json"}, b"{}"
+
+    cfg = replace(BASE, access_mode="user")
+    c, base = client(verifier, transport=transport, config=cfg)
+    assert c.get("/console", base_url=base, headers={"X-Forwarded-Proto": "https"}).status_code == 200
+    assert captured[-1][2]["X-Aureon-Entry-Mode"] == "user"
+    assert captured[-1][2]["X-Aureon-Auth-Resolution"] == "anonymous"
+    assert "X-Aureon-Iap-Assertion" not in captured[-1][2]
+
+    bearer = "Bearer header.payload.signature"
+    response = c.get(
+        "/api/me",
+        base_url=base,
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Origin": BASE.origin,
+            "Sec-Fetch-Site": "same-origin",
+            "Authorization": bearer,
+            "X-Aureon-Auth-Resolution": "attacker-selected",
+        },
+    )
+    assert response.status_code == 200
+    assert captured[-1][2]["Authorization"] == bearer
+    assert captured[-1][2]["X-Aureon-Auth-Resolution"] == "tenant-bearer"
+
+
+def test_public_user_entry_still_requires_exact_origin_for_mutation(verifier):
+    cfg = replace(BASE, access_mode="user")
+    c, base = client(verifier, config=cfg)
+    assert c.post(
+        "/api/providers/openai",
+        base_url=base,
+        headers={"X-Forwarded-Proto": "https", "Sec-Fetch-Site": "same-origin"},
+    ).status_code == 403
+    assert c.post(
+        "/api/providers/openai",
+        base_url=base,
+        headers={
+            "X-Forwarded-Proto": "https",
+            "Origin": BASE.origin,
+            "Sec-Fetch-Site": "same-origin",
+        },
+    ).status_code == 200
+
+
 @pytest.mark.parametrize("authorization", [None, "", "Bearer invalid-client-token"])
 @pytest.mark.parametrize("marker", [None, "", "failed"])
 def test_entry_preserves_explicit_authorization_and_failure_marker(keys, verifier, authorization, marker):
@@ -185,6 +235,49 @@ def test_bridge_requires_both_identities_before_any_loopback_access(keys, verifi
         h = headers(keys, bridge=True)
         del h[missing]
         assert c.get("/api/state", base_url=base, headers=h).status_code == 403
+
+
+def test_hybrid_bridge_accepts_service_authenticated_user_entry_without_admin_fallback(keys, verifier):
+    calls = []
+
+    def transport(method, target, forwarded, body, **kwargs):
+        calls.append((target, forwarded, kwargs))
+        if kwargs.get("health"):
+            return healthy()
+        return 401, {"Content-Type": "application/json"}, b'{"error":"missing_user"}'
+
+    cfg = replace(
+        BASE,
+        role="bridge",
+        access_mode="hybrid",
+        owner_origin="https://aureon-owner-123456789012.europe-west1.run.app",
+    )
+    c, base = client(verifier, bridge=True, transport=transport, config=cfg)
+    h = {
+        "Origin": BASE.origin,
+        "Sec-Fetch-Site": "same-origin",
+        "X-Aureon-Public-Host": BASE.origin[8:],
+        "X-Aureon-Entry-Mode": "user",
+        "X-Aureon-Auth-Resolution": "anonymous",
+        "X-Aureon-Service-Authorization": "Bearer " + signed(keys, service=True),
+    }
+    response = c.get("/api/me", base_url=base, headers=h)
+    assert response.status_code == 401
+    assert calls[1][1]["X-Aureon-Auth-Resolution"] == "anonymous"
+    assert "Authorization" not in calls[1][1]
+    assert "X-Aureon-Iap-Assertion" not in calls[1][1]
+
+    owner_headers = headers(keys, bridge=True)
+    owner_headers.update({
+        "Origin": cfg.owner_origin,
+        "X-Aureon-Public-Host": cfg.owner_origin[8:],
+        "X-Aureon-Entry-Mode": "iap",
+    })
+    assert c.get("/api/me", base_url=base, headers=owner_headers).status_code == 401
+
+    h.pop("X-Aureon-Entry-Mode")
+    assert c.get("/api/me", base_url=base, headers=h).status_code == 403
+    assert len(calls) == 4
 
 
 def test_bridge_checks_health_then_creates_loopback_origin_preserving_bad_auth(keys, verifier):

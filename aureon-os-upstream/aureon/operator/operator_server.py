@@ -496,7 +496,7 @@ def create_app(
     _operator = operator or AureonOperator()
 
     # ── Security envelope (production fail-closed; explicit dev/test is permissive) ──
-    from aureon.operator.identity import resolve_identity
+    from aureon.operator.identity import SupabaseAuthVerifier, resolve_identity
     from aureon.operator.security import SecurityConfig, TokenBucket
 
     _sec = SecurityConfig.from_env()
@@ -509,6 +509,18 @@ def create_app(
     # provider/connection keys are namespaced to them. Off by default (secret unset) ⇒ the gate is
     # identical to the single static-key path — see aureon.operator.identity.resolve_identity.
     _jwt_secret = str(os.environ.get("AUREON_SUPABASE_JWT_SECRET", "") or "")
+    _supabase_url = str(os.environ.get("AUREON_SUPABASE_URL", "") or "").strip()
+    _supabase_publishable_key = str(
+        os.environ.get("AUREON_SUPABASE_PUBLISHABLE_KEY", "") or ""
+    ).strip()
+    if bool(_supabase_url) != bool(_supabase_publishable_key):
+        raise ValueError("supabase_tenant_auth_config_incomplete")
+    _supabase_auth_verifier = (
+        SupabaseAuthVerifier(_supabase_url, _supabase_publishable_key)
+        if _supabase_url and _supabase_publishable_key
+        else None
+    )
+    _tenant_auth_configured = bool(_jwt_secret or _supabase_auth_verifier)
     _bucket = TokenBucket(_sec.rate_rps, _sec.burst)
     _effective_body_limit = min(_sec.max_body_bytes, MAX_OPERATOR_BODY_BYTES)
     app.config["MAX_CONTENT_LENGTH"] = _effective_body_limit
@@ -709,14 +721,17 @@ def create_app(
                 return resp
         if (
             not _sec.auth_enabled
-            and not _jwt_secret
+            and not _tenant_auth_configured
             and not _is_loopback_host(direct_client)
         ):
             return _err(401, "authenticated loopback operator required")
         # Resolve identity once. In explicit development/test mode, an empty static key and JWT
         # secret retain the local kind="open" behavior; production validation refuses that state.
         ident = resolve_identity(
-            request.headers.get("Authorization"), operator_key=_sec.api_key, jwt_secret=_jwt_secret,
+            request.headers.get("Authorization"),
+            operator_key=_sec.api_key,
+            jwt_secret=_jwt_secret,
+            tenant_verifier=_supabase_auth_verifier,
         )
         if not ident.ok:
             return _err(401, "missing or invalid bearer token")
@@ -816,8 +831,15 @@ def create_app(
             "is_admin": is_admin,
             "tenant_label": _tenant_label(tenant) if tenant else None,
             "plane": "instance" if is_admin else "account",
-            "tenancy_enabled": bool(_jwt_secret),
-            "auth_required": bool(_sec.api_key or _jwt_secret),
+            "tenancy_enabled": _tenant_auth_configured,
+            "tenant_auth_mode": (
+                "supabase_auth_server"
+                if _supabase_auth_verifier is not None
+                else "legacy_hs256"
+                if _jwt_secret
+                else "off"
+            ),
+            "auth_required": bool(_sec.api_key or _tenant_auth_configured),
             # What this caller may reach, so the console can hide what would 403 rather than
             # letting the user find the boundary by trial and error.
             "allowed_routes": (None if is_admin else
@@ -879,7 +901,7 @@ def create_app(
     def operator_ingress_custody():
         response = jsonify(_json_safe(build_ingress_custody_receipt(
             security=_sec,
-            jwt_secret_set=bool(_jwt_secret),
+            jwt_secret_set=_tenant_auth_configured,
             request_view={
                 "direct_client": str(request.remote_addr or ""),
                 "resolved_client": _sec.client_ip(request.remote_addr, request.headers.get("X-Forwarded-For")),

@@ -7,8 +7,9 @@ schemes the operator supports:
 
   * **admin / operator** — a single static instance key (``AUREON_OPERATOR_API_KEY``), checked in
     constant time. This is the control plane; it manages the instance's own defaults and global state.
-  * **tenant / end user** — a Supabase HS256 JWT (verified with ``AUREON_SUPABASE_JWT_SECRET``). The
-    JWT ``sub`` becomes the tenant id, and every per-user store (keystore, billing) is namespaced by it.
+  * **tenant / end user** — a Supabase access token verified by the project's Auth server (current
+    signing keys, including asymmetric keys) or by the legacy HS256 verifier. The verified user id
+    becomes the tenant id, and every per-user store is namespaced by it.
   * **open** — neither secret configured: auth is disabled (dev / offline / single-operator default),
     exactly as before this module existed.
 
@@ -28,10 +29,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import http.client
 import json
+import re
 import time
+import uuid
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Callable, Dict, Mapping
+from urllib.parse import urlsplit
 
 # ── Supabase JWT (optional, stdlib HS256) ─────────────────────────────────────
 
@@ -48,6 +53,108 @@ _CLOCK_SKEW_S = 60.0
 #: today (so the resolver already refuses them), but reject the roles explicitly rather than rely on
 #: that staying true.
 _API_KEY_ROLES = frozenset({"anon", "service_role"})
+
+_MAX_SUPABASE_USER_RESPONSE = 64 * 1024
+
+
+def _fetch_supabase_user(
+    host: str,
+    path: str,
+    headers: Mapping[str, str],
+    timeout: float,
+) -> tuple[int, bytes]:
+    """Fetch the fixed Supabase Auth user endpoint with a bounded response."""
+
+    connection = http.client.HTTPSConnection(host, 443, timeout=timeout)
+    try:
+        connection.request("GET", path, headers=dict(headers))
+        response = connection.getresponse()
+        body = response.read(_MAX_SUPABASE_USER_RESPONSE + 1)
+        if len(body) > _MAX_SUPABASE_USER_RESPONSE:
+            return 0, b""
+        return int(response.status), body
+    except (OSError, ValueError, http.client.HTTPException):
+        return 0, b""
+    finally:
+        connection.close()
+
+
+class SupabaseAuthVerifier:
+    """Verify a user token through one pinned Supabase project's Auth server.
+
+    Supabase recommends this flow for shared-secret projects and it also works
+    when the project rotates to asymmetric JWT signing keys. The project URL and
+    publishable key are trusted deployment configuration; nothing in the token
+    selects a destination, algorithm, or key.
+    """
+
+    def __init__(
+        self,
+        project_url: str,
+        publishable_key: str,
+        *,
+        fetch: Callable[[str, str, Mapping[str, str], float], tuple[int, bytes]] = _fetch_supabase_user,
+        timeout: float = 5.0,
+    ) -> None:
+        parsed = urlsplit((project_url or "").strip())
+        host = parsed.hostname or ""
+        if (
+            parsed.scheme != "https"
+            or parsed.port is not None
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+            or not re.fullmatch(r"[a-z0-9]{20}\.supabase\.co", host)
+        ):
+            raise ValueError("supabase_project_url_invalid")
+        key = (publishable_key or "").strip()
+        if not 20 <= len(key) <= 4096 or re.search(r"[^\x21-\x7e]", key):
+            raise ValueError("supabase_publishable_key_invalid")
+        if not (key.startswith("sb_publishable_") or key.count(".") == 2):
+            raise ValueError("supabase_publishable_key_invalid")
+        if not 0.2 <= float(timeout) <= 15.0:
+            raise ValueError("supabase_auth_timeout_invalid")
+        self._host = host
+        self._publishable_key = key
+        self._fetch = fetch
+        self._timeout = float(timeout)
+
+    def __call__(self, token: str) -> Dict[str, Any] | None:
+        if (
+            not isinstance(token, str)
+            or not 20 <= len(token) <= 8192
+            or token.count(".") != 2
+            or re.search(r"[^A-Za-z0-9._-]", token)
+        ):
+            return None
+        status, raw = self._fetch(
+            self._host,
+            "/auth/v1/user",
+            {
+                "Accept": "application/json",
+                "apikey": self._publishable_key,
+                "Authorization": f"Bearer {token}",
+            },
+            self._timeout,
+        )
+        if status != 200 or not raw:
+            return None
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+            user_id = payload.get("id") if isinstance(payload, dict) else None
+            parsed_id = uuid.UUID(user_id) if isinstance(user_id, str) else None
+            if parsed_id is None or str(parsed_id) != user_id.lower():
+                return None
+            email = payload.get("email")
+            return {
+                "sub": str(parsed_id),
+                "role": "authenticated",
+                "email": email if isinstance(email, str) else None,
+            }
+        except (UnicodeError, ValueError, TypeError, json.JSONDecodeError):
+            return None
 
 
 def verify_supabase_jwt(token: str, secret: str) -> Dict[str, Any] | None:
@@ -108,13 +215,19 @@ def _bearer_token(auth_header: str | None) -> str | None:
     return tok or None
 
 
-def resolve_identity(auth_header: str | None, *, operator_key: str, jwt_secret: str) -> Identity:
+def resolve_identity(
+    auth_header: str | None,
+    *,
+    operator_key: str,
+    jwt_secret: str,
+    tenant_verifier: Callable[[str], Mapping[str, Any] | None] | None = None,
+) -> Identity:
     """Resolve a request to an :class:`Identity`. Pure — pass the secrets, get the answer.
 
     Order (must not regress the old static-key gate):
-      1. both secrets empty            → open (auth disabled; unchanged single-operator behavior).
+      1. no auth mechanism configured  → open (auth disabled; unchanged single-operator behavior).
       2. static key matches            → admin (the instance control plane).
-      3. else a valid Supabase JWT     → tenant(``sub``) — only reachable when ``jwt_secret`` is set.
+      3. else a verified Supabase user → tenant(``sub``).
       4. else                          → not ok (the gate returns 401).
     """
     # A key that is only whitespace is not a key — treat it as unset, or a stray space in the env
@@ -123,7 +236,7 @@ def resolve_identity(auth_header: str | None, *, operator_key: str, jwt_secret: 
     jwt_secret = jwt_secret or ""
 
     # 1 — nothing configured: auth disabled, exactly as before.
-    if not operator_key and not jwt_secret:
+    if not operator_key and not jwt_secret and tenant_verifier is None:
         return Identity(kind="open", tenant=None, ok=True)
 
     token = _bearer_token(auth_header)
@@ -137,8 +250,11 @@ def resolve_identity(auth_header: str | None, *, operator_key: str, jwt_secret: 
         return Identity(kind="admin", tenant=None, ok=True)
 
     # 3 — a Supabase JWT: the end-user / tenant plane. Unreachable when jwt_secret is empty.
-    if jwt_secret:
-        claims = verify_supabase_jwt(token, jwt_secret)
+    if tenant_verifier is not None or jwt_secret:
+        try:
+            claims = tenant_verifier(token) if tenant_verifier is not None else verify_supabase_jwt(token, jwt_secret)
+        except Exception:  # noqa: BLE001 — identity-provider failure is a clean denial
+            claims = None
         sub = claims.get("sub") if isinstance(claims, dict) else None
         if isinstance(sub, str) and sub:
             return Identity(kind="tenant", tenant=sub, ok=True)
@@ -147,4 +263,10 @@ def resolve_identity(auth_header: str | None, *, operator_key: str, jwt_secret: 
     return Identity(kind="open", tenant=None, ok=False)
 
 
-__all__ = ["Identity", "resolve_identity", "verify_supabase_jwt", "_b64url_decode"]
+__all__ = [
+    "Identity",
+    "SupabaseAuthVerifier",
+    "resolve_identity",
+    "verify_supabase_jwt",
+    "_b64url_decode",
+]

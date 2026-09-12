@@ -14,13 +14,22 @@ per request and stashes on `g.tenant` / `g.is_admin`:
 |:---|:---|:---:|:---|
 | **open** | neither secret configured | `None` | single-operator (dev / offline) — **unchanged** |
 | **admin** | static `AUREON_OPERATOR_API_KEY` bearer | `None` | the instance control plane (global keystore, `os.environ`) |
-| **tenant** | a valid Supabase HS256 JWT | JWT `sub` | that user's **isolated** plane |
+| **tenant** | a Supabase token verified by the pinned project Auth server, with legacy HS256 support during migration | verified user id | that user's **isolated** plane |
 
-**Zero-regression invariant.** When `AUREON_SUPABASE_JWT_SECRET` is unset, the tenant branch is never
-reached — the gate behaves byte-for-byte like the old static-key `check_bearer`: open when no key is set,
-bearer-required when it is. Turning tenancy on is purely additive.
+**Zero-regression invariant.** When neither Supabase Auth configuration nor the legacy JWT secret is
+set, the tenant branch is never reached — the gate behaves like the old static-key `check_bearer`:
+open when no key is set, bearer-required when it is. Turning tenancy on is additive.
 
-### What the token verifier accepts
+### How current Supabase tokens are verified
+
+Production sets `AUREON_SUPABASE_URL` and `AUREON_SUPABASE_PUBLISHABLE_KEY`. The backend calls the
+fixed project's `/auth/v1/user` endpoint and accepts only HTTP 200 with a canonical UUID user id. The
+project URL is restricted to the exact hosted Supabase form, the response is bounded, and no JWT claim
+can choose a host, algorithm, key, or tenant id. This supports Supabase's current asymmetric signing
+keys as well as legacy projects without giving Aureon a shared JWT signing secret.
+
+The older `AUREON_SUPABASE_JWT_SECRET` verifier remains available only for controlled migration and
+offline compatibility. It accepts:
 
 `verify_supabase_jwt` **forces HS256** and never reads `alg` from the token header, so the classic
 algorithm-confusion attacks (`alg: none`, or an RS256 header verified with a public key as the HMAC
@@ -206,13 +215,15 @@ The admin/open plane (`g.tenant is None`) still uses the shared instance engine,
 
 **Deferred (follow-ups):** per-tenant crypto keys; SSE stream tenancy (`EventSource` cannot carry an
 Authorization header, so `/api/*/stream` stays on the admin/global plane — the console chat uses POST,
-which is covered); migrating the sign-up Binance-key capture off Supabase onto the tenant keystore.
+which is covered). Sign-up now collects identity credentials only; exchange and model-provider keys
+are added after the user has an authenticated session through the tenant keystore routes.
 
 ## Configure
 
 | Variable | Effect |
 |:---|:---|
-| `AUREON_SUPABASE_JWT_SECRET` | **On/off switch** for tenancy. Unset ⇒ single-operator, unchanged. |
+| `AUREON_SUPABASE_URL` + `AUREON_SUPABASE_PUBLISHABLE_KEY` | Preferred tenant token verification through the pinned Auth server. Both are required together. |
+| `AUREON_SUPABASE_JWT_SECRET` | Legacy HS256 migration path. Leave unset for new production deployments. |
 | `AUREON_OPERATOR_API_KEY` | The admin/operator static bearer (control plane). |
 | `VITE_REQUIRE_AUTH=1` | Frontend: require a Supabase login to reach the console (build-time). |
 | `VITE_SUPABASE_*` / `SUPABASE_*` | Supabase project URL + keys (see `docs/SAAS_INTEGRATION_READINESS.md`). |

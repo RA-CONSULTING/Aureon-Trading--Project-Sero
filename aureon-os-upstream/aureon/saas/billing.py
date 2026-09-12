@@ -47,6 +47,11 @@ def register_billing(app: Any) -> Any:
     from aureon.saas.gateway import verify_supabase_jwt
 
     jwt_secret = str(os.environ.get("AUREON_SUPABASE_JWT_SECRET", "") or "")
+    supabase_auth_server = bool(
+        str(os.environ.get("AUREON_SUPABASE_URL", "") or "").strip()
+        and str(os.environ.get("AUREON_SUPABASE_PUBLISHABLE_KEY", "") or "").strip()
+    )
+    tenant_auth_configured = bool(jwt_secret or supabase_auth_server)
     charge_enabled = _charge_enabled()  # captured at register time, like the JWT secret
     config = SupabaseConfig.from_env()
     rest = SupabaseRest(config) if config.ok else None
@@ -70,10 +75,10 @@ def register_billing(app: Any) -> Any:
 
     def _require_tenant() -> Tuple[str | None, Any]:
         """(tenant, error_response). Honest failures: 503 when unconfigured, 401 when unauthenticated."""
-        if not jwt_secret:
+        if not tenant_auth_configured:
             return None, (jsonify({"error": {
                 "code": 503,
-                "message": "tenancy bridge disabled (AUREON_SUPABASE_JWT_SECRET unset)",
+                "message": "tenancy bridge disabled",
             }}), 503)
         tenant = _resolve_tenant()
         if tenant is None:
@@ -140,7 +145,7 @@ def register_billing(app: Any) -> Any:
         return jsonify({
             "configured": config.ok,
             "missing_env": config.missing(),
-            "tenancy_bridge": "on" if jwt_secret else "off",
+            "tenancy_bridge": "on" if tenant_auth_configured else "off",
             "metering": get_buffer().stats(),
             "tokens": token_usage_totals(),
             "charge_endpoint": {"enabled": charge_enabled},

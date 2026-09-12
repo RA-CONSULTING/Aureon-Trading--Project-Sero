@@ -1,7 +1,8 @@
-"""IAP-protected Cloud Run entry and independently authenticated private VM bridge.
+"""Cloud Run product entry and independently authenticated private VM bridge.
 
 This package contains no operator credentials and grants no release authority.
-Only the bridge can reach the already governed loopback production UI.
+The owner entry uses IAP. The user entry carries only a browser bearer and a
+service-signed route mode; only the bridge can reach the governed loopback UI.
 """
 from __future__ import annotations
 
@@ -55,6 +56,8 @@ class Config:
     bridge_url: str
     revision: str
     ca_file: str = ""
+    access_mode: str = "iap"
+    owner_origin: str = ""
 
     @classmethod
     def from_env(cls):
@@ -64,16 +67,30 @@ class Config:
                    os.environ.get("AUREON_ENTRY_SERVICE_ACCOUNT_EMAIL", ""),
                    os.environ.get("AUREON_ENTRY_SERVICE_ACCOUNT_ID", ""),
                    os.environ.get("AUREON_BRIDGE_URL", ""), os.environ.get("AUREON_REVISION", ""),
-                   os.environ.get("AUREON_BRIDGE_CA_FILE", ""))
+                   os.environ.get("AUREON_BRIDGE_CA_FILE", ""),
+                   os.environ.get("AUREON_PUBLIC_ACCESS_MODE", "iap"),
+                   os.environ.get("AUREON_OWNER_ORIGIN", ""))
+
+    def origins(self):
+        values = {self.origin} if self.origin else set()
+        if self.role == "bridge" and self.owner_origin:
+            values.add(self.owner_origin)
+        return frozenset(values)
 
     def validate(self):
         if self.role not in {"entry", "bridge"}:
             raise BoundaryError("role_invalid")
-        if not re.fullmatch(r"/projects/[0-9]{6,20}/locations/[a-z]+-[a-z]+[0-9]/services/[a-z][a-z0-9-]{0,62}", self.iap_audience):
-            raise BoundaryError("iap_audience_invalid")
-        if not self.allowed_emails or len(self.allowed_emails) > 10 or any(
-                not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+", email) for email in self.allowed_emails):
-            raise BoundaryError("user_allowlist_invalid")
+        allowed_modes = {"iap", "user"} if self.role == "entry" else {"iap", "user", "hybrid"}
+        if self.access_mode not in allowed_modes:
+            raise BoundaryError("access_mode_invalid")
+        if self.access_mode in {"iap", "hybrid"}:
+            if not re.fullmatch(r"/projects/[0-9]{6,20}/locations/[a-z]+-[a-z]+[0-9]/services/[a-z][a-z0-9-]{0,62}", self.iap_audience):
+                raise BoundaryError("iap_audience_invalid")
+            if not self.allowed_emails or len(self.allowed_emails) > 10 or any(
+                    not re.fullmatch(r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+", email) for email in self.allowed_emails):
+                raise BoundaryError("user_allowlist_invalid")
+        if self.access_mode == "hybrid" and not self.owner_origin:
+            raise BoundaryError("owner_origin_required")
         if not re.fullmatch(r"[a-z][a-z0-9-]{4,28}[a-z0-9]@[a-z][a-z0-9-]+\.iam\.gserviceaccount\.com", self.service_email):
             raise BoundaryError("service_account_invalid")
         if not re.fullmatch(r"[0-9]{10,25}", self.service_id) or not re.fullmatch(r"[0-9a-f]{40}", self.revision):
@@ -90,8 +107,9 @@ class Config:
             raise BoundaryError("bridge_destination_invalid")
         # Empty origin is the explicit all-denied bootstrap state. Wildcards and
         # guessed host suffix trust are never accepted once it is commissioned.
-        if self.origin and not re.fullmatch(r"https://[a-z0-9][a-z0-9-]+(?:\.[a-z0-9][a-z0-9-]*)?\.run\.app", self.origin):
-            raise BoundaryError("public_origin_invalid")
+        for origin in self.origins():
+            if not re.fullmatch(r"https://[a-z0-9][a-z0-9-]+(?:\.[a-z0-9][a-z0-9-]*)?\.run\.app", origin):
+                raise BoundaryError("public_origin_invalid")
 
 
 def identity_fetch(url, *, metadata=False):
@@ -227,24 +245,24 @@ class MetadataIdentity:
 def request_gate(environ, config):
     if not config.origin:
         raise BoundaryError("entry_not_commissioned")
-    host = config.origin.removeprefix("https://")
     actual = environ.get("HTTP_HOST") if config.role == "entry" else environ.get("HTTP_X_AUREON_PUBLIC_HOST")
-    if actual != host:
+    request_origin = next((origin for origin in config.origins() if origin.removeprefix("https://") == actual), None)
+    if request_origin is None:
         raise BoundaryError("public_host_mismatch")
     if config.role == "entry" and environ.get("HTTP_X_FORWARDED_PROTO") != "https":
         raise BoundaryError("https_required")
-    if "HTTP_ORIGIN" in environ and environ["HTTP_ORIGIN"] != config.origin:
+    if "HTTP_ORIGIN" in environ and environ["HTTP_ORIGIN"] != request_origin:
         raise BoundaryError("same_origin_required")
     method = environ.get("REQUEST_METHOD", "")
     path = environ.get("PATH_INFO", "")
     if method not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}:
         raise BoundaryError("method_denied")
-    if method not in SAFE_METHODS and environ.get("HTTP_ORIGIN") != config.origin:
+    if method not in SAFE_METHODS and environ.get("HTTP_ORIGIN") != request_origin:
         raise BoundaryError("csrf_origin_required")
     if path == "/api" or path.startswith("/api/") or method not in SAFE_METHODS:
         if environ.get("HTTP_SEC_FETCH_SITE") not in {None, "same-origin"}:
             raise BoundaryError("cross_site_request_denied")
-        if environ.get("HTTP_ORIGIN") != config.origin and environ.get("HTTP_SEC_FETCH_SITE") != "same-origin":
+        if environ.get("HTTP_ORIGIN") != request_origin and environ.get("HTTP_SEC_FETCH_SITE") != "same-origin":
             raise BoundaryError("same_origin_evidence_required")
     for name, limit in (("HTTP_AUTHORIZATION", 8192), ("HTTP_X_AUREON_AUTH_RESOLUTION", 128)):
         if name in environ and (not isinstance(environ[name], str) or len(environ[name]) > limit or re.search(r"[\r\n\x00]", environ[name])):
@@ -265,6 +283,12 @@ def forwarded_headers(environ):
     # Deliberate allowlist: no Cookie, client forwarding/identity headers, serverless
     # authorization, proxy headers, websocket upgrades, or arbitrary destinations.
     return result
+
+
+def entry_mode_allowed(config, mode):
+    if config.access_mode == "hybrid":
+        return mode in {"iap", "user"}
+    return mode == config.access_mode
 
 
 def request_target(environ):
@@ -367,16 +391,39 @@ def create_app(config=None, *, verifier=None, transport=None, identity=None):
                 if request.host != urlsplit(config.bridge_url).netloc:
                     raise BoundaryError("bridge_host_mismatch")
                 verifier.service(request.headers.get("X-Aureon-Service-Authorization", ""), config)
-            verifier.user(assertion, config)
+                entry_mode = request.headers.get("X-Aureon-Entry-Mode", "")
+                if not entry_mode and config.access_mode == "iap":
+                    # Backward-compatible owner bridge deployments predate the
+                    # explicit route-mode header and are IAP-only by contract.
+                    entry_mode = "iap"
+                if not entry_mode_allowed(config, entry_mode):
+                    raise BoundaryError("entry_mode_denied")
+            else:
+                entry_mode = config.access_mode
+            if entry_mode == "iap":
+                verifier.user(assertion, config)
+            elif assertion:
+                # A public-user request cannot smuggle an identity assertion
+                # into the bridge and have it interpreted by a different mode.
+                raise BoundaryError("unexpected_iap_assertion")
             target = request_target(request.environ)
             headers = forwarded_headers(request.environ)
         except BoundaryError:
             return jsonify(error="request_not_authorized", available=False), 403
         try:
             if config.role == "entry":
-                headers.update({"X-Aureon-Iap-Assertion": assertion,
-                                "X-Aureon-Service-Authorization": "Bearer " + identity(),
+                headers.update({"X-Aureon-Service-Authorization": "Bearer " + identity(),
+                                "X-Aureon-Entry-Mode": entry_mode,
                                 "X-Aureon-Public-Host": config.origin.removeprefix("https://")})
+                if entry_mode == "iap":
+                    headers["X-Aureon-Iap-Assertion"] = assertion
+                else:
+                    authorization = headers.get("Authorization", "")
+                    headers["X-Aureon-Auth-Resolution"] = (
+                        "tenant-bearer"
+                        if re.fullmatch(r"Bearer [A-Za-z0-9._-]{20,8192}", authorization)
+                        else "anonymous"
+                    )
             else:
                 # Every bridge request requires live, matching loopback health.
                 status, _, raw = transport("GET", HEALTH, {}, b"", health=True)
