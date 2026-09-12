@@ -163,7 +163,8 @@ def validate_service_names(services: list[str]) -> None:
         raise ReleaseError("service_not_allowlisted")
 
 
-def render_unit(unit: str, workspace: Path, revision: str, project: str, secret: str, version: str) -> bytes:
+def render_unit(unit: str, workspace: Path, revision: str, project: str, secret: str, version: str,
+                tenant_secret: str = "", tenant_version: str = "") -> bytes:
     """Commands contain only validated paths and secret identifiers, never values."""
     validate_service_names([unit])
     if re.search(r"[^A-Za-z0-9_./-]", str(workspace)):
@@ -177,6 +178,11 @@ def render_unit(unit: str, workspace: Path, revision: str, project: str, secret:
         command = (f"/srv/aureon/venv/bin/python {runner}/{shim} "
                    f"--source-root {workspace}/aureon-os-upstream {dist_argument}"
                    f"--revision {revision} --project {project} --secret {secret} --secret-version {version}")
+        if HTTP_UNITS[unit] == "operator":
+            if (not re.fullmatch(r"[A-Za-z0-9_-]{1,255}", tenant_secret)
+                    or not re.fullmatch(r"[1-9][0-9]*", tenant_version)):
+                raise ReleaseError("pinned_cloud_tenant_secret_identifiers_required")
+            command += f" --tenant-secret {tenant_secret} --tenant-secret-version {tenant_version}"
     else:
         command = f"/srv/aureon/venv/bin/python {runner}/cloud_read_organ.py {organ_name(unit)}"
     environment = {**HOLDS, "SERO_WORKSPACE": str(workspace),
@@ -281,7 +287,8 @@ def verify_http(unit: str, revision: str) -> None:
                 row = json.loads(body)
             if (row.get("schema") == "aureon.cloud-http-health.v1" and row.get("revision") == revision
                     and row.get("role") == HTTP_UNITS[unit] and row.get("ready") is True
-                    and row.get("deployment_hold") is True and row.get("release_authority") is False):
+                    and row.get("deployment_hold") is True and row.get("release_authority") is False
+                    and row.get("tenant_auth_ready") is True):
                 return
         except Exception:
             pass
@@ -290,7 +297,8 @@ def verify_http(unit: str, revision: str) -> None:
 
 
 def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services: list[str], controller,
-            *, project: str = "", secret: str = "", version: str = "") -> Path:
+            *, project: str = "", secret: str = "", version: str = "",
+            tenant_secret: str = "", tenant_version: str = "") -> Path:
     validate_service_names(services)
     # Data owners first, then operator, then UI whose readiness depends on it.
     services = sorted(services, key=lambda unit: (2 if unit == "aureon-cloud-ui.service" else 1 if unit == "aureon-cloud-operator.service" else 0, unit))
@@ -327,14 +335,17 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
         if any(organ_name(unit) in RETAIN_ONLY and not row["active"] for unit, row in snapshots.items()):
             raise ReleaseError("legacy_expansion_may_only_be_retained")
         for unit in services:
-            payload.append(("unit", unit, render_unit(unit, workspace, revision, project, secret, version)))
+            payload.append(("unit", unit, render_unit(unit, workspace, revision, project, secret, version,
+                                                       tenant_secret, tenant_version)))
         release = confined(releases, release_id)
         release.mkdir(mode=0o700)  # collision is a hard error; never overwrite a prior release
         journal = {"schema": SCHEMA, "revision": revision, "release_id": release_id, "phase": "prepared",
                    "workspace": str(workspace.resolve()), "units": str(units.resolve()), "services": services,
                    "original_services": snapshots, "manifest_sha256": digest(read_bytes(bundle / "manifest.json", 4 * 1024 * 1024)),
                    "entries": [], "deployment_hold": True, "release_authority": False,
-                   "runtime_state_restored": False, "data_source_freshness": "not_attested"}
+                   "runtime_state_restored": False, "data_source_freshness": "not_attested",
+                   "tenant_auth_secret": tenant_secret or None,
+                   "tenant_auth_secret_version": tenant_version or None}
         for index, (kind, relative, data) in enumerate(payload):
             root = workspace if kind == "source" else units
             target = confined(root, relative)
@@ -487,13 +498,16 @@ def main() -> int:
     parser.add_argument("--project", default="")
     parser.add_argument("--secret", default="")
     parser.add_argument("--secret-version", default="")
+    parser.add_argument("--tenant-secret", default="")
+    parser.add_argument("--tenant-secret-version", default="")
     args = parser.parse_args()
     if args.command == "prepare":
         if args.bundle is None:
             raise ReleaseError("bundle_required")
         controller = Systemd(args.workspace, args.units, args.service)
         release = prepare(args.bundle, args.workspace, args.releases, args.units, args.service, controller,
-                          project=args.project, secret=args.secret, version=args.secret_version)
+                          project=args.project, secret=args.secret, version=args.secret_version,
+                          tenant_secret=args.tenant_secret, tenant_version=args.tenant_secret_version)
         print(json.dumps({"prepared": True, "release": str(release), "requires_review_before_apply": True}))
         return 0
     if args.release is None:

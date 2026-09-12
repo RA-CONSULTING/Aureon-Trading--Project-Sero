@@ -73,6 +73,49 @@ def validate_bearer(raw):
     return raw.decode("ascii")
 
 
+def validate_supabase_tenant_config(raw):
+    """Validate the complete public Supabase tenant-auth configuration.
+
+    The publishable key is intentionally client-visible, but it still travels
+    through Secret Manager so one pinned, checksummed deployment input owns the
+    operator's tenant-verification configuration.  Extra fields are rejected so
+    this payload can never grow into a provider/service credential carrier.
+    """
+    if not isinstance(raw, bytes) or not 1 <= len(raw) <= 8192:
+        raise CloudHTTPError("cloud_tenant_secret_payload_invalid")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, ValueError, TypeError) as exc:
+        raise CloudHTTPError("cloud_tenant_secret_payload_invalid") from exc
+    if not isinstance(payload, dict) or set(payload) != {"project_url", "publishable_key"}:
+        raise CloudHTTPError("cloud_tenant_secret_payload_invalid")
+    project_url = payload.get("project_url")
+    publishable_key = payload.get("publishable_key")
+    if not isinstance(project_url, str) or not isinstance(publishable_key, str):
+        raise CloudHTTPError("cloud_tenant_secret_payload_invalid")
+    parsed = urlsplit(project_url)
+    host = parsed.hostname or ""
+    if (parsed.scheme != "https" or parsed.port is not None or parsed.username is not None
+            or parsed.password is not None or parsed.path not in {"", "/"} or parsed.query
+            or parsed.fragment or not re.fullmatch(r"[a-z0-9]{20}\.supabase\.co", host)):
+        raise CloudHTTPError("cloud_tenant_project_url_invalid")
+    if (not 20 <= len(publishable_key) <= 4096
+            or re.search(r"[^\x21-\x7e]", publishable_key)
+            or not (publishable_key.startswith("sb_publishable_") or publishable_key.count(".") == 2)):
+        raise CloudHTTPError("cloud_tenant_publishable_key_invalid")
+    if publishable_key.count(".") == 2:
+        try:
+            segment = publishable_key.split(".")[1]
+            segment += "=" * (-len(segment) % 4)
+            claims = json.loads(base64.urlsafe_b64decode(segment.encode("ascii")))
+        except (ValueError, UnicodeError, binascii.Error, TypeError) as exc:
+            raise CloudHTTPError("cloud_tenant_publishable_key_invalid") from exc
+        if (not isinstance(claims, dict) or claims.get("role") != "anon"
+                or claims.get("ref") not in {None, host.split(".", 1)[0]}):
+            raise CloudHTTPError("cloud_tenant_publishable_key_invalid")
+    return {"project_url": project_url.rstrip("/"), "publishable_key": publishable_key}
+
+
 def crc32c(data):
     """Castagnoli CRC, verified with the standard 123456789 test vector."""
     value = 0xFFFFFFFF
@@ -103,7 +146,7 @@ def _secret_http_read(url, headers, *, metadata=False):
         return data
 
 
-def decode_secret_response(raw, *, resource):
+def decode_secret_payload(raw, *, resource):
     try:
         result = json.loads(raw)
         if not isinstance(result, dict) or result.get("name") != resource:
@@ -117,12 +160,16 @@ def decode_secret_response(raw, *, resource):
             raise CloudHTTPError("cloud_secret_checksum_missing")
         if int(checksum) != crc32c(data):
             raise CloudHTTPError("cloud_secret_checksum_mismatch")
-        return validate_bearer(data)
+        return data
     except (ValueError, KeyError, TypeError, binascii.Error) as exc:
         raise CloudHTTPError("cloud_secret_response_invalid") from exc
 
 
-def fetch_secret_worker(project, secret, version, reader=_secret_http_read):
+def decode_secret_response(raw, *, resource):
+    return validate_bearer(decode_secret_payload(raw, resource=resource))
+
+
+def fetch_secret_worker(project, secret, version, reader=_secret_http_read, *, secret_kind="bearer"):
     """Runs only in the isolated, deadline-bounded child, never logs payloads."""
     validate_secret_reference(project, secret, version)
     header = {"Metadata-Flavor": "Google"}
@@ -141,7 +188,12 @@ def fetch_secret_worker(project, secret, version, reader=_secret_http_read):
     resource = f"projects/{project_number}/secrets/{secret}/versions/{version}"
     raw = reader("https://secretmanager.googleapis.com/v1/" + resource + ":access",
                  {"Authorization": "Bearer " + token, "Accept": "application/json"})
-    return decode_secret_response(raw, resource=resource)
+    payload = decode_secret_payload(raw, resource=resource)
+    if secret_kind == "bearer":
+        return validate_bearer(payload)
+    if secret_kind == "supabase-tenant":
+        return json.dumps(validate_supabase_tenant_config(payload), sort_keys=True, separators=(",", ":"))
+    raise CloudHTTPError("cloud_secret_kind_invalid")
 
 
 def worker_environment(environment=None):
@@ -169,6 +221,27 @@ def load_cloud_secret(project, secret, version, *, popen=subprocess.Popen):
         # Neither stdout nor stderr (nor the process exception) is logged.
         raise CloudHTTPError("cloud_secret_access_failed")
     return validate_bearer(output)
+
+
+def load_cloud_tenant_config(project, secret, version, *, popen=subprocess.Popen):
+    validate_secret_reference(project, secret, version)
+    command = [sys.executable, "-I", "-S", "-B", str(Path(__file__).resolve()),
+               "--secret-worker", "--secret-kind", "supabase-tenant", "--project", project,
+               "--secret", secret, "--secret-version", version]
+    process = popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, env=worker_environment(), close_fds=True)
+    try:
+        output, errors = process.communicate(timeout=SECRET_DEADLINE)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        try:
+            process.communicate(timeout=SECRET_CLEANUP)
+        except subprocess.TimeoutExpired:
+            raise CloudHTTPError("cloud_secret_worker_cleanup_failed") from None
+        raise CloudHTTPError("cloud_secret_deadline_exceeded") from None
+    if process.returncode != 0 or errors:
+        raise CloudHTTPError("cloud_secret_access_failed")
+    return validate_supabase_tenant_config(output)
 
 
 def _loopback(value, *, allow_name=False):
@@ -301,9 +374,10 @@ def loopback_request(port, method, target, headers, body=b"", *, timeout=30, max
         connection.close()
 
 
-def _health(role, revision, ready):
+def _health(role, revision, ready, *, tenant_auth_ready=False):
     return {"schema": HEALTH_SCHEMA, "role": role, "revision": revision,
-            "ready": bool(ready), "deployment_hold": holds_ready(), "release_authority": False}
+            "ready": bool(ready), "deployment_hold": holds_ready(), "release_authority": False,
+            "tenant_auth_ready": bool(tenant_auth_ready)}
 
 
 def _json_wsgi(start_response, status, data):
@@ -313,16 +387,16 @@ def _json_wsgi(start_response, status, data):
     return [body]
 
 
-def operator_envelope(app, revision):
+def operator_envelope(app, revision, *, tenant_auth_ready=False):
     """Health is the only exact-path bypass. All API identity/HNC stays in app."""
     def wrapped(environ, start_response):
         reason = inspect_ingress(environ)
         if reason:
             return _json_wsgi(start_response, "403 Forbidden", {"error": reason})
         if environ.get("PATH_INFO") == HEALTH_PATH and environ.get("REQUEST_METHOD") == "GET":
-            ready = holds_ready()
+            ready = holds_ready() and tenant_auth_ready
             return _json_wsgi(start_response, "200 OK" if ready else "503 Service Unavailable",
-                              _health("operator", revision, ready))
+                              _health("operator", revision, ready, tenant_auth_ready=tenant_auth_ready))
         if not holds_ready():
             return _json_wsgi(start_response, "503 Service Unavailable", {"error": "cloud_deployment_holds_required"})
         return app(environ, start_response)
@@ -376,17 +450,21 @@ def create_ui_gateway(dist_root, revision, bearer, transport=loopback_request):
     @app.get(HEALTH_PATH)
     def health():
         ready = False
+        tenant_auth_ready = False
         if holds_ready() and (root / "index.html").is_file() and all(path.is_file() for path in assets):
             try:
                 status, _, body = transport(8080, "GET", HEALTH_PATH, {}, timeout=3, max_bytes=4096)
                 upstream = json.loads(body)
+                tenant_auth_ready = upstream.get("tenant_auth_ready") is True if isinstance(upstream, dict) else False
                 ready = (status == 200 and isinstance(upstream, dict)
                          and upstream.get("schema") == HEALTH_SCHEMA and upstream.get("role") == "operator"
                          and upstream.get("revision") == revision and upstream.get("ready") is True
-                         and upstream.get("deployment_hold") is True and upstream.get("release_authority") is False)
+                         and upstream.get("deployment_hold") is True and upstream.get("release_authority") is False
+                         and tenant_auth_ready)
             except (CloudHTTPError, ValueError, TypeError):
                 pass
-        return jsonify(_health("ui-gateway", revision, ready)), 200 if ready else 503
+        return jsonify(_health("ui-gateway", revision, ready,
+                               tenant_auth_ready=tenant_auth_ready)), 200 if ready else 503
 
     @app.route("/api", defaults={"rest": ""}, methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
     @app.route("/api/<path:rest>", methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
@@ -425,12 +503,15 @@ def create_ui_gateway(dist_root, revision, bearer, transport=loopback_request):
     return app
 
 
-def build_operator(source_root, revision, bearer):
+def build_operator(source_root, revision, bearer, tenant_config):
     require_holds()
     validate_bearer(bearer.encode("ascii"))
     root = Path(source_root).resolve(strict=True)
     if not (root / "aureon/operator/operator_server.py").is_file():
         raise CloudHTTPError("cloud_operator_source_missing")
+    tenant_config = validate_supabase_tenant_config(
+        json.dumps(tenant_config, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
     settings = {
         "AUREON_OPERATOR_API_KEY": bearer, "AUREON_OPERATOR_ENV": "production",
         "AUREON_OPERATOR_DEV": "0", "AUREON_OPERATOR_HOST": "127.0.0.1", "AUREON_OPERATOR_PORT": "8080",
@@ -438,6 +519,8 @@ def build_operator(source_root, revision, bearer):
         "AUREON_OPERATOR_HTTP_PROCESSES": "1", "AUREON_OPERATOR_REPLICAS": "1",
         "AUREON_OPERATOR_MAX_BODY": str(MAX_REQUEST), "AUREON_OPERATOR_TRUSTED_PROXY_CIDRS": "",
         "SERO_WORKSPACE": str(root.parent),
+        "AUREON_SUPABASE_URL": tenant_config["project_url"],
+        "AUREON_SUPABASE_PUBLISHABLE_KEY": tenant_config["publishable_key"],
     }
     os.environ.update(settings)
     sys.path[:0] = [str(root), str(root.parent)]
@@ -449,7 +532,7 @@ def build_operator(source_root, revision, bearer):
         raise CloudHTTPError("cloud_operator_boot_profile_changed")
     if getattr(app, "debug", False) or getattr(app, "testing", False):
         raise CloudHTTPError("cloud_operator_production_app_required")
-    return operator_envelope(app, revision)
+    return operator_envelope(app, revision, tenant_auth_ready=True)
 
 
 def reserve_port(role):
@@ -473,7 +556,11 @@ def run(role=None, argv=None):
     parser.add_argument("--project", required=True)
     parser.add_argument("--secret", required=True)
     parser.add_argument("--secret-version", required=True)
+    parser.add_argument("--tenant-secret")
+    parser.add_argument("--tenant-secret-version")
     parser.add_argument("--secret-worker", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--secret-kind", choices=("bearer", "supabase-tenant"), default="bearer",
+                        help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
         validate_secret_reference(args.project, args.secret, args.secret_version)
@@ -481,13 +568,21 @@ def run(role=None, argv=None):
             # Refuse interactive use; the credential goes only to the parent pipe.
             if sys.stdout.isatty():
                 raise CloudHTTPError("cloud_secret_worker_pipe_required")
-            token = fetch_secret_worker(args.project, args.secret, args.secret_version)
+            token = fetch_secret_worker(args.project, args.secret, args.secret_version,
+                                        secret_kind=args.secret_kind)
             sys.stdout.buffer.write(token.encode("ascii"))
             sys.stdout.buffer.flush()
             return 0
         require_holds()
         if args.role not in PORTS or (role is not None and args.role != role):
             raise CloudHTTPError("cloud_http_role_invalid")
+        tenant_reference = bool(args.tenant_secret or args.tenant_secret_version)
+        if args.role == "operator" and not (args.tenant_secret and args.tenant_secret_version):
+            raise CloudHTTPError("cloud_tenant_auth_reference_required")
+        if args.role != "operator" and tenant_reference:
+            raise CloudHTTPError("cloud_tenant_auth_reference_operator_only")
+        if args.role == "operator":
+            validate_secret_reference(args.project, args.tenant_secret, args.tenant_secret_version)
         if not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", args.revision or ""):
             raise CloudHTTPError("cloud_revision_required")
         if not args.source_root or not Path(args.source_root).is_dir():
@@ -500,7 +595,10 @@ def run(role=None, argv=None):
         from waitress import create_server
         with reserve_port(args.role) as listener:
             bearer = load_cloud_secret(args.project, args.secret, args.secret_version)
-            app = (build_operator(args.source_root, args.revision, bearer) if args.role == "operator"
+            tenant_config = (load_cloud_tenant_config(args.project, args.tenant_secret,
+                                                       args.tenant_secret_version)
+                             if args.role == "operator" else None)
+            app = (build_operator(args.source_root, args.revision, bearer, tenant_config) if args.role == "operator"
                    else create_ui_gateway(args.dist_root, args.revision, bearer))
             server = create_server(app, sockets=[listener], threads=8, max_request_body_size=MAX_REQUEST,
                                    max_request_header_size=32768, expose_tracebacks=False, clear_untrusted_proxy_headers=True)

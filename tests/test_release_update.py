@@ -206,22 +206,28 @@ def test_invalid_python_is_not_imported_or_installed(tmp_path, monkeypatch):
 
 def test_http_units_enforce_all_holds_and_distinct_shims():
     for unit, shim in (("aureon-cloud-operator.service", "cloud_operator.py"), ("aureon-cloud-ui.service", "cloud_ui_gateway.py")):
-        body = release.render_unit(unit, PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "7").decode()
+        body = release.render_unit(unit, PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "7",
+                                   "supabase-tenant", "3").decode()
         assert shim in body and "KillMode=control-group" in body
         assert "--secret-version 7" in body and "--revision " + REVISION in body
         for key, value in release.HOLDS.items():
             assert "Environment=" + key + "=" + value in body
         if unit == "aureon-cloud-operator.service":
+            assert "--tenant-secret supabase-tenant --tenant-secret-version 3" in body
             for expected in ("AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS=1", "AUREON_AUDIT_MODE=1",
                              "AUREON_LLM_ALLOW_HTTP_IN_AUDIT=1", "AUREON_LLM_REQUEST_TIMEOUT_S=25"):
                 assert "Environment=" + expected in body
     with pytest.raises(release.ReleaseError, match="pinned_cloud_secret"):
-        release.render_unit("aureon-cloud-ui.service", PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "latest")
+        release.render_unit("aureon-cloud-ui.service", PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "latest",
+                            "supabase-tenant", "3")
+    with pytest.raises(release.ReleaseError, match="tenant_secret"):
+        release.render_unit("aureon-cloud-operator.service", PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "7")
 
 
 def test_operator_references_existing_private_config_without_reading_it(monkeypatch):
     monkeypatch.setattr(Path, "is_file", lambda path: path.name == ".env")
-    body = release.render_unit("aureon-cloud-operator.service", PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "7").decode()
+    body = release.render_unit("aureon-cloud-operator.service", PurePosixPath("/srv/aureon/runtime/workspace"), REVISION, "fixture-project", "http-bearer", "7",
+                               "supabase-tenant", "3").decode()
     assert "Environment=AUREON_ENV_FILE=/srv/aureon/runtime/workspace/aureon_radar/.env" in body
 
 

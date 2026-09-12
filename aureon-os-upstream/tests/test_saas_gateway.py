@@ -307,6 +307,55 @@ def test_closed_position_analytics_route_uses_tenant_bearer_and_user_filter(monk
     assert anon_key not in serialized
 
 
+def test_closed_position_analytics_accepts_pinned_operator_supabase_names(monkeypatch):
+    flask = pytest.importorskip("flask")
+    from aureon.saas import gateway
+
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("VITE_SUPABASE_URL", raising=False)
+    monkeypatch.delenv("AUREON_SUPABASE_JWT_SECRET", raising=False)
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    monkeypatch.delenv("VITE_SUPABASE_ANON_KEY", raising=False)
+    monkeypatch.delenv("VITE_SUPABASE_PUBLISHABLE_KEY", raising=False)
+    monkeypatch.setenv("AUREON_SUPABASE_URL", "https://siihxcwetdjdsrfdexmb.supabase.co")
+    monkeypatch.setenv("AUREON_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_" + "x" * 40)
+    seen = {}
+
+    class _Response:
+        headers = {"content-range": "*/0"}
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self, _size=-1): return b"[]"
+
+    def fake_open(request, timeout):
+        seen["url"] = request.full_url
+        seen["headers"] = dict(request.header_items())
+        return _Response()
+
+    token = _mk_jwt({
+        "sub": "tenant-gary",
+        "iss": "https://siihxcwetdjdsrfdexmb.supabase.co/auth/v1",
+        "exp": time.time() + 3600,
+    }, "fixture")
+    monkeypatch.setattr(gateway, "_open_supabase_request", fake_open)
+    app = flask.Flask(__name__)
+
+    @app.before_request
+    def verified_outer_tenant_identity():
+        flask.g.identity_kind = "tenant"
+
+    gateway.register_saas_routes(app)
+    response = app.test_client().get(
+        "/api/trading/closed-position-analytics?range=24h",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["auth_mode"] == "tenant_bearer_rls"
+    assert "user_id=eq.tenant-gary" in seen["url"]
+    assert seen["headers"]["Apikey"].startswith("sb_publishable_")
+
+
 
 def test_sungeo_schumann_activity_keeps_frequency_unreported(monkeypatch):
     from aureon.saas import gateway

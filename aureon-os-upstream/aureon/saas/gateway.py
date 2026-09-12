@@ -248,7 +248,9 @@ def _project_ref_from_url(url: str) -> str:
 
 def _supabase_public_key_from_request(headers: Any) -> str:
     return (
-        _short_text(os.environ.get("SUPABASE_ANON_KEY"), limit=4000)
+        _short_text(os.environ.get("AUREON_SUPABASE_PUBLISHABLE_KEY"), limit=4000)
+        or _short_text(os.environ.get("AUREON_SUPABASE_ANON_KEY"), limit=4000)
+        or _short_text(os.environ.get("SUPABASE_ANON_KEY"), limit=4000)
         or _short_text(os.environ.get("VITE_SUPABASE_ANON_KEY"), limit=4000)
         or _short_text(os.environ.get("VITE_SUPABASE_PUBLISHABLE_KEY"), limit=4000)
         or _short_text(headers.get("X-Aureon-Supabase-Publishable-Key"), limit=4000)
@@ -257,7 +259,10 @@ def _supabase_public_key_from_request(headers: Any) -> str:
 
 
 def _supabase_url_from_env_or_claims(user_claims: Dict[str, Any], public_key_claims: Dict[str, Any]) -> str:
-    configured = _short_text(os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL"), limit=500) or ""
+    configured = _short_text(
+        os.environ.get("AUREON_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+        or os.environ.get("VITE_SUPABASE_URL"), limit=500
+    ) or ""
     # A caller's unsigned claims must not choose where credentials are sent.
     try:
         parsed = urlparse(configured)
@@ -286,7 +291,10 @@ def _tenant_bearer_supabase_auth(headers: Any) -> Dict[str, str]:
         return {}
     user_ref = _project_ref_from_claims(user_claims)
     key_ref = _project_ref_from_claims(public_claims)
-    configured_url = _short_text(os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL"), limit=500) or ""
+    configured_url = _short_text(
+        os.environ.get("AUREON_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+        or os.environ.get("VITE_SUPABASE_URL"), limit=500
+    ) or ""
     configured_ref = _project_ref_from_url(configured_url) if configured_url else ""
     refs = {item for item in (user_ref, key_ref, configured_ref) if item}
     if len(refs) > 1:
@@ -364,7 +372,10 @@ def _read_supabase_closed_position_analytics(
     received_at = int(time.time() * 1000)
     auth = auth or _server_side_supabase_auth(tenant_id)
     if not auth:
-        url_present = bool(_short_text(os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL"), limit=500))
+        url_present = bool(_short_text(
+            os.environ.get("AUREON_SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+            or os.environ.get("VITE_SUPABASE_URL"), limit=500
+        ))
         service_key_present = bool(_short_text(os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_SERVICE_KEY"), limit=4000))
         reason = "Tenant/user id is required for server-side trading_positions filtering" if url_present and service_key_present and not tenant_id else "Supabase URL plus server-side service key or tenant bearer/public key is not configured"
         return _unavailable_trading_analytics(

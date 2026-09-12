@@ -25,6 +25,8 @@ spec.loader.exec_module(cloud)
 FIXTURE = "offline_fixture_only_" * 3
 REVISION = "a" * 40
 RESOURCE = "projects/123456789/secrets/operator-http/versions/7"
+TENANT_CONFIG = {"project_url": "https://abcdefghijklmnopqrst.supabase.co",
+                 "publishable_key": "sb_publishable_" + "x" * 48}
 
 
 def secret_response(data=FIXTURE.encode(), **override):
@@ -51,6 +53,41 @@ class SecretTests(unittest.TestCase):
                     secret_response(payload={"data": "***", "dataCrc32c": "0"}), b"null"):
             with self.assertRaises(cloud.CloudHTTPError):
                 cloud.decode_secret_response(raw, resource=RESOURCE)
+
+    def test_supabase_tenant_config_is_exact_public_configuration(self):
+        self.assertEqual(cloud.validate_supabase_tenant_config(json.dumps(TENANT_CONFIG).encode()), TENANT_CONFIG)
+        for payload in (
+            {},
+            {**TENANT_CONFIG, "service_role_key": "forbidden"},
+            {**TENANT_CONFIG, "project_url": "http://abcdefghijklmnopqrst.supabase.co"},
+            {**TENANT_CONFIG, "project_url": "https://abcdefghijklmnopqrst.supabase.co@evil.test"},
+            {**TENANT_CONFIG, "publishable_key": "service-role-secret"},
+        ):
+            with self.assertRaises(cloud.CloudHTTPError):
+                cloud.validate_supabase_tenant_config(json.dumps(payload).encode())
+
+    def test_tenant_config_worker_pipe_is_revalidated_by_parent(self):
+        captured = {}
+        class Child:
+            returncode = 0
+            def communicate(self, timeout):
+                captured["timeout"] = timeout
+                return json.dumps(TENANT_CONFIG).encode(), b""
+        def popen(command, **kwargs):
+            captured.update(command=command, options=kwargs)
+            return Child()
+        self.assertEqual(cloud.load_cloud_tenant_config(
+            "test-project", "supabase-tenant", "3", popen=popen), TENANT_CONFIG)
+        self.assertEqual(captured["timeout"], cloud.SECRET_DEADLINE)
+        self.assertIn("supabase-tenant", captured["command"])
+        self.assertEqual(captured["options"]["stdout"], subprocess.PIPE)
+
+        class Smuggled(Child):
+            def communicate(self, timeout):
+                return json.dumps({**TENANT_CONFIG, "service_role_key": "forbidden"}).encode(), b""
+        with self.assertRaises(cloud.CloudHTTPError):
+            cloud.load_cloud_tenant_config("test-project", "supabase-tenant", "3",
+                                           popen=lambda *a, **k: Smuggled())
 
     def test_metadata_identity_only_and_exact_destination(self):
         calls = []
@@ -144,7 +181,7 @@ class GatewayTests(unittest.TestCase):
                 return jsonify(error="unauthenticated"), 401
             return jsonify(error="production_magic_star_release_unavailable", dispatch=False), 503
 
-        self.operator = Client(cloud.operator_envelope(self.backend, REVISION), Response)
+        self.operator = Client(cloud.operator_envelope(self.backend, REVISION, tenant_auth_ready=True), Response)
         self.app = cloud.create_ui_gateway(self.root, REVISION, FIXTURE, self.transport)
         self.client = self.app.test_client()
 
@@ -219,6 +256,7 @@ class GatewayTests(unittest.TestCase):
         response = self.operator.get(cloud.HEALTH_PATH, base_url="http://127.0.0.1:8080", environ_overrides={"REMOTE_ADDR": "127.0.0.1"})
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json["ready"])
+        self.assertTrue(response.json["tenant_auth_ready"])
         self.assertFalse(response.json["release_authority"])
         response = self.operator.post(cloud.HEALTH_PATH, base_url="http://127.0.0.1:8080", environ_overrides={"REMOTE_ADDR": "127.0.0.1"})
         self.assertEqual(response.status_code, 404)
@@ -228,6 +266,7 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["revision"], REVISION)
         self.assertFalse(response.json["release_authority"])
+        self.assertTrue(response.json["tenant_auth_ready"])
         mismatch = cloud.create_ui_gateway(self.root, "b" * 40, FIXTURE, self.transport).test_client()
         self.assertEqual(mismatch.get(cloud.HEALTH_PATH, base_url="http://127.0.0.1:5173").status_code, 503)
         (self.root / "assets/app.js").unlink()
