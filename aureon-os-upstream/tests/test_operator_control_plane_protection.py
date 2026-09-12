@@ -31,6 +31,9 @@ def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "AUREON_OPERATOR_MAX_BODY",
         "AUREON_OPERATOR_TRUSTED_PROXY_CIDRS",
         "AUREON_SUPABASE_JWT_SECRET",
+        "AUREON_OPERATOR_INTENT_CERT_FILE",
+        "AUREON_OPERATOR_INTENT_LEDGER",
+        "AUREON_OPERATOR_REVISION",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AUREON_OPERATOR_ENV", "test")

@@ -222,6 +222,35 @@ class GatewayTests(unittest.TestCase):
     def test_explicit_valid_caller_identity_needs_no_admin_fallback(self):
         self.assertEqual(self.get(headers={"Authorization": "Bearer " + FIXTURE}).status_code, 200)
 
+    def test_signed_intent_header_only_forwards_with_same_origin_to_operator(self):
+        receipt = "a" * 80 + "." + "b" * 80 + "." + "c" * 80
+        response = self.client.post(
+            "/api/switchboard/AUREON_LIVE_TRADING",
+            json={"enabled": True},
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "X-Aureon-Operator-Intent": receipt,
+            },
+            base_url="http://127.0.0.1:5173",
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(self.calls[-1][3]["X-Aureon-Operator-Intent"], receipt)
+        before = len(self.calls)
+        denied = self.client.post(
+            "/api/switchboard/AUREON_LIVE_TRADING",
+            json={"enabled": True},
+            headers={"X-Aureon-Operator-Intent": receipt},
+            base_url="http://127.0.0.1:5173",
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(len(self.calls), before)
+        passive = self.get(
+            "/api/terminal-state",
+            headers={"Origin": "http://127.0.0.1:5173", "X-Aureon-Operator-Intent": receipt},
+        )
+        self.assertEqual(passive.status_code, 200)
+        self.assertNotIn("X-Aureon-Operator-Intent", self.calls[-1][3])
+
     def test_bad_origin_host_peer_and_oversized_auth_are_denied_locally(self):
         for headers in ({"Origin": "https://evil.invalid"}, {"Origin": "http://127.0.0.1:5174"},
                         {"Sec-Fetch-Site": "same-site"}, {"Host": "evil.invalid"},

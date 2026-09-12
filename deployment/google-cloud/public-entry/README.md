@@ -7,6 +7,7 @@ This package gives the existing VM UI one public product HTTPS `run.app` address
 1. In `iap` mode, Google Cloud Run IAP authenticates the owner and the entry independently verifies the signed IAP ES256 JWT, exact audience/issuer, short lifetime, and owner email. In `user` mode, static pages are public and browser API calls retain only the supplied Supabase bearer. Both modes check the exact HTTPS host and same-origin API/unsafe-method evidence.
 2. The entry retrieves its own service-account Google ID token and sends an exact `iap` or `user` route-mode marker over certificate-pinned TLS to one private VM IP/port. IAP mode also carries the original signed IAP assertion.
 3. The VM bridge verifies the Google service token's signature, audience, email, immutable numeric subject, and verified-email claim. It accepts only configured route modes; `iap` independently verifies the owner assertion while `user` stamps an auth-resolution marker that prevents operator-bearer fallback.
+4. For an exact owner-IAP `POST /api/switchboard/<FLAG_ID>` only, the bridge signs the method, path, body digest, revision, ten-second lifetime, and one-use nonce with its VM-only RSA key. This authorizes persistence of human configuration intent; it grants no runtime, release, order, exchange, payment, filing, or tool authority.
 5. The bridge checks the matching-revision loopback UI health on every request. It requires the six deployment holds, `ready=true`, and `release_authority=false`, then proxies the single loopback UI at `127.0.0.1:5173`.
 
 Only after these checks does the bridge supply loopback same-origin evidence. Explicit empty/invalid `Authorization` and any `X-Aureon-Auth-Resolution` marker remain present; they cannot acquire fallback operator identity. Google/browser cookies and arbitrary forwarding/identity headers are never copied. Responses have a strict metadata allowlist, no browser cookies or redirect following, and no-store headers. All transports have finite body and wall-clock limits. Key caching lasts five minutes; unknown-key refresh is throttled.
@@ -29,15 +30,16 @@ Both roles require:
 | `AUREON_ENTRY_SERVICE_ACCOUNT_ID` | Numeric `uniqueId` read back from that service account |
 | `AUREON_BRIDGE_URL` | `https://10.40.0.2:8443`; also the service-token audience |
 | `AUREON_REVISION` | Full verified Git commit SHA also used by the loopback UI/operator |
+| `AUREON_OPERATOR_INTENT_KEY_FILE` | Bridge-only VM path `/etc/aureon-public/bridge-key.pem`; never configure on Cloud Run |
 | Hold variables | All six values in `public_entry.HOLDS` |
 
-The entry additionally needs `AUREON_BRIDGE_CA_FILE=/app/bridge-cert.pem`. The bridge has no application source-root requirement and no access to runtime state. All these environment values are public configuration, never credentials.
+The entry additionally needs `AUREON_BRIDGE_CA_FILE=/app/bridge-cert.pem`. The bridge has no application source-root requirement and no access to runtime state. The intent-key path is public configuration, while the referenced private key remains VM-only credential material.
 
 ## VM installation
 
 Install after the verified source/runtime update and loopback health checks. Keep the public bridge separate from the main runtime updater and existing 21 units. The new unit name is `aureon-public-bridge.service`; a pre-existing unit with unexpected ownership/configuration must be reviewed before replacement.
 
-1. Run `create-bridge-certificate.sh` as root on the VM. It creates dedicated `aureon-public` system identity and `/etc/aureon-public`, refuses to overwrite a TLS identity, and creates a 180-day certificate for `10.40.0.2`. The private key remains VM-only, root-owned and readable by the dedicated bridge group. Record certificate fingerprint and expiry. Rotation requires a new pinned public certificate in the entry image and coordinated bridge reload.
+1. Run `create-bridge-certificate.sh` as root on the VM. It creates dedicated `aureon-public` system identity and `/etc/aureon-public`, refuses to overwrite a TLS identity, and creates a 180-day certificate for `10.40.0.2`. The private key remains VM-only, root-owned and readable by the dedicated bridge group. The public certificate is readable by the loopback operator for receipt verification. Record certificate fingerprint and expiry. Rotation requires a new pinned public certificate in the entry image and coordinated bridge/operator reload.
 2. Install Python dependencies in a separate root-owned `/srv/aureon/public-venv`. Do not alter the application's venv. Copy only reviewed `public_entry.py` into root-owned `/srv/aureon/public-entry` (0755 directory, 0644 source). The bridge user cannot modify either.
 3. Create root-owned `/etc/aureon-public/bridge.env` with 0640 `root:aureon-public` permissions from `bridge.env.example`, using the verified service identity, revision, and initially empty origin.
 4. Install the reviewed unit to `/etc/systemd/system/aureon-public-bridge.service`; run `systemd-analyze verify` and `systemctl daemon-reload`. Start it explicitly. It binds only `10.40.0.2:8443`, denies all requests until commissioned, and has no ability to read `/srv/aureon/runtime`, import, cache, home directories, or the operator bearer.
@@ -102,7 +104,7 @@ Read both `status.url` values. Configure the public origin as `AUREON_PUBLIC_ORI
 
 Run `python -m pytest -q test_public_entry.py` from this directory in an isolated test environment. Tests create ephemeral signing keys in memory and test actual signatures/claims plus forged/missing identities, wrong host/origin, CSRF, explicit failed auth, holds, unavailable runtime, and source constraints. Add deployed TLS/anonymous and signed-in browser receipts to commissioning evidence; local tests alone do not prove cloud deployment.
 
-The bounded proxy supports finite HTTP JSON/static requests up to 256 KiB request and 8 MiB response, with 30-second upstream deadlines. It does not implement WebSockets, streaming SSE, uploads larger than that, or redirecting upstream responses. It fails visibly when an upstream is absent. Production dispatch authorities and trading controls remain governed by the actual backend; this package does not enable them.
+The bounded proxy supports finite HTTP JSON/static requests up to 256 KiB request and 8 MiB response, with 30-second upstream deadlines. It does not implement WebSockets, streaming SSE, uploads larger than that, or redirecting upstream responses. It fails visibly when an upstream is absent. The signed owner receipt only makes switchboard intent recording usable from the cloud. Production dispatch authorities and trading controls remain governed by the backend; this package does not enable them.
 
 Current official references (verified 2026-09-11):
 

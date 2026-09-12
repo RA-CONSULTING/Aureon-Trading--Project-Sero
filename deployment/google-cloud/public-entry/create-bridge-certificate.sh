@@ -17,5 +17,8 @@ openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 180 \
   -keyout /etc/aureon-public/bridge-key.pem \
   -out /etc/aureon-public/bridge-cert.pem
 chown root:aureon-public /etc/aureon-public/bridge-key.pem /etc/aureon-public/bridge-cert.pem
-chmod 0640 /etc/aureon-public/bridge-key.pem /etc/aureon-public/bridge-cert.pem
+chmod 0640 /etc/aureon-public/bridge-key.pem
+# The certificate is public verification material used by the loopback
+# operator. The private key remains restricted to the bridge group.
+chmod 0644 /etc/aureon-public/bridge-cert.pem
 openssl x509 -in /etc/aureon-public/bridge-cert.pem -noout -fingerprint -sha256 -enddate

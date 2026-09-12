@@ -71,11 +71,12 @@ def headers(keys, *, bridge=False):
     return result
 
 
-def client(verifier, *, bridge=False, transport=None, identity=None, config=None):
+def client(verifier, *, bridge=False, transport=None, identity=None, config=None, intent_signer=None):
     cfg = config or replace(BASE, role="bridge" if bridge else "entry")
     app = entry.create_app(cfg, verifier=verifier,
                            transport=transport or (lambda *a, **k: (200, {"Content-Type": "text/plain"}, b"ui")),
-                           identity=identity or (lambda: "runtime-service-identity"))
+                           identity=identity or (lambda: "runtime-service-identity"),
+                           intent_signer=intent_signer)
     return app.test_client(), cfg.bridge_url if bridge else (cfg.origin or BASE.origin)
 
 
@@ -340,6 +341,95 @@ def test_bridge_checks_health_then_creates_loopback_origin_preserving_bad_auth(k
     assert calls[1][1]["X-Aureon-Auth-Resolution"] == "failed"
     assert calls[1][1]["Origin"] == "http://127.0.0.1:5173"
     assert not any("Iap" in key or "Service-Authorization" in key for key in calls[1][1])
+
+
+def test_bridge_signs_only_exact_owner_switchboard_intent(keys, verifier):
+    calls = []
+    signed_calls = []
+
+    class Signer:
+        def sign(self, **kwargs):
+            signed_calls.append(kwargs)
+            return "signed.owner.intent"
+
+    def transport(method, target, headers, body, **kwargs):
+        if kwargs.get("health"):
+            return healthy()
+        calls.append((method, target, dict(headers), body))
+        return 200, {"Content-Type": "application/json"}, b'{"ok":true}'
+
+    c, base = client(verifier, bridge=True, transport=transport, intent_signer=Signer())
+    result = c.post(
+        "/api/switchboard/AUREON_LIVE_TRADING",
+        base_url=base,
+        headers=headers(keys, bridge=True),
+        json={"enabled": True, "confirm": "AUREON_LIVE_TRADING"},
+    )
+    assert result.status_code == 200
+    assert calls[-1][2][entry.INTENT_HEADER] == "signed.owner.intent"
+    assert signed_calls[-1]["method"] == "POST"
+    assert signed_calls[-1]["target"] == "/api/switchboard/AUREON_LIVE_TRADING"
+    assert signed_calls[-1]["mode"] == "iap"
+    assert signed_calls[-1]["revision"] == BASE.revision
+    assert signed_calls[-1]["body"] == calls[-1][3]
+    ordinary = c.post(
+        "/api/control",
+        base_url=base,
+        headers=headers(keys, bridge=True),
+        json={"action": "inspect"},
+    )
+    assert ordinary.status_code == 200
+    assert entry.INTENT_HEADER not in calls[-1][2]
+
+
+def test_operator_intent_signer_binds_exact_request_and_expires_quickly(tmp_path, keys):
+    key_path = tmp_path / "bridge-key.pem"
+    key_path.write_bytes(keys[1].private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ))
+    signer = entry.OperatorIntentSigner(
+        key_path,
+        clock=lambda: 1_800_000_000,
+        nonce=lambda _size: "test_nonce_abcdefghijklmnopqrstuvwxyz012345",
+    )
+    body = b'{"confirm":"AUREON_LIVE_TRADING","enabled":true}'
+    token = signer.sign(
+        method="POST",
+        target="/api/switchboard/AUREON_LIVE_TRADING",
+        body=body,
+        mode="iap",
+        revision=BASE.revision,
+    )
+    claims = jwt.decode(
+        token,
+        keys[1].public_key(),
+        algorithms=["RS256"],
+        audience=entry.INTENT_AUDIENCE,
+        issuer=entry.INTENT_ISSUER,
+        options={"verify_exp": False, "verify_iat": False},
+    )
+    assert set(claims) == {
+        "aud", "body_sha256", "exp", "iat", "iss", "jti", "method", "mode",
+        "path", "query_sha256", "revision", "route_rule", "schema",
+    }
+    assert claims["exp"] - claims["iat"] == 10
+    assert claims["body_sha256"] == __import__("hashlib").sha256(body).hexdigest()
+    assert claims["path"] == "/api/switchboard/AUREON_LIVE_TRADING"
+    assert claims["revision"] == BASE.revision
+    for change in (
+        {"method": "GET"},
+        {"target": "/api/connections/binance"},
+        {"mode": "user"},
+    ):
+        values = {
+            "method": "POST", "target": "/api/switchboard/AUREON_LIVE_TRADING",
+            "body": body, "mode": "iap", "revision": BASE.revision,
+        }
+        values.update(change)
+        with pytest.raises(entry.BoundaryError, match="intent_signing_scope_denied"):
+            signer.sign(**values)
 
 
 @pytest.mark.parametrize("change", [{"deployment_hold": False}, {"release_authority": True}, {"revision": "b" * 40},

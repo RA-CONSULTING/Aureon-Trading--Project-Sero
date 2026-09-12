@@ -7,12 +7,14 @@ service-signed route mode; only the bridge can reach the governed loopback UI.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import http.client
 import ipaddress
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import socket
 import ssl
 import threading
@@ -21,6 +23,8 @@ from urllib.parse import quote, urlsplit, unquote
 
 import jwt
 from cryptography import x509
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from flask import Flask, Response, jsonify, request
 
 HOLDS = {
@@ -40,6 +44,11 @@ INSTANCE_ONLY_API_PATHS = frozenset({
     "/api/flight-test",
     "/api/orca-observations",
 })
+INTENT_AUDIENCE = "aureon-operator-switchboard-intent"
+INTENT_ISSUER = "aureon-private-bridge"
+INTENT_SCHEMA = "aureon.operator.cloud-switchboard-intent.v1"
+INTENT_HEADER = "X-Aureon-Operator-Intent"
+_INTENT_PATH = re.compile(r"/api/switchboard/[A-Z0-9_]{1,64}")
 
 
 class BoundaryError(RuntimeError):
@@ -63,6 +72,7 @@ class Config:
     ca_file: str = ""
     access_mode: str = "iap"
     owner_origin: str = ""
+    intent_key_file: str = ""
 
     @classmethod
     def from_env(cls):
@@ -74,7 +84,8 @@ class Config:
                    os.environ.get("AUREON_BRIDGE_URL", ""), os.environ.get("AUREON_REVISION", ""),
                    os.environ.get("AUREON_BRIDGE_CA_FILE", ""),
                    os.environ.get("AUREON_PUBLIC_ACCESS_MODE", "iap"),
-                   os.environ.get("AUREON_OWNER_ORIGIN", ""))
+                   os.environ.get("AUREON_OWNER_ORIGIN", ""),
+                   os.environ.get("AUREON_OPERATOR_INTENT_KEY_FILE", ""))
 
     def origins(self):
         values = {self.origin} if self.origin else set()
@@ -115,6 +126,59 @@ class Config:
         for origin in self.origins():
             if not re.fullmatch(r"https://[a-z0-9][a-z0-9-]+(?:\.[a-z0-9][a-z0-9-]*)?\.run\.app", origin):
                 raise BoundaryError("public_origin_invalid")
+        if self.role == "bridge" and self.intent_key_file:
+            key_path = Path(self.intent_key_file)
+            if not key_path.is_absolute():
+                raise BoundaryError("intent_key_path_invalid")
+
+
+class OperatorIntentSigner:
+    """Use the VM-only RSA identity to sign one short-lived intent receipt."""
+
+    def __init__(self, key_file, *, clock=time.time, nonce=secrets.token_urlsafe):
+        path = Path(str(key_file or ""))
+        try:
+            resolved = path.resolve(strict=True)
+            raw = resolved.read_bytes()
+        except OSError as exc:
+            raise BoundaryError("intent_signing_key_unavailable") from exc
+        if not path.is_absolute() or path.is_symlink() or not 0 < len(raw) <= 64 * 1024:
+            raise BoundaryError("intent_signing_key_invalid")
+        try:
+            key = serialization.load_pem_private_key(raw, password=None)
+        except (ValueError, TypeError) as exc:
+            raise BoundaryError("intent_signing_key_invalid") from exc
+        if not isinstance(key, rsa.RSAPrivateKey) or key.key_size < 2048:
+            raise BoundaryError("intent_signing_key_invalid")
+        self._key = key
+        self._clock = clock
+        self._nonce = nonce
+
+    def sign(self, *, method, target, body, mode, revision):
+        if method != "POST" or not _INTENT_PATH.fullmatch(target) or mode != "iap":
+            raise BoundaryError("intent_signing_scope_denied")
+        now = int(self._clock())
+        claims = {
+            "aud": INTENT_AUDIENCE,
+            "body_sha256": hashlib.sha256(body).hexdigest(),
+            "exp": now + 10,
+            "iat": now,
+            "iss": INTENT_ISSUER,
+            "jti": self._nonce(32),
+            "method": method,
+            "mode": mode,
+            "path": target,
+            "query_sha256": hashlib.sha256(b"").hexdigest(),
+            "revision": revision,
+            "route_rule": "/api/switchboard/<flag_id>",
+            "schema": INTENT_SCHEMA,
+        }
+        return jwt.encode(
+            claims,
+            self._key,
+            algorithm="RS256",
+            headers={"typ": "JWT"},
+        )
 
 
 def identity_fetch(url, *, metadata=False):
@@ -363,12 +427,21 @@ class Transport:
                         timeout=3 if health else 30, limit=4096 if health else MAX_RESPONSE)
 
 
-def create_app(config=None, *, verifier=None, transport=None, identity=None):
+def create_app(
+    config=None,
+    *,
+    verifier=None,
+    transport=None,
+    identity=None,
+    intent_signer=None,
+):
     config = config or Config.from_env()
     config.validate()
     verifier = verifier or GoogleVerifier()
     transport = transport or Transport(config)
     identity = identity or MetadataIdentity(config, verifier)
+    if config.role == "bridge" and intent_signer is None and config.intent_key_file:
+        intent_signer = OperatorIntentSigner(config.intent_key_file)
     app = Flask("aureon_public_" + config.role, static_folder=None)
     app.config["MAX_CONTENT_LENGTH"] = MAX_BODY
 
@@ -453,6 +526,16 @@ def create_app(config=None, *, verifier=None, transport=None, identity=None):
                 # the bridge supply same-origin evidence to the loopback gateway.
                 # Any client Authorization/failed marker remains present exactly.
                 headers.update({"Origin": "http://127.0.0.1:5173", "Sec-Fetch-Site": "same-origin"})
+                if request.method == "POST" and _INTENT_PATH.fullmatch(target):
+                    if entry_mode != "iap" or intent_signer is None:
+                        raise BoundaryError("intent_signer_unavailable")
+                    headers[INTENT_HEADER] = intent_signer.sign(
+                        method=request.method,
+                        target=target,
+                        body=request.get_data(),
+                        mode=entry_mode,
+                        revision=config.revision,
+                    )
             status, response_headers, body = transport(request.method, target, headers, request.get_data())
             return Response(body, status=status, headers=response_headers)
         except (BoundaryError, ValueError, TypeError):

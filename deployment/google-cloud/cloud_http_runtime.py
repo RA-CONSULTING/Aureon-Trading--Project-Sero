@@ -39,6 +39,8 @@ HEALTH_SCHEMA = "aureon.cloud-http-health.v1"
 MAX_REQUEST = 256 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
 AUTH_RESOLUTION_KEY = "HTTP_X_AUREON_AUTH_RESOLUTION"
+INTENT_CUSTODY_ENV_KEY = "HTTP_X_AUREON_OPERATOR_INTENT"
+INTENT_CUSTODY_HEADER = "X-Aureon-Operator-Intent"
 METADATA_BASE = "http://metadata.google.internal/computeMetadata/v1/"
 SECRET_DEADLINE = 20
 SECRET_CLEANUP = 2
@@ -283,7 +285,11 @@ def inspect_ingress(environ):
         return "cross_site_request_denied"
     if "HTTP_ORIGIN" in environ and _origin(environ["HTTP_ORIGIN"]) != expected:
         return "same_origin_required"
-    for name, limit in (("HTTP_AUTHORIZATION", 8192), (AUTH_RESOLUTION_KEY, 128)):
+    for name, limit in (
+        ("HTTP_AUTHORIZATION", 8192),
+        (AUTH_RESOLUTION_KEY, 128),
+        (INTENT_CUSTODY_ENV_KEY, 8192),
+    ):
         if name in environ and (not isinstance(environ[name], str) or len(environ[name]) > limit
                                 or re.search(r"[\r\n\x00]", environ[name])):
             return "bounded_auth_header_required"
@@ -322,6 +328,10 @@ def proxy_headers(environ, bearer, port):
             result["Authorization"] = environ["HTTP_AUTHORIZATION"]
         elif AUTH_RESOLUTION_KEY not in environ and same_origin_evidence(environ):
             result["Authorization"] = "Bearer " + bearer
+        if INTENT_CUSTODY_ENV_KEY in environ:
+            if not same_origin_evidence(environ):
+                raise CloudHTTPError("cloud_intent_custody_origin_required")
+            result[INTENT_CUSTODY_HEADER] = environ[INTENT_CUSTODY_ENV_KEY]
     return result
 
 
@@ -435,6 +445,8 @@ def create_ui_gateway(dist_root, revision, bearer, transport=loopback_request):
         reason = inspect_ingress(request.environ)
         if reason:
             return jsonify(error=reason), 403
+        if INTENT_CUSTODY_ENV_KEY in request.environ and not same_origin_evidence(request.environ):
+            return jsonify(error="cloud_intent_custody_origin_required"), 403
         if not holds_ready() and request.path != HEALTH_PATH:
             return jsonify(error="cloud_deployment_holds_required"), 503
         return None
@@ -521,6 +533,9 @@ def build_operator(source_root, revision, bearer, tenant_config):
         "SERO_WORKSPACE": str(root.parent),
         "AUREON_SUPABASE_URL": tenant_config["project_url"],
         "AUREON_SUPABASE_PUBLISHABLE_KEY": tenant_config["publishable_key"],
+        "AUREON_OPERATOR_INTENT_CERT_FILE": "/etc/aureon-public/bridge-cert.pem",
+        "AUREON_OPERATOR_INTENT_LEDGER": "/srv/aureon/cache/operator-intent-replay.sqlite3",
+        "AUREON_OPERATOR_REVISION": revision,
     }
     os.environ.update(settings)
     sys.path[:0] = [str(root), str(root.parent)]

@@ -93,6 +93,11 @@ from aureon.operator.release_readiness import build_operator_release_readiness  
 from aureon.operator.capability_runtime_attestation import build_operator_capability_runtime_attestation  # noqa: E402
 from aureon.operator.release_ledger import append_release_ledger_event, build_release_ledger_receipt  # noqa: E402
 from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
+from aureon.operator.cloud_intent_custody import (  # noqa: E402
+    CloudIntentCustodyError,
+    CloudSwitchboardIntentCustody,
+    INTENT_HEADER,
+)
 from aureon.operator.executor_isolation import build_executor_isolation_receipt  # noqa: E402
 from aureon.operator.authority_map import build_authority_map_receipt  # noqa: E402
 from aureon.operator.result_binding import build_result_binding_receipt  # noqa: E402
@@ -521,6 +526,12 @@ def create_app(
         else None
     )
     _tenant_auth_configured = bool(_jwt_secret or _supabase_auth_verifier)
+    _cloud_intent_custody = CloudSwitchboardIntentCustody.from_env(os.environ)
+    app.extensions["aureon_cloud_intent_custody"] = (
+        _cloud_intent_custody.public_summary()
+        if _cloud_intent_custody is not None
+        else None
+    )
     _bucket = TokenBucket(_sec.rate_rps, _sec.burst)
     _effective_body_limit = min(_sec.max_body_bytes, MAX_OPERATOR_BODY_BYTES)
     app.config["MAX_CONTENT_LENGTH"] = _effective_body_limit
@@ -659,6 +670,31 @@ def create_app(
             "source_truth_established_by_local_wrapping": False,
             "production_magic_star_release_available": False,
         }
+        if _cloud_intent_custody is not None and rule == "/api/switchboard/<flag_id>":
+            try:
+                g.operator_cloud_intent_custody = (
+                    _cloud_intent_custody.authorize_and_consume(
+                        token=str(request.headers.get(INTENT_HEADER) or ""),
+                        method=request.method,
+                        path=request.path,
+                        route_rule=rule,
+                        query=query_bytes,
+                        body=body_bytes,
+                        identity_kind=str(getattr(g, "identity_kind", "unknown")),
+                        is_admin=bool(getattr(g, "is_admin", False)),
+                    )
+                )
+                return None
+            except CloudIntentCustodyError as exc:
+                return _err(
+                    403,
+                    "cloud switchboard intent custody denied",
+                    reason_code=str(exc),
+                    handler_invoked=False,
+                    intent_recording_authority=False,
+                    release_authority=False,
+                    mutation_authority=False,
+                )
         outcome = _ingress_boundary.admit_external(
             framed,
             source_id=f"operator-http-peer-sha256:{source_commitment}",
