@@ -33,6 +33,7 @@ MAX_INTENT_TOKEN_BYTES = 8 * 1024
 MAX_INTENT_LIFETIME_SECONDS = 15
 _FLAG_PATH = re.compile(r"/api/switchboard/[A-Z0-9_]{1,64}")
 _AUTHORIZATION_PATH = "/api/operator/authorization-lease"
+_CLOUD_TRADING_RELEASE_PATH = "/api/operator/cloud-trading-control/apply"
 _REVISION = re.compile(r"[0-9a-f]{40}")
 _JTI = re.compile(r"[A-Za-z0-9_-]{24,96}")
 _CLAIMS = frozenset(
@@ -224,6 +225,8 @@ class CloudSwitchboardIntentCustody:
             if _FLAG_PATH.fullmatch(path)
             else _AUTHORIZATION_PATH
             if path == _AUTHORIZATION_PATH
+            else _CLOUD_TRADING_RELEASE_PATH
+            if path == _CLOUD_TRADING_RELEASE_PATH
             else None
         )
         if (

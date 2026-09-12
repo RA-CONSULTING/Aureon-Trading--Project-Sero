@@ -1,3 +1,5 @@
+import { api } from '@/services/apiClient';
+
 export const CLOUD_TRADE_CONTROL_IDS = [
   'AUREON_DEPLOYMENT_HOLD',
   'AUREON_DISABLE_REAL_ORDERS',
@@ -26,6 +28,7 @@ export interface CloudTradingProbe {
     live_execution_release: boolean;
     durable_budget_ledger: boolean;
     order_adapter_ready: boolean;
+    live_result_binding_ready: boolean;
   } | null;
   provider_readback: {
     provider_count: 4;
@@ -50,14 +53,24 @@ export interface CloudTradingControlReceipt {
     state: string;
     expires_at_iso: string | null;
     ledger_event_sha256: string | null;
-    release_authority: false;
+    release_authority: boolean;
     mutation_authority: false;
   };
   capabilities: Record<string, boolean>;
   last_probe: CloudTradingProbe | null;
+  controller_release: {
+    schema: 'aureon.cloud-trade-release-state.v1';
+    state: 'active' | 'held';
+    generation: number;
+    request_id: string;
+    authorization_expires_at_ms: number;
+    signed_at_ms: number;
+    source_revision: string;
+    controller_key_version: string;
+  } | null;
   blockers: string[];
   production_ready: boolean;
-  release_authority: false;
+  release_authority: boolean;
   mutation_authority: false;
   digest_sha256: string;
   digest_scope: 'operator_cloud_trading_control';
@@ -86,8 +99,9 @@ function probe(value: unknown): value is CloudTradingProbe {
   const provider = record(raw?.provider_readback);
   const providers = record(provider?.providers);
   const providerNames = ['alpaca', 'binance', 'capital', 'kraken'] as const;
-  const executorValid = executor === null || (Object.keys(executor).length === 3
-    && ['live_execution_release', 'durable_budget_ledger', 'order_adapter_ready'].every(key => typeof executor[key] === 'boolean'));
+  const executorValid = executor === null || (Object.keys(executor).length === 4
+    && ['live_execution_release', 'durable_budget_ledger', 'order_adapter_ready', 'live_result_binding_ready']
+      .every(key => typeof executor[key] === 'boolean'));
   const providerValid = provider === null || (provider.provider_count === 4 && provider.all_authenticated === true
     && hex64(provider.readback_sha256) && providers !== null && Object.keys(providers).length === 4
     && providerNames.every(name => {
@@ -106,6 +120,19 @@ function probe(value: unknown): value is CloudTradingProbe {
     && executorValid && providerValid;
 }
 
+function controllerRelease(value: unknown): boolean {
+  if (value === null) return true;
+  const raw = record(value);
+  return raw !== null && raw.schema === 'aureon.cloud-trade-release-state.v1'
+    && (raw.state === 'active' || raw.state === 'held')
+    && typeof raw.generation === 'number' && Number.isSafeInteger(raw.generation) && raw.generation > 0
+    && hex64(raw.request_id)
+    && typeof raw.authorization_expires_at_ms === 'number' && Number.isSafeInteger(raw.authorization_expires_at_ms)
+    && typeof raw.signed_at_ms === 'number' && Number.isSafeInteger(raw.signed_at_ms)
+    && typeof raw.source_revision === 'string' && /^[a-f0-9]{40,64}$/.test(raw.source_revision)
+    && typeof raw.controller_key_version === 'string' && raw.controller_key_version.includes('/aureon-controller-signing/');
+}
+
 export function readCloudTradingControl(value: unknown): CloudTradingControlReceipt {
   const raw = record(value);
   const authorization = record(raw?.authorization);
@@ -122,16 +149,21 @@ export function readCloudTradingControl(value: unknown): CloudTradingControlRece
     || !authorization || typeof authorization.active !== 'boolean' || typeof authorization.state !== 'string'
     || !(authorization.expires_at_iso === null || typeof authorization.expires_at_iso === 'string')
     || !(authorization.ledger_event_sha256 === null || hex64(authorization.ledger_event_sha256))
-    || authorization.release_authority !== false || authorization.mutation_authority !== false
+    || typeof authorization.release_authority !== 'boolean' || authorization.mutation_authority !== false
     || !capabilities || Object.values(capabilities).some(item => typeof item !== 'boolean')
     || !(raw.last_probe === null || probe(raw.last_probe))
+    || !controllerRelease(raw.controller_release)
     || !Array.isArray(raw.blockers) || raw.blockers.some(item => typeof item !== 'string' || !/^[a-z0-9_]+$/.test(item))
     || typeof raw.production_ready !== 'boolean'
-    || raw.release_authority !== false || raw.mutation_authority !== false
+    || typeof raw.release_authority !== 'boolean' || raw.mutation_authority !== false
     || !hex64(raw.digest_sha256) || raw.digest_scope !== 'operator_cloud_trading_control') {
     throw new Error('Cloud trading control evidence unavailable');
   }
-  if (raw.operator_can_apply_live !== raw.production_ready || (raw.operator_can_apply_live && raw.blockers.length > 0)) {
+  const release = record(raw.controller_release);
+  if ((raw.production_ready && (!raw.operator_can_apply_live || raw.blockers.length > 0 || raw.release_authority !== true))
+    || raw.release_authority !== raw.production_ready
+    || authorization.release_authority !== raw.release_authority
+    || (raw.release_authority && release?.state !== 'active')) {
     throw new Error('Cloud trading control evidence inconsistent');
   }
   return raw as unknown as CloudTradingControlReceipt;
@@ -139,4 +171,17 @@ export function readCloudTradingControl(value: unknown): CloudTradingControlRece
 
 export function cloudTradingBlockerLabel(value: string): string {
   return value.replace(/^operator_/, '').replace(/_/g, ' ');
+}
+
+export const APPLY_CLOUD_LIVE_CONFIRM = 'APPLY_AUREON_CLOUD_LIVE_TRADING';
+export const HOLD_CLOUD_LIVE_CONFIRM = 'HOLD_AUREON_CLOUD_LIVE_TRADING';
+
+export async function requestCloudTradingRelease(action: 'activate' | 'hold'): Promise<{ request_id: string }> {
+  const response = await api.post<{ ok?: boolean; request?: { request_id?: unknown } }>(
+    '/api/operator/cloud-trading-control/apply',
+    { action, confirm: action === 'activate' ? APPLY_CLOUD_LIVE_CONFIRM : HOLD_CLOUD_LIVE_CONFIRM },
+  );
+  const requestId = response.request?.request_id;
+  if (response.ok !== true || !hex64(requestId)) throw new Error('Cloud trading release request was not accepted');
+  return { request_id: requestId };
 }

@@ -74,7 +74,13 @@ class Capture:
         return "message-1"
 
 
-def config(role):
+CONTROLLER_KEY = (
+    "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/"
+    "cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1"
+)
+
+
+def config(role, *, live=False):
     return ServiceConfig(
         role=role,
         project_id="aureon-trading",
@@ -84,10 +90,11 @@ def config(role):
         review_key_version=collector.KEYS["review"],
         dispatch_key_version=collector.KEYS["dispatch"],
         executor_key_version=collector.KEYS["executor"],
-        live_execution_release=False,
-        durable_budget_ledger=False,
-        order_adapter_ready=False,
+        live_execution_release=live,
+        durable_budget_ledger=live,
+        order_adapter_ready=live,
         max_order_usd=5,
+        controller_key_version=CONTROLLER_KEY if live else None,
     )
 
 
@@ -95,7 +102,29 @@ def push(value):
     return {"message": {"data": base64.b64encode(canonical_bytes(value)).decode()}}
 
 
-def terminal_chain(now_ms=1_800_000_000_000):
+class AllowRelease:
+    @staticmethod
+    def is_active(_intent, *, now_ms):
+        return now_ms > 0
+
+
+class LiveExecutor:
+    def __init__(self, budget):
+        assert budget == 20
+
+    def execute(self, intent, *, dispatch_sha256):
+        return {
+            "schema": "aureon.cloud-trade-live-result.v1", "status": "provider_observed",
+            "reason_code": "provider_order_observed", "dry_run": False,
+            "intent_id": intent["intent_id"], "venue": intent["order"]["venue"],
+            "provider_order_id": "provider-order-1", "provider_client_order_id": "client-order-1",
+            "provider_status": "accepted", "provider_readback_sha256": "8" * 64,
+            "provider_mutation_attempted": True, "orders_attempted": 1,
+            "orders_submitted": 1, "dispatch_sha256": dispatch_sha256,
+        }
+
+
+def terminal_chain(now_ms=1_800_000_000_000, *, live=False):
     keys = Keys()
     value = build_probe(
         event_sha256="1" * 64,
@@ -103,11 +132,25 @@ def terminal_chain(now_ms=1_800_000_000_000):
         revision="a" * 40,
         now_ms=now_ms,
     )
+    if live:
+        value.update({
+            "kind": "order", "dry_run": False,
+            "requested_controls": {
+                "AUREON_DEPLOYMENT_HOLD": False, "AUREON_DISABLE_REAL_ORDERS": False,
+                "AUREON_DISABLE_EXCHANGE_MUTATIONS": False, "AUREON_LIVE_TRADING": True,
+                "AUREON_ORDER_INTENT_PUBLISH": True, "AUREON_UNIFIED_ORDER_EXECUTOR": True,
+            },
+            "order": {"venue": "alpaca", "symbol": "BTC/USD", "side": "BUY",
+                      "order_type": "MARKET", "quantity": 0.00001, "quote_value_usd": 1.0,
+                      "limit_price": None, "client_order_id": "aureon-order-00000003"},
+        })
     for role in ("review", "dispatch", "executor", "receipt"):
         capture = Capture()
         app = create_app(
-            config=config(role), signer=keys.signer(role), verifier=keys.verifier(),
+            config=config(role, live=live), signer=keys.signer(role), verifier=keys.verifier(),
             publisher=capture, clock=lambda: now_ms / 1000,
+            release_gate=AllowRelease() if live else None,
+            executor_factory=LiveExecutor if role == "executor" and live else None,
         )
         response = app.test_client().post("/process", json=push(value))
         assert response.status_code == 204
@@ -135,3 +178,14 @@ def test_collector_rejects_tampered_terminal_chain():
             receipt, token="x" * 40, now_ms=1_800_000_600_000, reader=keys.public_reader,
         )
 
+
+def test_collector_binds_provider_observed_live_order_receipt():
+    now = 1_800_000_000_000
+    keys, receipt = terminal_chain(now, live=True)
+    summary = collector.verify_terminal_receipt(
+        receipt, token="x" * 40, now_ms=now + 600_000, reader=keys.public_reader,
+    )
+    assert summary["chain_verified"] is True and summary["dry_run"] is False
+    assert summary["outcome_status"] == "provider_observed"
+    assert summary["venue"] == "alpaca" and summary["provider_order_id"] == "provider-order-1"
+    assert summary["orders_attempted"] == summary["orders_submitted"] == 1

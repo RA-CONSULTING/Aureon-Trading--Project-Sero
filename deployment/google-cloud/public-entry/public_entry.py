@@ -50,6 +50,7 @@ INTENT_SCHEMA = "aureon.operator.cloud-switchboard-intent.v1"
 INTENT_HEADER = "X-Aureon-Operator-Intent"
 _INTENT_PATH = re.compile(r"/api/switchboard/[A-Z0-9_]{1,64}")
 _AUTHORIZATION_PATH = "/api/operator/authorization-lease"
+_CLOUD_TRADING_RELEASE_PATH = "/api/operator/cloud-trading-control/apply"
 
 
 def _intent_route_rule(target):
@@ -57,6 +58,8 @@ def _intent_route_rule(target):
         return "/api/switchboard/<flag_id>"
     if target == _AUTHORIZATION_PATH:
         return _AUTHORIZATION_PATH
+    if target == _CLOUD_TRADING_RELEASE_PATH:
+        return _CLOUD_TRADING_RELEASE_PATH
     return None
 
 

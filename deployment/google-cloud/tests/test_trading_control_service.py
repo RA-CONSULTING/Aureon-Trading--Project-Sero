@@ -31,6 +31,7 @@ KEYS = {
     "dispatch": f"{PREFIX}/aureon-dispatch-signing/cryptoKeyVersions/1",
     "executor": f"{PREFIX}/aureon-executor-signing/cryptoKeyVersions/1",
     "receipt": f"{PREFIX}/aureon-receipt-signing/cryptoKeyVersions/1",
+    "controller": f"{PREFIX}/aureon-controller-signing/cryptoKeyVersions/1",
 }
 
 
@@ -75,6 +76,7 @@ def config(role: str, *, live=False, budget=False, adapter=False, provider_probe
         max_order_usd=5.0,
         provider_probe_enabled=provider_probe,
         max_daily_budget_usd=20.0,
+        controller_key_version=KEYS["controller"] if live else None,
     )
 
 
@@ -126,6 +128,11 @@ def run_stage(role: str, value: dict, *, now_ms=1_800_000_000_000,
               executor_factory=None):
     out = CapturePublisher()
     cfg = config(role, live=live, budget=budget, adapter=adapter, provider_probe=provider_probe)
+    class AllowRelease:
+        @staticmethod
+        def is_active(_intent, *, now_ms):
+            assert now_ms == 1_800_000_000_000
+            return True
     app = create_app(
         config=cfg,
         signer=FakeKms(KEYS[role]),
@@ -133,6 +140,7 @@ def run_stage(role: str, value: dict, *, now_ms=1_800_000_000_000,
         publisher=out,
         clock=lambda: now_ms / 1000,
         executor_factory=executor_factory,
+        release_gate=AllowRelease() if live else None,
     )
     response = app.test_client().post("/process", json=push(value))
     return response, out.values
@@ -170,6 +178,7 @@ def test_probe_crosses_four_distinct_signed_stages_without_mutation():
             "live_execution_release": False,
             "durable_budget_ledger": False,
             "order_adapter_ready": False,
+            "live_result_binding_ready": True,
         },
     }
 

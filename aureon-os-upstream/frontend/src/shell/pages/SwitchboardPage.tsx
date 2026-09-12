@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useReadOnlyPoller } from '@/hooks/useReadOnlyPoller';
 import { configurationMessage, configurationStatus } from '@/lib/accountConfigurationEvidence';
-import { cloudTradingBlockerLabel } from '@/lib/cloudTradingControl';
+import { APPLY_CLOUD_LIVE_CONFIRM, cloudTradingBlockerLabel, HOLD_CLOUD_LIVE_CONFIRM, requestCloudTradingRelease } from '@/lib/cloudTradingControl';
 import { releaseReadinessView, type ReleaseReadinessReceipt } from '@/lib/operatorReleaseReadiness';
 import { grantOperatorAuthorization, OPERATOR_AUTHORIZATION_CONFIRM, revokeOperatorAuthorization } from '@/lib/operatorAuthorization';
 import { SwitchboardWriteGuard, type SwitchboardConfiguration, type SwitchboardFlag } from '@/lib/platformConfiguration';
@@ -198,22 +198,45 @@ function AuthorizationLeasePanel({ canManage }: { canManage: boolean }) {
   </>;
 }
 
-function CloudTradingControlPanel() {
+function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
   const poller = useReadOnlyPoller(cloudTradingControlStore, 15_000, 8_000);
   const control = poller.isReceiptCurrent ? poller.data : null;
   const probe = control?.last_probe ?? null;
   const stages = probe ? (['review', 'dispatch', 'executor', 'receipt'] as const) : [];
   const canApply = control?.operator_can_apply_live === true;
-  return <GlassPanel className="px-4 py-3" data-cloud-trading-control={canApply ? 'ready' : 'held'}>
+  const active = control?.release_authority === true;
+  const [action, setAction] = useState<'activate' | 'hold' | null>(null);
+  const [confirm, setConfirm] = useState('');
+  const [saving, setSaving] = useState(false);
+  const required = action === 'activate' ? APPLY_CLOUD_LIVE_CONFIRM : HOLD_CLOUD_LIVE_CONFIRM;
+  async function submit() {
+    if (!action || !canManage || saving || confirm !== required) return;
+    setSaving(true);
+    try {
+      const result = await requestCloudTradingRelease(action);
+      toast.success(action === 'activate' ? 'Cloud live activation sent to the governed controller' : 'Cloud live hold sent to the governed controller', {
+        description: `Request ${result.request_id.slice(0, 12)}… is awaiting signed controller readback.`,
+      });
+      setAction(null); setConfirm(''); cloudTradingControlStore.invalidate();
+    } catch (error) {
+      toast.error('Cloud trading release request was held', { description: error instanceof Error ? error.message : 'Release request failed' });
+    } finally { setSaving(false); }
+  }
+  return <><GlassPanel className="px-4 py-3" data-cloud-trading-control={active ? 'active' : canApply ? 'ready' : 'held'}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex min-w-0 items-start gap-3"><Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: canApply ? CYAN : GOLD }} />
+      <div className="flex min-w-0 items-start gap-3"><Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: active || canApply ? CYAN : GOLD }} />
         <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Cloud trading authority</p>
           <p className="mt-1 text-[12px] text-zinc-300">{!control ? 'Verified cloud control evidence is unavailable.'
-            : canApply ? 'All production evidence has passed. The governed handoff can apply the requested state.'
+            : active ? `Controller-signed live release is active through ${new Date(control.controller_release!.authorization_expires_at_ms).toISOString()}.`
+              : canApply ? 'Every prerequisite has passed. The human operator can activate cloud live trading.'
               : 'The operator can request every switch. Live application remains held by the controls shown below.'}</p>
-          <p className="mt-1 text-[10px] text-zinc-500">A browser request never grants release or mutation authority by itself.</p></div></div>
+          <p className="mt-1 text-[10px] text-zinc-500">The controller verifies the current lease, signed probe, provider identities, budget ledger, and exact switch state before release.</p></div></div>
       <div className="flex items-center gap-2"><StatusBadge active={control?.operator_can_request_controls === true}>requests {control?.operator_can_request_controls ? 'enabled' : 'unavailable'}</StatusBadge>
-        <StatusBadge active={canApply}>live apply {canApply ? 'ready' : 'held'}</StatusBadge></div>
+        <StatusBadge active={active}>live {active ? 'active' : canApply ? 'ready' : 'held'}</StatusBadge>
+        {canManage && (active || canApply) && <button type="button" disabled={saving} onClick={() => { setAction(active ? 'hold' : 'activate'); setConfirm(''); }}
+          className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: active ? '#3f3f46' : GOLD, color: active ? '#f4f4f5' : '#0a0a0a' }}>
+          {active ? 'Place live trading on hold' : 'Activate cloud live trading'}
+        </button>}</div>
     </div>
     {control && <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
       <div className="rounded border border-zinc-800 p-3">
@@ -241,7 +264,21 @@ function CloudTradingControlPanel() {
         </ul> : <p className="mt-2 flex items-center gap-1 text-[11px]" style={{ color: CYAN }}><CheckCircle2 className="h-3 w-3" /> All handoff evidence passed</p>}
       </div>
     </div>}
-  </GlassPanel>;
+  </GlassPanel>
+  <AlertDialog open={action !== null} onOpenChange={open => { if (!open && !saving) { setAction(null); setConfirm(''); } }}>
+    <AlertDialogContent style={{ background: BG, borderColor: BORDER_GOLD }} className="text-zinc-100">
+      <AlertDialogHeader><AlertDialogTitle>{action === 'activate' ? 'Activate cloud live trading?' : 'Place cloud live trading on hold?'}</AlertDialogTitle>
+        <AlertDialogDescription className="text-zinc-400">{action === 'activate'
+          ? 'The controller will verify the current 72-hour lease and all signed production evidence, then release the cloud authority chain until the lease expires or you place it on hold.'
+          : 'The controller will replace the active release with a signed hold. New live order intents will be rejected by every authority stage.'}</AlertDialogDescription></AlertDialogHeader>
+      <div className="space-y-2"><Label htmlFor="cloud-release-confirm">Type <code className="break-all" style={{ color: GOLD }}>{required}</code></Label>
+        <Input id="cloud-release-confirm" value={confirm} autoComplete="off" onChange={event => setConfirm(event.target.value)} /></div>
+      <AlertDialogFooter><AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel><AlertDialogAction disabled={!canManage || saving || confirm !== required}
+        style={{ background: action === 'activate' ? GOLD : '#3f3f46', color: action === 'activate' ? '#0a0a0a' : '#f4f4f5' }} onClick={() => void submit()}>
+        {saving ? 'Sending…' : action === 'activate' ? 'Activate through controller' : 'Apply signed hold'}
+      </AlertDialogAction></AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog></>;
 }
 
 export default function SwitchboardPage() {
@@ -325,7 +362,7 @@ export default function SwitchboardPage() {
     </div>
     <ReleaseHandoffPanel receipt={releaseReceipt} />
     <AuthorizationLeasePanel canManage={canManage} />
-    <CloudTradingControlPanel />
+    <CloudTradingControlPanel canManage={canManage} />
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

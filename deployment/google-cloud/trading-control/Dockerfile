@@ -3,7 +3,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && useradd --uid 10001 --create-home authority
-COPY contract.py service.py firestore_ledger.py provider_boundary.py live_executor.py ./
+COPY contract.py service.py firestore_ledger.py provider_boundary.py live_executor.py cloud_state.py release_gate.py release_controller.py ./
 USER 10001
 CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 4 --timeout 30 --access-logfile /dev/null --error-logfile - 'service:create_app()'"]
 

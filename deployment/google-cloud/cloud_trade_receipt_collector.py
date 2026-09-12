@@ -55,7 +55,9 @@ KEYS = {
     "receipt": f"{KEY_PREFIX}/aureon-receipt-signing/cryptoKeyVersions/1",
 }
 DEFAULT_OUTPUT = Path("/srv/aureon/cache/trading-control/latest-terminal-receipt.json")
+DEFAULT_LIVE_OUTPUT = Path("/srv/aureon/cache/trading-control/latest-live-terminal-receipt.json")
 _MESSAGE_ID = re.compile(r"[0-9]{1,64}")
+_PROVIDER_ID = re.compile(r"[A-Za-z0-9._:/-]{1,256}")
 
 
 class CollectorError(RuntimeError):
@@ -159,20 +161,56 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
         live_release=bool(isinstance(untrusted_intent, Mapping) and untrusted_intent.get("kind") == "order"),
     )
     outcome = result.get("outcome")
-    if (intent["kind"] != "control_plane_probe" or intent["dry_run"] is not True
-            or not isinstance(outcome, Mapping)
-            or outcome.get("schema") != "aureon.cloud-trade-probe-result.v1"
-            or outcome.get("status") != "probe_passed"
-            or outcome.get("provider_mutation_attempted") is not False
-            or outcome.get("orders_attempted") != 0
-            or outcome.get("orders_submitted") != 0):
-        raise CollectorError("terminal_probe_outcome_invalid")
-    capabilities = outcome.get("executor_capabilities")
-    if (not isinstance(capabilities, Mapping)
-            or set(capabilities) != {"live_execution_release", "durable_budget_ledger", "order_adapter_ready"}
-            or any(type(value) is not bool for value in capabilities.values())):
-        raise CollectorError("terminal_executor_capabilities_invalid")
-    provider_readback = outcome.get("provider_readback")
+    if not isinstance(outcome, Mapping):
+        raise CollectorError("terminal_outcome_invalid")
+    is_probe = intent["kind"] == "control_plane_probe"
+    if is_probe:
+        if (intent["dry_run"] is not True
+                or outcome.get("schema") != "aureon.cloud-trade-probe-result.v1"
+                or outcome.get("status") != "probe_passed"
+                or outcome.get("provider_mutation_attempted") is not False
+                or outcome.get("orders_attempted") != 0
+                or outcome.get("orders_submitted") != 0):
+            raise CollectorError("terminal_probe_outcome_invalid")
+        capabilities = outcome.get("executor_capabilities")
+        if (not isinstance(capabilities, Mapping)
+                or set(capabilities) != {
+                    "live_execution_release", "durable_budget_ledger",
+                    "order_adapter_ready", "live_result_binding_ready",
+                }
+                or any(type(value) is not bool for value in capabilities.values())):
+            raise CollectorError("terminal_executor_capabilities_invalid")
+    else:
+        status = outcome.get("status")
+        valid_live = (
+            intent["dry_run"] is False
+            and outcome.get("schema") == "aureon.cloud-trade-live-result.v1"
+            and outcome.get("intent_id") == intent["intent_id"]
+            and outcome.get("dispatch_sha256") == digest(dispatch)
+            and status in {"provider_observed", "rejected", "uncertain"}
+            and ((status == "provider_observed"
+                  and outcome.get("provider_mutation_attempted") is True
+                  and outcome.get("orders_attempted") == 1
+                  and outcome.get("orders_submitted") == 1
+                  and isinstance(outcome.get("provider_order_id"), str)
+                  and isinstance(outcome.get("provider_client_order_id"), str)
+                  and _PROVIDER_ID.fullmatch(outcome["provider_order_id"]) is not None
+                  and _PROVIDER_ID.fullmatch(outcome["provider_client_order_id"]) is not None
+                  and isinstance(outcome.get("provider_readback_sha256"), str)
+                  and re.fullmatch(r"[0-9a-f]{64}", outcome["provider_readback_sha256"]) is not None)
+                 or (status == "rejected"
+                     and outcome.get("provider_mutation_attempted") is False
+                     and outcome.get("orders_attempted") == 0
+                     and outcome.get("orders_submitted") == 0)
+                 or (status == "uncertain"
+                     and outcome.get("provider_mutation_attempted") is True
+                     and outcome.get("orders_attempted") == 1
+                     and outcome.get("orders_submitted") is None))
+        )
+        if not valid_live:
+            raise CollectorError("terminal_live_outcome_invalid")
+        capabilities = None
+    provider_readback = outcome.get("provider_readback") if is_probe else None
     provider_summary = None
     if provider_readback is not None:
         providers = provider_readback.get("providers") if isinstance(provider_readback, Mapping) else None
@@ -225,12 +263,18 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
             "executor": executor["authority_id"], "receipt": terminal["authority_id"],
         },
         "key_versions": dict(KEYS),
-        "provider_mutation_attempted": False,
-        "orders_attempted": 0,
-        "orders_submitted": 0,
-        "dry_run": True,
+        "provider_mutation_attempted": outcome["provider_mutation_attempted"],
+        "orders_attempted": outcome["orders_attempted"],
+        "orders_submitted": outcome["orders_submitted"],
+        "dry_run": bool(intent["dry_run"]),
         "chain_verified": True,
-        "executor_capabilities": dict(capabilities),
+        "outcome_status": outcome["status"],
+        "venue": intent["order"]["venue"] if intent["order"] else None,
+        "provider_order_id": outcome.get("provider_order_id"),
+        "provider_client_order_id": outcome.get("provider_client_order_id"),
+        "provider_status": outcome.get("provider_status"),
+        "provider_readback_sha256": outcome.get("provider_readback_sha256"),
+        "executor_capabilities": dict(capabilities) if isinstance(capabilities, Mapping) else None,
         "provider_readback": provider_summary,
     }
 
@@ -307,7 +351,8 @@ def pull_once(*, output: Path = DEFAULT_OUTPUT, reader=_http,
         "release_authority": False,
         "mutation_authority": False,
     }
-    _durable_write(output, stored)
+    target = DEFAULT_LIVE_OUTPUT if output == DEFAULT_OUTPUT and summary["dry_run"] is False else output
+    _durable_write(target, stored)
     reader(
         PUBSUB + ":acknowledge", method="POST", headers=headers,
         body=json.dumps({"ackIds": [ack_id]}, separators=(",", ":")).encode(), timeout=8,

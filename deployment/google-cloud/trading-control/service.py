@@ -9,7 +9,7 @@ import math
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Protocol
 
 import requests
@@ -219,6 +219,8 @@ class ServiceConfig:
     max_order_usd: float
     provider_probe_enabled: bool = False
     max_daily_budget_usd: float = 20.0
+    controller_key_version: str | None = None
+    attestation_store_enabled: bool = False
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "ServiceConfig":
@@ -245,6 +247,11 @@ class ServiceConfig:
         def flag(key: str) -> bool:
             return str(values.get(key) or "0").strip().lower() in {"1", "true", "yes", "on"}
 
+        controller_key = str(values.get("AUREON_CONTROLLER_KEY_VERSION") or "") or None
+        if controller_key is not None and (not _KEY_VERSION.fullmatch(controller_key)
+                or "/cryptoKeys/aureon-controller-signing/" not in controller_key):
+            raise CloudBoundaryError("release_controller_key_invalid")
+
         return cls(
             role=role, project_id=project, revision=revision, key_version=key_version,
             output_topic=output,
@@ -257,6 +264,8 @@ class ServiceConfig:
             max_order_usd=max_order,
             provider_probe_enabled=flag("AUREON_PROVIDER_PROBE_ENABLED"),
             max_daily_budget_usd=max_daily_budget,
+            controller_key_version=controller_key,
+            attestation_store_enabled=flag("AUREON_ATTESTATION_STORE_ENABLED"),
         )
 
 
@@ -396,6 +405,7 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
                 "live_execution_release": config.live_execution_release,
                 "durable_budget_ledger": config.durable_budget_ledger,
                 "order_adapter_ready": config.order_adapter_ready,
+                "live_result_binding_ready": True,
             },
         }
     result = {"dispatch": dispatch, "outcome": outcome}
@@ -465,7 +475,8 @@ _HANDLERS = {"review": _review, "dispatch": _dispatch, "executor": _executor, "r
 
 def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = None,
                verifier: Verifier | None = None, publisher: Publisher | None = None,
-               clock=time.time, executor_factory: Callable[[float], Any] | None = None) -> Flask:
+               clock=time.time, executor_factory: Callable[[float], Any] | None = None,
+               release_gate: Any | None = None, attestation_store: Any | None = None) -> Flask:
     cfg = ServiceConfig.from_env() if config is None else config
     kms = KmsBoundary(cfg.key_version)
     stage_signer = kms if signer is None else signer
@@ -497,12 +508,35 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
     def process():
         try:
             value = _decode_push(request.get_json(silent=True))
-            handler = _HANDLERS[cfg.role]
+            now_ms = int(float(clock()) * 1000)
+            active_config = cfg
+            if cfg.live_execution_release:
+                if cfg.controller_key_version is None:
+                    raise CloudBoundaryError("release_controller_key_missing")
+                gate = release_gate
+                if gate is None:
+                    from release_gate import ReleaseGate
+                    gate = ReleaseGate(
+                        cfg.controller_key_version, stage_verifier, cfg.revision,
+                    )
+                try:
+                    released = gate.is_active(_intent_from_chain(value), now_ms=now_ms)
+                except Exception as exc:
+                    raise CloudBoundaryError("signed_release_state_unavailable") from exc
+                active_config = replace(cfg, live_execution_release=released)
+            handler = _HANDLERS[active_config.role]
             if cfg.role == "executor":
-                result = handler(value, cfg, stage_signer, stage_verifier,
-                                 int(float(clock()) * 1000), executor_factory)
+                result = handler(value, active_config, stage_signer, stage_verifier,
+                                 now_ms, executor_factory)
             else:
-                result = handler(value, cfg, stage_signer, stage_verifier, int(float(clock()) * 1000))
+                result = handler(value, active_config, stage_signer, stage_verifier, now_ms)
+            if (cfg.role == "receipt" and cfg.attestation_store_enabled
+                    and _intent_from_chain(result)["kind"] == PROBE_KIND):
+                store = attestation_store
+                if store is None:
+                    from cloud_state import FirestoreControlState
+                    store = FirestoreControlState()
+                store.put_probe_attestation(result, stored_at_ms=now_ms)
             published = stage_publisher.publish(result)
             return jsonify({
                 "ok": True, "role": cfg.role, "intent_id": result["intent_id"],

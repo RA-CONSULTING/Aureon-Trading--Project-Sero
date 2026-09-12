@@ -22,6 +22,7 @@ def readback(received_at=1_000.0, *, ready=False):
                 "live_execution_release": ready,
                 "durable_budget_ledger": ready,
                 "order_adapter_ready": ready,
+                "live_result_binding_ready": ready,
             },
             "provider_readback": ({
                 "provider_count": 4, "all_authenticated": True,
@@ -44,7 +45,7 @@ def readback(received_at=1_000.0, *, ready=False):
     }
 
 
-def patch_sources(monkeypatch, *, requested=None, active=True):
+def patch_sources(monkeypatch, *, requested=None, active=True, controller=False):
     desired = dict(control.LIVE_CONTROLS if requested is None else requested)
     monkeypatch.setattr(control, "_controls", lambda: (desired, {
         "AUREON_DEPLOYMENT_HOLD": True,
@@ -60,6 +61,21 @@ def patch_sources(monkeypatch, *, requested=None, active=True):
         "expires_at_iso": "2026-09-15T18:13:51Z",
         "ledger_event_sha256": "3" * 64,
     })
+    release = ({
+        "schema": "aureon.cloud-trade-release-state.v1",
+        "state": "held", "generation": 1, "request_id": "7" * 64,
+        "requested_controls_sha256": control._digest(control.LIVE_CONTROLS),
+        "authorization_event_sha256": "0" * 64,
+        "authorization_expires_at_ms": 0,
+        "probe_receipt_sha256": "0" * 64,
+        "provider_readback_sha256": "0" * 64,
+        "source_revision": "a" * 40, "signed_at_ms": 1_000_000,
+        "controller_key_version": "controller-key/1", "signature": "signed", "update_time": "now",
+    } if controller else None)
+    monkeypatch.setattr(
+        control, "read_controller_release",
+        lambda **_kwargs: (release, None) if controller else (None, "cloud_release_controller_unconfigured"),
+    )
 
 
 def test_current_signed_probe_is_reported_without_granting_live_authority(tmp_path, monkeypatch):
@@ -78,7 +94,7 @@ def test_current_signed_probe_is_reported_without_granting_live_authority(tmp_pa
     assert result["production_ready"] is False
     assert result["release_authority"] is result["mutation_authority"] is False
     assert "live_execution_release_held" in result["blockers"]
-    assert "governed_live_handoff_controller_not_integrated" in result["blockers"]
+    assert "cloud_release_controller_unconfigured" in result["blockers"]
 
 
 def test_missing_readback_and_expired_lease_fail_closed(tmp_path, monkeypatch):
@@ -131,4 +147,17 @@ def test_signed_executor_and_provider_evidence_still_requires_controller(tmp_pat
     assert result["capabilities"]["order_adapter_ready"] is True
     assert result["capabilities"]["all_four_provider_readback_pinned"] is True
     assert result["operator_can_apply_live"] is False
-    assert result["blockers"] == ["governed_live_handoff_controller_not_integrated"]
+    assert result["blockers"] == [
+        "cloud_release_controller_unconfigured", "live_execution_release_held",
+    ]
+
+
+def test_signed_held_controller_makes_operator_activation_eligible(tmp_path, monkeypatch):
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(readback(ready=True)), encoding="utf-8")
+    patch_sources(monkeypatch, controller=True)
+    result = control.build_cloud_trading_control_receipt(environ={}, now=1_010, readback_path=path)
+    assert result["operator_can_apply_live"] is True
+    assert result["production_ready"] is False
+    assert result["release_authority"] is False
+    assert result["blockers"] == ["live_execution_release_held"]

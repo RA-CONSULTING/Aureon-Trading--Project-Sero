@@ -24,6 +24,14 @@ from aureon.operator.cloud_intent_custody import (
 )
 
 
+def _route(path: str) -> str:
+    if path == "/api/operator/authorization-lease":
+        return path
+    if path == "/api/operator/cloud-trading-control/apply":
+        return path
+    return "/api/switchboard/<flag_id>"
+
+
 def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
@@ -61,11 +69,7 @@ def _token(key, *, now, revision, path, body, **changes):
         "path": path,
         "query_sha256": __import__("hashlib").sha256(b"").hexdigest(),
         "revision": revision,
-        "route_rule": (
-            "/api/operator/authorization-lease"
-            if path == "/api/operator/authorization-lease"
-            else "/api/switchboard/<flag_id>"
-        ),
+        "route_rule": _route(path),
         "schema": INTENT_SCHEMA,
     }
     claims.update(changes)
@@ -80,11 +84,7 @@ def _authorize(custody, token, *, now, body=b'{"enabled":true}', path="/api/swit
         token=token,
         method="POST",
         path=path,
-        route_rule=(
-            "/api/operator/authorization-lease"
-            if path == "/api/operator/authorization-lease"
-            else "/api/switchboard/<flag_id>"
-        ),
+        route_rule=_route(path),
         query=b"",
         body=body,
         identity_kind="admin",
@@ -292,3 +292,38 @@ def test_owner_can_record_and_revoke_bounded_authorization_lease(tmp_path, monke
     ).get_json()
     assert readback["active"] is True
     assert readback["ledger_event_sha256"] == lease["ledger_event_sha256"]
+
+
+def test_owner_can_publish_governed_cloud_release_request(tmp_path, monkeypatch):
+    key, cert = _fixture(tmp_path)
+    revision = "a" * 40
+    for name in ("AUREON_HNC_PACKET_MASTER_KEY", "HNC_PACKET_MASTER_KEY", "AUREON_SUPABASE_JWT_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("AUREON_OPERATOR_ENV", "test")
+    monkeypatch.setenv("AUREON_OPERATOR_API_KEY", "operator-secret")
+    monkeypatch.setenv("AUREON_LLM_OFFLINE", "1")
+    monkeypatch.setenv("AUREON_SUPPRESS_IMPORT_SIDE_EFFECTS", "1")
+    monkeypatch.setenv("AUREON_OPERATOR_INTENT_CERT_FILE", str(cert))
+    monkeypatch.setenv("AUREON_OPERATOR_INTENT_LEDGER", str(tmp_path / "replay.sqlite3"))
+    monkeypatch.setenv("AUREON_OPERATOR_REVISION", revision)
+    import aureon.operator.operator_server as server
+
+    server = importlib.reload(server)
+    published = []
+    monkeypatch.setattr(server, "build_cloud_trading_control_receipt", lambda: {"operator_can_apply_live": True})
+    monkeypatch.setattr(server, "publish_release_request", lambda action, control: published.append((action, control)) or {
+        "schema": "aureon.operator.cloud-trading-release-request.v1",
+        "request_id": "9" * 64, "controller_pending": True,
+    })
+    app = server.create_app(operator=SimpleNamespace(providers={}, bus=None))
+    path = "/api/operator/cloud-trading-control/apply"
+    body = b'{"action":"activate","confirm":"APPLY_AUREON_CLOUD_LIVE_TRADING"}'
+    now = int(time.time())
+    token = _token(key, now=now, revision=revision, path=path, body=body)
+    response = app.test_client().post(
+        path, data=body, content_type="application/json",
+        headers={"Authorization": "Bearer operator-secret", "X-Aureon-Operator-Intent": token},
+        base_url="http://127.0.0.1:8080",
+    )
+    assert response.status_code == 202 and response.get_json()["ok"] is True
+    assert published == [("activate", {"operator_can_apply_live": True})]

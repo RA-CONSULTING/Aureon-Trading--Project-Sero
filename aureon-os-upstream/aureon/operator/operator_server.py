@@ -107,6 +107,10 @@ from aureon.operator.cloud_intent_custody import (  # noqa: E402
 from aureon.operator.cloud_trading_control import (  # noqa: E402
     build_cloud_trading_control_receipt,
 )
+from aureon.operator.cloud_trading_release import (  # noqa: E402
+    CloudTradingReleaseError,
+    publish_release_request,
+)
 from aureon.operator.executor_isolation import build_executor_isolation_receipt  # noqa: E402
 from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
 from aureon.operator.providers import build_provider_set, describe_provider_set  # noqa: E402
@@ -688,6 +692,7 @@ def create_app(
         if _cloud_intent_custody is not None and rule in {
             "/api/switchboard/<flag_id>",
             "/api/operator/authorization-lease",
+            "/api/operator/cloud-trading-control/apply",
         }:
             try:
                 g.operator_cloud_intent_custody = (
@@ -1004,6 +1009,33 @@ def create_app(
         response = jsonify(_json_safe(build_cloud_trading_control_receipt()))
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    @app.post("/api/operator/cloud-trading-control/apply")
+    def operator_cloud_trading_control_apply():
+        denied = _admin_denied()
+        if denied is not None:
+            return denied
+        body: Dict[str, Any] = request.get_json(silent=True) or {}
+        action = body.get("action")
+        required = (
+            "APPLY_AUREON_CLOUD_LIVE_TRADING"
+            if action == "activate"
+            else "HOLD_AUREON_CLOUD_LIVE_TRADING"
+        )
+        if action not in {"activate", "hold"} or body.get("confirm") != required:
+            return _err(
+                400,
+                "cloud trading release requires exact confirmation",
+                confirm_required=required,
+            )
+        control = build_cloud_trading_control_receipt()
+        try:
+            published = publish_release_request(str(action), control)
+        except CloudTradingReleaseError as exc:
+            return _err(409, "cloud trading release request held", reason_code=str(exc))
+        response = jsonify({"ok": True, "request": published})
+        response.headers["Cache-Control"] = "no-store"
+        return response, 202
 
     @app.post("/api/operator/authorization-lease")
     def operator_authorization_lease_set():

@@ -10,6 +10,11 @@ import time
 from pathlib import Path
 from typing import Any, Mapping
 
+from aureon.operator.cloud_trading_release import (
+    LIVE_CONTROLS,
+    read_controller_release,
+)
+
 SCHEMA = "aureon.operator.cloud-trading-control.v1"
 READBACK_SCHEMA = "aureon.cloud-trade-terminal-readback.v1"
 DEFAULT_READBACK = Path("/srv/aureon/cache/trading-control/latest-terminal-receipt.json")
@@ -21,14 +26,6 @@ CONTROL_IDS = (
     "AUREON_ORDER_INTENT_PUBLISH",
     "AUREON_UNIFIED_ORDER_EXECUTOR",
 )
-LIVE_CONTROLS = {
-    "AUREON_DEPLOYMENT_HOLD": False,
-    "AUREON_DISABLE_REAL_ORDERS": False,
-    "AUREON_DISABLE_EXCHANGE_MUTATIONS": False,
-    "AUREON_LIVE_TRADING": True,
-    "AUREON_ORDER_INTENT_PUBLISH": True,
-    "AUREON_UNIFIED_ORDER_EXECUTOR": True,
-}
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 def _digest(value: Any) -> str:
     return hashlib.sha256(json.dumps(
@@ -110,8 +107,6 @@ def build_cloud_trading_control_receipt(
     authorization = _authorization()
     lease_active = authorization.get("active") is True
     desired_live_state = requested == LIVE_CONTROLS
-    release_receipt = str(env.get("AUREON_CLOUD_TRADE_RELEASE_RECEIPT_SHA256") or "")
-    release_receipt_pinned = _HEX64.fullmatch(release_receipt) is not None
     executor_capabilities = receipt.get("executor_capabilities") if isinstance(receipt, Mapping) else None
     provider_readback = receipt.get("provider_readback") if isinstance(receipt, Mapping) else None
     provider_readback_pinned = bool(
@@ -121,19 +116,38 @@ def build_cloud_trading_control_receipt(
         and isinstance(provider_readback.get("readback_sha256"), str)
         and _HEX64.fullmatch(provider_readback["readback_sha256"]) is not None
     )
-    result_binding = str(env.get("AUREON_CLOUD_TRADE_LIVE_RESULT_BINDING_SHA256") or "")
-    live_result_binding_pinned = _HEX64.fullmatch(result_binding) is not None
+    controller_release, controller_error = read_controller_release(environ=env)
+    controller_integrated = controller_release is not None
+    authorization_event = authorization.get("ledger_event_sha256")
+    authorization_expires = authorization.get("expires_at")
+    release_active = bool(
+        controller_integrated
+        and controller_release.get("state") == "active"
+        and controller_release.get("requested_controls_sha256") == _digest(LIVE_CONTROLS)
+        and controller_release.get("authorization_event_sha256") == authorization_event
+        and isinstance(authorization_expires, (int, float))
+        and not isinstance(authorization_expires, bool)
+        and controller_release.get("authorization_expires_at_ms") == int(float(authorization_expires) * 1000)
+        and controller_release.get("authorization_expires_at_ms", 0) > int(current * 1000)
+        and controller_release.get("signed_at_ms", 0) <= int(current * 1000) + 5_000
+    )
+    live_result_binding_ready = bool(
+        isinstance(executor_capabilities, Mapping)
+        and executor_capabilities.get("live_result_binding_ready") is True
+    )
     capabilities = {
         "signed_authority_chain": probe_current,
         "distinct_runtime_identities": receipt_valid,
         "isolated_executor_probe": probe_current,
         "no_mutation_probe": probe_current,
-        "live_execution_release": bool(isinstance(executor_capabilities, Mapping) and executor_capabilities.get("live_execution_release") is True),
+        "live_execution_release": release_active,
         "durable_budget_ledger": bool(isinstance(executor_capabilities, Mapping) and executor_capabilities.get("durable_budget_ledger") is True),
         "order_adapter_ready": bool(isinstance(executor_capabilities, Mapping) and executor_capabilities.get("order_adapter_ready") is True),
-        "release_receipt_pinned": release_receipt_pinned,
+        "release_receipt_pinned": controller_integrated,
         "all_four_provider_readback_pinned": provider_readback_pinned,
-        "live_result_binding_pinned": live_result_binding_pinned,
+        "live_result_binding_pinned": live_result_binding_ready,
+        "live_result_binding_ready": live_result_binding_ready,
+        "controller_integrated": controller_integrated,
     }
     blockers: list[str] = []
     if not lease_active:
@@ -143,20 +157,19 @@ def build_cloud_trading_control_receipt(
     if not probe_current:
         blockers.append(read_error or "current_signed_authority_probe_missing")
     for key, ready in (
-        ("live_execution_release_held", capabilities["live_execution_release"]),
         ("durable_budget_ledger_unconfigured", capabilities["durable_budget_ledger"]),
         ("live_order_adapter_unavailable", capabilities["order_adapter_ready"]),
-        ("production_release_receipt_missing", capabilities["release_receipt_pinned"]),
         ("all_four_provider_readback_receipt_missing", capabilities["all_four_provider_readback_pinned"]),
         ("live_order_result_binding_receipt_missing", capabilities["live_result_binding_pinned"]),
+        (controller_error or "governed_live_handoff_controller_not_integrated", capabilities["controller_integrated"]),
     ):
         if not ready:
             blockers.append(key)
-    # This observer never applies configuration.  The governed controller that
-    # atomically changes the publisher/executor state is not yet installed, so
-    # even a complete evidence set remains non-authoritative here.
-    blockers.append("governed_live_handoff_controller_not_integrated")
-    handoff_ready = False
+    prerequisite_blockers = list(blockers)
+    handoff_ready = not prerequisite_blockers
+    if not release_active:
+        blockers.append("live_execution_release_held")
+    production_ready = handoff_ready and release_active
     probe_summary = None
     if receipt_valid and isinstance(receipt, Mapping):
         probe_summary = {
@@ -183,8 +196,10 @@ def build_cloud_trading_control_receipt(
         "authorization_expires_at_iso": authorization.get("expires_at_iso"),
         "capabilities": capabilities,
         "last_probe": probe_summary,
+        "controller_release": controller_release,
         "blockers": blockers,
         "handoff_ready": handoff_ready,
+        "production_ready": production_ready,
     }
     return {
         "schema": SCHEMA,
@@ -201,14 +216,15 @@ def build_cloud_trading_control_receipt(
             "state": authorization.get("state"),
             "expires_at_iso": authorization.get("expires_at_iso"),
             "ledger_event_sha256": authorization.get("ledger_event_sha256"),
-            "release_authority": False,
+            "release_authority": release_active,
             "mutation_authority": False,
         },
         "capabilities": capabilities,
         "last_probe": probe_summary,
+        "controller_release": controller_release,
         "blockers": blockers,
-        "production_ready": handoff_ready,
-        "release_authority": False,
+        "production_ready": production_ready,
+        "release_authority": release_active,
         "mutation_authority": False,
         "digest_sha256": _digest(body),
         "digest_scope": "operator_cloud_trading_control",

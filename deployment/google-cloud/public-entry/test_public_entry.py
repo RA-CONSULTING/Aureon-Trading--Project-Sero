@@ -395,6 +395,16 @@ def test_bridge_signs_only_exact_owner_switchboard_intent(keys, verifier):
     assert calls[-1][2][entry.INTENT_HEADER] == "signed.owner.intent"
     assert signed_calls[-1]["target"] == "/api/operator/authorization-lease"
 
+    release = c.post(
+        "/api/operator/cloud-trading-control/apply",
+        base_url=base,
+        headers=headers(keys, bridge=True),
+        json={"action": "activate", "confirm": "APPLY_AUREON_CLOUD_LIVE_TRADING"},
+    )
+    assert release.status_code == 200
+    assert calls[-1][2][entry.INTENT_HEADER] == "signed.owner.intent"
+    assert signed_calls[-1]["target"] == "/api/operator/cloud-trading-control/apply"
+
 
 def test_operator_intent_signer_binds_exact_request_and_expires_quickly(tmp_path, keys):
     key_path = tmp_path / "bridge-key.pem"
@@ -449,6 +459,16 @@ def test_operator_intent_signer_binds_exact_request_and_expires_quickly(tmp_path
     )
     assert lease_claims["path"] == "/api/operator/authorization-lease"
     assert lease_claims["route_rule"] == "/api/operator/authorization-lease"
+    release_token = signer.sign(
+        method="POST", target="/api/operator/cloud-trading-control/apply",
+        body=b'{"action":"hold"}', mode="iap", revision=BASE.revision,
+    )
+    release_claims = jwt.decode(
+        release_token, keys[1].public_key(), algorithms=["RS256"],
+        audience=entry.INTENT_AUDIENCE, issuer=entry.INTENT_ISSUER,
+        options={"verify_exp": False, "verify_iat": False},
+    )
+    assert release_claims["route_rule"] == "/api/operator/cloud-trading-control/apply"
     for change in (
         {"method": "GET"},
         {"target": "/api/connections/binance"},
