@@ -284,7 +284,8 @@ def pull_once(*, output: Path = DEFAULT_OUTPUT, reader=_http,
 def run(*, output: Path = DEFAULT_OUTPUT) -> None:
     while True:
         try:
-            pull_once(output=output)
+            if not pull_once(output=output):
+                time.sleep(1)
         except CollectorError as exc:
             print(str(exc), file=sys.stderr, flush=True)
             time.sleep(5)
