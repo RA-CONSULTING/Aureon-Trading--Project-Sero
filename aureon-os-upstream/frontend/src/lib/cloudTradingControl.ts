@@ -22,6 +22,17 @@ export interface CloudTradingProbe {
   provider_mutation_attempted: false;
   orders_attempted: 0;
   orders_submitted: 0;
+  executor_capabilities: {
+    live_execution_release: boolean;
+    durable_budget_ledger: boolean;
+    order_adapter_ready: boolean;
+  } | null;
+  provider_readback: {
+    provider_count: 4;
+    all_authenticated: true;
+    readback_sha256: string;
+    providers: Record<'alpaca' | 'binance' | 'capital' | 'kraken', { authenticated: true; account_binding_sha256: string }>;
+  } | null;
 }
 
 export interface CloudTradingControlReceipt {
@@ -71,6 +82,18 @@ function stageMap(value: unknown): value is CloudTradingProbe['authority_ids'] {
 
 function probe(value: unknown): value is CloudTradingProbe {
   const raw = record(value);
+  const executor = record(raw?.executor_capabilities);
+  const provider = record(raw?.provider_readback);
+  const providers = record(provider?.providers);
+  const providerNames = ['alpaca', 'binance', 'capital', 'kraken'] as const;
+  const executorValid = executor === null || (Object.keys(executor).length === 3
+    && ['live_execution_release', 'durable_budget_ledger', 'order_adapter_ready'].every(key => typeof executor[key] === 'boolean'));
+  const providerValid = provider === null || (provider.provider_count === 4 && provider.all_authenticated === true
+    && hex64(provider.readback_sha256) && providers !== null && Object.keys(providers).length === 4
+    && providerNames.every(name => {
+      const row = record(providers[name]);
+      return row?.authenticated === true && hex64(row.account_binding_sha256);
+    }));
   return raw !== null && hex64(raw.intent_id) && hex64(raw.receipt_sha256)
     && typeof raw.received_at === 'number' && Number.isFinite(raw.received_at)
     && typeof raw.age_seconds === 'number' && Number.isFinite(raw.age_seconds)
@@ -79,7 +102,8 @@ function probe(value: unknown): value is CloudTradingProbe {
     && new Set(Object.values(raw.authority_ids)).size === 4
     && new Set(Object.values(raw.key_versions)).size === 4
     && raw.provider_mutation_attempted === false
-    && raw.orders_attempted === 0 && raw.orders_submitted === 0;
+    && raw.orders_attempted === 0 && raw.orders_submitted === 0
+    && executorValid && providerValid;
 }
 
 export function readCloudTradingControl(value: unknown): CloudTradingControlReceipt {

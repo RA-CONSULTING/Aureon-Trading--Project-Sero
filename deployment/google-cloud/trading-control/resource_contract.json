@@ -43,7 +43,15 @@
     }
   ],
   "terminal_readback_subscription": "aureon-trade-terminal-readback-v1",
+  "effect_ledger": {
+    "database": "projects/aureon-trading/databases/(default)",
+    "location": "europe-west1",
+    "delete_protection": true,
+    "writer": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+    "daily_budget_usd": 20,
+    "maximum_order_usd": 5
+  },
   "live_execution_release": false,
-  "durable_budget_ledger": false,
-  "order_adapter_ready": false
+  "durable_budget_ledger": true,
+  "order_adapter_ready": true
 }

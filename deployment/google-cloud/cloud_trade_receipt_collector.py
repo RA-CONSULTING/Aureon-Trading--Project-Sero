@@ -155,7 +155,8 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
     # the signed creation time for shape/lifetime validation, then constrain all
     # signed stage times to that same lease below.
     intent = validate_intent(
-        untrusted_intent, now_ms=created_at, max_order_usd=5, live_release=False,
+        untrusted_intent, now_ms=created_at, max_order_usd=5,
+        live_release=bool(isinstance(untrusted_intent, Mapping) and untrusted_intent.get("kind") == "order"),
     )
     outcome = result.get("outcome")
     if (intent["kind"] != "control_plane_probe" or intent["dry_run"] is not True
@@ -166,6 +167,37 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
             or outcome.get("orders_attempted") != 0
             or outcome.get("orders_submitted") != 0):
         raise CollectorError("terminal_probe_outcome_invalid")
+    capabilities = outcome.get("executor_capabilities")
+    if (not isinstance(capabilities, Mapping)
+            or set(capabilities) != {"live_execution_release", "durable_budget_ledger", "order_adapter_ready"}
+            or any(type(value) is not bool for value in capabilities.values())):
+        raise CollectorError("terminal_executor_capabilities_invalid")
+    provider_readback = outcome.get("provider_readback")
+    provider_summary = None
+    if provider_readback is not None:
+        providers = provider_readback.get("providers") if isinstance(provider_readback, Mapping) else None
+        if (not isinstance(provider_readback, Mapping)
+                or provider_readback.get("schema") != "aureon.cloud-trade-provider-readback.v1"
+                or provider_readback.get("provider_count") != 4
+                or provider_readback.get("all_authenticated") is not True
+                or provider_readback.get("provider_mutation_attempted") is not False
+                or not isinstance(providers, Mapping)
+                or set(providers) != {"alpaca", "binance", "capital", "kraken"}
+                or any(not isinstance(row, Mapping) or row.get("venue") != venue
+                       or row.get("authenticated") is not True
+                       or not isinstance(row.get("account_binding_sha256"), str)
+                       or not re.fullmatch(r"[0-9a-f]{64}", row["account_binding_sha256"])
+                       for venue, row in providers.items())
+                or provider_readback.get("readback_sha256") != digest(providers)):
+            raise CollectorError("terminal_provider_readback_invalid")
+        provider_summary = {
+            "provider_count": 4, "all_authenticated": True,
+            "readback_sha256": provider_readback["readback_sha256"],
+            "providers": {
+                venue: {"authenticated": True, "account_binding_sha256": row["account_binding_sha256"]}
+                for venue, row in providers.items()
+            },
+        }
     if not (
         review["intent_id"] == dispatch["intent_id"] == executor["intent_id"]
         == terminal["intent_id"] == intent["intent_id"]
@@ -198,6 +230,8 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
         "orders_submitted": 0,
         "dry_run": True,
         "chain_verified": True,
+        "executor_capabilities": dict(capabilities),
+        "provider_readback": provider_summary,
     }
 
 

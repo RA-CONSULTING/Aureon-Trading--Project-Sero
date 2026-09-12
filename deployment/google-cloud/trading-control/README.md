@@ -17,7 +17,8 @@ the pinned owner exchange-credential secret. Every stage has read-only access to
 the public keys, while each private signing operation is restricted to that
 stage's KMS key.
 
-The deployed initial release accepts only `control_plane_probe`. A probe requires
+The held release accepts `control_plane_probe` and contains the reviewed live
+adapters, but order intents remain rejected while release is false. A probe requires
 the deployment hold, real-order hold and exchange-mutation hold to remain active.
 Its executor outcome records zero attempted and submitted orders. `order` intents
 fail closed until all three release controls are explicitly true:
@@ -26,12 +27,20 @@ fail closed until all three release controls are explicitly true:
 * `AUREON_DURABLE_BUDGET_LEDGER=1`
 * `AUREON_ORDER_ADAPTER_READY=1`
 
-The checked-in image deliberately contains no live order adapter. Enabling an
-environment flag therefore cannot create execution authority. A later reviewed
-image must add provider order submission, durable effect claiming, uncertain
-outcome reconciliation and provider readback before those controls can be set.
+The executor loads the pinned owner credential secret in memory and can probe all
+four live provider accounts without placing an order. Live adapters bind Alpaca,
+Binance, and Kraken to deterministic client order IDs and bind Capital orders to
+its returned deal reference and confirmation endpoint. A Firestore transaction
+atomically reserves the intent and UTC daily budget before submission. Redelivery
+returns an observed effect or performs provider lookup; ambiguous outcomes become
+`uncertain` and are never automatically submitted again.
+
+The current release setting remains `AUREON_LIVE_EXECUTION_RELEASE=0`. Enabling
+the adapter and ledger readiness flags proves code and infrastructure presence;
+it does not grant order authority. Release additionally requires a current human
+lease, all six requested controls, current four-provider readback, an explicit
+release receipt, and the governed handoff controller.
 
 Messages use canonical ASCII JSON, a 60-second maximum lifetime, exact object
 shapes and deterministic stage IDs. KMS Ed25519 signatures join each stage to the
 previous digest. Pub/Sub redelivery produces the same signed stage bytes.
-

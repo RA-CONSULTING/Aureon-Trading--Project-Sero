@@ -227,6 +227,9 @@ function CloudTradingControlPanel() {
             </div>)}
           </div>
           <p className="mt-2 text-[10px] text-zinc-500">Verified receipt {new Date(probe.received_at * 1_000).toISOString()} · mutations 0 · orders attempted 0 · orders submitted 0</p>
+          {probe.provider_readback && <p className="mt-1 text-[10px]" style={{ color: CYAN }}>
+            Live provider authentication verified: {Object.keys(probe.provider_readback.providers).join(' · ')}
+          </p>}
         </> : <p className="mt-2 text-[11px]" style={{ color: GOLD }}>Waiting for the collector to verify a current terminal receipt.</p>}
       </div>
       <div className="rounded border border-zinc-800 p-3">

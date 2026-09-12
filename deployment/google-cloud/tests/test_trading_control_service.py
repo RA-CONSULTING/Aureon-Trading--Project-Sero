@@ -59,7 +59,7 @@ class CapturePublisher:
         return f"message-{len(self.values)}"
 
 
-def config(role: str, *, live=False, budget=False, adapter=False) -> ServiceConfig:
+def config(role: str, *, live=False, budget=False, adapter=False, provider_probe=False) -> ServiceConfig:
     return ServiceConfig(
         role=role,
         project_id=PROJECT,
@@ -73,6 +73,8 @@ def config(role: str, *, live=False, budget=False, adapter=False) -> ServiceConf
         durable_budget_ledger=budget,
         order_adapter_ready=adapter,
         max_order_usd=5.0,
+        provider_probe_enabled=provider_probe,
+        max_daily_budget_usd=20.0,
     )
 
 
@@ -120,15 +122,17 @@ def push(value: dict) -> dict:
 
 
 def run_stage(role: str, value: dict, *, now_ms=1_800_000_000_000,
-              live=False, budget=False, adapter=False):
+              live=False, budget=False, adapter=False, provider_probe=False,
+              executor_factory=None):
     out = CapturePublisher()
-    cfg = config(role, live=live, budget=budget, adapter=adapter)
+    cfg = config(role, live=live, budget=budget, adapter=adapter, provider_probe=provider_probe)
     app = create_app(
         config=cfg,
         signer=FakeKms(KEYS[role]),
         verifier=FakeKms(KEYS[role]),
         publisher=out,
         clock=lambda: now_ms / 1000,
+        executor_factory=executor_factory,
     )
     response = app.test_client().post("/process", json=push(value))
     return response, out.values
@@ -161,6 +165,12 @@ def test_probe_crosses_four_distinct_signed_stages_without_mutation():
         "orders_attempted": 0,
         "orders_submitted": 0,
         "dispatch_sha256": executor["result"]["outcome"]["dispatch_sha256"],
+        "provider_readback": None,
+        "executor_capabilities": {
+            "live_execution_release": False,
+            "durable_budget_ledger": False,
+            "order_adapter_ready": False,
+        },
     }
 
     receipt_response, receipt_values = run_stage("receipt", executor)
@@ -246,3 +256,62 @@ def test_health_reports_probe_ready_and_live_held():
     assert payload["probe_path_ready"] is True
     assert payload["live_execution_release"] is False
     assert payload["production_ready"] is False
+
+
+class FakeLiveExecutor:
+    def __init__(self, daily_budget):
+        assert daily_budget == 20.0
+
+    def provider_probe(self):
+        return {"schema": "aureon.cloud-trade-provider-readback.v1", "provider_count": 4,
+                "all_authenticated": True, "providers": {}, "provider_mutation_attempted": False,
+                "readback_sha256": "7" * 64}
+
+    def execute(self, intent, *, dispatch_sha256):
+        return {"schema": "aureon.cloud-trade-live-result.v1", "status": "provider_observed",
+                "reason_code": "provider_order_observed", "dry_run": False,
+                "intent_id": intent["intent_id"], "venue": intent["order"]["venue"],
+                "provider_order_id": "provider-order", "provider_client_order_id": "provider-client",
+                "provider_status": "accepted", "provider_readback_sha256": "8" * 64,
+                "provider_mutation_attempted": True, "orders_attempted": 1,
+                "orders_submitted": 1, "dispatch_sha256": dispatch_sha256}
+
+
+def test_executor_probe_can_bind_all_four_read_only_provider_accounts():
+    source = probe()
+    _, reviews = run_stage("review", source)
+    _, dispatches = run_stage("dispatch", reviews[0])
+    response, executors = run_stage(
+        "executor", dispatches[0], provider_probe=True,
+        executor_factory=lambda budget: FakeLiveExecutor(budget),
+    )
+    assert response.status_code == 204
+    provider_readback = executors[0]["result"]["outcome"]["provider_readback"]
+    assert provider_readback["provider_count"] == 4 and provider_readback["all_authenticated"] is True
+
+
+def test_released_order_crosses_executor_and_receipt_with_provider_readback():
+    source = probe()
+    source.update({
+        "kind": "order", "dry_run": False,
+        "requested_controls": {
+            "AUREON_DEPLOYMENT_HOLD": False, "AUREON_DISABLE_REAL_ORDERS": False,
+            "AUREON_DISABLE_EXCHANGE_MUTATIONS": False, "AUREON_LIVE_TRADING": True,
+            "AUREON_ORDER_INTENT_PUBLISH": True, "AUREON_UNIFIED_ORDER_EXECUTOR": True,
+        },
+        "order": {"venue": "alpaca", "symbol": "BTC/USD", "side": "BUY",
+                  "order_type": "MARKET", "quantity": 0.00001, "quote_value_usd": 1.0,
+                  "limit_price": None, "client_order_id": "aureon-order-00000003"},
+    })
+    _, reviews = run_stage("review", source, live=True)
+    _, dispatches = run_stage("dispatch", reviews[0], live=True)
+    executor_response, executors = run_stage(
+        "executor", dispatches[0], live=True, budget=True, adapter=True,
+        executor_factory=lambda budget: FakeLiveExecutor(budget),
+    )
+    assert executor_response.status_code == 204
+    outcome = executors[0]["result"]["outcome"]
+    assert outcome["orders_submitted"] == 1 and outcome["provider_readback_sha256"] == "8" * 64
+    receipt_response, receipts = run_stage("receipt", executors[0], live=True)
+    assert receipt_response.status_code == 204
+    assert receipts[0]["executor"]["result"]["outcome"]["status"] == "provider_observed"

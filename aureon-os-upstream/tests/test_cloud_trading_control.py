@@ -5,7 +5,7 @@ import json
 from aureon.operator import cloud_trading_control as control
 
 
-def readback(received_at=1_000.0):
+def readback(received_at=1_000.0, *, ready=False):
     return {
         "schema": control.READBACK_SCHEMA,
         "received_at": received_at,
@@ -18,6 +18,15 @@ def readback(received_at=1_000.0):
             "provider_mutation_attempted": False,
             "orders_attempted": 0,
             "orders_submitted": 0,
+            "executor_capabilities": {
+                "live_execution_release": ready,
+                "durable_budget_ledger": ready,
+                "order_adapter_ready": ready,
+            },
+            "provider_readback": ({
+                "provider_count": 4, "all_authenticated": True,
+                "readback_sha256": "4" * 64, "providers": {},
+            } if ready else None),
             "authority_ids": {
                 "review": "gcp:aureon-trade-review",
                 "dispatch": "gcp:aureon-trade-dispatch",
@@ -100,8 +109,26 @@ def test_even_complete_configuration_claims_cannot_self_release(tmp_path, monkey
     result = control.build_cloud_trading_control_receipt(
         environ=env, now=1_010, readback_path=path,
     )
-    assert result["capabilities"]["live_execution_release"] is True
+    assert result["capabilities"]["live_execution_release"] is False
     assert result["operator_can_apply_live"] is False
     assert result["production_ready"] is False
-    assert result["blockers"] == ["governed_live_handoff_controller_not_integrated"]
+    assert "live_execution_release_held" in result["blockers"]
+    assert "durable_budget_ledger_unconfigured" in result["blockers"]
+    assert "live_order_adapter_unavailable" in result["blockers"]
+    assert "all_four_provider_readback_receipt_missing" in result["blockers"]
 
+
+def test_signed_executor_and_provider_evidence_still_requires_controller(tmp_path, monkeypatch):
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(readback(ready=True)), encoding="utf-8")
+    patch_sources(monkeypatch)
+    env = {
+        "AUREON_CLOUD_TRADE_RELEASE_RECEIPT_SHA256": "5" * 64,
+        "AUREON_CLOUD_TRADE_LIVE_RESULT_BINDING_SHA256": "6" * 64,
+    }
+    result = control.build_cloud_trading_control_receipt(environ=env, now=1_010, readback_path=path)
+    assert result["capabilities"]["durable_budget_ledger"] is True
+    assert result["capabilities"]["order_adapter_ready"] is True
+    assert result["capabilities"]["all_four_provider_readback_pinned"] is True
+    assert result["operator_can_apply_live"] is False
+    assert result["blockers"] == ["governed_live_handoff_controller_not_integrated"]

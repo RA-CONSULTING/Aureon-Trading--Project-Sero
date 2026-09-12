@@ -10,7 +10,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 import requests
 from cryptography.exceptions import InvalidSignature
@@ -217,6 +217,8 @@ class ServiceConfig:
     durable_budget_ledger: bool
     order_adapter_ready: bool
     max_order_usd: float
+    provider_probe_enabled: bool = False
+    max_daily_budget_usd: float = 20.0
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "ServiceConfig":
@@ -237,6 +239,9 @@ class ServiceConfig:
         max_order = float(values.get("AUREON_MAX_ORDER_USD") or "5")
         if not math.isfinite(max_order) or not 0 < max_order <= 100:
             raise CloudBoundaryError("service_order_budget_invalid")
+        max_daily_budget = float(values.get("AUREON_MAX_DAILY_ORDER_USD") or "20")
+        if not math.isfinite(max_daily_budget) or not max_order <= max_daily_budget <= 10_000:
+            raise CloudBoundaryError("service_daily_budget_invalid")
         def flag(key: str) -> bool:
             return str(values.get(key) or "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -250,6 +255,8 @@ class ServiceConfig:
             durable_budget_ledger=flag("AUREON_DURABLE_BUDGET_LEDGER"),
             order_adapter_ready=flag("AUREON_ORDER_ADAPTER_READY"),
             max_order_usd=max_order,
+            provider_probe_enabled=flag("AUREON_PROVIDER_PROBE_ENABLED"),
+            max_daily_budget_usd=max_daily_budget,
         )
 
 
@@ -340,7 +347,7 @@ def _dispatch(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
 
 
 def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Signer,
-              verifier: Verifier, now_ms: int) -> dict[str, Any]:
+              verifier: Verifier, now_ms: int, executor_factory: Callable[[float], Any] | None = None) -> dict[str, Any]:
     if config.dispatch_key_version is None or config.review_key_version is None:
         raise CloudBoundaryError("executor_key_pins_missing")
     dispatch = _verify_stage(input_value, schema=DISPATCH_SCHEMA, payload_key="review",
@@ -356,18 +363,36 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
             raise ContractError("durable_budget_ledger_unconfigured")
         if not config.order_adapter_ready:
             raise ContractError("live_order_adapter_unavailable")
-        # No order adapter is reachable from this reviewed image.  The explicit
-        # failure above remains load-bearing until a separately reviewed adapter
-        # and provider reconciliation implementation replace this branch.
-        raise ContractError("live_order_adapter_unavailable")
-    if intent["kind"] != PROBE_KIND or intent["dry_run"] is not True:
-        raise ContractError("executor_probe_contract_invalid")
-    outcome = {
-        "schema": "aureon.cloud-trade-probe-result.v1",
-        "status": "probe_passed", "dry_run": True,
-        "provider_mutation_attempted": False, "orders_attempted": 0,
-        "orders_submitted": 0, "dispatch_sha256": digest(dispatch),
-    }
+        if executor_factory is None:
+            from live_executor import LiveExecutor
+            executor_factory = LiveExecutor
+        outcome = executor_factory(config.max_daily_budget_usd).execute(
+            intent, dispatch_sha256=digest(dispatch),
+        )
+        if not isinstance(outcome, Mapping) or outcome.get("schema") != "aureon.cloud-trade-live-result.v1":
+            raise CloudBoundaryError("live_executor_result_invalid")
+        outcome = dict(outcome)
+    else:
+        if intent["kind"] != PROBE_KIND or intent["dry_run"] is not True:
+            raise ContractError("executor_probe_contract_invalid")
+        provider_readback = None
+        if config.provider_probe_enabled:
+            if executor_factory is None:
+                from live_executor import LiveExecutor
+                executor_factory = LiveExecutor
+            provider_readback = executor_factory(config.max_daily_budget_usd).provider_probe()
+        outcome = {
+            "schema": "aureon.cloud-trade-probe-result.v1",
+            "status": "probe_passed", "dry_run": True,
+            "provider_mutation_attempted": False, "orders_attempted": 0,
+            "orders_submitted": 0, "dispatch_sha256": digest(dispatch),
+            "provider_readback": provider_readback,
+            "executor_capabilities": {
+                "live_execution_release": config.live_execution_release,
+                "durable_budget_ledger": config.durable_budget_ledger,
+                "order_adapter_ready": config.order_adapter_ready,
+            },
+        }
     result = {"dispatch": dispatch, "outcome": outcome}
     prior = digest(dispatch)
     stage = {
@@ -394,8 +419,30 @@ def _receipt(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sign
     validate_intent(intent, now_ms=now_ms, max_order_usd=config.max_order_usd,
                     live_release=config.live_execution_release)
     outcome = result.get("outcome")
-    if not isinstance(outcome, Mapping) or outcome.get("provider_mutation_attempted") is not False:
-        raise ContractError("probe_terminal_outcome_invalid")
+    if not isinstance(outcome, Mapping) or outcome.get("intent_id", intent["intent_id"]) != intent["intent_id"]:
+        raise ContractError("terminal_outcome_invalid")
+    if intent["kind"] == PROBE_KIND:
+        if (outcome.get("schema") != "aureon.cloud-trade-probe-result.v1"
+                or outcome.get("provider_mutation_attempted") is not False
+                or outcome.get("orders_attempted") != 0 or outcome.get("orders_submitted") != 0):
+            raise ContractError("probe_terminal_outcome_invalid")
+    else:
+        status = outcome.get("status")
+        valid = (
+            outcome.get("schema") == "aureon.cloud-trade-live-result.v1"
+            and outcome.get("dry_run") is False
+            and outcome.get("dispatch_sha256") == digest(result["dispatch"])
+            and status in {"provider_observed", "rejected", "uncertain"}
+            and ((status == "provider_observed" and outcome.get("provider_mutation_attempted") is True
+                  and outcome.get("orders_attempted") == 1 and outcome.get("orders_submitted") == 1
+                  and isinstance(outcome.get("provider_readback_sha256"), str))
+                 or (status == "rejected" and outcome.get("provider_mutation_attempted") is False
+                     and outcome.get("orders_attempted") == 0 and outcome.get("orders_submitted") == 0)
+                 or (status == "uncertain" and outcome.get("provider_mutation_attempted") is True
+                     and outcome.get("orders_attempted") == 1 and outcome.get("orders_submitted") is None))
+        )
+        if not valid:
+            raise ContractError("live_terminal_outcome_invalid")
     prior = digest(executor)
     stage = {
         "schema": RECEIPT_SCHEMA,
@@ -413,7 +460,7 @@ _HANDLERS = {"review": _review, "dispatch": _dispatch, "executor": _executor, "r
 
 def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = None,
                verifier: Verifier | None = None, publisher: Publisher | None = None,
-               clock=time.time) -> Flask:
+               clock=time.time, executor_factory: Callable[[float], Any] | None = None) -> Flask:
     cfg = ServiceConfig.from_env() if config is None else config
     kms = KmsBoundary(cfg.key_version)
     stage_signer = kms if signer is None else signer
@@ -445,9 +492,12 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
     def process():
         try:
             value = _decode_push(request.get_json(silent=True))
-            result = _HANDLERS[cfg.role](
-                value, cfg, stage_signer, stage_verifier, int(float(clock()) * 1000),
-            )
+            handler = _HANDLERS[cfg.role]
+            if cfg.role == "executor":
+                result = handler(value, cfg, stage_signer, stage_verifier,
+                                 int(float(clock()) * 1000), executor_factory)
+            else:
+                result = handler(value, cfg, stage_signer, stage_verifier, int(float(clock()) * 1000))
             published = stage_publisher.publish(result)
             return jsonify({
                 "ok": True, "role": cfg.role, "intent_id": result["intent_id"],

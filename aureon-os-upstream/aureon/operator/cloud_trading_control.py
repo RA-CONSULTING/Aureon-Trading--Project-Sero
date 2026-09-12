@@ -30,13 +30,6 @@ LIVE_CONTROLS = {
     "AUREON_UNIFIED_ORDER_EXECUTOR": True,
 }
 _HEX64 = re.compile(r"[0-9a-f]{64}")
-_TRUTHY = {"1", "true", "yes", "on"}
-
-
-def _flag(environ: Mapping[str, str], key: str) -> bool:
-    return str(environ.get(key) or "").strip().lower() in _TRUTHY
-
-
 def _digest(value: Any) -> str:
     return hashlib.sha256(json.dumps(
         value, sort_keys=True, separators=(",", ":"), allow_nan=False,
@@ -119,8 +112,15 @@ def build_cloud_trading_control_receipt(
     desired_live_state = requested == LIVE_CONTROLS
     release_receipt = str(env.get("AUREON_CLOUD_TRADE_RELEASE_RECEIPT_SHA256") or "")
     release_receipt_pinned = _HEX64.fullmatch(release_receipt) is not None
-    provider_readback = str(env.get("AUREON_CLOUD_TRADE_PROVIDER_READBACK_SHA256") or "")
-    provider_readback_pinned = _HEX64.fullmatch(provider_readback) is not None
+    executor_capabilities = receipt.get("executor_capabilities") if isinstance(receipt, Mapping) else None
+    provider_readback = receipt.get("provider_readback") if isinstance(receipt, Mapping) else None
+    provider_readback_pinned = bool(
+        receipt_valid and isinstance(provider_readback, Mapping)
+        and provider_readback.get("provider_count") == 4
+        and provider_readback.get("all_authenticated") is True
+        and isinstance(provider_readback.get("readback_sha256"), str)
+        and _HEX64.fullmatch(provider_readback["readback_sha256"]) is not None
+    )
     result_binding = str(env.get("AUREON_CLOUD_TRADE_LIVE_RESULT_BINDING_SHA256") or "")
     live_result_binding_pinned = _HEX64.fullmatch(result_binding) is not None
     capabilities = {
@@ -128,9 +128,9 @@ def build_cloud_trading_control_receipt(
         "distinct_runtime_identities": receipt_valid,
         "isolated_executor_probe": probe_current,
         "no_mutation_probe": probe_current,
-        "live_execution_release": _flag(env, "AUREON_LIVE_EXECUTION_RELEASE"),
-        "durable_budget_ledger": _flag(env, "AUREON_DURABLE_BUDGET_LEDGER"),
-        "order_adapter_ready": _flag(env, "AUREON_ORDER_ADAPTER_READY"),
+        "live_execution_release": bool(isinstance(executor_capabilities, Mapping) and executor_capabilities.get("live_execution_release") is True),
+        "durable_budget_ledger": bool(isinstance(executor_capabilities, Mapping) and executor_capabilities.get("durable_budget_ledger") is True),
+        "order_adapter_ready": bool(isinstance(executor_capabilities, Mapping) and executor_capabilities.get("order_adapter_ready") is True),
         "release_receipt_pinned": release_receipt_pinned,
         "all_four_provider_readback_pinned": provider_readback_pinned,
         "live_result_binding_pinned": live_result_binding_pinned,
@@ -171,6 +171,8 @@ def build_cloud_trading_control_receipt(
             "provider_mutation_attempted": False,
             "orders_attempted": 0,
             "orders_submitted": 0,
+            "executor_capabilities": dict(executor_capabilities) if isinstance(executor_capabilities, Mapping) else None,
+            "provider_readback": dict(provider_readback) if isinstance(provider_readback, Mapping) else None,
         }
     body = {
         "requested_controls": requested,
