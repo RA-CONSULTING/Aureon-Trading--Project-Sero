@@ -531,6 +531,7 @@ def build_operator(source_root, revision, bearer, tenant_config):
         "AUREON_OPERATOR_HTTP_PROCESSES": "1", "AUREON_OPERATOR_REPLICAS": "1",
         "AUREON_OPERATOR_MAX_BODY": str(MAX_REQUEST), "AUREON_OPERATOR_TRUSTED_PROXY_CIDRS": "",
         "SERO_WORKSPACE": str(root.parent),
+        "AUREON_FEATURE_SWITCHBOARD_DIR": "/srv/aureon/cache/feature-switchboard",
         "AUREON_SUPABASE_URL": tenant_config["project_url"],
         "AUREON_SUPABASE_PUBLISHABLE_KEY": tenant_config["publishable_key"],
         "AUREON_OPERATOR_INTENT_CERT_FILE": "/etc/aureon-public/bridge-cert.pem",

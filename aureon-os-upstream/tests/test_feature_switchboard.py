@@ -66,6 +66,16 @@ def test_hard_boundary_flags_default_safe():
 
 # ── store ───────────────────────────────────────────────────────────────────────
 
+def test_confined_service_can_select_an_absolute_durable_store(tmp_path):
+    selected = tmp_path / "feature-switchboard"
+    assert fs._configuration_directory(
+        {"AUREON_FEATURE_SWITCHBOARD_DIR": str(selected)}, home=tmp_path / "home"
+    ) == selected
+    assert fs._configuration_directory({}, home=tmp_path / "home") == tmp_path / "home" / ".aureon"
+    with pytest.raises(RuntimeError, match="absolute_directory_required"):
+        fs._configuration_directory({"AUREON_FEATURE_SWITCHBOARD_DIR": "relative/store"})
+
+
 def test_store_roundtrip_and_persist(temp_store, monkeypatch):
     # save_flag APPLIES the decision to os.environ by design; monkeypatch the
     # var first so the process env is restored after the test.

@@ -36,7 +36,20 @@ from typing import Any, Dict, List
 
 logger = logging.getLogger("aureon.operator.feature_switchboard")
 
-CONFIG_DIR = Path.home() / ".aureon"
+
+def _configuration_directory(environ=None, *, home: Path | None = None) -> Path:
+    """Select an explicit durable store for confined service identities."""
+    values = os.environ if environ is None else environ
+    configured = str(values.get("AUREON_FEATURE_SWITCHBOARD_DIR") or "").strip()
+    if not configured:
+        return (Path.home() if home is None else Path(home)) / ".aureon"
+    path = Path(configured)
+    if not path.is_absolute() or ".." in path.parts:
+        raise RuntimeError("feature_switchboard_absolute_directory_required")
+    return path
+
+
+CONFIG_DIR = _configuration_directory()
 KEY_PATH = CONFIG_DIR / "feature_flags.key"
 STORE_PATH = CONFIG_DIR / "feature_flags.json.enc"
 
@@ -350,13 +363,18 @@ def flag_view(flag: FeatureFlag) -> Dict[str, Any]:
 
     # Non-handoff flags historically apply inside this process. Reconcile an
     # unsafe stored choice when the launcher explicitly holds the runtime safe.
-    if flag.effect != "handoff" and flag.kind == "hard_boundary" and stored is not None and _env_holds_safe(flag):
-        if bool(stored.get("enabled")) == flag.risk_value:
-            data = load()
-            data[flag.id] = {"enabled": not flag.risk_value, "decided_at": time.time(),
-                             "reconciled_by_env_hold": True}
-            _persist(data)
-            stored = data[flag.id]
+    if (
+        flag.effect != "handoff"
+        and flag.kind == "hard_boundary"
+        and stored is not None
+        and _env_holds_safe(flag)
+        and bool(stored.get("enabled")) == flag.risk_value
+    ):
+        data = load()
+        data[flag.id] = {"enabled": not flag.risk_value, "decided_at": time.time(),
+                         "reconciled_by_env_hold": True}
+        _persist(data)
+        stored = data[flag.id]
 
     if flag.effect == "handoff":
         enabled = env_enabled if env_present else flag.default
