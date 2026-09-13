@@ -9,6 +9,8 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import threading
+import time
 from typing import Any, Mapping
 
 import pytest
@@ -193,12 +195,18 @@ class FakeProvider:
         self.successful_acknowledgements.append((subscription, tuple(ack_ids)))
 
 
-def run(provider: FakeProvider, **scope_updates: Any) -> dict[str, Any]:
+def run(
+    provider: FakeProvider,
+    *,
+    io_workers: int = archive.ARCHIVE_IO_MAX_WORKERS,
+    **scope_updates: Any,
+) -> dict[str, Any]:
     return archive.archive_backlogs(
         provider,
         scope=scope(**scope_updates),
         sleep=lambda _seconds: None,
         clock=lambda: 0.0,
+        io_workers=io_workers,
     )
 
 
@@ -255,6 +263,145 @@ def test_nonempty_payload_and_manifest_are_read_back_before_acknowledgement():
     assert provider.operations.count(("read", message_name)) >= 2
     assert receipt["root_manifest"]["message_count"] == 1
     assert receipt["acknowledged_this_run"] == 1
+
+
+def test_parallel_message_and_final_proofs_are_bounded_before_acknowledgement():
+    subscription = archive.SUBSCRIPTIONS[0]
+
+    class ConcurrentProvider(FakeProvider):
+        def __init__(self):
+            super().__init__({
+                subscription: [
+                    message(f"m-parallel-{index}", str(index).encode())
+                    for index in range(8)
+                ]
+            })
+            self.lock = threading.Lock()
+            self.active_message_puts = 0
+            self.max_message_puts = 0
+            self.final_validation = False
+            self.active_final_reads = 0
+            self.max_final_reads = 0
+
+        def put_if_absent(self, bucket, name, value, *, kms_key, metadata):
+            is_message = "/messages/" in name
+            if is_message:
+                with self.lock:
+                    self.active_message_puts += 1
+                    self.max_message_puts = max(
+                        self.max_message_puts, self.active_message_puts
+                    )
+                time.sleep(0.01)
+            try:
+                return super().put_if_absent(
+                    bucket,
+                    name,
+                    value,
+                    kms_key=kms_key,
+                    metadata=metadata,
+                )
+            finally:
+                if is_message:
+                    with self.lock:
+                        self.active_message_puts -= 1
+
+        def list_objects(self, bucket, prefix):
+            result = super().list_objects(bucket, prefix)
+            self.final_validation = True
+            return result
+
+        def read_object(self, bucket, name, generation, *, maximum_bytes):
+            track = self.final_validation and "/messages/" in name
+            if track:
+                with self.lock:
+                    self.active_final_reads += 1
+                    self.max_final_reads = max(
+                        self.max_final_reads, self.active_final_reads
+                    )
+                time.sleep(0.01)
+            try:
+                return super().read_object(
+                    bucket,
+                    name,
+                    generation,
+                    maximum_bytes=maximum_bytes,
+                )
+            finally:
+                if track:
+                    with self.lock:
+                        self.active_final_reads -= 1
+
+    provider = ConcurrentProvider()
+    receipt = run(provider)
+
+    assert 2 <= provider.max_message_puts <= archive.ARCHIVE_IO_MAX_WORKERS
+    assert 2 <= provider.max_final_reads <= archive.ARCHIVE_IO_MAX_WORKERS
+    ack_position = provider.operations.index(("ack", subscription))
+    batch_name = next(name for name in provider.objects if "/batches/" in name)
+    assert provider.operations.index(("read", batch_name)) < ack_position
+    message_names = [name for name in provider.objects if "/messages/" in name]
+    assert all(
+        provider.operations.index(("read", name)) < ack_position
+        for name in message_names
+    )
+    assert receipt["acknowledged_this_run"] == 8
+
+
+def test_parallel_and_serial_archive_outputs_are_equivalent():
+    subscription = archive.SUBSCRIPTIONS[0]
+    queues = {
+        subscription: [
+            message(f"m-equivalent-{index}", f"payload-{index}".encode())
+            for index in range(6)
+        ]
+    }
+    serial_provider = FakeProvider(queues)
+    parallel_provider = FakeProvider(queues)
+
+    serial_receipt = run(serial_provider, io_workers=1)
+    parallel_receipt = run(
+        parallel_provider,
+        io_workers=archive.ARCHIVE_IO_MAX_WORKERS,
+    )
+
+    serial_receipt.pop("recorded_at")
+    parallel_receipt.pop("recorded_at")
+    assert serial_receipt == parallel_receipt
+    assert serial_provider.objects == parallel_provider.objects
+
+
+def test_parallel_failure_creates_no_batch_and_acknowledges_nothing():
+    subscription = archive.SUBSCRIPTIONS[0]
+
+    class OneMessageFails(FakeProvider):
+        def put_if_absent(self, bucket, name, value, *, kms_key, metadata):
+            if name.endswith("/m-fail.json"):
+                raise archive.ArchiveError("synthetic_one_message_failure")
+            return super().put_if_absent(
+                bucket,
+                name,
+                value,
+                kms_key=kms_key,
+                metadata=metadata,
+            )
+
+    provider = OneMessageFails({
+        subscription: [
+            message("m-good-a", b"a"),
+            message("m-fail", b"failure"),
+            message("m-good-b", b"b"),
+        ]
+    })
+
+    with pytest.raises(
+        archive.ArchiveError,
+        match="synthetic_one_message_failure",
+    ):
+        run(provider)
+
+    assert not any("/batches/" in name for name in provider.objects)
+    assert not provider.successful_acknowledgements
+    assert len(provider.queues[subscription]) == 3
 
 
 def test_upload_failure_fails_before_any_acknowledgement():

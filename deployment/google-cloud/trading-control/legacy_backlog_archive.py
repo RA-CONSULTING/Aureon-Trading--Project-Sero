@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import hashlib
@@ -56,6 +57,7 @@ ROOT_SCHEMA = "aureon.gcp.pubsub-legacy-archive-root.v1"
 RECEIPT_SCHEMA = "aureon.gcp.pubsub-legacy-archive-receipt.v1"
 SCOPE_SCHEMA = "aureon.gcp.pubsub-legacy-archive-scope.v1"
 DEFAULT_PREFIX = "aureon-trade-legacy-archive"
+ARCHIVE_IO_MAX_WORKERS = 4
 
 _HEX40 = re.compile(r"[0-9a-f]{40}")
 _HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -540,6 +542,25 @@ def _ensure_message(
     }
 
 
+def _parallel_ordered(
+    items: list[Any],
+    operation: Callable[[Any], Any],
+    *,
+    max_workers: int,
+) -> list[Any]:
+    """Run independent archive proofs concurrently with deterministic errors."""
+
+    if not 1 <= max_workers <= ARCHIVE_IO_MAX_WORKERS:
+        raise ArchiveError("archive_parallelism_invalid")
+    if not items:
+        return []
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(items))) as pool:
+        futures = [pool.submit(operation, item) for item in items]
+        # Resolve in input order so any surfaced failure is deterministic. No
+        # caller writes a batch manifest or acknowledges before this returns.
+        return [future.result() for future in futures]
+
+
 def _ensure_batch(
     provider: Provider,
     entries: list[dict[str, Any]],
@@ -683,6 +704,7 @@ def _read_existing_batches(
     provider: Provider,
     *,
     scope: Mapping[str, Any],
+    io_workers: int = ARCHIVE_IO_MAX_WORKERS,
 ) -> tuple[list[dict[str, Any]], dict[tuple[str, str], dict[str, Any]]]:
     prefix = _batch_prefix(
         scope["prefix"], scope["source_revision"], scope["contract_sha256"]
@@ -763,13 +785,6 @@ def _read_existing_batches(
             normalized = dict(entry)
             if key in messages and messages[key] != normalized:
                 raise ArchiveError("archive_message_identity_collision")
-            if key not in messages:
-                _validate_message_reference(
-                    provider,
-                    normalized,
-                    subscription=subscription,
-                    scope=scope,
-                )
             messages[key] = normalized
         batches.append({
             "object_name": listed.name,
@@ -777,6 +792,25 @@ def _read_existing_batches(
             "payload_sha256": sha256(raw),
             "message_count": len(payload["messages"]),
         })
+    references = [
+        (subscription, entry)
+        for (subscription, _message_id), entry in sorted(messages.items())
+    ]
+
+    def validate_reference(item: tuple[str, dict[str, Any]]) -> None:
+        subscription, entry = item
+        _validate_message_reference(
+            provider,
+            entry,
+            subscription=subscription,
+            scope=scope,
+        )
+
+    _parallel_ordered(
+        references,
+        validate_reference,
+        max_workers=io_workers,
+    )
     return batches, messages
 
 
@@ -838,8 +872,12 @@ def archive_backlogs(
     scope: Mapping[str, Any],
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    io_workers: int = ARCHIVE_IO_MAX_WORKERS,
 ) -> dict[str, Any]:
     """Archive and acknowledge a bounded backlog, returning a redacted receipt."""
+
+    if not 1 <= io_workers <= ARCHIVE_IO_MAX_WORKERS:
+        raise ArchiveError("archive_parallelism_invalid")
 
     freeze = validate_freeze(provider.publisher_freeze_readback())
     validate_bucket(
@@ -880,12 +918,20 @@ def archive_backlogs(
                 raise ArchiveError("archive_byte_bound_reached_before_drain")
             if acknowledged + len(parsed) > scope["max_total_messages"]:
                 raise ArchiveError("archive_message_bound_reached_before_drain")
+            ordered_messages = sorted(parsed, key=lambda row: row.message_id)
+            entries = _parallel_ordered(
+                ordered_messages,
+                lambda message: _ensure_message(
+                    provider,
+                    message,
+                    subscription=subscription,
+                    scope=scope,
+                ),
+                max_workers=io_workers,
+            )
             entries_by_id: dict[str, dict[str, Any]] = {}
             ack_ids: list[str] = []
-            for message in sorted(parsed, key=lambda row: row.message_id):
-                entry = _ensure_message(
-                    provider, message, subscription=subscription, scope=scope
-                )
+            for message, entry in zip(ordered_messages, entries, strict=True):
                 prior = entries_by_id.get(message.message_id)
                 if prior is not None and prior != entry:
                     raise ArchiveError("archive_message_identity_collision")
@@ -912,7 +958,11 @@ def archive_backlogs(
         kms_key=scope["kms_key"],
         minimum_retention_seconds=scope["minimum_retention_seconds"],
     )
-    batches, messages = _read_existing_batches(provider, scope=scope)
+    batches, messages = _read_existing_batches(
+        provider,
+        scope=scope,
+        io_workers=io_workers,
+    )
     root = _ensure_root(
         provider,
         scope=scope,
@@ -958,7 +1008,6 @@ class GcpProvider:
     def __init__(self, *, gcloud: str, token: str | None = None):
         self.gcloud = gcloud
         self.token = token or self._token()
-        self.opener = build_opener(ProxyHandler({}), NoRedirects())
 
     def _token(self) -> str:
         try:
@@ -1000,7 +1049,7 @@ class GcpProvider:
             headers["Content-Type"] = content_type
             headers["Content-Length"] = str(len(body))
         try:
-            with self.opener.open(
+            with build_opener(ProxyHandler({}), NoRedirects()).open(
                 Request(url, data=body, headers=headers, method=method), timeout=30
             ) as response:
                 raw = response.read(maximum_bytes + 1)

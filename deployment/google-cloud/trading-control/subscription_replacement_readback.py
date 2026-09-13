@@ -45,7 +45,26 @@ def publisher_state(executable: str) -> dict[str, str]:
         + "--property=UnitFileState --no-pager; "
         + "stamp=$(systemctl show " + PUBLISHER_UNIT
         + " --property=InactiveEnterTimestamp --value); "
-        + "printf 'FrozenSince='; date --date=\"$stamp\" --iso-8601=seconds"
+        + "if test -n \"$stamp\" && test \"$stamp\" != n/a; then "
+        + "frozen=$stamp; else "
+        + "active_enter=$(systemctl show " + PUBLISHER_UNIT
+        + " --property=ActiveEnterTimestampMonotonic --value); "
+        + "inactive_exit=$(systemctl show " + PUBLISHER_UNIT
+        + " --property=InactiveExitTimestampMonotonic --value); "
+        + "exec_start=$(systemctl show " + PUBLISHER_UNIT
+        + " --property=ExecMainStartTimestampMonotonic --value); "
+        + "invocation=$(systemctl show " + PUBLISHER_UNIT
+        + " --property=InvocationID --value); "
+        + "boot=$(awk '$1 == \"btime\" {print $2}' /proc/stat); "
+        + "case $boot in ''|*[!0-9]*) exit 42;; esac; "
+        + "if test \"$boot\" -le 0 "
+        + "|| test \"$active_enter\" != 0 "
+        + "|| test \"$inactive_exit\" != 0 "
+        + "|| test \"$exec_start\" != 0 "
+        + "|| test -n \"$invocation\"; then exit 43; fi; "
+        + "frozen=@$boot; fi; "
+        + "printf 'FrozenSince='; "
+        + "date --date=\"$frozen\" --iso-8601=seconds"
     )
     try:
         result = subprocess.run(

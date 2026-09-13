@@ -9,6 +9,8 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 import sys
 
+import pytest
+
 
 CONTROL = Path(__file__).resolve().parents[1] / "trading-control"
 sys.path.insert(0, str(CONTROL))
@@ -101,6 +103,34 @@ def test_publisher_state_reads_only_fixed_systemd_state(monkeypatch):
         "gcloud-fixture", "compute", "ssh", readback.INSTANCE,
     ]
     assert "Environment" not in " ".join(command)
+    remote = next(
+        item.removeprefix("--command=")
+        for item in command
+        if item.startswith("--command=")
+    )
+    assert "ActiveEnterTimestampMonotonic" in remote
+    assert "InactiveExitTimestampMonotonic" in remote
+    assert "ExecMainStartTimestampMonotonic" in remote
+    assert "InvocationID" in remote
+    assert 'awk \'$1 == "btime" {print $2}\' /proc/stat' in remote
+
+
+def test_publisher_state_rejects_missing_freeze_timestamp(monkeypatch):
+    def run(_command, **_kwargs):
+        return SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "ActiveState=inactive\nSubState=dead\nUnitFileState=disabled\n"
+                "FrozenSince=\n"
+            ),
+        )
+
+    monkeypatch.setattr(readback.subprocess, "run", run)
+    with pytest.raises(
+        readback.ReplacementReadbackError,
+        match="publisher_readback_invalid",
+    ):
+        readback.publisher_state("gcloud-fixture")
 
 
 def test_readback_source_never_outputs_token_or_environment():

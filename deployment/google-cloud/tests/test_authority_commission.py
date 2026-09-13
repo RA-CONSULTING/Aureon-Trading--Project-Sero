@@ -1429,6 +1429,11 @@ def test_vm_snapshot_uses_privileged_redacted_metadata_readback():
     assert "EffectiveSensitiveEnvironmentNameHash" in redacted_script
     assert "EnvironmentAllowed." in redacted_script
     assert "stat --format=" in redacted_script
+    assert "ActiveEnterTimestampMonotonic" in redacted_script
+    assert "InactiveExitTimestampMonotonic" in redacted_script
+    assert "ExecMainStartTimestampMonotonic" in redacted_script
+    assert "InvocationID" in redacted_script
+    assert 'awk \'$1 == "btime" {print $2}\' /proc/stat' in redacted_script
     assert "cat " not in redacted_script
 
 
