@@ -101,8 +101,9 @@ def _executor_control(*, current=True):
         venue: {"authenticated": True, "account_binding_sha256": index * 64}
         for venue, index in zip(("alpaca", "binance", "capital", "kraken"), "1234", strict=True)
     }
+    signed_rows = {venue: {"venue": venue, **row} for venue, row in providers.items()}
     readback = hashlib.sha256(json.dumps(
-        providers, sort_keys=True, separators=(",", ":"), allow_nan=False,
+        signed_rows, sort_keys=True, separators=(",", ":"), allow_nan=False,
     ).encode()).hexdigest()
     return {
         "schema": "aureon.operator.cloud-trading-control.v1",

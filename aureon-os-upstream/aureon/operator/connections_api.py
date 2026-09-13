@@ -65,8 +65,12 @@ def _current_executor_authentication(control: Mapping[str, Any] | None) -> Dict[
             "authenticated": True,
             "account_binding_sha256": raw["account_binding_sha256"],
         }
+    # The executor hashes its original per-provider evidence, which includes
+    # the venue field. The collector verifies that digest before publishing a
+    # sanitized map without the redundant venue value.
+    digest_rows = {venue: {"venue": venue, **row} for venue, row in clean.items()}
     expected = hashlib.sha256(json.dumps(
-        clean, sort_keys=True, separators=(",", ":"), allow_nan=False,
+        digest_rows, sort_keys=True, separators=(",", ":"), allow_nan=False,
     ).encode()).hexdigest()
     if provider.get("readback_sha256") != expected:
         return None
