@@ -419,9 +419,12 @@ def capture_cloud_run_service(
     contract: Mapping[str, Any],
     runner: Runner,
     expected: Mapping[str, Any],
+    revision_mode: str = "serving",
 ) -> dict[str, Any] | None:
     """Capture one service's exact revision template, traffic and IAM state."""
 
+    if revision_mode not in {"serving", "staged"}:
+        raise CommissionError("cloud_run_capture_mode_invalid")
     name = expected["name"]
     region = contract["region"]
     value = runner.json(
@@ -446,14 +449,21 @@ def capture_cloud_run_service(
         or {}
     )
     status = value.get("status", {})
-    serving_revision = status.get("latestReadyRevisionName")
+    latest_created_revision = status.get("latestCreatedRevisionName")
+    latest_ready_revision = status.get("latestReadyRevisionName")
+    serving_revision = latest_ready_revision
+    inspected_revision = (
+        latest_created_revision
+        if revision_mode == "staged"
+        else latest_ready_revision
+    )
     revision = None
-    if isinstance(serving_revision, str) and serving_revision:
+    if isinstance(inspected_revision, str) and inspected_revision:
         revision = runner.json(
             "run",
             "revisions",
             "describe",
-            serving_revision,
+            inspected_revision,
             "--region=" + region,
             optional=True,
         )
@@ -499,8 +509,9 @@ def capture_cloud_run_service(
     return {
         "url": status.get("url"),
         "serving_revision": serving_revision,
-        "latest_created_revision": status.get("latestCreatedRevisionName"),
-        "latest_ready_revision": status.get("latestReadyRevisionName"),
+        "latest_created_revision": latest_created_revision,
+        "latest_ready_revision": latest_ready_revision,
+        "inspected_revision": revision.get("metadata", {}).get("name"),
         "ready": service_ready and revision_ready,
         "traffic": traffic,
         "service_account": spec.get("serviceAccountName"),
@@ -600,6 +611,10 @@ def audit_snapshot(
             actual.get("latest_created_revision") == serving_revision
             and actual.get("latest_ready_revision") == serving_revision,
             f"cloud_run.{name}.latest_ready_revision",
+        )
+        check(
+            actual.get("inspected_revision") == serving_revision,
+            f"cloud_run.{name}.inspected_revision",
         )
         check(actual.get("ready") is True, f"cloud_run.{name}.ready")
         check(
@@ -873,8 +888,9 @@ def audit_snapshot(
     # Resource preparation deliberately precedes revision deployment.  It
     # therefore proves only the provider resources it owns and records the
     # Cloud Run boundary as deferred.  Staged attestation verifies the latest
-    # created/ready revision and its exact template while requiring that the
-    # revision receive no traffic.  Strict serving audit remains the default.
+    # created revision and its exact template while requiring that the revision
+    # is Ready and receives no traffic.  Strict serving audit remains the
+    # default.
     if cloud_run_mode == "deferred":
         errors[:] = [
             code for code in errors if not code.startswith("cloud_run.")
@@ -883,6 +899,7 @@ def audit_snapshot(
         ignored_suffixes = (
             ".serving_revision",
             ".latest_ready_revision",
+            ".inspected_revision",
             ".traffic",
         )
         errors[:] = [
@@ -902,7 +919,8 @@ def audit_snapshot(
             check(
                 isinstance(staged_revision, str)
                 and bool(staged_revision)
-                and actual.get("latest_ready_revision") == staged_revision,
+                and actual.get("inspected_revision") == staged_revision
+                and actual.get("ready") is True,
                 f"cloud_run.{name}.staged_revision_ready",
             )
             traffic = actual.get("traffic")
@@ -1140,7 +1158,11 @@ class Gcloud:
             raise CommissionError("gcloud_apply_failed")
 
 
-def capture_snapshot(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
+def capture_snapshot(
+    contract: Mapping[str, Any],
+    runner: Runner,
+    cloud_run_mode: str = "serving",
+) -> dict[str, Any]:
     """Collect only configuration and IAM metadata; never access secret data."""
 
     project = contract["project"]
@@ -1152,7 +1174,9 @@ def capture_snapshot(contract: Mapping[str, Any], runner: Runner) -> dict[str, A
         "custom_roles": {},
     }
     for expected in contract["cloud_run"]["services"]:
-        value = capture_cloud_run_service(contract, runner, expected)
+        value = capture_cloud_run_service(
+            contract, runner, expected, cloud_run_mode
+        )
         if value is not None:
             result["cloud_run"][expected["name"]] = value
     rollback_name = contract["cloud_run"]["rollback_service_without_anonymous_invoker"]
@@ -4039,7 +4063,11 @@ def main(argv: list[str] | None = None) -> int:
             iap_admin_email_sha256=args.iap_admin_email_sha256,
         )
         runner = Gcloud(args.gcloud, contract["project"])
-        snapshot = capture_snapshot(contract, runner)
+        snapshot = capture_snapshot(
+            contract,
+            runner,
+            "staged" if phase == "staged-revision-attestation" else "serving",
+        )
         audit = audit_snapshot(contract, snapshot)
         summary = _redacted_summary(contract, audit)
         actions = build_iam_actions(contract, snapshot)

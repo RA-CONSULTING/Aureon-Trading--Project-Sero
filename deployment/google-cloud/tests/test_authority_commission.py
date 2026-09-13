@@ -93,6 +93,7 @@ def exact_snapshot(contract):
             "serving_revision": serving_revision,
             "latest_created_revision": serving_revision,
             "latest_ready_revision": serving_revision,
+            "inspected_revision": serving_revision,
             "ready": True,
             "traffic": [
                 {
@@ -2317,13 +2318,14 @@ def _staged_snapshot(contract):
         staged_revision = row["latest_created_revision"]
         old_revision = staged_revision.replace("-00001-test", "-00000-old")
         row["serving_revision"] = old_revision
+        row["latest_ready_revision"] = old_revision
         row["traffic"] = [
             {"revision": old_revision, "percent": 100, "tag": None}
         ]
     return snapshot
 
 
-def test_staged_revision_audit_requires_latest_ready_with_zero_traffic():
+def test_staged_revision_audit_requires_latest_created_ready_with_zero_traffic():
     contract = resolved_contract()
     snapshot = _staged_snapshot(contract)
     audit = commission.audit_snapshot(
@@ -2338,7 +2340,7 @@ def test_staged_revision_audit_requires_latest_ready_with_zero_traffic():
     name = "aureon-trade-controller"
     snapshot["cloud_run"][name]["traffic"] = [
         {
-            "revision": snapshot["cloud_run"][name]["latest_ready_revision"],
+            "revision": snapshot["cloud_run"][name]["latest_created_revision"],
             "percent": 100,
             "tag": None,
         }
@@ -2406,6 +2408,7 @@ def test_immutable_image_receipt_rejects_wrong_digest_and_stale_time(tmp_path):
 def test_staged_attestation_is_read_only_and_release_consumable(monkeypatch, tmp_path):
     contract = resolved_contract()
     snapshot = _staged_snapshot(contract)
+    capture_modes = []
 
     class Runner:
         def __init__(self):
@@ -2416,7 +2419,12 @@ def test_staged_attestation_is_read_only_and_release_consumable(monkeypatch, tmp
 
     runner = Runner()
     monkeypatch.setattr(commission, "Gcloud", lambda *_args: runner)
-    monkeypatch.setattr(commission, "capture_snapshot", lambda *_args: snapshot)
+
+    def capture(_contract, _runner, cloud_run_mode="serving"):
+        capture_modes.append(cloud_run_mode)
+        return snapshot
+
+    monkeypatch.setattr(commission, "capture_snapshot", capture)
     owner = owner_readback_receipt(contract, datetime.now(UTC))
     owner_path = (tmp_path / "owner.json").resolve()
     owner_path.write_text(json.dumps(owner), encoding="utf-8")
@@ -2442,6 +2450,7 @@ def test_staged_attestation_is_read_only_and_release_consumable(monkeypatch, tmp
     )
     assert result == 0
     assert runner.applied == []
+    assert capture_modes == ["staged"]
     receipt = json.loads(output.read_text(encoding="utf-8"))
     assert receipt["status"] == "staged_attested"
     assert receipt["phase"] == "staged-revision-attestation"

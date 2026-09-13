@@ -71,6 +71,7 @@ def test_plan_renders_all_services_with_no_traffic_and_exact_networking():
 
 def staged_provider_fixture(resolved, expected):
     revision_name = expected["name"] + "-r" + REVISION[:12]
+    serving_revision = expected["name"] + "-00001-old"
     revision_annotations = {
         "autoscaling.knative.dev/minScale": str(expected["scaling"]["min_instances"]),
         "autoscaling.knative.dev/maxScale": str(expected["scaling"]["max_instances"]),
@@ -105,11 +106,11 @@ def staged_provider_fixture(resolved, expected):
             "status": {
                 "url": expected["url"],
                 "latestCreatedRevisionName": revision_name,
-                "latestReadyRevisionName": revision_name,
+                "latestReadyRevisionName": serving_revision,
                 "conditions": [{"type": "Ready", "status": "True"}],
                 "traffic": [
                     {
-                        "revisionName": expected["name"] + "-00001-old",
+                        "revisionName": serving_revision,
                         "percent": 100,
                     }
                 ],
@@ -121,7 +122,10 @@ def staged_provider_fixture(resolved, expected):
             ]
         },
         "revision": {
-            "metadata": {"annotations": revision_annotations},
+            "metadata": {
+                "name": revision_name,
+                "annotations": revision_annotations,
+            },
             "spec": {
                 "serviceAccountName": expected["service_account"],
                 "timeoutSeconds": expected["timeout_seconds"],
@@ -156,7 +160,10 @@ def staged_provider_fixture(resolved, expected):
             },
             "status": {
                 "imageDigest": resolved["release"][expected["image_parameter"]],
-                "conditions": [{"type": "Ready", "status": "True"}],
+                "conditions": [
+                    {"type": "Ready", "status": "True", "reason": "Retired"},
+                    {"type": "Active", "status": "False", "reason": "Retired"},
+                ],
             },
         },
     }
@@ -177,6 +184,22 @@ class TargetServiceRunner:
         if args[:3] == ("run", "revisions", "describe"):
             return self.provider["revision"]
         raise AssertionError(args)
+
+
+def test_cloud_run_capture_rejects_unknown_revision_mode_before_provider_read():
+    resolved = contract()
+    expected = resolved["cloud_run"]["services"][0]
+    runner = TargetServiceRunner(
+        expected, staged_provider_fixture(resolved, expected)
+    )
+
+    with pytest.raises(
+        commission.CommissionError, match="cloud_run_capture_mode_invalid"
+    ):
+        commission.capture_cloud_run_service(
+            resolved, runner, expected, "unknown"
+        )
+    assert runner.calls == []
 
 
 def test_staged_service_readback_uses_only_three_targeted_provider_reads():
@@ -200,6 +223,43 @@ def test_staged_service_readback_uses_only_three_targeted_provider_reads():
         ("run", "revisions", "describe"),
     ]
     assert all(call[1] is True for call in runner.calls)
+    assert runner.calls[2][0][3] == (
+        expected["name"] + "-r" + REVISION[:12]
+    )
+
+
+def test_serving_capture_still_inspects_latest_ready_revision():
+    resolved = contract()
+    expected = next(
+        row
+        for row in resolved["cloud_run"]["services"]
+        if row["name"] == "aureon-trade-controller"
+    )
+    provider = staged_provider_fixture(resolved, expected)
+    latest_created = provider["service"]["status"]["latestCreatedRevisionName"]
+    latest_ready = provider["service"]["status"]["latestReadyRevisionName"]
+    provider["revision"]["metadata"]["name"] = latest_ready
+    runner = TargetServiceRunner(expected, provider)
+
+    observed = commission.capture_cloud_run_service(resolved, runner, expected)
+
+    assert observed is not None
+    assert observed["latest_created_revision"] == latest_created
+    assert observed["latest_ready_revision"] == latest_ready
+    assert observed["inspected_revision"] == latest_ready
+    assert runner.calls[2][0][3] == latest_ready
+    snapshot = {"cloud_run": {expected["name"]: observed}}
+    audit = commission.audit_snapshot(
+        resolved,
+        snapshot,
+        allow_vm_pending=True,
+        allow_legacy_pending=True,
+        allow_immutable_subscription_pending=True,
+    )
+    assert (
+        f"cloud_run.{expected['name']}.latest_ready_revision"
+        in audit["errors"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -216,6 +276,15 @@ def test_staged_service_readback_uses_only_three_targeted_provider_reads():
         ].append("allUsers"),
         lambda provider, revision: provider["service"]["status"].update(
             traffic=[{"revisionName": revision, "percent": 100}]
+        ),
+        lambda provider, revision: provider["revision"]["metadata"].update(
+            name=revision + "-wrong"
+        ),
+        lambda provider, revision: provider["revision"]["status"].update(
+            conditions=[
+                {"type": "Ready", "status": "False", "reason": "Retired"},
+                {"type": "Active", "status": "False", "reason": "Retired"},
+            ]
         ),
     ),
 )

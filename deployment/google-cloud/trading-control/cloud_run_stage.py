@@ -268,7 +268,8 @@ def _service_staged_exact(
     if (
         not isinstance(actual, Mapping)
         or actual.get("latest_created_revision") != target_revision
-        or actual.get("latest_ready_revision") != target_revision
+        or actual.get("inspected_revision") != target_revision
+        or actual.get("ready") is not True
         or any(
             isinstance(row, Mapping) and row.get("revision") == target_revision
             for row in actual.get("traffic", [])
@@ -301,7 +302,9 @@ def provider_service_staged_exact(
     )
     if expected is None:
         raise StageError("cloud_run_stage_service_not_in_contract")
-    observed = capture_cloud_run_service(contract, provider, expected)
+    observed = capture_cloud_run_service(
+        contract, provider, expected, "staged"
+    )
     snapshot: dict[str, Any] = {"cloud_run": {}}
     if observed is not None:
         snapshot["cloud_run"][name] = observed
