@@ -261,8 +261,14 @@ class Services:
 
     def snapshot(self, unit):
         exists = (self.units / unit).exists()
-        return {"exists": exists, "active": self.active.get(unit, False) if exists else False,
-                "enabled": self.enablement.get(unit, False) if exists else False}
+        active = self.active.get(unit, False) if exists else False
+        return {
+            "exists": exists,
+            "active": active,
+            "enabled": self.enablement.get(unit, False) if exists else False,
+            "main_pid": 100 if active else 0,
+            "user": release.service_identity(unit) if exists else None,
+        }
 
     def stop(self, unit):
         self.events.append(("stop", unit))
@@ -284,6 +290,11 @@ class Services:
     def enabled(self, unit, value):
         self.events.append(("enabled", unit, value))
         self.enablement[unit] = value
+
+
+def bootstrap_and_quiesce(staged, services):
+    release.bootstrap_broker(staged, services)
+    return release.quiesce_for_identity_cutover(staged, services)
 
 
 def fixture(tmp_path, monkeypatch, *, new_file=False):
@@ -855,7 +866,7 @@ def test_operator_apply_removes_stale_python_and_cache_transactionally(
     assert [entry["path"] for entry in stale_entries] == [stale_relative]
     assert stale.exists() and cache.exists() and not services.events
 
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
     receipt, receipt_sha = authority_receipt(tmp_path)
     committed = release.apply(
         staged,
@@ -1165,6 +1176,235 @@ def apply_cutover(tmp_path, staged, services, bridge_readback, **kwargs):
     )
 
 
+def test_broker_release_requires_explicit_quiescence_before_apply(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    release.bootstrap_broker(staged, services)
+    events_before = list(services.events)
+
+    with pytest.raises(
+        release.ReleaseError,
+        match="cutover_quiescence_required_before_apply",
+    ):
+        apply_cutover(tmp_path, staged, services, bridge_readback)
+
+    assert services.events == events_before
+    assert json.loads((staged / "journal.json").read_text())["phase"] == (
+        "broker_installed"
+    )
+
+
+def test_quiescence_records_exact_off_inventory_without_changing_rollback_state(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, _bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    installed = release.bootstrap_broker(staged, services)
+    original_services = json.loads(json.dumps(installed["original_services"]))
+    event_offset = len(services.events)
+
+    quiesced = release.quiesce_for_identity_cutover(staged, services)
+
+    assert quiesced["phase"] == "quiesced"
+    assert quiesced["original_services"] == original_services
+    record = quiesced["cutover_quiescence"]
+    assert record["schema"] == release.CUTOVER_QUIESCENCE_SCHEMA
+    assert record["service_order"] == quiesced["services"]
+    assert record["provider_readback"] == record["expected_services"]
+    assert all(
+        state["active"] is False
+        and state["enabled"] is False
+        and state["main_pid"] == 0
+        for state in record["expected_services"].values()
+    )
+    assert all(not services.active.get(unit, False) for unit in quiesced["services"])
+    assert all(
+        not services.enablement.get(unit, False) for unit in quiesced["services"]
+    )
+    transition_events = services.events[event_offset:]
+    last_disable = max(
+        index for index, event in enumerate(transition_events) if event[0] == "enabled"
+    )
+    first_stop = min(
+        index for index, event in enumerate(transition_events) if event[0] == "stop"
+    )
+    assert last_disable < first_stop
+    assert not any(event[0] in {"start", "restart"} for event in transition_events)
+    assert release.check(staged)["phase"] == "quiesced"
+
+
+def test_interrupted_quiescence_resumes_from_only_recorded_reachable_states(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, _bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    release.bootstrap_broker(staged, services)
+    stop = services.stop
+    failed = False
+
+    def interrupt_once(unit):
+        nonlocal failed
+        if unit == "aureon-cloud-ui.service" and not failed:
+            failed = True
+            services.events.append(("stop-interrupted", unit))
+            raise RuntimeError("simulated interruption")
+        stop(unit)
+
+    services.stop = interrupt_once
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        release.quiesce_for_identity_cutover(staged, services)
+    assert json.loads((staged / "journal.json").read_text())["phase"] == "quiescing"
+    with pytest.raises(
+        release.ReleaseError, match="interrupted_transaction_requires_rollback"
+    ):
+        release.check(staged)
+
+    services.stop = stop
+    resumed = release.quiesce_for_identity_cutover(staged, services)
+    assert resumed["phase"] == "quiesced"
+    assert resumed["cutover_quiescence"]["provider_readback"] == resumed[
+        "cutover_quiescence"
+    ]["expected_services"]
+    assert not any(event[0] in {"start", "restart"} for event in services.events)
+
+
+def test_interrupted_quiescence_rejects_unrecorded_interim_service_state(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, _bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    release.bootstrap_broker(staged, services)
+    stop = services.stop
+
+    def interrupt_on_ui(unit):
+        if unit == "aureon-cloud-ui.service":
+            raise RuntimeError("simulated interruption")
+        stop(unit)
+
+    services.stop = interrupt_on_ui
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        release.quiesce_for_identity_cutover(staged, services)
+    services.stop = stop
+    services.enablement[release.PUBLIC_BRIDGE_UNIT] = True
+    events_before = list(services.events)
+
+    with pytest.raises(
+        release.ReleaseError,
+        match="service_inventory_changed_during_quiescence",
+    ):
+        release.quiesce_for_identity_cutover(staged, services)
+
+    assert services.events == events_before
+    assert json.loads((staged / "journal.json").read_text())["phase"] == "quiescing"
+
+
+def test_rollback_from_interrupted_quiescence_restores_exact_original_services(
+    tmp_path, monkeypatch
+):
+    staged, services, units, _root, _old, _bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    release.bootstrap_broker(staged, services)
+    original = json.loads((staged / "journal.json").read_text())["original_services"]
+    stop = services.stop
+
+    def interrupt_after_one_stop(unit):
+        stop(unit)
+        services.stop = lambda _unit: (_ for _ in ()).throw(
+            RuntimeError("simulated interruption")
+        )
+
+    services.stop = interrupt_after_one_stop
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        release.quiesce_for_identity_cutover(staged, services)
+    services.stop = stop
+
+    rolled = release.rollback(
+        staged, services, identity_snapshot=broker_identity
+    )
+
+    assert rolled["phase"] == "rolled_back"
+    assert rolled["original_services"] == original
+    assert not (units / release.TOKEN_BROKER_UNIT).exists()
+    for unit, state in original.items():
+        assert services.snapshot(unit)["exists"] == state["exists"]
+        assert services.snapshot(unit)["active"] == state["active"]
+        assert services.snapshot(unit)["enabled"] == state["enabled"]
+
+
+def test_apply_rejects_service_drift_after_quiescence_without_mutation(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    bootstrap_and_quiesce(staged, services)
+    services.enablement["aureon-cloud-operator.service"] = True
+    events_before = list(services.events)
+
+    with pytest.raises(
+        release.ReleaseError,
+        match="service_inventory_changed_after_quiescence",
+    ):
+        apply_cutover(tmp_path, staged, services, bridge_readback)
+
+    assert services.events == events_before
+    assert json.loads((staged / "journal.json").read_text())["phase"] == "quiesced"
+
+
+def test_quiesced_command_rejects_tampered_recorded_provider_readback(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, _bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    bootstrap_and_quiesce(staged, services)
+    journal = json.loads((staged / "journal.json").read_text())
+    journal["cutover_quiescence"]["provider_readback"] = None
+    (staged / "journal.json").write_text(json.dumps(journal), encoding="utf-8")
+    events_before = list(services.events)
+
+    with pytest.raises(
+        release.ReleaseError,
+        match="cutover_quiescence_journal_invalid",
+    ):
+        release.quiesce_for_identity_cutover(staged, services)
+
+    assert services.events == events_before
+
+
+def test_apply_accepts_quiesced_inventory_after_only_volatile_snapshot_changes(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    bootstrap_and_quiesce(staged, services)
+    snapshot = services.snapshot
+    observation = 0
+
+    def with_reboot_volatile_fields(unit):
+        nonlocal observation
+        observation += 1
+        return {
+            **snapshot(unit),
+            "result": "success",
+            "exec_main_status": 0,
+            "started_at": f"post-reboot-observation-{observation}",
+        }
+
+    services.snapshot = with_reboot_volatile_fields
+    committed = apply_cutover(tmp_path, staged, services, bridge_readback)
+
+    assert committed["phase"] == "committed"
+
+
 def test_prepare_records_old_bridge_state_and_only_stages_contract_migration(
     tmp_path, monkeypatch
 ):
@@ -1208,7 +1448,7 @@ def test_apply_refuses_changed_old_bridge_environment_before_service_cutover(
     staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
         tmp_path, monkeypatch
     )
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
     release.PUBLIC_BRIDGE_ENV.write_bytes(
         release.PUBLIC_BRIDGE_ENV.read_bytes()
         + b"AUREON_OWNER_ORIGIN=https://changed.example\n"
@@ -1240,7 +1480,7 @@ def test_broker_start_failure_never_starts_dependents_and_requires_external_iden
     staged, services, _units, _public_root, _old, bridge_readback = cutover_fixture(
         tmp_path, monkeypatch, original_identity=old_identity
     )
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
     original_start = services.start
 
     def fail_broker(unit):
@@ -1268,7 +1508,7 @@ def test_public_bridge_mid_replace_failure_restores_source_unit_and_service_stat
         tmp_path, monkeypatch
     )
     old_unit = (units / release.PUBLIC_BRIDGE_UNIT).read_bytes()
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
     installer = release._install_entry
 
     def fail_after_bridge(release_root, journal, entry):
@@ -1293,7 +1533,7 @@ def test_release_refuses_vm_certificate_different_from_staged_build(
     staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
         tmp_path, monkeypatch
     )
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
 
     def wrong_san(expected, revision):
         value = bridge_readback(expected, revision)
@@ -1314,7 +1554,7 @@ def test_bridge_health_failure_rolls_back_and_success_starts_bridge_last(
         tmp_path, monkeypatch
     )
     old_unit = (units / release.PUBLIC_BRIDGE_UNIT).read_bytes()
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
     receipt, receipt_sha = authority_receipt(tmp_path)
     with pytest.raises(release.ReleaseError, match="source_rolled_back"):
         release.apply(
@@ -1344,7 +1584,7 @@ def test_bridge_health_failure_rolls_back_and_success_starts_bridge_last(
     staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
         tmp_path / "success", monkeypatch
     )
-    release.bootstrap_broker(staged, services)
+    bootstrap_and_quiesce(staged, services)
     committed = apply_cutover(tmp_path / "success", staged, services, bridge_readback)
     starts = [event[1] for event in services.events if event[0] == "start"]
     assert starts[0] == release.TOKEN_BROKER_UNIT

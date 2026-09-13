@@ -11,6 +11,7 @@ import contextlib
 from datetime import UTC, datetime
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -93,6 +94,7 @@ AUTHORITY_RECEIPT_SCHEMA = "aureon.cloud-trading-authority-commission-receipt.v1
 IDENTITY_ROLLBACK_RECEIPT_SCHEMA = "aureon.vm-identity-rollback-receipt.v1"
 VM_RELEASE_RECEIPT_SCHEMA = "aureon.gcp.vm-release-readback.v1"
 VM_REBOOT_CONTINUITY_SCHEMA = "aureon.gcp.vm-reboot-continuity.v1"
+CUTOVER_QUIESCENCE_SCHEMA = "aureon.gcp.vm-cutover-quiescence.v1"
 TOKEN_SCHEMA = "aureon.gcp.workload-access-token.v1"
 GCP_PROJECT = "aureon-trading"
 GCP_PROJECT_NUMBER = "4435775023"
@@ -2003,6 +2005,128 @@ def _install_entry(release: Path, journal: dict, entry: dict) -> None:
         )
 
 
+def _stable_service_state(snapshot: object) -> dict:
+    """Project a systemd snapshot onto fields that survive a host reboot."""
+    if not isinstance(snapshot, dict):
+        raise ReleaseError("service_snapshot_invalid")
+    exists = snapshot.get("exists")
+    active = snapshot.get("active")
+    enabled = snapshot.get("enabled")
+    main_pid = snapshot.get("main_pid")
+    if (
+        type(exists) is not bool
+        or type(active) is not bool
+        or type(enabled) is not bool
+        or type(main_pid) is not int
+        or main_pid < 0
+        or active and main_pid <= 0
+        or not active and main_pid != 0
+        or not exists and (active or enabled or main_pid != 0)
+    ):
+        raise ReleaseError("service_snapshot_invalid")
+    user = snapshot.get("user") if exists else None
+    if exists and (not isinstance(user, str) or not user):
+        raise ReleaseError("service_snapshot_invalid")
+    return {
+        "exists": exists,
+        "active": active,
+        "enabled": enabled,
+        "main_pid": main_pid,
+        "user": user,
+    }
+
+
+def _quiescence_expected_services(journal: dict) -> dict[str, dict]:
+    services = journal.get("services")
+    if (
+        not isinstance(services, list)
+        or journal.get("service_order") != services
+        or TOKEN_BROKER_UNIT not in services
+    ):
+        raise ReleaseError("cutover_quiescence_journal_invalid")
+    original = journal.get("original_services")
+    broker = journal.get("broker_bootstrap_service")
+    if not isinstance(original, dict) or not isinstance(broker, dict):
+        raise ReleaseError("cutover_quiescence_journal_invalid")
+    expected: dict[str, dict] = {}
+    for unit in services:
+        baseline = broker if unit == TOKEN_BROKER_UNIT else original.get(unit)
+        projected = _stable_service_state(baseline)
+        expected[unit] = {
+            "exists": projected["exists"],
+            "active": False,
+            "enabled": False,
+            "main_pid": 0,
+            "user": projected["user"],
+        }
+    return expected
+
+
+def _validated_quiescence_record(journal: dict) -> tuple[dict, dict[str, dict]]:
+    expected = _quiescence_expected_services(journal)
+    record = journal.get("cutover_quiescence")
+    original_sha256 = digest(
+        json.dumps(
+            journal["original_services"], sort_keys=True, separators=(",", ":")
+        ).encode("ascii")
+    )
+    broker_sha256 = digest(
+        json.dumps(
+            journal["broker_bootstrap_service"],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+    )
+    record_keys = {
+        "schema",
+        "service_order",
+        "expected_services",
+        "original_services_sha256",
+        "broker_bootstrap_service_sha256",
+        "started_at",
+        "completed_at",
+        "provider_readback",
+    }
+    started_at = record.get("started_at") if isinstance(record, dict) else None
+    if (
+        not isinstance(record, dict)
+        or set(record) != record_keys
+        or record.get("schema") != CUTOVER_QUIESCENCE_SCHEMA
+        or record.get("service_order") != journal["services"]
+        or record.get("expected_services") != expected
+        or record.get("original_services_sha256") != original_sha256
+        or record.get("broker_bootstrap_service_sha256") != broker_sha256
+        or type(started_at) not in {int, float}
+        or not math.isfinite(started_at)
+        or started_at <= 0
+    ):
+        raise ReleaseError("cutover_quiescence_journal_invalid")
+    phase = journal.get("phase")
+    completed_at = record.get("completed_at")
+    if phase == "quiescing":
+        if completed_at is not None or record.get("provider_readback") is not None:
+            raise ReleaseError("cutover_quiescence_journal_invalid")
+    elif phase == "quiesced":
+        if (
+            type(completed_at) not in {int, float}
+            or not math.isfinite(completed_at)
+            or completed_at < started_at
+            or record.get("provider_readback") != expected
+        ):
+            raise ReleaseError("cutover_quiescence_journal_invalid")
+    else:
+        raise ReleaseError("cutover_quiescence_journal_invalid")
+    return record, expected
+
+
+def _quiescence_state_reachable(
+    current: dict, baseline: dict, expected: dict
+) -> bool:
+    disabled = dict(baseline)
+    disabled["enabled"] = False
+    return current in (baseline, disabled, expected)
+
+
 def bootstrap_broker(release: Path, controller) -> dict:
     """Install the hash-bound broker without starting or stopping workloads."""
     with update_lock(release.parent):
@@ -2046,6 +2170,124 @@ def bootstrap_broker(release: Path, controller) -> dict:
             if rolled.get("phase") == "rollback_external_identity_required":
                 raise ReleaseError("broker_bootstrap_failed_external_identity_rollback_required") from None
             raise ReleaseError("broker_bootstrap_failed_source_rolled_back") from None
+
+
+def quiesce_for_identity_cutover(release: Path, controller) -> dict:
+    """Durably stop and disable the complete release inventory before VM identity changes."""
+    with update_lock(release.parent):
+        journal = json.loads(read_bytes(release / "journal.json", 16 * 1024 * 1024))
+        phase = journal.get("phase")
+        if phase not in {"broker_installed", "quiescing", "quiesced"}:
+            raise ReleaseError("broker_installed_release_required_for_quiescence")
+        _verify_transaction_files(release, journal, state="after")
+        workspace = Path(journal["workspace"])
+        if any(
+            not _directory_matches(workspace, row, "after")
+            for row in journal.get("operator_source_directories", [])
+        ):
+            raise ReleaseError("source_parent_changed_after_prepare")
+        stale, _caches = operator_workspace_inventory(journal)
+        if list(stale) != journal.get("operator_stale_sources", []):
+            raise ReleaseError("operator_stale_source_inventory_changed")
+
+        expected = _quiescence_expected_services(journal)
+        baselines = {
+            unit: _stable_service_state(
+                journal["broker_bootstrap_service"]
+                if unit == TOKEN_BROKER_UNIT
+                else journal["original_services"][unit]
+            )
+            for unit in journal["services"]
+        }
+        if phase == "broker_installed":
+            if any(
+                controller.snapshot(unit)
+                != (
+                    journal["broker_bootstrap_service"]
+                    if unit == TOKEN_BROKER_UNIT
+                    else journal["original_services"][unit]
+                )
+                for unit in journal["services"]
+            ):
+                raise ReleaseError("service_inventory_changed_after_broker_bootstrap")
+            journal["cutover_quiescence"] = {
+                "schema": CUTOVER_QUIESCENCE_SCHEMA,
+                "service_order": list(journal["services"]),
+                "expected_services": expected,
+                "original_services_sha256": digest(
+                    json.dumps(
+                        journal["original_services"],
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("ascii")
+                ),
+                "broker_bootstrap_service_sha256": digest(
+                    json.dumps(
+                        journal["broker_bootstrap_service"],
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode("ascii")
+                ),
+                "started_at": time.time(),
+                "completed_at": None,
+                "provider_readback": None,
+            }
+            journal["phase"] = "quiescing"
+            save_journal(release, journal)
+        else:
+            _validated_quiescence_record(journal)
+
+        current = {
+            unit: _stable_service_state(controller.snapshot(unit))
+            for unit in journal["services"]
+        }
+        if phase == "quiesced":
+            if current != expected:
+                raise ReleaseError("service_inventory_changed_after_quiescence")
+            return journal
+        if any(
+            not _quiescence_state_reachable(
+                current[unit], baselines[unit], expected[unit]
+            )
+            for unit in journal["services"]
+        ):
+            raise ReleaseError("service_inventory_changed_during_quiescence")
+
+        # Disable the complete release inventory before stopping any process so
+        # an interruption or reboot cannot auto-start a legacy workload.
+        for unit in journal["services"]:
+            state = _stable_service_state(controller.snapshot(unit))
+            if not _quiescence_state_reachable(
+                state, baselines[unit], expected[unit]
+            ):
+                raise ReleaseError("service_inventory_changed_during_quiescence")
+            if state["exists"] and state["enabled"]:
+                controller.enabled(unit, False)
+                state = _stable_service_state(controller.snapshot(unit))
+            if state not in (
+                {**baselines[unit], "enabled": False},
+                expected[unit],
+            ):
+                raise ReleaseError("service_disable_readback_failed")
+        for unit in reversed(journal["services"]):
+            state = _stable_service_state(controller.snapshot(unit))
+            if state["exists"] and state["active"]:
+                controller.stop(unit)
+                state = _stable_service_state(controller.snapshot(unit))
+            if state != expected[unit]:
+                raise ReleaseError("service_stop_readback_failed")
+
+        readback = {
+            unit: _stable_service_state(controller.snapshot(unit))
+            for unit in journal["services"]
+        }
+        if readback != expected:
+            raise ReleaseError("cutover_quiescence_readback_failed")
+        journal["cutover_quiescence"]["provider_readback"] = readback
+        journal["cutover_quiescence"]["completed_at"] = time.time()
+        journal["phase"] = "quiesced"
+        save_journal(release, journal)
+        return journal
 
 
 def validate_identity_rollback_receipt(
@@ -2712,7 +2954,7 @@ def check(release: Path) -> dict:
     journal = json.loads(read_bytes(release / "journal.json", 16 * 1024 * 1024))
     phase = journal.get("phase")
     if phase not in {
-        "prepared", "broker_installed", "committed", "rolled_back",
+        "prepared", "broker_installed", "quiesced", "committed", "rolled_back",
         "rollback_external_identity_required",
     }:
         raise ReleaseError("interrupted_transaction_requires_rollback")
@@ -2726,7 +2968,8 @@ def check(release: Path) -> dict:
         target = journal_target(journal, entry)
         expected_key = (
             "after_sha256"
-            if phase == "committed" or phase == "broker_installed" and entry.get("bootstrap")
+            if phase == "committed"
+            or phase in {"broker_installed", "quiesced"} and entry.get("bootstrap")
             else "before_sha256"
         )
         if current_hash(target) != entry[expected_key]:
@@ -2737,7 +2980,9 @@ def check(release: Path) -> dict:
         if (phase == "committed" and entry["kind"] == "source"
                 and not immutable_source_parent_metadata(target, workspace)):
             raise ReleaseError("release_source_parent_not_root_owned_immutable")
-    directory_state = "after" if phase in {"committed", "broker_installed"} else "before"
+    directory_state = (
+        "after" if phase in {"committed", "broker_installed", "quiesced"} else "before"
+    )
     if any(
         not _directory_matches(workspace, row, directory_state)
         for row in journal.get("operator_source_directories", [])
@@ -2750,6 +2995,8 @@ def check(release: Path) -> dict:
         "operator_stale_sources", []
     ):
         raise ReleaseError("operator_stale_source_inventory_changed")
+    if phase == "quiesced":
+        _validated_quiescence_record(journal)
     if phase == "committed":
         vm_release = validate_vm_release_receipt(release, journal)
         reboot = journal.get("vm_reboot_continuity_receipt")
@@ -2796,13 +3043,16 @@ def apply(
     with update_lock(release.parent):
         journal = json.loads(read_bytes(release / "journal.json", 16 * 1024 * 1024))
         has_broker = TOKEN_BROKER_UNIT in journal.get("services", [])
-        expected_phase = "broker_installed" if has_broker else "prepared"
+        expected_phase = "quiesced" if has_broker else "prepared"
         if journal.get("phase") != expected_phase:
-            reason = (
-                "broker_bootstrap_required_before_apply"
-                if has_broker and journal.get("phase") == "prepared"
-                else "only_prepared_release_may_apply_use_rollback_for_interruption"
-            )
+            if has_broker and journal.get("phase") == "prepared":
+                reason = "broker_bootstrap_required_before_apply"
+            elif has_broker and journal.get("phase") == "broker_installed":
+                reason = "cutover_quiescence_required_before_apply"
+            elif has_broker and journal.get("phase") == "quiescing":
+                reason = "cutover_quiescence_incomplete"
+            else:
+                reason = "only_prepared_release_may_apply_use_rollback_for_interruption"
             raise ReleaseError(reason)
         stale, _caches = operator_workspace_inventory(journal)
         if list(stale) != journal.get("operator_stale_sources", []):
@@ -2817,14 +3067,19 @@ def apply(
             for row in journal.get("operator_source_directories", [])
         ):
             raise ReleaseError("source_parent_changed_after_prepare")
-        for unit in journal["services"]:
-            expected = (
-                journal.get("broker_bootstrap_service")
-                if unit == TOKEN_BROKER_UNIT and has_broker
-                else journal["original_services"][unit]
-            )
-            if controller.snapshot(unit) != expected:
-                raise ReleaseError("service_inventory_changed_after_prepare")
+        if has_broker:
+            _record, expected_services = _validated_quiescence_record(journal)
+            if any(
+                _stable_service_state(controller.snapshot(unit))
+                != expected_services[unit]
+                for unit in journal["services"]
+            ):
+                raise ReleaseError("service_inventory_changed_after_quiescence")
+        elif any(
+            controller.snapshot(unit) != journal["original_services"][unit]
+            for unit in journal["services"]
+        ):
+            raise ReleaseError("service_inventory_changed_after_prepare")
         if PUBLIC_BRIDGE_UNIT in journal["services"]:
             certificate = journal["public_bridge"]["certificate"]
             certificate_evidence = (
@@ -3044,7 +3299,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("prepare", "bootstrap", "apply", "reboot-readback", "rollback", "check"),
+        choices=(
+            "prepare",
+            "bootstrap",
+            "quiesce",
+            "apply",
+            "reboot-readback",
+            "rollback",
+            "check",
+        ),
     )
     parser.add_argument("--bundle", type=Path)
     parser.add_argument("--workspace", type=Path, default=Path("/srv/aureon/runtime/workspace"))
@@ -3092,6 +3355,8 @@ def main() -> int:
     controller = Systemd(Path(journal["workspace"]), Path(journal["units"]), journal["services"])
     if args.command == "bootstrap":
         result = bootstrap_broker(args.release, controller)
+    elif args.command == "quiesce":
+        result = quiesce_for_identity_cutover(args.release, controller)
     elif args.command == "apply":
         result = apply(
             args.release,
