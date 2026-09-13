@@ -2,11 +2,11 @@
  * Connections — every external source, in one view.
  *
  * Trading exchanges → market data → NASA/space weather → on-chain/whale → news →
- * notifications, plus the AI/LLM models. Shows a "full operational capacity"
- * readiness banner, then per-category rows with a status dot, a connectivity
- * Test, and inline key entry. Exchange keys are delegated to the trader's .env
- * writer; keyless feeds get a reachability test only. Keys are masked; the raw
- * value only travels on Save/Test. Reads GET /api/connections(+/readiness);
+ * notifications, plus the AI/LLM models. Shows configuration coverage, then
+ * per-category rows with a status dot, a connectivity Test, and inline key
+ * entry. Credentials are scoped by the backend identity receipt: instance for
+ * the protected owner plane, encrypted account storage for a tenant. Keys are
+ * masked; the raw value only travels on Save/Test. Reads GET /api/connections(+/readiness);
  * writes POST /api/connections/<id>(+/test).
  */
 
@@ -22,7 +22,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, api } from "@/services/apiClient";
 import { createReadOnlyPoller } from "@/services/readOnlyPoller";
 import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
+import { useIdentity } from "@/hooks/useIdentity";
 import { CONFIGURATION_RECEIPT_MAX_AGE_MS, captureTestReceipt, configurationMessage, configurationStatus, datedTestEvidence, validKeyCoverage, type DatedTestReceipt } from "@/lib/accountConfigurationEvidence";
+import { operatingContextView } from "@/lib/operatingContext";
+import { connectionCanDisconnect, connectionDisconnectPath } from "@/lib/connectionDisconnect";
 import { LiveDataNotice } from "@/shell/Page";
 
 interface Conn {
@@ -35,6 +38,9 @@ interface Conn {
   key_masked: string;
   key_source?: string;
   credential_scope?: "instance" | "account";
+  credential_management?: "account_keystore" | "instance_configuration" | "pinned_cloud_secret";
+  credential_writable?: boolean;
+  credential_management_reason?: string;
   enabled: boolean;
   connected?: boolean | null;
   runtime_ready?: boolean | null;
@@ -45,6 +51,7 @@ interface Conn {
   get_keys_url?: string;
   docs_url?: string;
   has_probe?: boolean;
+  probe_scope?: "credential" | "public_endpoint";
   extra_envs?: string[];
   secondary_labels?: string[];
   notes?: string;
@@ -59,7 +66,7 @@ interface Readiness {
   };
   missing: { id: string; label: string; category: string; unlocks: string; get_keys_url: string }[];
 }
-interface Draft { apiKey: string; extra: Record<string, string>; show: boolean; testing: boolean; saving: boolean; }
+interface Draft { apiKey: string; extra: Record<string, string>; show: boolean; testing: boolean; saving: boolean; deleting: boolean; }
 
 const connectionStore = createReadOnlyPoller<{ sections: Section[]; readiness: Readiness }>({
   receiptMaxAgeMs: CONFIGURATION_RECEIPT_MAX_AGE_MS,
@@ -81,6 +88,8 @@ const connectionStore = createReadOnlyPoller<{ sections: Section[]; readiness: R
 });
 
 export default function ConnectionsPage() {
+  const identityReceipt = useIdentity();
+  const operatingContext = operatingContextView(identityReceipt.identity, identityReceipt.known);
   const receipt = useReadOnlyPoller(connectionStore, 15_000, 8_000);
   const sections = receipt.loading ? undefined : receipt.data?.sections ?? null;
   const readiness = receipt.data?.readiness ?? null;
@@ -93,7 +102,7 @@ export default function ConnectionsPage() {
   useEffect(() => { if (!sections) { setDrafts({}); setTests({}); } }, [sections]);
   useEffect(() => { setDrafts({}); setTests({}); setShowMissing(false); }, [receipt.resetVersion]);
 
-  const draft = (c: Conn): Draft => drafts[c.id] ?? { apiKey: "", extra: {}, show: false, testing: false, saving: false };
+  const draft = (c: Conn): Draft => drafts[c.id] ?? { apiKey: "", extra: {}, show: false, testing: false, saving: false, deleting: false };
   const patch = (id: string, f: Partial<Draft>) =>
     setDrafts((d) => ({ ...d, [id]: { ...draft({ id } as Conn), ...d[id], ...f } }));
 
@@ -106,6 +115,7 @@ export default function ConnectionsPage() {
   }
 
   async function save(c: Conn) {
+    if (c.credential_writable === false) return;
     const operationVersion = version.current;
     patch(c.id, { saving: true });
     try {
@@ -133,20 +143,79 @@ export default function ConnectionsPage() {
     setTests(prev => { const next = { ...prev }; delete next[c.id]; return next; });
     patch(c.id, { testing: true });
     try {
-      const v = await api.post<{ ok?: boolean; latency_ms?: number; error?: string }>(
+      const v = await api.post<{
+        ok?: boolean;
+        authenticated?: boolean;
+        latency_ms?: number;
+        error?: string;
+        probe_scope?: string;
+        provider_mutation_attempted?: boolean;
+      }>(
         `/api/connections/${encodeURIComponent(c.id)}/test`,
         body(c),
         { timeoutMs: 30000 },
       );
       if (version.current !== operationVersion) return;
-      const result = captureTestReceipt(v, Date.now());
+      const exchangeReceiptAccepted = c.category !== 'exchange' || (
+        v.ok === true
+        && v.authenticated === true
+        && v.provider_mutation_attempted === false
+        && (v.probe_scope === 'credential' || v.probe_scope === 'signed_cloud_executor_receipt')
+      );
+      const result = captureTestReceipt(
+        c.category === 'exchange'
+          ? {
+              ok: exchangeReceiptAccepted,
+              latency_ms: v.latency_ms,
+              error: exchangeReceiptAccepted ? '' : 'credential_authentication_failed',
+            }
+          : v,
+        Date.now(),
+      );
       setTests(prev => ({ ...prev, [c.id]: result }));
-      if (v.ok === true) toast.success(`${c.label} test passed`, { description: `Response received ${new Date(result.receivedAt).toISOString()}` });
-      else toast.error(`${c.label} test failed`, { description: v.error });
+      const action = c.probe_scope === 'public_endpoint' ? 'endpoint probe' : 'test';
+      if (result.ok === true) toast.success(`${c.label} ${action} passed`, { description: `Response received ${new Date(result.receivedAt).toISOString()}` });
+      else toast.error(`${c.label} ${action} failed`, {
+        description: c.category === 'exchange'
+          ? 'No current read-only authentication receipt was returned.'
+          : v.error,
+      });
     } catch {
       if (version.current === operationVersion) toast.error(`${c.label} test unavailable`, { description: 'No completed test receipt was returned.' });
     } finally {
       if (version.current === operationVersion) patch(c.id, { testing: false });
+    }
+  }
+
+  async function disconnect(c: Conn) {
+    if (!connectionCanDisconnect(c)) return;
+    const operationVersion = version.current;
+    patch(c.id, { deleting: true });
+    try {
+      const path = connectionDisconnectPath(c);
+      const result = await api.del<{ ok?: boolean; disconnected?: boolean }>(path, { timeoutMs: 15000 });
+      if (version.current !== operationVersion) return;
+      if (result?.ok !== true) throw new Error("The server did not confirm the disconnect.");
+      setTests(previous => {
+        const next = { ...previous };
+        delete next[c.id];
+        return next;
+      });
+      patch(c.id, { apiKey: "", extra: {}, show: false });
+      toast.success(`${c.label} disconnected`, {
+        description: c.credential_scope === "account"
+          ? "Removed from this signed-in account's encrypted credential store."
+          : "Removed from this instance configuration.",
+      });
+      receipt.invalidate();
+    } catch (error) {
+      if (version.current === operationVersion) {
+        toast.error(`Could not disconnect ${c.label}`, {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
+    } finally {
+      if (version.current === operationVersion) patch(c.id, { deleting: false });
     }
   }
 
@@ -165,6 +234,19 @@ export default function ConnectionsPage() {
             Key presence and runtime flags do not establish current source availability.
           </>} />
 
+      <Card data-testid="connections-operating-context">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">{operatingContext.title}</CardTitle>
+            <Badge variant="outline" className="text-[10px]">{operatingContext.badge}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1 text-xs text-muted-foreground">
+          <p>{operatingContext.description}</p>
+          <p>{operatingContext.boundary}</p>
+        </CardContent>
+      </Card>
+
       <LiveDataNotice />
       {receipt.isReceiptCurrent && <p className="text-xs text-muted-foreground">Configuration received {new Date(receipt.lastReceivedAt!).toISOString()}.</p>}
 
@@ -174,11 +256,11 @@ export default function ConnectionsPage() {
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-base">
-                Key configuration coverage: {readiness.summary.capacity_pct}%
+                {operatingContext.kind === 'owner' ? 'Instance' : operatingContext.kind === 'tenant' ? 'Account' : 'Key'} configuration coverage: {readiness.summary.capacity_pct}%
               </CardTitle>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Badge variant="secondary">
-                  {readiness.summary.keyed_present}/{readiness.summary.keyed_total} keys configured
+                    {readiness.summary.keyed_present}/{readiness.summary.keyed_total} credential sources present
                 </Badge>
                 <Badge variant="outline">{readiness.summary.keyless} public endpoints</Badge>
                 {(readiness.summary.executor_provider_total ?? 0) > 0 && (
@@ -196,7 +278,7 @@ export default function ConnectionsPage() {
             </div>
             {readiness.summary.missing_count > 0 && (
               <button className="text-xs text-primary hover:underline" onClick={() => setShowMissing((s) => !s)}>
-                {readiness.summary.missing_count} sources need a key — {showMissing ? "hide" : "show"}
+                {readiness.summary.missing_count} sources lack credential evidence — {showMissing ? "hide" : "show"}
               </button>
             )}
             {showMissing && (
@@ -227,6 +309,7 @@ export default function ConnectionsPage() {
             {sec.connections.map((c) => {
               const d = draft(c);
               const keyed = c.requirement !== "keyless";
+              const managedByPinnedSecret = c.credential_management === "pinned_cloud_secret" || c.credential_writable === false;
               const observedTest = datedTestEvidence(tests[c.id]);
               return (
                 <Card key={c.id} className="flex flex-col">
@@ -235,13 +318,14 @@ export default function ConnectionsPage() {
                       <div className="flex items-center gap-2">{dot(c)}<span className="font-medium">{c.label}</span></div>
                       {c.has_key && keyed && <Badge variant="outline" className="text-[10px]">{c.key_masked} · {c.key_source}</Badge>}
                       {c.executor_authenticated && <Badge variant="secondary" className="text-[10px]">cloud executor authenticated</Badge>}
+                      {managedByPinnedSecret && <Badge variant="outline" className="text-[10px]">pinned cloud secret</Badge>}
                       {c.requirement === "keyless" && <Badge variant="outline" className="text-[10px]">keyless</Badge>}
                     </div>
                     {c.unlocks && <p className="text-xs text-muted-foreground">{c.unlocks}</p>}
                     <p className="text-xs text-muted-foreground">
                       {observedTest.current
-                        ? `Requested test ${observedTest.ok ? 'passed' : 'failed'} · response received ${observedTest.timestamp}${observedTest.latencyMs !== null ? ` · ${observedTest.latencyMs} ms` : ''}. Point-in-time result.`
-                        : 'No current dated connection-test result.'}
+                        ? `Requested ${c.probe_scope === 'public_endpoint' ? 'public endpoint probe' : 'test'} ${observedTest.ok ? 'passed' : 'failed'} · response received ${observedTest.timestamp}${observedTest.latencyMs !== null ? ` · ${observedTest.latencyMs} ms` : ''}. Point-in-time result.`
+                        : `No current dated ${c.probe_scope === 'public_endpoint' ? 'public endpoint probe' : 'connection-test'} result.`}
                     </p>
                     {(c.connected !== undefined || c.runtime_ready !== undefined) && <p className="text-xs text-muted-foreground">Runtime attachment/readiness flag: {c.connected === true || c.runtime_ready === true ? 'reported' : 'not confirmed'}. No source timestamp is supplied for this flag.</p>}
                     {c.executor_authenticated && typeof c.executor_evidence_received_at === 'number' && (
@@ -258,9 +342,11 @@ export default function ConnectionsPage() {
                           aria-label={`${c.label} API key`}
                           placeholder={c.has_key ? "•••• (leave blank to keep)" : "paste key"}
                           value={d.apiKey} autoComplete="off"
+                          disabled={managedByPinnedSecret}
                           onChange={(e) => patch(c.id, { apiKey: e.target.value })}
                         />
                         <Button type="button" variant="outline" size="icon"
+                          disabled={managedByPinnedSecret}
                           onClick={() => patch(c.id, { show: !d.show })} aria-label="toggle">
                           {d.show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
@@ -270,11 +356,19 @@ export default function ConnectionsPage() {
                       <Input key={env} type="password" placeholder={c.secondary_labels?.[i] ?? env}
                         aria-label={c.secondary_labels?.[i] ?? env}
                         value={d.extra[env] ?? ""} autoComplete="off"
+                        disabled={managedByPinnedSecret}
                         onChange={(e) => patch(c.id, { extra: { ...d.extra, [env]: e.target.value } })} />
                     ))}
+                    {managedByPinnedSecret && (
+                      <p className="text-[11px] text-warning" data-testid={`pinned-secret-${c.id}`}>
+                        {c.credential_management_reason || "Managed by a pinned cloud secret. Update Secret Manager and redeploy to change this owner configuration."}
+                      </p>
+                    )}
                     {c.category === "exchange" && (
                       <p className="text-[11px] text-warning">
-                        {c.credential_scope === "account"
+                        {managedByPinnedSecret
+                          ? "The isolated cloud executor consumes this credential; this operator UI cannot replace it. Authentication is confirmed only by a current signed executor receipt."
+                          : c.credential_scope === "account"
                           ? "Saved only to this signed-in account's encrypted store. Provider testing and human trading approval remain separate."
                           : "Saved to the cloud instance configuration. Executor use is shown only after a fresh signed provider read-back."}
                       </p>
@@ -286,14 +380,22 @@ export default function ConnectionsPage() {
                         {c.docs_url && <a className="inline-flex items-center gap-1 text-muted-foreground hover:underline" href={c.docs_url} target="_blank" rel="noopener noreferrer">Docs</a>}
                       </div>
                       <div className="flex gap-2">
+                        {keyed && connectionCanDisconnect(c) && (
+                          <Button type="button" variant="ghost" size="sm" disabled={d.deleting || d.saving || d.testing} onClick={() => disconnect(c)}>
+                            {d.deleting && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                            Disconnect
+                          </Button>
+                        )}
                         {(c.has_probe || c.category === "ai_llm") && (
-                          <Button type="button" variant="outline" size="sm" disabled={d.testing} onClick={() => test(c)}>
-                            {d.testing && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Test
+                          <Button type="button" variant="outline" size="sm" disabled={d.testing || d.deleting} onClick={() => test(c)}>
+                            {d.testing && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                            {c.probe_scope === 'public_endpoint' ? 'Probe endpoint' : 'Test'}
                           </Button>
                         )}
                         {keyed && (
-                          <Button type="button" size="sm" disabled={d.saving} onClick={() => save(c)}>
-                            {d.saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Save
+                          <Button type="button" size="sm" disabled={d.saving || d.deleting || managedByPinnedSecret} onClick={() => save(c)}>
+                            {d.saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                            {managedByPinnedSecret ? 'Managed' : 'Save'}
                           </Button>
                         )}
                       </div>

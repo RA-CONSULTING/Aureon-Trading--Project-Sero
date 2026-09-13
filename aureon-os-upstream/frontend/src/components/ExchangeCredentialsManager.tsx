@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { api } from '@/services/apiClient';
 import { toast } from 'sonner';
 import { Eye, EyeOff, Key, CheckCircle2, XCircle, RefreshCw, Save, Zap, Loader2, ExternalLink } from 'lucide-react';
 
@@ -18,7 +19,13 @@ interface ExchangeStatus {
 interface TestResult {
   success: boolean;
   message: string;
-  details?: Record<string, any>;
+}
+
+interface CredentialProbeReceipt {
+  ok?: boolean;
+  authenticated?: boolean;
+  probe_scope?: 'credential' | 'signed_cloud_executor_receipt' | string;
+  provider_mutation_attempted?: boolean;
 }
 
 interface LocalEnvCredentialStatus {
@@ -250,17 +257,15 @@ export function ExchangeCredentialsManager() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data } = await supabase
-          .from('aureon_user_sessions')
-          .select('binance_api_key_encrypted, kraken_api_key_encrypted, alpaca_api_key_encrypted, capital_api_key_encrypted')
-          .eq('user_id', session.user.id)
-          .single();
+          .rpc('get_aureon_user_session_status')
+          .maybeSingle();
 
         if (data) {
           mergedStatus = {
-            binance: localStatus.binance || !!data.binance_api_key_encrypted,
-            kraken: localStatus.kraken || !!data.kraken_api_key_encrypted,
-            alpaca: localStatus.alpaca || !!data.alpaca_api_key_encrypted,
-            capital: localStatus.capital || !!data.capital_api_key_encrypted
+            binance: localStatus.binance || data.binance_credentials_configured,
+            kraken: localStatus.kraken || data.kraken_credentials_configured,
+            alpaca: localStatus.alpaca || data.alpaca_credentials_configured,
+            capital: localStatus.capital || data.capital_credentials_configured
           };
         }
       }
@@ -298,33 +303,55 @@ export function ExchangeCredentialsManager() {
         break;
     }
 
-    if (!apiKey || (!apiSecret && exchange !== 'capital') || (exchange === 'capital' && !password)) {
+    if (
+      !apiKey
+      || (!apiSecret && exchange !== 'capital')
+      || (exchange === 'capital' && (!identifier || !password))
+    ) {
       toast.error('Please enter credentials first');
       return;
     }
 
     setTesting(exchange);
     try {
-      const { data, error } = await supabase.functions.invoke('test-exchange-connection', {
-        body: { exchange, apiKey, apiSecret, identifier, password }
-      });
-
-      if (error) throw error;
-
-      setTestResults(prev => ({ ...prev, [exchange]: data }));
-
-      if (data.success) {
-        toast.success(`${exchange} connection verified!`);
-      } else {
-        toast.error(data.message || `${exchange} connection failed`);
+      const extra: Record<string, string> = {};
+      if (exchange === 'binance') extra.BINANCE_API_SECRET = apiSecret;
+      if (exchange === 'kraken') extra.KRAKEN_API_SECRET = apiSecret;
+      if (exchange === 'alpaca') extra.ALPACA_SECRET_KEY = apiSecret;
+      if (exchange === 'capital') {
+        extra.CAPITAL_IDENTIFIER = identifier;
+        extra.CAPITAL_PASSWORD = password;
       }
-    } catch (err) {
-      console.error('Connection test error:', err);
-      setTestResults(prev => ({ 
-        ...prev, 
-        [exchange]: { success: false, message: 'Test failed - network error' } 
+      const data = await api.post<CredentialProbeReceipt>(
+        `/api/connections/${encodeURIComponent(exchange)}/test`,
+        { api_key: apiKey, extra },
+        { timeoutMs: 30_000 },
+      );
+      const acceptedScope = data.probe_scope === 'credential'
+        || data.probe_scope === 'signed_cloud_executor_receipt';
+      const authenticated = data.ok === true
+        && data.authenticated === true
+        && data.provider_mutation_attempted === false
+        && acceptedScope;
+      const result: TestResult = {
+        success: authenticated,
+        message: authenticated
+          ? 'Read-only credential authentication passed'
+          : 'Read-only credential authentication failed',
+      };
+      setTestResults(prev => ({ ...prev, [exchange]: result }));
+
+      if (authenticated) {
+        toast.success(`${exchange} credential authentication passed`);
+      } else {
+        toast.error(`${exchange} credential authentication failed`);
+      }
+    } catch {
+      setTestResults(prev => ({
+        ...prev,
+        [exchange]: { success: false, message: 'Credential authentication unavailable' }
       }));
-      toast.error('Connection test failed');
+      toast.error('Credential authentication unavailable');
     } finally {
       setTesting(null);
     }

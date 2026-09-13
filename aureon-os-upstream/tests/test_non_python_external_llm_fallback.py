@@ -57,20 +57,19 @@ def test_node_servers_are_held_and_archives_retain_fallback_source():
         assert "reasoning_effort" in archived
 
 
-def test_supabase_llm_functions_use_shared_server_side_fallback():
+def test_retired_supabase_llm_functions_are_inert():
     functions = (
         "ai-commentary",
         "analyze-lighthouse-event",
-        "analyze-stargate-patterns",
         "aureon-chat",
         "auris-classify",
-        "forecast-coherence",
         "interpret-frequency",
-        "primelines-protocol-gateway",
     )
     for name in functions:
         source = _read(f"supabase/functions/{name}/index.ts")
-        assert "fetchExternalLlm" in source
+        assert "LEGACY_GLOBAL_PRIVILEGED_ROUTE_DISABLED" in source
+        assert "fetchExternalLlm" not in source
+        assert "Deno.env.get" not in source
         assert "ai.gateway.lovable.dev/v1/chat/completions" not in source
 
     helper = _read("supabase/functions/_shared/external_llm_fallback.ts")
@@ -89,11 +88,6 @@ def test_structured_supabase_llm_responses_accept_fenced_json():
     assert "export function parseExternalLlmJson" in helper
     assert "```(?:json)?" in helper
 
-    for name in (
-        "analyze-stargate-patterns",
-        "auris-classify",
-        "forecast-coherence",
-        "primelines-protocol-gateway",
-    ):
-        source = _read(f"supabase/functions/{name}/index.ts")
-        assert "parseExternalLlmJson" in source
+    retired = _read("supabase/functions/auris-classify/index.ts")
+    assert "parseExternalLlmJson" not in retired
+    assert "LEGACY_GLOBAL_PRIVILEGED_ROUTE_DISABLED" in retired

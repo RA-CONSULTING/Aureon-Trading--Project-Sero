@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
  */
 
 
+import React from "react";
 import { Feather, Check, PauseCircle, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

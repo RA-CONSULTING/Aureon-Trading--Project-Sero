@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { readNexusObservation } from '@/lib/nexusObservation';
 
-const DEFAULT_URL = import.meta.env.VITE_NEXUS_WS_URL || 'ws://localhost:8787';
+const DEFAULT_URL = import.meta.env.VITE_NEXUS_WS_URL || '';
 type Receipt = { message: unknown; receivedAt: number };
 
 /** One read-only connection; source timestamps remain distinct from transport state. */
@@ -18,8 +18,21 @@ export function useAurisWS(url = DEFAULT_URL) {
     const clearReadings = () => { setAuris(null); setAura(null); };
     function connect() {
       if (!alive) return;
+      if (!url) {
+        setConnected(false); clearReadings();
+        setError('Auris and Aura require a commissioned sensor gateway.');
+        return;
+      }
       let ws: WebSocket;
-      try { ws = new WebSocket(url); }
+      try {
+        const target = new URL(url, window.location.href);
+        const securePage = window.location.protocol === 'https:';
+        if (target.host !== window.location.host || (securePage && target.protocol !== 'wss:')
+          || (!securePage && !['ws:', 'wss:'].includes(target.protocol))) {
+          throw new Error('research socket outside same-origin boundary');
+        }
+        ws = new WebSocket(target.toString());
+      }
       catch { setError('Research socket URL unavailable'); return; }
       wsRef.current = ws;
       ws.onopen = () => { if (alive) { setConnected(true); setError(null); } };
@@ -49,7 +62,7 @@ export function useAurisWS(url = DEFAULT_URL) {
     return () => { alive = false; clearTimeout(retry); clearInterval(ageTimer); wsRef.current?.close(); wsRef.current = null; };
   }, [url]);
   return {
-    connected, error, url, wsCtl: wsRef,
+    connected, error, url: url || null, wsCtl: wsRef,
     auris: readNexusObservation(aurisReceipt?.message, 'auris_metrics', connected && !error, aurisReceipt?.receivedAt ?? null),
     aura: readNexusObservation(auraReceipt?.message, 'aura_features', connected && !error, auraReceipt?.receivedAt ?? null),
   };

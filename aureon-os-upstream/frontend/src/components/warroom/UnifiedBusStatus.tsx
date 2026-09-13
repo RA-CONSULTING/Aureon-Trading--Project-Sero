@@ -85,7 +85,7 @@ export function UnifiedBusStatus({ evidence }: { evidence: WarRoomEvidence }) {
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span className={`h-2 w-2 rounded-full ${fresh ? 'bg-success animate-pulse' : 'bg-warning'}`} />
-          {error || (fresh ? 'Read-only local runtime feed is connected.' : 'Waiting for local terminal feed.')}
+          {error || (fresh ? 'Read-only operator runtime feed is connected.' : 'Waiting for the operator runtime feed.')}
         </div>
       </CardContent>
     </Card>

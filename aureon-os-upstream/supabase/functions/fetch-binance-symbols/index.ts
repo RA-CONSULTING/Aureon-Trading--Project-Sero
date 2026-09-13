@@ -15,7 +15,7 @@ serve(async (req) => {
 
     // Fetch exchange info from Binance
     const response = await fetch('https://api.binance.com/api/v3/exchangeInfo');
-    
+
     if (!response.ok) {
       throw new Error(`Binance API error: ${response.status}`);
     }
@@ -24,8 +24,8 @@ serve(async (req) => {
 
     // Filter for USDT spot trading pairs that are actively trading
     const usdtPairs = data.symbols
-      .filter((symbol: any) => 
-        symbol.quoteAsset === 'USDT' && 
+      .filter((symbol: any) =>
+        symbol.quoteAsset === 'USDT' &&
         symbol.status === 'TRADING' &&
         symbol.isSpotTradingAllowed &&
         !symbol.symbol.includes('DOWN') &&
@@ -51,7 +51,7 @@ serve(async (req) => {
     // Fetch current prices for all symbols
     const tickerResponse = await fetch('https://api.binance.com/api/v3/ticker/24hr');
     const tickers = await tickerResponse.json();
-    
+
     // Create price map
     const priceMap: Record<string, any> = {};
     tickers.forEach((ticker: any) => {
@@ -82,7 +82,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error fetching Binance symbols:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error instanceof Error ? error.message : 'Failed to fetch symbols',
         symbols: [],
         count: 0,

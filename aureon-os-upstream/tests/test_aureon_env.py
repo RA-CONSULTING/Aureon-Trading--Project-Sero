@@ -62,6 +62,29 @@ def test_load_aureon_environment_from_explicit_file(tmp_path, monkeypatch):
     assert env_presence(KRAKEN_REQUIRED_ENV)["KRAKEN_API_SECRET"]["set"] is True
 
 
+def test_legacy_apca_names_fill_canonical_alpaca_names_without_overwrite(tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    monkeypatch.delenv("ALPACA_API_KEY", raising=False)
+    monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
+    monkeypatch.setenv("APCA_API_KEY_ID", "legacy-owner-key")
+    monkeypatch.setenv("APCA_API_SECRET_KEY", "legacy-owner-secret")
+
+    report = load_aureon_environment(tmp_path, override=False)
+
+    assert os.environ["ALPACA_API_KEY"] == "legacy-owner-key"
+    assert os.environ["ALPACA_SECRET_KEY"] == "legacy-owner-secret"
+    assert {"target": "ALPACA_API_KEY", "source": "APCA_API_KEY_ID"} in report.aliases_applied
+    assert {"target": "ALPACA_SECRET_KEY", "source": "APCA_API_SECRET_KEY"} in report.aliases_applied
+
+    monkeypatch.setenv("ALPACA_API_KEY", "canonical-wins")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "canonical-secret-wins")
+    report = load_aureon_environment(tmp_path, override=False)
+    assert os.environ["ALPACA_API_KEY"] == "canonical-wins"
+    assert os.environ["ALPACA_SECRET_KEY"] == "canonical-secret-wins"
+    assert not any(item["target"] in {"ALPACA_API_KEY", "ALPACA_SECRET_KEY"}
+                   for item in report.aliases_applied)
+
+
 def test_disabled_dotenv_never_reloads_scrubbed_credentials(tmp_path, monkeypatch):
     env_path = tmp_path / ".env"
     env_path.write_text(

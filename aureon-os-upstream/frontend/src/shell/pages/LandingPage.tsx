@@ -32,7 +32,7 @@ const PILLARS = [
   {
     icon: Activity,
     title: "Trading research",
-    body: "Live market research and execution scaffolding — every action gated by explicit human approval. The platform never initiates trades autonomously.",
+    body: "Live market research and governed execution scaffolding. Live automation requires an explicit, time-bounded operator release and remains constrained by downstream gates.",
   },
   {
     icon: ShieldCheck,
@@ -198,8 +198,8 @@ export default function LandingPage() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { title: "Free to run", body: "Open-source under the MIT licence and self-hostable. Clone it and run your own instance." },
-            { title: "Performance-fee gas tank", body: "A prepaid wallet charged only as a fee on profit above your high-water mark. Usage metering is record-only." },
-            { title: "Human-approved", body: "Sensitive actions — trading, payments — always require your explicit approval. The platform never initiates payments." },
+            { title: "Account ledger visibility", body: "Configured gas-tank and fee records are shown read-only. Provider-verified top-ups are not commissioned." },
+            { title: "Operator-released", body: "Live automation requires an explicit, time-bounded operator release. The platform never initiates payments." },
             { title: "Optional support", body: "Support-the-project contributions keep the work going. They are voluntary, never a paywall." },
           ].map((m) => (
             <Card key={m.title}>
@@ -211,7 +211,7 @@ export default function LandingPage() {
           ))}
         </div>
         <p className="mt-4 text-xs text-muted-foreground">
-          Full billing state and the prepaid wallet live in the console under{" "}
+          Account billing observations and current service configuration are shown under{" "}
           <Link to="/platform/billing" className="underline hover:text-foreground">Billing &amp; Support</Link>.
         </p>
       </section>

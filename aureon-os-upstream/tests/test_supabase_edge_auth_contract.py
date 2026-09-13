@@ -15,12 +15,24 @@ def _load_auditor():
     return module
 
 
-def test_privileged_mutations_require_gateway_jwt_or_reviewed_custom_auth() -> None:
+def test_production_privileged_access_requires_more_than_gateway_jwt() -> None:
     auditor = _load_auditor()
     matrix = auditor.build_auth_matrix(REPO_ROOT)
 
     assert matrix
     assert auditor.policy_violations(matrix) == []
+
+
+def test_gateway_jwt_alone_never_authorizes_production_service_role_access() -> None:
+    auditor = _load_auditor()
+    synthetic = {
+        "production_active": True,
+        "authority": "gateway_jwt_only_insufficient",
+        "secret_backed_provider": False,
+        "production_disposition": "retained_public_read_only",
+    }
+
+    assert auditor.policy_violations([synthetic]) == [synthetic]
 
 
 def test_reviewed_custom_auth_allowlist_is_source_bound_and_minimal() -> None:
@@ -53,12 +65,14 @@ def test_inbound_shared_secret_checks_are_distinguished_from_provider_keys() -> 
     matrix = auditor.build_auth_matrix(REPO_ROOT)
     by_name = {row["function"]: row for row in matrix}
 
-    assert by_name["ingest-trades"]["custom_auth"] == "shared_secret_exact_compare"
-    assert by_name["ingest-terminal-state"]["custom_auth"] == "shared_secret_exact_compare"
+    assert by_name["ingest-trades"]["custom_auth"] == "none"
+    assert by_name["ingest-trades"]["privileged_mutation"] is False
+    assert by_name["ingest-terminal-state"]["custom_auth"] == "none"
+    assert by_name["ingest-terminal-state"]["privileged_mutation"] is False
     assert by_name["fetch-binance-market-data"]["custom_auth"] == "none"
 
 
-def test_optional_auth_probe_does_not_replace_the_gateway_gate() -> None:
+def test_retired_backend_health_check_keeps_the_gateway_gate_without_privilege() -> None:
     auditor = _load_auditor()
     matrix = auditor.build_auth_matrix(REPO_ROOT)
     by_name = {row["function"]: row for row in matrix}
@@ -67,6 +81,6 @@ def test_optional_auth_probe_does_not_replace_the_gateway_gate() -> None:
     assert health["verify_jwt"] is True
     assert health["custom_auth"] == "none"
     assert health["custom_auth_allowlisted"] is False
-    assert health["privileged_mutation"] is True
-    assert "sync-harmonic-nexus" in health["invoked_edge_functions"]
+    assert health["privileged_mutation"] is False
+    assert health["invoked_edge_functions"] == []
     assert health["protection"] == "gateway_jwt"

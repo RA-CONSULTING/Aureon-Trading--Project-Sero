@@ -161,9 +161,11 @@ class FirestoreLedger:
         return self._get(self._effect_name(intent_id))
 
     def reserve(self, *, intent_id: str, order_sha256: str, authorization_sha256: str,
-                venue: str, quote_value_usd: float, now_ms: int | None = None) -> dict[str, Any]:
+                instrument_preflight_sha256: str, venue: str, quote_value_usd: float,
+                now_ms: int | None = None) -> dict[str, Any]:
         current = int(time.time() * 1000) if now_ms is None else now_ms
-        if not _HEX64.fullmatch(order_sha256) or not _HEX64.fullmatch(authorization_sha256):
+        if any(not _HEX64.fullmatch(value) for value in (
+                order_sha256, authorization_sha256, instrument_preflight_sha256)):
             raise LedgerError("ledger_commitment_invalid")
         if venue not in {"alpaca", "binance", "capital", "kraken"}:
             raise LedgerError("ledger_venue_invalid")
@@ -175,7 +177,9 @@ class FirestoreLedger:
             transaction = self._begin()
             existing = self._get(effect_name, transaction)
             if existing is not None:
-                if existing.get("order_sha256") != order_sha256 or existing.get("authorization_sha256") != authorization_sha256:
+                if (existing.get("order_sha256") != order_sha256
+                        or existing.get("authorization_sha256") != authorization_sha256
+                        or existing.get("instrument_preflight_sha256") != instrument_preflight_sha256):
                     raise LedgerError("ledger_effect_commitment_mismatch")
                 return {**existing, "created": False}
             budget = self._get(budget_name, transaction)
@@ -185,6 +189,7 @@ class FirestoreLedger:
             effect = {
                 "schema": "aureon.cloud-trade-effect.v1", "intent_id": intent_id,
                 "order_sha256": order_sha256, "authorization_sha256": authorization_sha256,
+                "instrument_preflight_sha256": instrument_preflight_sha256,
                 "venue": venue, "quote_value_usd": quote_value_usd,
                 "state": "claimed", "claimed_at_ms": current, "updated_at_ms": current,
                 "provider_order_id": None, "provider_client_order_id": None,

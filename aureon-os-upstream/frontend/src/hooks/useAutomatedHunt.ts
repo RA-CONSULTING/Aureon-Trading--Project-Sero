@@ -139,7 +139,9 @@ export function useAutomatedHunt() {
         
         toast({
           title: '🦁 Scan Complete',
-          description: `Found ${data.targetsFound} targets, queued ${data.ordersQueued} orders`,
+          description: data.executionAvailable === false
+            ? `Found ${data.targetsFound} targets for analysis; no orders attempted because dispatch is unavailable`
+            : `Found ${data.targetsFound} targets, queued ${data.ordersQueued} orders`,
         });
 
         // Refresh data

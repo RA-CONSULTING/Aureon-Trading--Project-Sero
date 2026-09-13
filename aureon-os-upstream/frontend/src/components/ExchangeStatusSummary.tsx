@@ -33,17 +33,15 @@ export function ExchangeStatusSummary() {
       if (!session) return;
 
       const { data } = await supabase
-        .from('aureon_user_sessions')
-        .select('binance_api_key_encrypted, kraken_api_key_encrypted, alpaca_api_key_encrypted, capital_api_key_encrypted')
-        .eq('user_id', session.user.id)
-        .single();
+        .rpc('get_aureon_user_session_status')
+        .maybeSingle();
 
       if (data) {
         setStatus({
-          binance: !!data.binance_api_key_encrypted,
-          kraken: !!data.kraken_api_key_encrypted,
-          alpaca: !!data.alpaca_api_key_encrypted,
-          capital: !!data.capital_api_key_encrypted
+          binance: data.binance_credentials_configured,
+          kraken: data.kraken_credentials_configured,
+          alpaca: data.alpaca_credentials_configured,
+          capital: data.capital_credentials_configured
         });
       }
     } catch (err) {

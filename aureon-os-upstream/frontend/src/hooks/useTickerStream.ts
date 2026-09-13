@@ -127,31 +127,8 @@ export function useTickerStream(
       setIsConnected(true);
       setIsLoading(false);
 
-      // Persist snapshots to database (fire and forget)
-      if (validatedTickers.length > 0) {
-        supabase.functions.invoke('ingest-ticker-snapshot', {
-          body: {
-            temporal_id: `stream-${now.getTime()}`,
-            tickers: validatedTickers.slice(0, 50).map(t => ({
-              symbol: t.symbol,
-              exchange: t.exchange,
-              price: t.price,
-              bidPrice: t.bidPrice,
-              askPrice: t.askPrice,
-              volume: t.volume,
-              volumeUsd: t.volumeUsd,
-              high24h: t.high24h,
-              low24h: t.low24h,
-              priceChange24h: t.priceChange24h,
-              volatility: t.volatility,
-              momentum: t.momentum,
-              spread: t.spread,
-              isValidated: t.isValidated,
-              dataSource: 'live',
-            })),
-          },
-        }).catch(err => console.warn('[useTickerStream] Snapshot persist error:', err));
-      }
+      // Browser sessions consume validated quotes but do not write shared market
+      // telemetry with privileged credentials. The operator runtime owns storage.
     } catch (error) {
       console.error('[useTickerStream] Error:', error);
       setIsConnected(false);

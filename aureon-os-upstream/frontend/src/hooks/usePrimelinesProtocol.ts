@@ -1,7 +1,5 @@
 import { useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { getTemporalId, getSentinelName } from '@/core/primelinesIdentity';
-import { useToast } from '@/hooks/use-toast';
 
 export type ProtocolOperation = 
   | 'SYNC_HARMONIC_NEXUS'
@@ -34,62 +32,23 @@ export interface ProtocolResponse {
 }
 
 export function usePrimelinesProtocol() {
-  const { toast } = useToast();
   const temporalId = getTemporalId();
   const sentinelName = getSentinelName();
 
   const invokeProtocol = useCallback(async (
     request: ProtocolRequest
   ): Promise<ProtocolResponse> => {
-    console.log('🌀 Invoking Primelines Protocol:', request.operation);
-    console.log('🔑 Temporal ID:', temporalId);
-    console.log('🛡️ Sentinel:', sentinelName);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('primelines-protocol-gateway', {
-        body: {
-          ...request,
-          temporalId,
-          sentinelName,
-        },
-      });
-
-      if (error) {
-        console.error('❌ Protocol error:', error);
-        throw error;
-      }
-
-      if (!data.success) {
-        console.error('❌ Protocol validation failed:', data);
-        toast({
-          title: "Protocol Validation Failed",
-          description: data.error || "Operation rejected by Primelines Gateway",
-          variant: "destructive",
-        });
-      } else {
-        console.log('✅ Protocol response:', data);
-        
-        // Show AI validation if present
-        if (data.aiValidation) {
-          const { valid, coherence, resonance, recommendation } = data.aiValidation;
-          console.log(`🤖 AI Validation: ${valid ? '✅' : '❌'}`);
-          console.log(`   Coherence: ${(coherence * 100).toFixed(1)}%`);
-          console.log(`   Resonance: ${resonance} Hz`);
-          console.log(`   Recommendation: ${recommendation}`);
-        }
-      }
-
-      return data;
-    } catch (error) {
-      console.error('❌ Failed to invoke protocol:', error);
-      toast({
-        title: "Protocol Error",
-        description: error instanceof Error ? error.message : "Failed to connect to Primelines Gateway",
-        variant: "destructive",
-      });
-      throw error;
-    }
-  }, [temporalId, sentinelName, toast]);
+    return {
+      success: false,
+      operation: request.operation,
+      temporalId,
+      sentinelName,
+      identityValid: false,
+      result: null,
+      timestamp: new Date().toISOString(),
+      error: 'Identity-bound operator protocol is not configured for this session.',
+    };
+  }, [temporalId, sentinelName]);
 
   const syncHarmonicNexus = useCallback(async (harmonicState: any) => {
     return invokeProtocol({

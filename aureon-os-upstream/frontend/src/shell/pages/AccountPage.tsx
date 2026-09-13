@@ -22,6 +22,7 @@ import { api } from "@/services/apiClient";
 import { createReadOnlyPoller } from "@/services/readOnlyPoller";
 import { useReadOnlyPoller } from "@/hooks/useReadOnlyPoller";
 import { supabase } from "@/integrations/supabase/client";
+import { endTenantBrowserSession } from "@/services/tenantSession";
 import { GlassPageHeader } from "@/shell/GlassPage";
 
 interface BalanceResponse {
@@ -45,6 +46,8 @@ const balanceStore = createReadOnlyPoller<BalanceResponse>({
 
 export function AccountPage() {
   const { identity, loading: idLoading, error: identityError } = useIdentity();
+  const isTenant = identity.kind === "tenant";
+  const hasSupabaseSession = identity.kind === "tenant" || identity.kind === "owner";
   const { known: setupKnown, error: setupError, hasProvider, liveProvider, providerCount, loading: setupLoading } = useSetupStatus();
   const balanceRead = useReadOnlyPoller(balanceStore, 30_000, 8_000);
   const amount = balanceRead.data?.balance_gbp;
@@ -61,11 +64,11 @@ export function AccountPage() {
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const onSignOut = async () => {
+    if (!hasSupabaseSession) return;
     setSigningOut(true);
     setSignOutError(null);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await endTenantBrowserSession(options => supabase.auth.signOut(options));
       // AuthGate watches onAuthStateChange and drops back to the sign-in form.
     } catch {
       setSignOutError("Sign out was not confirmed. Retry when the account service is available.");
@@ -74,9 +77,9 @@ export function AccountPage() {
     }
   };
 
-  const isTenant = identity.kind === "tenant";
   const planeLabel =
     identity.kind === "tenant" ? "Your account"
+      : identity.kind === "owner" ? "Verified owner account"
       : identity.kind === "admin" ? "Instance operator"
         : identity.kind === "open" ? "Single-operator (no auth configured)"
           : "Unknown";
@@ -130,7 +133,7 @@ export function AccountPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <KeyRound className="h-4 w-4" /> Your model keys
+              <KeyRound className="h-4 w-4" /> {isTenant ? 'Your model keys' : 'Instance model configuration'}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -200,17 +203,25 @@ export function AccountPage() {
                   </p>
                 )}
               </>
-            ) : identity.kind === "admin" || identity.kind === "open" ? (
+            ) : identity.kind === "admin" || identity.kind === "owner" || identity.kind === "open" ? (
               <p className="text-muted-foreground">
-                This session is on the instance plane and can reach everything, including the control
-                plane. {identity.kind === "open" &&
+                This protected session is on the owner instance plane. Its runtime configuration and
+                preconfigured credentials remain server-side and independent from every tenant workspace.
+                Current provider tests and signed receipts still decide what is operational. {identity.kind === "open" &&
                   "No authentication is configured on this instance — set AUREON_OPERATOR_API_KEY before exposing it."}
               </p>
             ) : <p className="text-muted-foreground">Session permissions are unconfirmed. Account and operator access remain subject to the current server authorization.</p>}
-            <Button variant="outline" size="sm" onClick={onSignOut} disabled={signingOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              {signingOut ? "Signing out…" : "Sign out"}
-            </Button>
+            {hasSupabaseSession ? (
+              <>
+                <p className="text-xs text-muted-foreground">Signing out ends only this account session in this browser. The protected owner cloud runtime continues independently.</p>
+                <Button variant="outline" size="sm" onClick={onSignOut} disabled={signingOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {signingOut ? "Signing out…" : identity.kind === "owner" ? "Sign out of owner account" : "Sign out of this account"}
+                </Button>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">Owner access to this host is managed by the protected cloud identity boundary.</p>
+            )}
             {signOutError && <p role="alert" className="text-sm text-destructive">{signOutError}</p>}
           </CardContent>
         </Card>

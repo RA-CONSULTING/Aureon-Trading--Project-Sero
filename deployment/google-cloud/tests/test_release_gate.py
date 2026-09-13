@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1] / "trading-control"
 sys.path.insert(0, str(ROOT))
-from contract import digest  # noqa: E402
+from contract import build_readiness_release_binding, digest  # noqa: E402
 from release_gate import LIVE_CONTROLS, RELEASE_SCHEMA, ReleaseGate  # noqa: E402
 
 
@@ -44,6 +44,7 @@ def state(*, active=True):
 def intent():
     return {
         "expires_at_ms": 1_010_000,
+        "source_revision": "5" * 40,
         "authorization": {"event_sha256": "2" * 64, "expires_at_ms": 1_200_000},
     }
 
@@ -54,8 +55,30 @@ def test_active_signed_state_releases_only_matching_lease():
     changed = intent()
     changed["authorization"]["event_sha256"] = "9" * 64
     assert gate.is_active(changed, now_ms=1_000_000) is False
+    changed = intent()
+    changed["source_revision"] = "6" * 40
+    assert gate.is_active(changed, now_ms=1_000_000) is False
 
 
 def test_held_or_expired_state_fails_closed():
     assert ReleaseGate(KEY, Verifier(), "5" * 40, Store(state(active=False))).is_active(intent(), now_ms=1_000_000) is False
     assert ReleaseGate(KEY, Verifier(), "5" * 40, Store(state())).is_active(intent(), now_ms=1_300_000) is False
+
+
+def test_periodic_readiness_requires_exact_current_generation_and_signed_state_digest():
+    current = state()
+    candidate = intent()
+    candidate["authorization"]["readiness_release"] = build_readiness_release_binding(current)
+    gate = ReleaseGate(KEY, Verifier(), "5" * 40, Store(current))
+    assert gate.active_state(candidate, now_ms=1_000_000) == current
+
+    candidate["authorization"]["readiness_release"]["generation"] += 1
+    assert gate.active_state(candidate, now_ms=1_000_000) is None
+
+    candidate = intent()
+    candidate["authorization"]["readiness_release"] = build_readiness_release_binding(current)
+    replaced = state()
+    replaced["request_id"] = "9" * 64
+    assert ReleaseGate(KEY, Verifier(), "5" * 40, Store(replaced)).active_state(
+        candidate, now_ms=1_000_000,
+    ) is None

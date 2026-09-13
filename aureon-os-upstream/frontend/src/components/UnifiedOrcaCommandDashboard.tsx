@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { evidenceNumber, evidenceText } from '@/lib/warRoomEvidence';
-import { readOrcaReaderEvidence } from '@/lib/orcaReaderEvidence';
+import { ORCA_POSITION_PROVIDERS, readOrcaReaderEvidence } from '@/lib/orcaReaderEvidence';
 import { RadioTower } from 'lucide-react';
 import { GlassPageHeader } from '@/shell/GlassPage';
 
@@ -70,14 +70,14 @@ export default function UnifiedOrcaCommandDashboard() {
   }, []);
   const evidence = readOrcaReaderEvidence(receipt?.payload, receipt?.ok === true);
   return <div className="mx-auto max-w-7xl space-y-4 p-4 md:p-6">
-    <GlassPageHeader icon={RadioTower} eyebrow="Trading observations" title="Orca Collector Observations"
-      description="Native position receipts retained by the existing Orca collector. Provider inventory snapshots are separate from fills, current market quotes and execution readiness." />
+    <GlassPageHeader icon={RadioTower} eyebrow="Trading observations" title="Orca Position Observations"
+      description="Sanitized position receipts already retained in the operator terminal state. Provider inventory snapshots are separate from fills, current market quotes and execution readiness." />
     <Card><CardContent className="pt-6 space-y-2">
-      <div className="flex flex-wrap items-center gap-2"><p className="font-medium">Collector transport</p><Badge variant="outline">{evidence.contractAvailable ? 'Receipt contract received' : 'Unavailable'}</Badge></div>
-      <p className="text-sm text-muted-foreground">{receipt?.error ?? (receipt?.ok && !evidence.contractAvailable ? 'Expected Orca reader schema unavailable' : receipt ? 'Successful HTTP read; individual original source clocks determine data availability.' : 'Awaiting the Orca reader.')}</p>
+      <div className="flex flex-wrap items-center gap-2"><p className="font-medium">Operator receipt transport</p><Badge variant="outline">{evidence.contractAvailable ? 'Receipt contract received' : 'Unavailable'}</Badge></div>
+      <p className="text-sm text-muted-foreground">{receipt?.error ?? (receipt?.ok && !evidence.contractAvailable ? 'Expected operator position schema unavailable' : receipt ? 'Successful HTTP read; individual original source clocks determine data availability.' : 'Awaiting the operator receipt.')}</p>
       <p className="break-words text-xs text-muted-foreground">Source: {SOURCE_URL}{receipt?.receivedAt ? ` · HTTP received ${new Date(receipt.receivedAt).toISOString()}` : ''}</p>
     </CardContent></Card>
-    <div className="grid gap-4 lg:grid-cols-2">{(['alpaca', 'kraken'] as const).map((provider) => {
+    <div className="grid gap-4 lg:grid-cols-2">{ORCA_POSITION_PROVIDERS.map((provider) => {
       const observation = evidence.positions[provider];
       return <Card key={provider}><CardHeader><CardTitle className="flex flex-wrap items-center gap-2 text-lg"><span className="capitalize">{provider} position inventory</span><Badge variant="outline">{observation.available ? 'Observed snapshot' : 'Unavailable'}</Badge></CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -101,12 +101,7 @@ export default function UnifiedOrcaCommandDashboard() {
       {UNAVAILABLE.map(([name, reason]) => <div key={name}><p className="font-medium">{name} · Unavailable</p><p className="text-sm text-muted-foreground">{reason}</p></div>)}
       <p className="text-sm text-muted-foreground">This page provides observations only. It does not activate or acknowledge trading commands.</p>
     </CardContent></Card>
-    <details className="rounded-lg border border-border bg-card p-4">
-      <summary className="cursor-pointer font-medium">Component import diagnostics</summary>
-      <p className="mt-3 text-sm text-muted-foreground">These booleans describe whether the reader imported a component. They do not prove that it is running, healthy or authorized to execute.</p>
-      {evidence.componentImports.length ? <ul className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">{evidence.componentImports.map(({ name, imported }) => <li key={name}>{name}: {imported ? 'Import available' : 'Import unavailable'}</li>)}</ul>
-        : <p className="mt-3 text-sm text-muted-foreground">Import diagnostics unavailable.</p>}
-    </details>
+    <p className="text-xs text-muted-foreground">This endpoint reads the operator's existing sanitized terminal-state receipts. It makes no provider request and carries no mutation authority.</p>
     <p className="text-sm text-muted-foreground"><Link className="text-primary underline" to="/trading/war-room">Open the Trading War Room</Link> for independent market quotes and governed runtime status.</p>
   </div>;
 }

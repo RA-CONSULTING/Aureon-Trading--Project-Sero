@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE } from '@/lib/tradingActionAvailability';
 
 export interface OMSStatus {
   queueDepth: number;
@@ -11,7 +12,7 @@ export interface OMSStatus {
     available: number;
     utilization: number;
     windowDurationMs: number;
-  };
+  } | null;
   metrics: {
     queue_depth: number;
     current_window_orders: number;
@@ -19,6 +20,9 @@ export interface OMSStatus {
     orders_executed_last_minute: number;
     orders_failed_last_minute: number;
   } | null;
+  readState: 'observed';
+  mutationActionsAvailable: false;
+  mutationUnavailableReason: string;
 }
 
 export interface QueuedOrder {
@@ -35,25 +39,7 @@ export interface QueuedOrder {
 export function useOMSQueue(sessionId: string | null) {
   const [status, setStatus] = useState<OMSStatus | null>(null);
   const [orders, setOrders] = useState<QueuedOrder[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-
-  const fetchStatus = useCallback(async () => {
-    if (!sessionId) return;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('oms-leaky-bucket', {
-        body: { action: 'status', sessionId },
-      });
-
-      if (error) throw error;
-      if (data.success) {
-        setStatus(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch OMS status:', error);
-    }
-  }, [sessionId]);
 
   const fetchOrders = useCallback(async () => {
     if (!sessionId) return;
@@ -68,10 +54,20 @@ export function useOMSQueue(sessionId: string | null) {
         .order('queued_at', { ascending: true });
 
       if (error) throw error;
-      setOrders((data || []).map(order => ({
+      const observedOrders = (data || []).map(order => ({
         ...order,
         side: order.side as 'BUY' | 'SELL',
-      })));
+      }));
+      setOrders(observedOrders);
+      setStatus({
+        queueDepth: observedOrders.filter(order => order.status === 'queued').length,
+        processing: observedOrders.filter(order => order.status === 'processing').length,
+        rateLimit: null,
+        metrics: null,
+        readState: 'observed',
+        mutationActionsAvailable: false,
+        mutationUnavailableReason: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
+      });
     } catch (error) {
       console.error('Failed to fetch orders:', error);
     }
@@ -91,112 +87,46 @@ export function useOMSQueue(sessionId: string | null) {
       lighthouseValue?: number;
     };
   }) => {
+    void orderParams;
     if (!sessionId) return null;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('oms-leaky-bucket', {
-        body: {
-          action: 'enqueue',
-          sessionId,
-          ...orderParams,
-        },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast({
-          title: 'Order Queued',
-          description: `Position ${data.position} in queue`,
-        });
-        await fetchOrders();
-        return data.orderId;
-      }
-    } catch (error) {
-      console.error('Failed to enqueue order:', error);
-      toast({
-        title: 'Failed to Queue Order',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    }
-
+    toast({
+      title: 'Order action unavailable',
+      description: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
+      variant: 'destructive',
+    });
     return null;
-  }, [sessionId, toast, fetchOrders]);
+  }, [sessionId, toast]);
 
   const processQueue = useCallback(async () => {
-    if (!sessionId || isProcessing) return;
-
-    setIsProcessing(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('oms-leaky-bucket', {
-        body: { action: 'process' },
-      });
-
-      if (error) throw error;
-
-      if (data.success && data.processed > 0) {
-        console.log(`✅ Processed ${data.processed} orders`);
-        await Promise.all([fetchStatus(), fetchOrders()]);
-      }
-    } catch (error) {
-      console.error('Failed to process queue:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [sessionId, isProcessing, fetchStatus, fetchOrders]);
+    if (!sessionId) return;
+    toast({
+      title: 'Queue processing unavailable',
+      description: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
+      variant: 'destructive',
+    });
+  }, [sessionId, toast]);
 
   const cancelOrder = useCallback(async (orderId: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('oms-leaky-bucket', {
-        body: { action: 'cancel', orderId },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast({
-          title: 'Order Cancelled',
-          description: 'Order removed from queue',
-        });
-        await fetchOrders();
-      }
-    } catch (error) {
-      console.error('Failed to cancel order:', error);
-      toast({
-        title: 'Failed to Cancel',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-    }
-  }, [toast, fetchOrders]);
+    void orderId;
+    toast({
+      title: 'Queue cancellation unavailable',
+      description: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
+      variant: 'destructive',
+    });
+  }, [toast]);
 
   // Auto-refresh status every 2 seconds
   useEffect(() => {
     if (!sessionId) return;
 
-    fetchStatus();
     fetchOrders();
 
     const interval = setInterval(() => {
-      fetchStatus();
       fetchOrders();
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [sessionId, fetchStatus, fetchOrders]);
-
-  // Auto-process queue every 100ms
-  useEffect(() => {
-    if (!sessionId) return;
-
-    const interval = setInterval(() => {
-      processQueue();
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [sessionId, processQueue]);
+  }, [sessionId, fetchOrders]);
 
   return {
     status,
@@ -204,6 +134,8 @@ export function useOMSQueue(sessionId: string | null) {
     enqueueOrder,
     processQueue,
     cancelOrder,
-    isProcessing,
+    isProcessing: false,
+    mutationActionsAvailable: false,
+    mutationUnavailableReason: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
   };
 }

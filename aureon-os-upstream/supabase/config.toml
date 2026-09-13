@@ -18,7 +18,7 @@ verify_jwt = true
 
 # AUREON AI Chat - public for unauthenticated access
 [functions.aureon-chat]
-verify_jwt = false
+verify_jwt = true
 
 # Quantum Telescope state ingestion
 [functions.ingest-telescope-state]
@@ -221,7 +221,7 @@ verify_jwt = false
 
 # AI Frequency Interpreter (public for ecosystem access)
 [functions.interpret-frequency]
-verify_jwt = false
+verify_jwt = true
 
 # 10-9-1 Prime Seal packet ingestion
 [functions.ingest-10-9-1-packet]
@@ -266,7 +266,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.ai-commentary]
-verify_jwt = false
+verify_jwt = true
 
 # Fetch open positions
 [functions.fetch-open-positions]
@@ -326,4 +326,92 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.nexus-database-api]
+verify_jwt = true
+
+# Retired production functions: fail-closed local source and gateway JWT.
+[functions.auris-compile]
+verify_jwt = true
+
+[functions.auth-service]
+verify_jwt = true
+
+[functions.automated-backup-system]
+verify_jwt = true
+
+[functions.data-export-api]
+verify_jwt = true
+
+[functions.database-api]
+verify_jwt = true
+
+[functions.fetch-binance-margin-data]
+verify_jwt = true
+
+[functions.golden-spark-ignition]
+verify_jwt = true
+
+[functions.harmonic-nexus-auth]
+verify_jwt = true
+
+[functions.harmonic-nexus-data-aggregator]
+verify_jwt = true
+
+[functions.harmonic-nexus-performance-monitor]
+verify_jwt = true
+
+[functions.live-data-aggregator]
+verify_jwt = true
+
+[functions.lumina-quantum-simulator]
+verify_jwt = true
+
+[functions.mathematical-validation]
+verify_jwt = true
+
+[functions.matter-weaver-validator]
+verify_jwt = true
+
+[functions.nexus-aura-validator]
+verify_jwt = true
+
+[functions.nexus-chronicle-recorder]
+verify_jwt = true
+
+[functions.nexus-data-aggregator]
+verify_jwt = true
+
+[functions.noaa-climate-proxy]
+verify_jwt = true
+
+[functions.quantum-bridge-processor]
+verify_jwt = true
+
+[functions.quantum-pattern-recognizer]
+verify_jwt = true
+
+[functions.rainbow-quantum-sync]
+verify_jwt = true
+
+[functions.real-time-data-aggregator]
+verify_jwt = true
+
+[functions.real-time-sensor-stream]
+verify_jwt = true
+
+[functions.seismic-correlation-engine]
+verify_jwt = true
+
+[functions.source-conduit-validator]
+verify_jwt = true
+
+[functions.source-reading]
+verify_jwt = true
+
+[functions.temporal-aura-validator]
+verify_jwt = true
+
+[functions.update-bot-credentials]
+verify_jwt = true
+
+[functions.verify]
 verify_jwt = true

@@ -48,7 +48,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
         email: signUpEmail,
         password: signUpPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/console`,
+          emailRedirectTo: `${window.location.origin}/start`,
         }
       });
 
@@ -119,10 +119,18 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           </div>
         </div>
         <CardTitle className="text-2xl font-bold">AUREON</CardTitle>
-        <CardDescription>Sign in to access your Aureon workspace</CardDescription>
+        <CardDescription>Sign in to open your private Aureon account workspace</CardDescription>
       </CardHeader>
-      
-      <CardContent>
+
+      <CardContent className="space-y-4">
+        <div data-testid="tenant-sign-in-boundary" className="rounded-lg border border-cyan-400/25 bg-cyan-400/[0.06] px-3 py-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Your account stays separate from the owner instance</p>
+          <p className="mt-1 leading-relaxed">
+            Signing in changes only this browser to your isolated workspace. It does not stop or
+            reconfigure the protected owner cloud runtime. Add and test your own keys after sign-in;
+            account execution remains held until the required human approvals are complete.
+          </p>
+        </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="signin">Sign In</TabsTrigger>

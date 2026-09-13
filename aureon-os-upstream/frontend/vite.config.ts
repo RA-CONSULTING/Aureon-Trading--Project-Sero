@@ -7,9 +7,14 @@ import {
   createLoopbackProxyRoute,
   operatorAuthorizationConfig,
 } from "./config/operatorProxySecurity";
+import { reviewedPublicAssetsPlugin } from "./config/reviewedPublicAssets";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, isPreview }) => ({
+  // Production output receives only the explicit tracked branding/watch
+  // allowlist below. Vite must never copy ignored local runtime JSON from
+  // frontend/public into an anonymously reachable Cloud Run asset.
+  publicDir: false,
   server: {
     host: "127.0.0.1",
     port: 5173,
@@ -21,11 +26,14 @@ export default defineConfig(({ mode, isPreview }) => ({
     proxy: {
       "^/api/orca-observations$": createLoopbackProxyRoute(
         "orca_observations",
-        "http://127.0.0.1:8888",
+        process.env.AUREON_OPERATOR_URL ?? process.env.VITE_OPERATOR_URL ?? "http://127.0.0.1:8080",
         {
-          rewrite: () => "/api/observations",
-          // Only this passive observation route is exposed. Orca control routes
-          // stay outside this exact-path proxy; the reader owns provider polling.
+          authorization: operatorAuthorizationConfig(
+            process.env.AUREON_UI_AUTH_MODE,
+            process.env.AUREON_OPERATOR_PROXY_BEARER,
+          ),
+          // The operator owns the sanitized passive projection. No Orca
+          // mutation route or standalone provider reader is started.
         },
       ),
       "/api/terminal-state": createLoopbackProxyRoute(
@@ -52,6 +60,7 @@ export default defineConfig(({ mode, isPreview }) => ({
     host: "127.0.0.1",
   },
   plugins: [
+    reviewedPublicAssetsPlugin(),
     createLoopbackIngressPlugin(Boolean(isPreview)),
     react(),
     mode === "development" && componentTagger(),

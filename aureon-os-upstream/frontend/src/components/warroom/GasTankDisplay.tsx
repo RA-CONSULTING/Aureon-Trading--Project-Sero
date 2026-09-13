@@ -1,29 +1,15 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useGasTank } from '@/hooks/useGasTank';
 import { gasTankMoney, gasTankReceiptIsCurrent } from '@/lib/gasTankDisplay';
-import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 interface GasTankDisplayProps {
   userId: string | null;
   onEmpty?: () => void;
 }
 
-export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
+export const GasTankDisplay = ({ userId }: GasTankDisplayProps) => {
   const gasTank = useGasTank(userId);
   const observed = gasTankReceiptIsCurrent(gasTank.receipt.observed, gasTank.receipt.receivedAt);
-  const [showTopUpModal, setShowTopUpModal] = useState(false);
-  const [topUpAmount, setTopUpAmount] = useState('100');
-  const [isTopping, setIsTopping] = useState(false);
 
   // Calculate percentage for fuel gauge
   const percentage = gasTank.initialBalance > 0 
@@ -46,22 +32,6 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
     return '';
   };
 
-  const handleTopUp = async () => {
-    const amount = parseFloat(topUpAmount);
-    if (isNaN(amount) || amount < 10 || amount > 10000) {
-      return;
-    }
-
-    setIsTopping(true);
-    const result = await gasTank.topUp(amount, gasTank.membershipType);
-    setIsTopping(false);
-
-    if (result.success) {
-      setShowTopUpModal(false);
-      setTopUpAmount('100');
-    }
-  };
-
   if (gasTank.isLoading) {
     return (
       <Card className="bg-card/50 backdrop-blur border-primary/20">
@@ -75,7 +45,6 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
   }
 
   return (
-    <>
       <Card className={`bg-card/50 backdrop-blur border-primary/20 relative ${
         gasTank.status === 'LOW' || gasTank.status === 'CRITICAL' ? 'animate-pulse' : ''
       }`}>
@@ -139,14 +108,9 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
               <p className="text-xs text-muted-foreground">{gasTank.receipt.reason}</p>
             )}
 
-            {/* Top Up Button */}
-            <Button
-              onClick={() => setShowTopUpModal(true)}
-              className="w-full bg-gradient-to-r from-primary to-primary/80"
-              size="sm"
-            >
-               Top Up
-            </Button>
+            <p className="rounded border border-warning/30 bg-warning/5 p-2 text-xs text-muted-foreground">
+              Provider-verified top-ups are not commissioned in this build. This panel is a read-only account-ledger observation.
+            </p>
 
             {/* Empty Overlay */}
             {observed && gasTank.status === 'EMPTY' && (
@@ -154,82 +118,12 @@ export const GasTankDisplay = ({ userId, onEmpty }: GasTankDisplayProps) => {
                 <div className="text-center p-4">
                   <p className="text-2xl mb-2"></p>
                   <p className="font-bold text-destructive mb-2">GAS TANK EMPTY</p>
-                  <p className="text-xs text-muted-foreground mb-3">Trading Paused</p>
-                  <Button
-                    onClick={() => setShowTopUpModal(true)}
-                    variant="destructive"
-                    size="sm"
-                  >
-                    Top Up Now
-                  </Button>
+                  <p className="text-xs text-muted-foreground mb-3">Trading paused. Provider-verified funding is unavailable.</p>
                 </div>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
-
-      {/* Top-Up Modal */}
-      <Dialog open={showTopUpModal} onOpenChange={setShowTopUpModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle> Top Up Gas Tank</DialogTitle>
-            <DialogDescription>
-              Add credits to your gas tank to continue trading
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="amount">Amount (£)</Label>
-              <Input
-                id="amount"
-                type="number"
-                min="10"
-                max="10000"
-                step="10"
-                value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value)}
-                placeholder="100"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Min: £10 | Max: £10,000
-              </p>
-            </div>
-
-            <div className="bg-muted/30 p-3 rounded-lg space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Membership Type:</span>
-                <span className="font-bold">{observed ? gasTank.membershipType.toUpperCase() : 'Unavailable'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Performance Fee:</span>
-                <span className="font-bold">{observed ? `${(gasTank.feeRate * 100).toFixed(0)}%` : 'Unavailable'}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Fees are only charged on NEW profits above your high-water mark
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setShowTopUpModal(false)}
-                variant="outline"
-                className="flex-1"
-                disabled={isTopping}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleTopUp}
-                className="flex-1 bg-gradient-to-r from-primary to-primary/80"
-                disabled={isTopping}
-              >
-                {isTopping ? 'Processing...' : 'Top Up'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 };

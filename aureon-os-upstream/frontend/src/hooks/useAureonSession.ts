@@ -282,24 +282,8 @@ export function useAureonSession(userId: string | null) {
           });
         }
 
-        // Update database
-        await supabase
-          .from('aureon_user_sessions')
-          .update({
-            current_coherence: newQuantumState.coherence,
-            current_lambda: newQuantumState.lambda,
-            current_lighthouse_signal: newQuantumState.lighthouseSignal,
-            dominant_node: newQuantumState.dominantNode,
-            prism_level: newQuantumState.prismLevel,
-            prism_state: newQuantumState.prismState,
-            last_quantum_update_at: marketData.sourceTimestamp,
-            measurement_truth_status: 'real_derived',
-            measurement_source_id: marketData.sourceId,
-            measurement_source_timestamp: marketData.sourceTimestamp,
-            measurement_collected_at: new Date().toISOString(),
-            measurement_generated_values: false,
-          })
-          .eq('user_id', userId);
+        // Browser calculations remain local. Only governed server ingestion
+        // may write shared session telemetry.
       }
 
       // A decision is not a trade. Counts, P&L, quantities, and success remain
@@ -383,10 +367,8 @@ export function useAureonSession(userId: string | null) {
 
     const loadSession = async () => {
       const { data, error } = await supabase
-        .from('aureon_user_sessions')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+        .rpc('get_aureon_user_session_status')
+        .maybeSingle();
 
       if (error && error.code === 'PGRST116') {
         console.info('[Aureon] No session exists; provider setup is required');
@@ -410,44 +392,23 @@ export function useAureonSession(userId: string | null) {
         }
         
         setTradingState({
-          isActive: data.is_trading_active === true,
-          totalEquity: data.total_equity_usd == null ? null : Number(data.total_equity_usd),
+          isActive: false,
+          totalEquity: (data.total_equity_usd ?? data.total_equity_usdt) == null
+            ? null
+            : Number(data.total_equity_usd ?? data.total_equity_usdt),
           availableBalance: data.available_balance_usdt == null ? null : Number(data.available_balance_usdt),
           totalTrades: data.total_trades ?? null,
           winningTrades: data.winning_trades ?? null,
           totalPnl: data.total_pnl_usdt == null ? null : Number(data.total_pnl_usdt),
           gasTankBalance: data.gas_tank_balance == null ? null : Number(data.gas_tank_balance),
-          recentTrades: Array.isArray(data.recent_trades) ? data.recent_trades as any[] : [],
+          recentTrades: [],
         });
       }
     };
 
     loadSession();
 
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel(`aureon_session_${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'aureon_user_sessions',
-          filter: `user_id=eq.${userId}`
-        },
-        (payload) => {
-          const data = payload.new as any;
-          if (!['live', 'real_derived'].includes(String(data.measurement_truth_status))) return;
-          setTradingState(prev => ({
-            ...prev,
-            totalEquity: data.total_equity_usd == null ? prev.totalEquity : Number(data.total_equity_usd),
-          }));
-        }
-      )
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
       stopTrading();
     };
   }, [userId]);

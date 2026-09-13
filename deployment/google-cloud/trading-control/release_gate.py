@@ -6,7 +6,12 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
 from cloud_state import CloudStateError, FirestoreControlState
-from contract import canonical_bytes, digest
+from contract import (
+    build_readiness_release_binding,
+    canonical_bytes,
+    digest,
+    periodic_readiness_probe,
+)
 
 
 RELEASE_SCHEMA = "aureon.cloud-trade-release-state.v1"
@@ -80,7 +85,13 @@ class ReleaseGate:
             raise ReleaseGateError("release_expected_revision_invalid")
         self.store = self.store or FirestoreControlState()
 
-    def is_active(self, intent: Mapping[str, Any], *, now_ms: int) -> bool:
+    def active_state(self, intent: Mapping[str, Any], *, now_ms: int) -> dict[str, Any] | None:
+        """Return the verified state only when it authorizes this exact message.
+
+        A periodic readiness probe additionally carries a non-authoritative
+        binding to the current generation.  A held, replaced, or re-signed
+        release therefore invalidates the refresh without touching its lease.
+        """
         authorization = intent.get("authorization") if isinstance(intent, Mapping) else None
         if not isinstance(authorization, Mapping):
             raise ReleaseGateError("release_intent_authorization_invalid")
@@ -94,16 +105,30 @@ class ReleaseGate:
             raw, controller_key_version=self.controller_key_version, verifier=self.verifier,
         )
         if row["state"] != "active":
-            return False
-        return bool(
+            return None
+        active = bool(
             row["requested_controls_sha256"] == digest(LIVE_CONTROLS)
             and row["source_revision"] == self.expected_revision
+            and intent.get("source_revision") == self.expected_revision
             and row["authorization_event_sha256"] == authorization.get("event_sha256")
             and row["authorization_expires_at_ms"] == authorization.get("expires_at_ms")
             and row["authorization_expires_at_ms"] >= int(intent.get("expires_at_ms") or 0)
             and row["signed_at_ms"] <= now_ms + 5_000
             and row["authorization_expires_at_ms"] > now_ms
         )
+        if not active:
+            return None
+        if periodic_readiness_probe(intent):
+            try:
+                expected_binding = build_readiness_release_binding(row)
+            except Exception as exc:
+                raise ReleaseGateError("readiness_release_binding_invalid") from exc
+            if authorization.get("readiness_release") != expected_binding:
+                return None
+        return row
+
+    def is_active(self, intent: Mapping[str, Any], *, now_ms: int) -> bool:
+        return self.active_state(intent, now_ms=now_ms) is not None
 
 
 __all__ = ["LIVE_CONTROLS", "RELEASE_SCHEMA", "ReleaseGate", "ReleaseGateError", "validate_release_state"]

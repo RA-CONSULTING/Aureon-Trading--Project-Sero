@@ -98,7 +98,6 @@ except Exception:
 try:
     from aureon.trading.order_lifecycle import (
         append_event as append_order_lifecycle_event,
-        append_events as append_order_lifecycle_events,
         candidate_id_for,
         is_active_route as order_lifecycle_route_active,
         latest_for_ui as latest_order_lifecycle_state,
@@ -107,7 +106,6 @@ try:
     )
 except Exception:
     append_order_lifecycle_event = None  # type: ignore[assignment]
-    append_order_lifecycle_events = None  # type: ignore[assignment]
     candidate_id_for = None  # type: ignore[assignment]
     order_lifecycle_route_active = None  # type: ignore[assignment]
     latest_order_lifecycle_state = None  # type: ignore[assignment]
@@ -115,14 +113,22 @@ except Exception:
     route_key_for = None  # type: ignore[assignment]
 
 try:
+    from aureon.trading.order_lifecycle import append_events as append_order_lifecycle_events
+except Exception:
+    append_order_lifecycle_events = None  # type: ignore[assignment]
+
+try:
     from aureon.trading.live_trade_signal_fabric import (
         build_api_budget_proof,
         publish_trade_flow_event,
-        write_trade_flow_event_batch,
     )
 except Exception:
     build_api_budget_proof = None  # type: ignore[assignment]
     publish_trade_flow_event = None  # type: ignore[assignment]
+
+try:
+    from aureon.trading.live_trade_signal_fabric import write_trade_flow_event_batch
+except Exception:
     write_trade_flow_event_batch = None  # type: ignore[assignment]
 
 try:
@@ -4567,12 +4573,6 @@ class UnifiedMarketTrader:
                     },
                 )
                 symbol_state["support_count"] += 1
-                symbol_state["market_observations"].append({
-                    "source": str(item.get("source") or source_name),
-                    "feed": source_name,
-                    "source_timestamp": item["source_timestamp"],
-                    "max_age_sec": self._source_market_max_age(source_name),
-                })
                 symbol_state["confidence_sum"] += confidence
                 if side == "SELL":
                     symbol_state["sell_confidence"] += confidence
@@ -4590,6 +4590,17 @@ class UnifiedMarketTrader:
                     symbol_state["price_sum"] += price
                     symbol_state["price_count"] += 1
                     symbol_state["source_prices"][source_name] = price
+                    symbol_state["market_observations"].append({
+                        "source": str(item.get("source") or source_name),
+                        "feed": source_name,
+                        "symbol": normalized,
+                        "provider_symbol": str(
+                            item.get("raw_symbol") or item.get("symbol") or normalized
+                        ).upper().strip(),
+                        "price": price,
+                        "source_timestamp": item["source_timestamp"],
+                        "max_age_sec": self._source_market_max_age(source_name),
+                    })
                 try:
                     change_pct = float(item.get("change_pct", 0.0) or 0.0)
                     symbol_state["change_pct_sum"] += change_pct
@@ -11719,6 +11730,11 @@ class UnifiedMarketTrader:
                     "market_observations": [{
                         "feed": source_name,
                         "source": str(row.get("source") or source_name),
+                        "symbol": self._normalize_symbol(symbol),
+                        "provider_symbol": str(
+                            row.get("raw_symbol") or row.get("symbol") or symbol
+                        ).upper().strip(),
+                        "price": price,
                         "source_timestamp": source_timestamp,
                         "max_age_sec": self._source_market_max_age(source_name),
                     }],

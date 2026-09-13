@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import React, { useEffect, useState, type ReactNode } from 'react';
 import { reportBoundaryEvidence } from '@/lib/recordedReportEvidence';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 

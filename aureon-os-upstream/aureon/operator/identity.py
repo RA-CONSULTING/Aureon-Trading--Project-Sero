@@ -7,16 +7,18 @@ schemes the operator supports:
 
   * **admin / operator** — a single static instance key (``AUREON_OPERATOR_API_KEY``), checked in
     constant time. This is the control plane; it manages the instance's own defaults and global state.
-  * **tenant / end user** — a Supabase access token verified by the project's Auth server (current
-    signing keys, including asymmetric keys) or by the legacy HS256 verifier. The verified user id
-    becomes the tenant id, and every per-user store is namespaced by it.
+  * **owner** — a Supabase access token freshly verified by the project's Auth server and matched to
+    administrator-controlled app metadata plus an immutable subject/email commitment.
+  * **tenant / end user** — any other Supabase access token verified by the project's Auth server
+    (current signing keys, including asymmetric keys) or by the legacy HS256 verifier. The verified
+    user id becomes the tenant id, and every per-user store is namespaced by it.
   * **open** — neither secret configured: auth is disabled (dev / offline / single-operator default),
     exactly as before this module existed.
 
 ``resolve_identity`` is pure (no Flask, no env reads inside): the caller passes the ``Authorization``
 header and the two secrets it computed once at app start, and gets back an :class:`Identity`. The
-**zero-regression invariant** is structural — when ``jwt_secret`` is empty the tenant branch is never
-reached, so the resolver behaves exactly like the old ``check_bearer`` static-key gate.
+**zero-regression invariant** is structural — when neither tenant verifier is configured the tenant
+branch is never reached, so the resolver behaves exactly like the old ``check_bearer`` static-key gate.
 
 The Supabase JWT verifier (``verify_supabase_jwt``) lives here too so both the operator gate and the
 SaaS gateway share one stdlib HS256 implementation (no new dependency).
@@ -35,6 +37,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Callable, Dict, Mapping
 from urllib.parse import urlsplit
 
@@ -55,6 +58,88 @@ _CLOCK_SKEW_S = 60.0
 _API_KEY_ROLES = frozenset({"anon", "service_role"})
 
 _MAX_SUPABASE_USER_RESPONSE = 64 * 1024
+_SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+
+def _confirmed_timestamp(value: Any) -> bool:
+    """Accept only one bounded, timezone-aware provider confirmation time."""
+
+    if not isinstance(value, str) or not 1 <= len(value) <= 64:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def owner_email_commitment(email: str) -> str:
+    """Return the commissioning-safe commitment for one verified owner email."""
+
+    normalized = str(email or "").strip().casefold()
+    return hashlib.sha256(
+        b"aureon-supabase-owner-email-v1\x00" + normalized.encode("utf-8", errors="strict")
+    ).hexdigest()
+
+
+def owner_identity_commitment(subject: str) -> str:
+    """Return the public, non-reversible binding used in owner intent receipts."""
+
+    return hashlib.sha256(
+        b"aureon-supabase-owner-identity-v1\x00"
+        + str(subject or "").encode("utf-8", errors="strict")
+    ).hexdigest()
+
+
+@dataclass(frozen=True)
+class SupabaseOwnerPolicy:
+    """Immutable commissioning record for the one Supabase owner identity.
+
+    ``app_metadata`` is controlled by the Auth administrator.  The subject and
+    confirmed-email commitment make an accidental or malicious role assignment
+    insufficient on its own.  No plaintext email is stored in configuration.
+    """
+
+    subject: str
+    email_sha256: str
+    app_metadata_role: str = "owner"
+
+    def __post_init__(self) -> None:
+        try:
+            parsed = uuid.UUID(self.subject)
+        except (ValueError, TypeError, AttributeError) as exc:
+            raise ValueError("supabase_owner_subject_invalid") from exc
+        if str(parsed) != self.subject.lower():
+            raise ValueError("supabase_owner_subject_invalid")
+        if not _SHA256_HEX.fullmatch(self.email_sha256):
+            raise ValueError("supabase_owner_email_commitment_invalid")
+        if self.app_metadata_role != "owner":
+            raise ValueError("supabase_owner_role_invalid")
+
+    @classmethod
+    def from_env(cls, environ: Mapping[str, str]) -> SupabaseOwnerPolicy | None:
+        subject = str(environ.get("AUREON_SUPABASE_OWNER_SUBJECT") or "").strip().lower()
+        email_sha256 = str(
+            environ.get("AUREON_SUPABASE_OWNER_EMAIL_SHA256") or ""
+        ).strip().lower()
+        if not subject and not email_sha256:
+            return None
+        if not subject or not email_sha256:
+            raise ValueError("supabase_owner_identity_config_incomplete")
+        return cls(subject=subject, email_sha256=email_sha256)
+
+    def matches(self, claims: Mapping[str, Any]) -> bool:
+        metadata = claims.get("app_metadata")
+        email = claims.get("email")
+        return bool(
+            claims.get("auth_source") == "supabase_auth_server"
+            and claims.get("email_confirmed") is True
+            and isinstance(metadata, Mapping)
+            and metadata.get("aureon_role") == self.app_metadata_role
+            and claims.get("sub") == self.subject
+            and isinstance(email, str)
+            and hmac.compare_digest(owner_email_commitment(email), self.email_sha256)
+        )
 
 
 def _fetch_supabase_user(
@@ -148,10 +233,29 @@ class SupabaseAuthVerifier:
             if parsed_id is None or str(parsed_id) != user_id.lower():
                 return None
             email = payload.get("email")
+            raw_app_metadata = payload.get("app_metadata")
+            aureon_role = (
+                raw_app_metadata.get("aureon_role")
+                if isinstance(raw_app_metadata, dict)
+                else None
+            )
+            if not isinstance(aureon_role, str) or not re.fullmatch(
+                r"[a-z][a-z0-9_-]{0,31}", aureon_role
+            ):
+                aureon_role = None
             return {
                 "sub": str(parsed_id),
                 "role": "authenticated",
                 "email": email if isinstance(email, str) else None,
+                # Deliberately copy only the administrator-controlled role used
+                # by this service. Never return or inspect user_metadata.
+                "app_metadata": (
+                    {"aureon_role": aureon_role} if aureon_role is not None else {}
+                ),
+                "email_confirmed": _confirmed_timestamp(
+                    payload.get("email_confirmed_at")
+                ),
+                "auth_source": "supabase_auth_server",
             }
         except (UnicodeError, ValueError, TypeError, json.JSONDecodeError):
             return None
@@ -198,14 +302,49 @@ def verify_supabase_jwt(token: str, secret: str) -> Dict[str, Any] | None:
 
 @dataclass(frozen=True)
 class Identity:
-    """Who a request is. ``tenant`` is set only for an end-user JWT (its ``sub``)."""
+    """Who a request is. ``tenant`` carries the verified Supabase ``sub`` when present."""
 
-    kind: str            # "admin" | "tenant" | "open"
-    tenant: str | None    # JWT sub for tenants, else None
+    kind: str            # "admin" | "owner" | "tenant" | "open"
+    tenant: str | None    # Verified Supabase sub for owner/tenant identities, else None
     ok: bool             # False ⇒ the gate should 401
+    auth_source: str = "none"
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"kind": self.kind, "tenant": self.tenant, "ok": self.ok}
+        return {
+            "kind": self.kind,
+            "tenant": self.tenant,
+            "ok": self.ok,
+            "auth_source": self.auth_source,
+        }
+
+
+def build_runtime_context(*, is_admin: bool) -> Dict[str, Any]:
+    """Return the non-secret runtime scope implied by an authenticated identity.
+
+    Identity establishes which control plane a request may enter.  It does not
+    establish that an exchange release is active, so the owner response keeps
+    ``order_submission_enabled`` unknown while every tenant account is
+    explicitly held.
+    """
+    if is_admin:
+        return {
+            "workspace_scope": "owner_instance",
+            "credential_scope": "instance",
+            "execution_state": "governed",
+            "owner_runtime_read": True,
+            "owner_runtime_control": True,
+            "owner_runtime_session_effect": "not_applicable",
+            "order_submission_enabled": None,
+        }
+    return {
+        "workspace_scope": "tenant_account",
+        "credential_scope": "account",
+        "execution_state": "held",
+        "owner_runtime_read": False,
+        "owner_runtime_control": False,
+        "owner_runtime_session_effect": "none",
+        "order_submission_enabled": False,
+    }
 
 
 def _bearer_token(auth_header: str | None) -> str | None:
@@ -221,14 +360,16 @@ def resolve_identity(
     operator_key: str,
     jwt_secret: str,
     tenant_verifier: Callable[[str], Mapping[str, Any] | None] | None = None,
+    owner_policy: SupabaseOwnerPolicy | None = None,
 ) -> Identity:
     """Resolve a request to an :class:`Identity`. Pure — pass the secrets, get the answer.
 
     Order (must not regress the old static-key gate):
       1. no auth mechanism configured  → open (auth disabled; unchanged single-operator behavior).
       2. static key matches            → admin (the instance control plane).
-      3. else a verified Supabase user → tenant(``sub``).
-      4. else                          → not ok (the gate returns 401).
+      3. verified Supabase user matching the immutable owner policy → owner(``sub``).
+      4. else a verified Supabase user → tenant(``sub``).
+      5. else                          → not ok (the gate returns 401).
     """
     # A key that is only whitespace is not a key — treat it as unset, or a stray space in the env
     # would flip an open instance into permanently-locked-out (nothing could ever match it).
@@ -237,7 +378,7 @@ def resolve_identity(
 
     # 1 — nothing configured: auth disabled, exactly as before.
     if not operator_key and not jwt_secret and tenant_verifier is None:
-        return Identity(kind="open", tenant=None, ok=True)
+        return Identity(kind="open", tenant=None, ok=True, auth_source="open")
 
     token = _bearer_token(auth_header)
     if not token:
@@ -247,17 +388,42 @@ def resolve_identity(
     # non-ASCII str input, so compare bytes — a unicode Authorization header must be a clean 401,
     # never an unhandled 500.
     if operator_key and hmac.compare_digest(token.encode("utf-8"), operator_key.encode("utf-8")):
-        return Identity(kind="admin", tenant=None, ok=True)
+        return Identity(kind="admin", tenant=None, ok=True, auth_source="operator_bearer")
 
-    # 3 — a Supabase JWT: the end-user / tenant plane. Unreachable when jwt_secret is empty.
+    # 3 — a Supabase user bearer: owner or tenant plane. Unreachable when both verifiers are absent.
     if tenant_verifier is not None or jwt_secret:
         try:
-            claims = tenant_verifier(token) if tenant_verifier is not None else verify_supabase_jwt(token, jwt_secret)
+            claims = (
+                tenant_verifier(token)
+                if tenant_verifier is not None
+                else verify_supabase_jwt(token, jwt_secret)
+            )
         except Exception:  # noqa: BLE001 — identity-provider failure is a clean denial
             claims = None
-        sub = claims.get("sub") if isinstance(claims, dict) else None
+        sub = claims.get("sub") if isinstance(claims, Mapping) else None
         if isinstance(sub, str) and sub:
-            return Identity(kind="tenant", tenant=sub, ok=True)
+            # Owner elevation is available only after a fresh Auth-server
+            # verification. Legacy locally verified HS256 claims, including a
+            # forged/user-controlled role field, always remain tenant scoped.
+            if (
+                tenant_verifier is not None
+                and owner_policy is not None
+                and owner_policy.matches(claims)
+            ):
+                return Identity(
+                    kind="owner",
+                    tenant=sub,
+                    ok=True,
+                    auth_source="supabase_auth_server",
+                )
+            return Identity(
+                kind="tenant",
+                tenant=sub,
+                ok=True,
+                auth_source=(
+                    "supabase_auth_server" if tenant_verifier is not None else "legacy_hs256"
+                ),
+            )
 
     # 4 — a token was presented but matched nothing valid.
     return Identity(kind="open", tenant=None, ok=False)
@@ -266,6 +432,10 @@ def resolve_identity(
 __all__ = [
     "Identity",
     "SupabaseAuthVerifier",
+    "SupabaseOwnerPolicy",
+    "build_runtime_context",
+    "owner_email_commitment",
+    "owner_identity_commitment",
     "resolve_identity",
     "verify_supabase_jwt",
     "_b64url_decode",

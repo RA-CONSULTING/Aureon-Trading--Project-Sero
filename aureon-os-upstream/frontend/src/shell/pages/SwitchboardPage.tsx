@@ -102,7 +102,7 @@ export function SwitchboardConfigurationCards({ configuration, canManage, saving
   </div>;
 }
 
-function ReleaseHandoffPanel({ receipt }: { receipt: ReleaseReadinessReceipt }) {
+export function LegacyReleaseDiagnosticPanel({ receipt }: { receipt: ReleaseReadinessReceipt }) {
   const release = releaseReadinessView(receipt);
   const data = receipt.data;
   const blockers = data?.requirements.filter(row => row.state !== 'integrated') ?? [];
@@ -112,11 +112,12 @@ function ReleaseHandoffPanel({ receipt }: { receipt: ReleaseReadinessReceipt }) 
       <div className="flex min-w-0 items-start gap-3">
         <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Live release gate</p>
-          <p className="mt-1 text-[12px] text-zinc-300">{release.message}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Legacy local release checklist · diagnostic only</p>
+          <p className="mt-1 text-[12px] text-zinc-300">This historical implementation checklist does not decide cloud trading authority. The signed cloud controller panel is the operative release status.</p>
+          <p className="mt-1 text-[10px] text-zinc-500">Local checklist readback: {release.message}</p>
         </div>
       </div>
-      <StatusBadge active={release.state === 'held'}>{release.state}</StatusBadge>
+      <StatusBadge>local diagnostic</StatusBadge>
     </div>
     {data && <div className="mt-3 grid gap-3 md:grid-cols-[0.8fr_1.2fr]">
       <div className="rounded border border-zinc-800 p-3">
@@ -125,7 +126,7 @@ function ReleaseHandoffPanel({ receipt }: { receipt: ReleaseReadinessReceipt }) 
           <CheckCircle2 className="h-3 w-3" style={{ color: CYAN }} />
           Intent can be recorded
         </p>
-        <p className="mt-1 text-[11px] text-zinc-500">Execution release: blocked until production evidence passes.</p>
+        <p className="mt-1 text-[11px] text-zinc-500">Cloud authority is read separately from the signed controller panel above.</p>
         <p className="mt-2 text-[10px] text-zinc-500">Receipt: {release.receivedAt === null ? 'unavailable' : new Date(release.receivedAt).toISOString()}</p>
       </div>
       <div className="rounded border border-zinc-800 p-3">
@@ -225,7 +226,7 @@ function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
   return <><GlassPanel className="px-4 py-3" data-cloud-trading-control={active ? 'active' : canApply ? 'ready' : 'held'}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-3"><Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: active || canApply ? CYAN : GOLD }} />
-        <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Cloud trading authority</p>
+        <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Signed cloud trading authority · operative status</p>
           <p className="mt-1 text-[12px] text-zinc-300">{!control ? 'Verified cloud control evidence is unavailable.'
             : active ? `Controller-signed live release is active through ${new Date(control.controller_release!.authorization_expires_at_ms).toISOString()}.`
               : canApply ? 'Every prerequisite has passed. The human operator can activate cloud live trading.'
@@ -316,9 +317,9 @@ export default function SwitchboardPage() {
     } catch (error) {
       if (alive.current) {
         const message = error instanceof Error ? error.message : 'Configuration request failed';
-        const releaseBlocked = flag.kind === 'hard_boundary' && /hnc_ingress_quarantined|production_magic_star_release_unavailable/.test(message);
-        toast.error(releaseBlocked ? `Release still held for ${flag.label}` : `Could not confirm ${flag.label}`, {
-          description: releaseBlocked ? releaseReadinessView(releaseReceipt).message : message,
+        const localBoundaryBlocked = flag.kind === 'hard_boundary' && /hnc_ingress_quarantined|production_magic_star_release_unavailable/.test(message);
+        toast.error(localBoundaryBlocked ? `Local direct-runtime boundary held for ${flag.label}` : `Could not confirm ${flag.label}`, {
+          description: localBoundaryBlocked ? `${releaseReadinessView(releaseReceipt).message} This local diagnostic does not override the signed cloud controller release.` : message,
         });
       }
     } finally {
@@ -360,9 +361,9 @@ export default function SwitchboardPage() {
         </button>
       </div>
     </div>
-    <ReleaseHandoffPanel receipt={releaseReceipt} />
     <AuthorizationLeasePanel canManage={canManage} />
     <CloudTradingControlPanel canManage={canManage} />
+    <LegacyReleaseDiagnosticPanel receipt={releaseReceipt} />
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

@@ -3166,12 +3166,9 @@ class KrakenMarginArmyTrader:
         self.start_time = time.time()
         self.starting_equity = 0.0
         self.dashboard_user_id = DASHBOARD_LIVE_FEED_USER_ID
-        self.dashboard_sync_url = os.getenv("SUPABASE_URL", "").rstrip("/")
-        self.dashboard_sync_key = (
-            os.getenv("SUPABASE_ANON_KEY", "")
-            or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-        )
-        self.dashboard_sync_enabled = bool(self.dashboard_sync_url and self.dashboard_sync_key)
+        # Shared dashboard persistence is owned by the identity-bound operator
+        # runtime. This process keeps its latest payload locally for observation.
+        self.dashboard_sync_enabled = False
         self._last_dashboard_push = 0.0
         self._peak_equity_seen = 0.0
         self._max_drawdown_seen = 0.0
@@ -5758,7 +5755,7 @@ class KrakenMarginArmyTrader:
         return recent
 
     def _push_dashboard_state(self, force: bool = False) -> None:
-        """Push live terminal state into the dashboard ingest endpoint."""
+        """Refresh the locally observed dashboard payload."""
         now = time.time()
         if not force and (now - self._last_dashboard_push) < DASHBOARD_SYNC_INTERVAL_SEC:
             return
@@ -5849,20 +5846,7 @@ class KrakenMarginArmyTrader:
             }
             self._latest_dashboard_payload = dict(payload)
             self._last_dashboard_push = now
-            if not self.dashboard_sync_enabled:
-                return
-            req = urllib.request.Request(
-                f"{self.dashboard_sync_url}/functions/v1/ingest-terminal-state",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "apikey": self.dashboard_sync_key,
-                    "Authorization": f"Bearer {self.dashboard_sync_key}",
-                },
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=8):
-                pass
+            return
         except Exception as e:
             logger.debug(f"Dashboard sync skipped: {e}")
 

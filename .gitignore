@@ -14,7 +14,15 @@ __pycache__/
 *.pyc
 .venv/
 node_modules/
+thoughts.jsonl
+aureon-os-upstream/supabase/.temp/
+/supabase/.temp/
 
 # The complete original workspace, including these local-only files,
 # is retained in the authenticated encrypted full-workspace-backup archive.
 full-workspace-backup/workspace.aes.part*
+# Generated cloud commissioning evidence must be written outside the repository.
+deployment/google-cloud/**/*receipt*.json
+deployment/google-cloud/**/*readback*.json
+deployment/google-cloud/**/*progress*.json
+deployment/google-cloud/**/*plan*.json

@@ -77,9 +77,9 @@ export default function BillingPage() {
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       <GlassPageHeader icon={CreditCard} eyebrow="Account ledger" title="Billing & Support"
         description={<>
-          Aureon runs free. The gas tank is a prepaid wallet charged only as a
-          performance fee on profit above your high-water mark; usage metering is
-          record-only. The platform never initiates payments.
+          Aureon runs free. The gas tank shows an account-ledger row when one exists;
+          usage metering is record-only. Provider-verified top-ups are not commissioned,
+          and this interface never initiates payments.
         </>} />
 
       <div className="grid gap-4 md:grid-cols-2">

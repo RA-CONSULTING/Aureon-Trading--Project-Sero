@@ -242,6 +242,15 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         self.assertIn("BTCUSD", beat["symbols"])
         self.assertEqual(beat["symbols"]["BTCUSD"]["side"], "BUY")
         self.assertGreaterEqual(beat["symbols"]["BTCUSD"]["support_count"], 2)
+        observations = beat["symbols"]["BTCUSD"]["market_observations"]
+        self.assertEqual({row["feed"] for row in observations}, {"alpaca", "binance"})
+        self.assertTrue(all(row["symbol"] == "BTCUSD" for row in observations))
+        self.assertEqual({row["provider_symbol"] for row in observations}, {"BTCUSD"})
+        self.assertTrue(all(row["price"] == 50000.0 for row in observations))
+        self.assertEqual(
+            {row["feed"]: row["price"] for row in observations},
+            beat["symbols"]["BTCUSD"]["source_prices"],
+        )
         self.assertTrue(beat["model_signal_feed"]["used"])
         self.assertIn("model_signal", beat["symbols"]["BTCUSD"])
 

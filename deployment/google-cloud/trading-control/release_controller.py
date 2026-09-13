@@ -138,7 +138,9 @@ def process_release_request(value: Mapping[str, Any], *, now_ms: int,
         if (probe["receipt_sha256"] != row["probe_receipt_sha256"]
                 or probe["provider_readback_sha256"] != row["provider_readback_sha256"]
                 or probe["authorization_event_sha256"] != row["authorization_event_sha256"]
-                or probe["authorization_expires_at_ms"] != row["authorization_expires_at_ms"]):
+                or probe["authorization_expires_at_ms"] != row["authorization_expires_at_ms"]
+                or probe["source_revision"] != row["source_revision"]
+                or probe["source_revision"] != config.revision):
             raise ContractError("release_probe_evidence_mismatch")
     fields = _release_fields(
         row, generation=generation, now_ms=now_ms,

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Zap, AlertTriangle } from 'lucide-react';
 import { useQGITAConfig } from '@/hooks/useQGITAConfig';
+import { GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE } from '@/lib/tradingActionAvailability';
 
 interface QGITAAutoTradingControlProps {
   isEnabled: boolean;
@@ -18,6 +19,9 @@ export function QGITAAutoTradingControl({
   isExecuting,
 }: QGITAAutoTradingControlProps) {
   const { config } = useQGITAConfig();
+  void isEnabled;
+  void onToggle;
+  void isExecuting;
 
   return (
     <Card className="border-primary/20">
@@ -27,14 +31,10 @@ export function QGITAAutoTradingControl({
             <Zap className="h-5 w-5 text-primary" />
             <CardTitle>QGITA Auto-Trading</CardTitle>
           </div>
-          {isExecuting && (
-            <Badge variant="outline" className="animate-pulse">
-              Executing...
-            </Badge>
-          )}
+          <Badge variant="outline">ANALYSIS ONLY</Badge>
         </div>
         <CardDescription>
-          Automatically execute trades on Tier 1 & 2 signals
+          Observe Tier 1 and Tier 2 signals without submitting orders
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -44,19 +44,15 @@ export function QGITAAutoTradingControl({
           </Label>
           <Switch
             id="qgita-auto-trading"
-            checked={isEnabled}
-            onCheckedChange={onToggle}
+            checked={false}
+            disabled
           />
         </div>
 
-        {isEnabled && (
-          <Alert variant="default" className="bg-primary/5 border-primary/20">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Auto-trading is <strong>ACTIVE</strong>. Trades will execute automatically when Tier 1 or Tier 2 QGITA signals are detected.
-            </AlertDescription>
-          </Alert>
-        )}
+        <Alert variant="default" className="bg-warning/5 border-warning/20">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>{GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE}</AlertDescription>
+        </Alert>
 
         <div className="space-y-2 pt-2 border-t">
           <div className="text-sm font-medium">Position Size Multipliers</div>

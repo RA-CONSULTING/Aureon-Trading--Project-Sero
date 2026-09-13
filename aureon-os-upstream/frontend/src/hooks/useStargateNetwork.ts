@@ -5,7 +5,6 @@ import {
   NetworkMetrics,
   StargateNodeObservation,
 } from '@/core/stargateLattice';
-import { usePrimelinesProtocol } from './usePrimelinesProtocol';
 
 const NO_STARGATE_OBSERVATIONS: StargateNodeObservation[] = [];
 
@@ -15,7 +14,6 @@ export function useStargateNetwork(
   const [activations, setActivations] = useState<StargateActivation[]>([]);
   const [metrics, setMetrics] = useState<NetworkMetrics | null>(null);
   const [isActive, setIsActive] = useState(false);
-  const { invokeProtocol } = usePrimelinesProtocol();
 
   const pingNetwork = useCallback(async () => {
     try {
@@ -38,36 +36,11 @@ export function useStargateNetwork(
         return;
       }
 
-      const frequencyLocks = newActivations
-        .filter(a => a.status === 'ACTIVE' && a.frequencyLock !== null)
-        .map(a => a.frequencyLock as number);
-      const avgFrequency = frequencyLocks.length > 0
-        ? frequencyLocks.reduce((sum, value) => sum + value, 0) / frequencyLocks.length
-        : null;
-      const phaseLocks = activeNodes * (activeNodes - 1) / 2;
-      const resonanceQuality = newMetrics.networkStrength * newMetrics.avgCoherence;
-
-      await invokeProtocol({
-        operation: 'SYNC_HARMONIC_NEXUS',
-        payload: {
-          stargateNetwork: {
-            activations: newActivations,
-            metrics: {
-              ...newMetrics,
-              avgFrequency,
-              phaseLocks,
-              resonanceQuality,
-            },
-            gridEnergy: stargateLayer.calculateGridEnergy(),
-          },
-        },
-        requireValidation: false,
-      });
     } catch (error) {
       setIsActive(false);
       console.error('Stargate network observation error:', error);
     }
-  }, [invokeProtocol, observations]);
+  }, [observations]);
 
   useEffect(() => {
     void pingNetwork();

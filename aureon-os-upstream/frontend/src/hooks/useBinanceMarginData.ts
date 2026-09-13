@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 
 export interface MarginSentiment {
   crossMargin: {
@@ -34,30 +33,9 @@ export const useBinanceMarginData = (symbol: string = 'BTC', refreshInterval: nu
     setIsLoading(true);
     setError(null);
 
-    try {
-      console.log('[useBinanceMarginData] Fetching margin data for:', symbol);
-      
-      const { data, error: functionError } = await supabase.functions.invoke('fetch-binance-margin-data', {
-        body: { symbol },
-      });
-
-      if (functionError) throw functionError;
-      if (data.error) throw new Error(data.error);
-
-      setMarginData(data);
-      
-      console.log('[useBinanceMarginData] Margin data fetched:', {
-        marketHealth: data.sentiment.marketHealth,
-        leverageRisk: data.sentiment.leverageRisk,
-        liquidations: data.recentLiquidations.count,
-      });
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch margin data';
-      console.error('[useBinanceMarginData] Error:', errorMessage);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
+    setMarginData(null);
+    setError(`Margin telemetry for ${symbol} is unavailable until the tenant-scoped provider route is commissioned.`);
+    setIsLoading(false);
   };
 
   useEffect(() => {

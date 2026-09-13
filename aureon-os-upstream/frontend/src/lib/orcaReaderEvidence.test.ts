@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ORCA_READER_SCHEMA, readOrcaReaderEvidence } from './orcaReaderEvidence';
+import { ORCA_POSITION_PROVIDERS, ORCA_READER_SCHEMA, readOrcaReaderEvidence } from './orcaReaderEvidence';
 
 const now = Date.parse('2026-09-08T18:00:00Z');
 const sourceTime = now / 1_000 - 2;
@@ -9,17 +9,24 @@ const position = { provider: 'alpaca', kind: 'positions', source: 'alpaca:GET /v
   source_timestamp_kind: 'provider_http_date', generated_values: false, max_age_seconds: 300,
   inventory_complete: true, observed_count: 1, rows: [{ symbol: 'EXAMPLE', quantity: 2.5,
     entry_price: 12.25, currency: null, source_timestamp: sourceTime, received_at: sourceTime + 1 }] };
-const payload = (value: unknown = position) => ({ schema_version: ORCA_READER_SCHEMA, service: 'orca_command_center',
-  scope: 'existing_orca_reader_provider_receipts', provider_positions: { alpaca: value },
-  component_imports: { Reader: true, unknown: 'yes' } });
+const capital = { ...position, provider: 'capital', source: 'capital:GET /positions' };
+const payload = (value: unknown = position) => ({ schema_version: ORCA_READER_SCHEMA, service: 'aureon_operator',
+  scope: 'terminal_state_sanitized_provider_position_receipts', provider_calls: false, mutation_authority: false,
+  provider_positions: { capital, alpaca: value,
+    kraken: { provider: 'kraken', kind: 'positions', status: 'unavailable', generated_values: false,
+      reason: 'operator_position_reader_not_supported', rows: [], observed_count: null },
+    binance: { provider: 'binance', kind: 'positions', status: 'unavailable', generated_values: false,
+      reason: 'operator_position_reader_not_supported', rows: [], observed_count: null } } });
 
-test('Orca native snapshot retains unknown currency and cannot manufacture Kraken inventory', () => {
+test('operator snapshot covers four providers and cannot manufacture unsupported inventory', () => {
   const result = readOrcaReaderEvidence(payload(), true, now);
+  assert.deepEqual(Object.keys(result.positions), [...ORCA_POSITION_PROVIDERS]);
+  assert.equal(result.positions.capital.available, true);
   assert.equal(result.positions.alpaca.available, true);
   assert.equal(result.positions.alpaca.rows[0].currency, null);
   assert.equal(result.positions.kraken.available, false);
   assert.equal(result.positions.kraken.count, null);
-  assert.deepEqual(result.componentImports, [{ name: 'Reader', imported: true }]);
+  assert.equal(result.positions.binance.available, false);
 });
 
 test('fresh assembly and pending refresh cannot renew original positions clocks', () => {
@@ -38,6 +45,29 @@ test('failed transport, absent contract and failed native receipts suppress reta
     assert.equal(result.positions.alpaca.available, false);
     assert.equal(result.positions.alpaca.count, null);
   }
+});
+
+test('contract needs explicit passive operator boundaries', () => {
+  for (const broken of [
+    { ...payload(), provider_calls: true },
+    { ...payload(), mutation_authority: true },
+    { ...payload(), service: 'orca_command_center' },
+  ]) {
+    const result = readOrcaReaderEvidence(broken, true, now);
+    assert.equal(result.contractAvailable, false);
+    assert.equal(result.positions.capital.available, false);
+    assert.equal(result.positions.alpaca.available, false);
+  }
+});
+
+test('unsupported provider observation cannot masquerade as a position reader', () => {
+  const invented = { ...position, provider: 'kraken', source: 'kraken:POST /0/private/OpenPositions',
+    reason: 'invented_source' };
+  const raw = payload();
+  raw.provider_positions.kraken = invented;
+  const result = readOrcaReaderEvidence(raw, true, now);
+  assert.equal(result.positions.kraken.available, false);
+  assert.equal(result.positions.kraken.count, null);
 });
 
 test('only explicit complete empty inventory reports zero; partial inventory remains scoped', () => {

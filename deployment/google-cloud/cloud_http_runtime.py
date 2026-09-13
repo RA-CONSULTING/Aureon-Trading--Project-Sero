@@ -24,6 +24,32 @@ import time
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
+# Isolated-mode secret subprocesses deliberately omit the script directory from
+# sys.path. Restore only this resolved, deployed directory so fixed adjacent
+# boundary modules remain importable without admitting cwd or user site paths.
+_DEPLOYMENT_MODULE_DIR = str(Path(__file__).resolve().parent)
+if _DEPLOYMENT_MODULE_DIR not in sys.path:
+    sys.path.insert(0, _DEPLOYMENT_MODULE_DIR)
+
+from cloud_credential_boundary import (  # noqa: E402
+    CLOUD_CREDENTIAL_ISOLATION_ENV,
+    CLOUD_EXCHANGE_CREDENTIALS_PINNED_ENV,
+    CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS as CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS,
+    CLOUD_EXCHANGE_MODE_ENV_VARS as CLOUD_EXCHANGE_MODE_ENV_VARS,
+    CLOUD_ENV_LOADER_CONTROL_VARS as CLOUD_ENV_LOADER_CONTROL_VARS,
+    CLOUD_OPERATOR_SAFE_MODE_ENV,
+    CLOUD_OPERATOR_SCRUBBED_ENV_VARS as CLOUD_OPERATOR_SCRUBBED_ENV_VARS,
+    install_cloud_environment_guard,
+    pin_validated_environment,
+    scrub_cloud_exchange_authority,
+)
+from vm_workload_identity import (  # noqa: E402
+    BROKER_REQUIRED_ENV,
+    TOKEN_FILE_ENV,
+    WorkloadIdentityError,
+    broker_token,
+)
+
 
 HOLDS = {
     "AUREON_DEPLOYMENT_HOLD": "1",
@@ -42,12 +68,40 @@ HEALTH_PATH = "/__aureon_health"
 HEALTH_SCHEMA = "aureon.cloud-http-health.v1"
 MAX_REQUEST = 256 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
+COGNITION_UPSTREAM_TIMEOUT_SECONDS = 65
 AUTH_RESOLUTION_KEY = "HTTP_X_AUREON_AUTH_RESOLUTION"
 INTENT_CUSTODY_ENV_KEY = "HTTP_X_AUREON_OPERATOR_INTENT"
 INTENT_CUSTODY_HEADER = "X-Aureon-Operator-Intent"
 METADATA_BASE = "http://metadata.google.internal/computeMetadata/v1/"
 SECRET_DEADLINE = 20
 SECRET_CLEANUP = 2
+OWNER_PROVIDER_KEYS = (
+    "NASA_API_KEY",
+    "NOAA_API_KEY",
+    "USGS_API_KEY",
+    "OLLAMA_API_KEY",
+    "AUREON_LLM_BASE_URL",
+    "AUREON_LLM_MODEL",
+)
+PINNED_PROVIDER_ENV_VARS_ENV = "AUREON_PINNED_PROVIDER_ENV_VARS"
+OWNER_LLM_BASE_URL = "https://ollama.com/v1"
+BROKER_PROJECT_NUMBER_ENV = "AUREON_GCP_PROJECT_NUMBER"
+OPERATOR_STATE_PATHS = {
+    "AUREON_FEATURE_SWITCHBOARD_DIR": "/var/lib/aureon-operator/feature-switchboard",
+    "AUREON_OPERATOR_INTENT_LEDGER": (
+        "/var/lib/aureon-operator/operator-intent/operator-intent-replay.sqlite3"
+    ),
+    "AUREON_RELEASE_LEDGER_PATH": (
+        "/var/lib/aureon-control-exchange/release-ledger/release-ledger.jsonl"
+    ),
+    "AUREON_CLOUD_TRADE_READBACK_PATH": (
+        "/var/lib/aureon-control-exchange/trade-readback/latest-terminal-receipt.json"
+    ),
+    "AUREON_CLOUD_TRADE_BRIDGE_STATUS_PATH": (
+        "/var/lib/aureon-control-exchange/trade-readback/"
+        "latest-order-intent-bridge.json"
+    ),
+}
 
 
 class CloudHTTPError(RuntimeError):
@@ -122,6 +176,52 @@ def validate_supabase_tenant_config(raw):
     return {"project_url": project_url.rstrip("/"), "publishable_key": publishable_key}
 
 
+def validate_owner_provider_config(raw):
+    """Validate the complete owner-only provider configuration bundle.
+
+    This object is deliberately closed: adding another provider credential
+    requires a code/release review rather than silently widening which secrets
+    reach the operator and selected read-only organs.
+    """
+    if not isinstance(raw, bytes) or not 1 <= len(raw) <= 32768:
+        raise CloudHTTPError("cloud_owner_provider_payload_invalid")
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate key")
+            result[key] = value
+        return result
+
+    try:
+        payload = json.loads(raw.decode("utf-8"), object_pairs_hook=unique_object)
+    except (UnicodeError, ValueError, TypeError) as exc:
+        raise CloudHTTPError("cloud_owner_provider_payload_invalid") from exc
+    if not isinstance(payload, dict) or set(payload) != set(OWNER_PROVIDER_KEYS):
+        raise CloudHTTPError("cloud_owner_provider_payload_invalid")
+
+    result = {}
+    for key in OWNER_PROVIDER_KEYS[:4]:
+        value = payload.get(key)
+        if (not isinstance(value, str) or not 8 <= len(value) <= 4096
+                or re.fullmatch(r"[\x21-\x7e]+", value) is None
+                or value.casefold() in {"demo_key", "changeme", "placeholder", "replace_me"}):
+            raise CloudHTTPError("cloud_owner_provider_key_invalid")
+        result[key] = value
+
+    base_url = payload.get("AUREON_LLM_BASE_URL")
+    if base_url != OWNER_LLM_BASE_URL:
+        raise CloudHTTPError("cloud_owner_llm_base_url_invalid")
+    model = payload.get("AUREON_LLM_MODEL")
+    if (not isinstance(model, str) or not 1 <= len(model) <= 128
+            or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]*", model) is None):
+        raise CloudHTTPError("cloud_owner_llm_model_invalid")
+    result["AUREON_LLM_BASE_URL"] = base_url
+    result["AUREON_LLM_MODEL"] = model
+    return result
+
+
 def crc32c(data):
     """Castagnoli CRC, verified with the standard 123456789 test vector."""
     value = 0xFFFFFFFF
@@ -179,18 +279,28 @@ def fetch_secret_worker(project, secret, version, reader=_secret_http_read, *, s
     """Runs only in the isolated, deadline-bounded child, never logs payloads."""
     validate_secret_reference(project, secret, version)
     header = {"Metadata-Flavor": "Google"}
-    project_id = reader(METADATA_BASE + "project/project-id", header, metadata=True).decode("ascii")
-    project_number = reader(METADATA_BASE + "project/numeric-project-id", header, metadata=True).decode("ascii")
-    if project not in {project_id, project_number} or not re.fullmatch(r"[0-9]{6,20}", project_number):
-        raise CloudHTTPError("cloud_metadata_project_mismatch")
-    identity = json.loads(reader(METADATA_BASE + "instance/service-accounts/default/token", header, metadata=True))
-    token = identity.get("access_token")
-    expires = identity.get("expires_in")
-    if (not isinstance(token, str) or not 20 <= len(token) <= 8192
-            or re.search(r"[^\x21-\x7e]", token)
-            or identity.get("token_type", "").lower() != "bearer"
-            or type(expires) is not int or not 30 <= expires <= 86400):
-        raise CloudHTTPError("cloud_metadata_token_invalid")
+    try:
+        token = broker_token()
+    except WorkloadIdentityError as exc:
+        raise CloudHTTPError(str(exc)) from exc
+    if token is None:
+        project_id = reader(METADATA_BASE + "project/project-id", header, metadata=True).decode("ascii")
+        project_number = reader(METADATA_BASE + "project/numeric-project-id", header, metadata=True).decode("ascii")
+        if project not in {project_id, project_number} or not re.fullmatch(r"[0-9]{6,20}", project_number):
+            raise CloudHTTPError("cloud_metadata_project_mismatch")
+        identity = json.loads(reader(METADATA_BASE + "instance/service-accounts/default/token", header, metadata=True))
+        token = identity.get("access_token")
+        expires = identity.get("expires_in")
+        if (not isinstance(token, str) or not 20 <= len(token) <= 8192
+                or re.search(r"[^\x21-\x7e]", token)
+                or identity.get("token_type", "").lower() != "bearer"
+                or type(expires) is not int or not 30 <= expires <= 86400):
+            raise CloudHTTPError("cloud_metadata_token_invalid")
+    else:
+        project_id = project
+        project_number = str(os.environ.get(BROKER_PROJECT_NUMBER_ENV) or "")
+        if project_id != "aureon-trading" or project_number != "4435775023":
+            raise CloudHTTPError("cloud_broker_project_mismatch")
     resource = f"projects/{project_number}/secrets/{secret}/versions/{version}"
     raw = reader("https://secretmanager.googleapis.com/v1/" + resource + ":access",
                  {"Authorization": "Bearer " + token, "Accept": "application/json"})
@@ -199,13 +309,19 @@ def fetch_secret_worker(project, secret, version, reader=_secret_http_read, *, s
         return validate_bearer(payload)
     if secret_kind == "supabase-tenant":
         return json.dumps(validate_supabase_tenant_config(payload), sort_keys=True, separators=(",", ":"))
+    if secret_kind == "owner-provider":
+        return json.dumps(validate_owner_provider_config(payload), sort_keys=True, separators=(",", ":"))
     raise CloudHTTPError("cloud_secret_kind_invalid")
 
 
 def worker_environment(environment=None):
     environment = os.environ if environment is None else environment
     # No provider/API credentials, proxy settings, PYTHONPATH, or SDK key files.
-    return {key: environment[key] for key in ("SYSTEMROOT", "WINDIR", "TEMP", "TMP", "LANG", "LC_ALL") if key in environment}
+    allowed = (
+        "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "LANG", "LC_ALL",
+        TOKEN_FILE_ENV, BROKER_REQUIRED_ENV, BROKER_PROJECT_NUMBER_ENV,
+    )
+    return {key: environment[key] for key in allowed if key in environment}
 
 
 def load_cloud_secret(project, secret, version, *, popen=subprocess.Popen):
@@ -248,6 +364,27 @@ def load_cloud_tenant_config(project, secret, version, *, popen=subprocess.Popen
     if process.returncode != 0 or errors:
         raise CloudHTTPError("cloud_secret_access_failed")
     return validate_supabase_tenant_config(output)
+
+
+def load_cloud_owner_provider_config(project, secret, version, *, popen=subprocess.Popen):
+    validate_secret_reference(project, secret, version)
+    command = [sys.executable, "-I", "-S", "-B", str(Path(__file__).resolve()),
+               "--secret-worker", "--secret-kind", "owner-provider", "--project", project,
+               "--secret", secret, "--secret-version", version]
+    process = popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, env=worker_environment(), close_fds=True)
+    try:
+        output, errors = process.communicate(timeout=SECRET_DEADLINE)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        try:
+            process.communicate(timeout=SECRET_CLEANUP)
+        except subprocess.TimeoutExpired:
+            raise CloudHTTPError("cloud_secret_worker_cleanup_failed") from None
+        raise CloudHTTPError("cloud_secret_deadline_exceeded") from None
+    if process.returncode != 0 or errors:
+        raise CloudHTTPError("cloud_secret_access_failed")
+    return validate_owner_provider_config(output)
 
 
 def _loopback(value, *, allow_name=False):
@@ -310,7 +447,11 @@ def same_origin_evidence(environ):
 
 def proxy_route(path):
     if path == "/api/orca-observations":
-        return 8888, "/api/observations", True
+        # The operator exposes a passive, strictly sanitized projection of the
+        # current terminal-state receipts.  The legacy Orca process on 8888 is
+        # intentionally not launched because it also owns mutation-capable
+        # command-center code.
+        return 8080, "/api/orca-observations", True
     if path in {"/api/terminal-state", "/api/flight-test"}:
         return 8791, path, True
     if path == "/api" or path.startswith("/api/"):
@@ -318,7 +459,7 @@ def proxy_route(path):
     raise CloudHTTPError("cloud_api_route_invalid")
 
 
-def proxy_headers(environ, bearer, port):
+def proxy_headers(environ, bearer, port, *, forward_intent=True):
     result = {}
     for original, forwarded in (("HTTP_ACCEPT", "Accept"), ("CONTENT_TYPE", "Content-Type")):
         if original in environ:
@@ -332,7 +473,7 @@ def proxy_headers(environ, bearer, port):
             result["Authorization"] = environ["HTTP_AUTHORIZATION"]
         elif AUTH_RESOLUTION_KEY not in environ and same_origin_evidence(environ):
             result["Authorization"] = "Bearer " + bearer
-        if INTENT_CUSTODY_ENV_KEY in environ:
+        if forward_intent and INTENT_CUSTODY_ENV_KEY in environ:
             if not same_origin_evidence(environ):
                 raise CloudHTTPError("cloud_intent_custody_origin_required")
             result[INTENT_CUSTODY_HEADER] = environ[INTENT_CUSTODY_ENV_KEY]
@@ -340,7 +481,7 @@ def proxy_headers(environ, bearer, port):
 
 
 def loopback_request(port, method, target, headers, body=b"", *, timeout=30, max_bytes=MAX_RESPONSE):
-    if port not in {8080, 8791, 8888} or not target.startswith("/") or target.startswith("//"):
+    if port not in {8080, 8791} or not target.startswith("/") or target.startswith("//"):
         raise CloudHTTPError("cloud_upstream_route_invalid")
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
     deadline = time.monotonic() + timeout
@@ -386,6 +527,16 @@ def loopback_request(port, method, target, headers, body=b"", *, timeout=30, max
         if timer is not None:
             timer.cancel()
         connection.close()
+
+
+def api_upstream_timeout(path: str) -> int:
+    clean = path.split("?", 1)[0]
+    if clean in {
+        "/api/cognition/reason", "/api/cognition/stream",
+        "/api/operator/respond", "/api/operator/stream",
+    }:
+        return COGNITION_UPSTREAM_TIMEOUT_SECONDS
+    return 30
 
 
 def _health(role, revision, ready, *, tenant_auth_ready=False):
@@ -492,8 +643,11 @@ def create_ui_gateway(dist_root, revision, bearer, transport=loopback_request):
                 return jsonify(error="cloud_observation_route_read_only"), 405
             if request.query_string:
                 target += "?" + request.query_string.decode("ascii")
-            headers = proxy_headers(request.environ, bearer, port)
-            status, response_headers, body = transport(port, request.method, target, headers, request.get_data())
+            headers = proxy_headers(request.environ, bearer, port, forward_intent=not passive)
+            status, response_headers, body = transport(
+                port, request.method, target, headers, request.get_data(),
+                timeout=api_upstream_timeout(request.path),
+            )
             return Response(body, status=status, headers=response_headers)
         except CloudHTTPError:
             # Uniform explicit unavailable response; no fallback/synthetic data.
@@ -519,33 +673,86 @@ def create_ui_gateway(dist_root, revision, bearer, transport=loopback_request):
     return app
 
 
-def build_operator(source_root, revision, bearer, tenant_config):
-    require_holds()
+def _operator_boot_settings(root, revision, bearer, tenant_config, provider_config):
     validate_bearer(bearer.encode("ascii"))
-    root = Path(source_root).resolve(strict=True)
-    if not (root / "aureon/operator/operator_server.py").is_file():
-        raise CloudHTTPError("cloud_operator_source_missing")
     tenant_config = validate_supabase_tenant_config(
         json.dumps(tenant_config, sort_keys=True, separators=(",", ":")).encode("utf-8")
     )
-    settings = {
+    provider_config = validate_owner_provider_config(
+        json.dumps(provider_config, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+    configured_state = {}
+    for key, expected in OPERATOR_STATE_PATHS.items():
+        value = str(os.environ.get(key) or expected)
+        if value != expected:
+            raise CloudHTTPError("cloud_operator_state_path_invalid")
+        configured_state[key] = value
+    owner_subject = str(os.environ.get("AUREON_SUPABASE_OWNER_SUBJECT") or "").strip().lower()
+    owner_email_sha256 = str(
+        os.environ.get("AUREON_SUPABASE_OWNER_EMAIL_SHA256") or ""
+    ).strip().lower()
+    if (
+        re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+            owner_subject,
+        )
+        is None
+        or re.fullmatch(r"[0-9a-f]{64}", owner_email_sha256) is None
+    ):
+        raise CloudHTTPError("cloud_owner_identity_binding_required")
+    return {
         "AUREON_OPERATOR_API_KEY": bearer, "AUREON_OPERATOR_ENV": "production",
         "AUREON_OPERATOR_DEV": "0", "AUREON_OPERATOR_HOST": "127.0.0.1", "AUREON_OPERATOR_PORT": "8080",
         "AUREON_OPERATOR_RATE_RPS": "40", "AUREON_OPERATOR_RATE_BURST": "160",
         "AUREON_OPERATOR_HTTP_PROCESSES": "1", "AUREON_OPERATOR_REPLICAS": "1",
         "AUREON_OPERATOR_MAX_BODY": str(MAX_REQUEST), "AUREON_OPERATOR_TRUSTED_PROXY_CIDRS": "",
         "SERO_WORKSPACE": str(root.parent),
-        "AUREON_FEATURE_SWITCHBOARD_DIR": "/srv/aureon/cache/feature-switchboard",
+        **configured_state,
         "AUREON_SUPABASE_URL": tenant_config["project_url"],
         "AUREON_SUPABASE_PUBLISHABLE_KEY": tenant_config["publishable_key"],
+        "AUREON_SUPABASE_OWNER_SUBJECT": owner_subject,
+        "AUREON_SUPABASE_OWNER_EMAIL_SHA256": owner_email_sha256,
         "AUREON_OPERATOR_INTENT_CERT_FILE": "/etc/aureon-public/bridge-cert.pem",
-        "AUREON_OPERATOR_INTENT_LEDGER": "/srv/aureon/cache/operator-intent-replay.sqlite3",
-        "AUREON_RELEASE_LEDGER_PATH": "/srv/aureon/cache/release-ledger/release-ledger.jsonl",
-        "AUREON_CLOUD_TRADE_READBACK_PATH": "/srv/aureon/cache/trading-control/latest-terminal-receipt.json",
         "AUREON_OPERATOR_REVISION": revision,
         "AUREON_CONTROLLER_KEY_VERSION": CONTROLLER_KEY_VERSION,
+        PINNED_PROVIDER_ENV_VARS_ENV: ",".join(OWNER_PROVIDER_KEYS),
+        # Exchange values stay outside the operator process in the isolated
+        # executor's pinned Secret Manager bundle.  This non-secret marker
+        # reserves their owner write authority even when a readback is stale.
+        CLOUD_EXCHANGE_CREDENTIALS_PINNED_ENV: "1",
+        CLOUD_CREDENTIAL_ISOLATION_ENV: "1",
+        "PYTHON_DOTENV_DISABLED": "1",
+        **CLOUD_OPERATOR_SAFE_MODE_ENV,
+        **provider_config,
     }
+
+
+def isolate_operator_environment(environment) -> None:
+    """Remove ambient exchange authority before importing operator code.
+
+    The mapping is mutated in place so the same boundary is usable with
+    ``os.environ`` and with isolated test mappings.  Safe mode values are set
+    explicitly after removal; the deployment holds remain a separate mandatory
+    layer and are verified again after the application is built.
+    """
+    scrub_cloud_exchange_authority(environment)
+
+
+def build_operator(source_root, revision, bearer, tenant_config, provider_config):
+    require_holds()
+    root = Path(source_root).resolve(strict=True)
+    if not (root / "aureon/operator/operator_server.py").is_file():
+        raise CloudHTTPError("cloud_operator_source_missing")
+    settings = _operator_boot_settings(root, revision, bearer, tenant_config, provider_config)
+    isolate_operator_environment(os.environ)
+    # The systemd/PYTHONPATH site hook installs this before any script code in
+    # production.  Install again here so direct invocations fail closed too.
+    install_cloud_environment_guard()
     os.environ.update(settings)
+    # Provider values were retrieved and validated in-process, after the early
+    # guard started. Pin them now so a later load_dotenv(override=True) cannot
+    # replace the approved bundle while exchange aliases remain impossible.
+    pin_validated_environment(provider_config)
     sys.path[:0] = [str(root), str(root.parent)]
     os.chdir(root)
     from aureon.operator.operator_server import build_boot_app
@@ -585,8 +792,10 @@ def run(role=None, argv=None):
     parser.add_argument("--secret-version", required=True)
     parser.add_argument("--tenant-secret")
     parser.add_argument("--tenant-secret-version")
+    parser.add_argument("--provider-secret")
+    parser.add_argument("--provider-secret-version")
     parser.add_argument("--secret-worker", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--secret-kind", choices=("bearer", "supabase-tenant"), default="bearer",
+    parser.add_argument("--secret-kind", choices=("bearer", "supabase-tenant", "owner-provider"), default="bearer",
                         help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     try:
@@ -604,12 +813,18 @@ def run(role=None, argv=None):
         if args.role not in PORTS or (role is not None and args.role != role):
             raise CloudHTTPError("cloud_http_role_invalid")
         tenant_reference = bool(args.tenant_secret or args.tenant_secret_version)
+        provider_reference = bool(args.provider_secret or args.provider_secret_version)
         if args.role == "operator" and not (args.tenant_secret and args.tenant_secret_version):
             raise CloudHTTPError("cloud_tenant_auth_reference_required")
         if args.role != "operator" and tenant_reference:
             raise CloudHTTPError("cloud_tenant_auth_reference_operator_only")
         if args.role == "operator":
             validate_secret_reference(args.project, args.tenant_secret, args.tenant_secret_version)
+            if not (args.provider_secret and args.provider_secret_version):
+                raise CloudHTTPError("cloud_owner_provider_reference_required")
+            validate_secret_reference(args.project, args.provider_secret, args.provider_secret_version)
+        elif provider_reference:
+            raise CloudHTTPError("cloud_owner_provider_reference_operator_only")
         if not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", args.revision or ""):
             raise CloudHTTPError("cloud_revision_required")
         if not args.source_root or not Path(args.source_root).is_dir():
@@ -625,7 +840,11 @@ def run(role=None, argv=None):
             tenant_config = (load_cloud_tenant_config(args.project, args.tenant_secret,
                                                        args.tenant_secret_version)
                              if args.role == "operator" else None)
-            app = (build_operator(args.source_root, args.revision, bearer, tenant_config) if args.role == "operator"
+            provider_config = (load_cloud_owner_provider_config(
+                args.project, args.provider_secret, args.provider_secret_version
+            ) if args.role == "operator" else None)
+            app = (build_operator(args.source_root, args.revision, bearer, tenant_config,
+                                  provider_config) if args.role == "operator"
                    else create_ui_gateway(args.dist_root, args.revision, bearer))
             server = create_server(app, sockets=[listener], threads=8, max_request_body_size=MAX_REQUEST,
                                    max_request_header_size=32768, expose_tracebacks=False, clear_untrusted_proxy_headers=True)

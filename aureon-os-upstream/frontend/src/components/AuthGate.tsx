@@ -15,7 +15,9 @@ import { AuthForm } from "@/components/AuthForm";
 import { Button } from "@/components/ui/button";
 import { api } from "@/services/apiClient";
 import { hasCurrentOwnerIngress, requiresConsoleAuth } from "@/services/authGateAccess";
+import { endTenantBrowserSession } from "@/services/tenantSession";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const REQUIRE_AUTH = requiresConsoleAuth(
   import.meta.env.VITE_REQUIRE_AUTH as string | undefined,
@@ -27,6 +29,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ownerIngress, setOwnerIngress] = useState(false);
   const [checking, setChecking] = useState(REQUIRE_AUTH);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!REQUIRE_AUTH) return;
@@ -76,6 +79,25 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (ownerIngress) return <>{children}</>;
 
+  const signOutTenant = async () => {
+    setSigningOut(true);
+    try {
+      await endTenantBrowserSession(options => supabase.auth.signOut(options));
+      setSession(null);
+      setOwnerIngress(false);
+      navigate('/console', { replace: true });
+      toast.success('Signed out of this account workspace', {
+        description: 'The protected owner cloud runtime continues independently.',
+      });
+    } catch (error) {
+      toast.error('Could not sign out of this account workspace', {
+        description: error instanceof Error ? error.message : 'The account service did not confirm sign out.',
+      });
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
   return (
     <>
       <div className="fixed top-2 right-2 z-50">
@@ -83,9 +105,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
           variant="ghost"
           size="sm"
           className="text-xs text-muted-foreground"
-          onClick={() => supabase.auth.signOut()}
+          onClick={signOutTenant}
+          disabled={signingOut}
         >
-          Sign out{session.user?.email ? ` (${session.user.email})` : ""}
+          {signingOut ? 'Signing out…' : 'Sign out of account'}{session.user?.email ? ` (${session.user.email})` : ""}
         </Button>
       </div>
       {children}

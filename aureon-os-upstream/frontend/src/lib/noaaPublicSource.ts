@@ -2,6 +2,7 @@ import {
   NOAA_FEEDS, NOAA_REQUEST_TIMEOUT_MS, NOAA_RESPONSE_MAX_BYTES,
   emptyNoaaReceipt, readNoaaFeed, type NoaaFeed, type NoaaReceipt,
 } from './noaaObservationEvidence';
+import { api } from '@/services/apiClient';
 
 /** Read only the allowlisted public product; never retain a full response in React state. */
 export async function fetchNoaaFeed(
@@ -13,7 +14,25 @@ export async function fetchNoaaFeed(
   if (signal.aborted) controller.abort();
   const timeout = setTimeout(abort, NOAA_REQUEST_TIMEOUT_MS);
   try {
-    const requestUrl = fetcher === fetch ? `/api/research/noaa/${feed}` : NOAA_FEEDS[feed].url;
+    const sameOriginGateway = fetcher === fetch;
+    const requestUrl = sameOriginGateway ? `/api/research/noaa/${feed}` : NOAA_FEEDS[feed].url;
+    if (sameOriginGateway) {
+      const payload = await api.get<unknown>(requestUrl, {
+        signal: controller.signal,
+        timeoutMs: NOAA_REQUEST_TIMEOUT_MS,
+      });
+      const receipt = payload as Partial<NoaaReceipt>;
+      if (receipt?.feed !== feed || !Array.isArray(receipt.samples)) {
+        throw new Error('NOAA gateway receipt is malformed');
+      }
+      return {
+        feed,
+        status: receipt.status === 'observed' || receipt.status === 'loading' || receipt.status === 'unavailable' ? receipt.status : 'unavailable',
+        receivedAt: typeof receipt.receivedAt === 'number' ? receipt.receivedAt : null,
+        samples: receipt.samples,
+    reason: typeof receipt.reason === 'string' ? receipt.reason : 'NOAA gateway receipt',
+      };
+    }
     const response = await fetcher(requestUrl, {
       method: 'GET', credentials: 'omit', cache: 'no-cache', signal: controller.signal,
     });
@@ -43,16 +62,6 @@ export async function fetchNoaaFeed(
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
     const payload: unknown = JSON.parse(new TextDecoder().decode(bytes));
     if (controller.signal.aborted) throw new Error('NOAA request cancelled');
-    const receipt = payload as Partial<NoaaReceipt>;
-    if (requestUrl.startsWith('/api/') && receipt?.feed === feed && Array.isArray(receipt.samples)) {
-      return {
-        feed,
-        status: receipt.status === 'observed' || receipt.status === 'loading' || receipt.status === 'unavailable' ? receipt.status : 'unavailable',
-        receivedAt: typeof receipt.receivedAt === 'number' ? receipt.receivedAt : null,
-        samples: receipt.samples,
-        reason: typeof receipt.reason === 'string' ? receipt.reason : 'NOAA local gateway receipt',
-      };
-    }
     return readNoaaFeed(feed, payload, now());
   } catch (error) {
     return emptyNoaaReceipt(feed, false, controller.signal.aborted ? 'NOAA request timed out or cancelled'

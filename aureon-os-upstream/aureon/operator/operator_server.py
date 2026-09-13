@@ -103,6 +103,8 @@ from aureon.operator.cloud_intent_custody import (  # noqa: E402
     INTENT_HEADER,
     CloudIntentCustodyError,
     CloudSwitchboardIntentCustody,
+    owner_intent_route_rule,
+    tenant_intent_route_rule,
 )
 from aureon.operator.cloud_trading_control import (  # noqa: E402
     build_cloud_trading_control_receipt,
@@ -113,7 +115,11 @@ from aureon.operator.cloud_trading_release import (  # noqa: E402
 )
 from aureon.operator.executor_isolation import build_executor_isolation_receipt  # noqa: E402
 from aureon.operator.ingress_custody import build_ingress_custody_receipt  # noqa: E402
-from aureon.operator.providers import build_provider_set, describe_provider_set  # noqa: E402
+from aureon.operator.providers import (  # noqa: E402
+    build_provider_set,
+    describe_provider_set,
+    tenant_provider_base_url,
+)
 from aureon.operator.release_ledger import (  # noqa: E402
     append_release_ledger_event,
     build_release_ledger_receipt,
@@ -176,7 +182,15 @@ def _test_provider_adapter(
     try:
         from aureon.operator.providers import build_adapter
 
-        adapter = build_adapter(info.kind, api_key=api_key, base_url=base_url, model=model)
+        if tenant is not None:
+            base_url = tenant_provider_base_url(info, base_url)
+        adapter = build_adapter(
+            info.kind,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            tenant_network=tenant is not None,
+        )
 
         t0 = time.perf_counter()
         resp = adapter.prompt(
@@ -190,8 +204,10 @@ def _test_provider_adapter(
             "ok": ok,
             "latency_ms": elapsed,
             "model": model,
-            "sample": text[:80],
-            "error": "" if ok else (text[:160] or "no response"),
+            # Provider output and exception text can echo request metadata.
+            # The test endpoint needs a verdict, not a copy of vendor content.
+            "sample": "OK" if ok else "",
+            "error": "" if ok else "provider_test_failed",
         }
     except Exception as exc:  # noqa: BLE001 — a failed test is a verdict, not a 500
         emit_local_event(
@@ -199,8 +215,11 @@ def _test_provider_adapter(
             logging.WARNING,
             "operator_provider_test_failure",
             correlation_id=current_correlation_id(),
-            fields={"component": "provider_test", "model": model},
-            exception=exc,
+            fields={
+                "component": "provider_test",
+                "model": model,
+                "exception_type": type(exc).__name__,
+            },
         )
         result = {
             "ok": False,
@@ -370,11 +389,16 @@ _TENANT_OWN_PLANE = {
     ("GET", "/api/trading/backtest/capabilities"),
     ("POST", "/api/trading/backtest"),
     ("GET", "/api/trading/closed-position-analytics"),
+    # Global public observations are projected by the server from fixed,
+    # allowlisted sources. They contain no owner account state or credentials.
+    ("GET", "/api/research/noaa/<feed>"),
+    ("GET", "/api/research/schumann"),
     # The user's own data: their keys, their reasoning, their billing.
     ("GET", "/api/providers"), ("POST", "/api/providers/<provider_id>"),
     ("DELETE", "/api/providers/<provider_id>"), ("POST", "/api/providers/<provider_id>/test"),
     ("GET", "/api/connections"), ("GET", "/api/connections/readiness"),
-    ("POST", "/api/connections/<conn_id>"), ("POST", "/api/connections/<conn_id>/test"),
+    ("POST", "/api/connections/<conn_id>"), ("DELETE", "/api/connections/<conn_id>"),
+    ("POST", "/api/connections/<conn_id>/test"),
     ("POST", "/api/cognition/reason"), ("POST", "/api/operator/respond"),
     ("GET", "/api/cognition/stream"), ("GET", "/api/operator/stream"),
     ("GET", "/api/billing/balance"), ("GET", "/api/billing/usage"), ("GET", "/api/billing/status"),
@@ -383,17 +407,12 @@ _TENANT_OWN_PLANE = {
     ("POST", "/api/notifications/telegram"),
 }
 _TENANT_SHOWCASE = {
-    # Read-only views of the organism that are ALREADY public by design — the same material the
-    # /watch surface and the Twitch stream put in front of anonymous visitors. Withholding these
-    # from a signed-in user would protect nothing.
+    # Static/public product material that does not read the running instance.
+    # Runtime-backed organism, company, defense and cognition views are absent
+    # deliberately: even a read-only response could disclose the owner's
+    # process, mesh, thought-bus or assessment state to a tenant account.
     ("GET", "/api/catalog"), ("GET", "/api/domains"), ("GET", "/api/domains/<domain>"),
-    ("GET", "/api/coverage"), ("GET", "/api/defense"),
-    ("GET", "/api/organism"), ("GET", "/api/soul"), ("GET", "/api/consciousness"),
-    ("GET", "/api/company"), ("GET", "/api/org"), ("GET", "/api/affect"),
-    ("GET", "/api/pursuit"), ("GET", "/api/inner-work"), ("GET", "/api/metacognition"),
-    ("GET", "/api/automation"), ("GET", "/api/cognition"), ("GET", "/api/cognition/brain"),
-    ("GET", "/api/cognition/bus"), ("GET", "/api/cognition/connectome"),
-    ("GET", "/api/cognition/field"), ("GET", "/api/cognition/mycelium"),
+    ("GET", "/api/coverage"), ("GET", "/api/org"),
 }
 _TENANT_ALLOWED = _TENANT_OWN_PLANE | _TENANT_SHOWCASE
 
@@ -520,7 +539,13 @@ def create_app(
     _operator = operator or AureonOperator()
 
     # ── Security envelope (production fail-closed; explicit dev/test is permissive) ──
-    from aureon.operator.identity import SupabaseAuthVerifier, resolve_identity
+    from aureon.operator.identity import (
+        SupabaseAuthVerifier,
+        SupabaseOwnerPolicy,
+        build_runtime_context,
+        owner_identity_commitment,
+        resolve_identity,
+    )
     from aureon.operator.security import SecurityConfig, TokenBucket
 
     _sec = SecurityConfig.from_env()
@@ -544,6 +569,9 @@ def create_app(
         if _supabase_url and _supabase_publishable_key
         else None
     )
+    _supabase_owner_policy = SupabaseOwnerPolicy.from_env(os.environ)
+    if _supabase_owner_policy is not None and _supabase_auth_verifier is None:
+        raise ValueError("supabase_owner_requires_auth_server_verifier")
     _tenant_auth_configured = bool(_jwt_secret or _supabase_auth_verifier)
     _cloud_intent_custody = CloudSwitchboardIntentCustody.from_env(os.environ)
     app.extensions["aureon_cloud_intent_custody"] = (
@@ -689,11 +717,16 @@ def create_app(
             "source_truth_established_by_local_wrapping": False,
             "production_magic_star_release_available": False,
         }
-        if _cloud_intent_custody is not None and rule in {
-            "/api/switchboard/<flag_id>",
-            "/api/operator/authorization-lease",
-            "/api/operator/cloud-trading-control/apply",
-        }:
+        identity_kind = str(getattr(g, "identity_kind", "unknown"))
+        owner_custody = (
+            identity_kind in {"admin", "owner"}
+            and owner_intent_route_rule(request.method, request.path) == rule
+        )
+        tenant_custody = (
+            identity_kind == "tenant"
+            and tenant_intent_route_rule(request.method, request.path) == rule
+        )
+        if _cloud_intent_custody is not None and (owner_custody or tenant_custody):
             try:
                 g.operator_cloud_intent_custody = (
                     _cloud_intent_custody.authorize_and_consume(
@@ -703,18 +736,21 @@ def create_app(
                         route_rule=rule,
                         query=query_bytes,
                         body=body_bytes,
-                        identity_kind=str(getattr(g, "identity_kind", "unknown")),
+                        identity_kind=identity_kind,
                         is_admin=bool(getattr(g, "is_admin", False)),
+                        authorization=str(request.headers.get("Authorization") or ""),
+                        tenant=getattr(g, "identity_subject", None),
                     )
                 )
                 return None
             except CloudIntentCustodyError as exc:
                 return _err(
                     403,
-                    "cloud switchboard intent custody denied",
+                    "cloud route intent custody denied",
                     reason_code=str(exc),
                     handler_invoked=False,
                     intent_recording_authority=False,
+                    tenant_route_authority=False,
                     release_authority=False,
                     mutation_authority=False,
                 )
@@ -791,13 +827,17 @@ def create_app(
             operator_key=_sec.api_key,
             jwt_secret=_jwt_secret,
             tenant_verifier=_supabase_auth_verifier,
+            owner_policy=_supabase_owner_policy,
         )
         if not ident.ok:
             return _err(401, "missing or invalid bearer token")
-        # Downstream routes namespace per-user stores by g.tenant (None ⇒ admin/global plane).
-        g.tenant = ident.tenant
-        g.is_admin = ident.kind in ("admin", "open")
+        # A verified Supabase owner carries a subject for receipt binding, but
+        # enters the instance plane. Only ordinary tenants namespace stores.
+        g.identity_subject = ident.tenant
+        g.tenant = ident.tenant if ident.kind == "tenant" else None
+        g.is_admin = ident.kind in ("admin", "owner", "open")
         g.identity_kind = ident.kind
+        g.identity_auth_source = ident.auth_source
         # Default-deny for tenants (see _TENANT_ALLOWED). Match the url RULE, not request.path, so a
         # crafted id can never be read as a different route; an unmatched path (url_rule None ⇒ 404)
         # falls through untouched so Flask still answers 404 rather than 403. Admin and open planes
@@ -883,13 +923,19 @@ def create_app(
         report, without echoing the subject identifier back into the page or the logs.
         """
         kind = str(getattr(g, "identity_kind", "open") or "open")
-        tenant = getattr(g, "tenant", None)
+        tenant = getattr(g, "identity_subject", None)
         is_admin = bool(getattr(g, "is_admin", True))
+        owner_via_supabase = kind == "owner" and is_admin
         return jsonify({
-            "kind": kind,                       # "open" | "admin" | "tenant"
+            "kind": kind,                       # "open" | "admin" | "owner" | "tenant"
             "is_admin": is_admin,
             "tenant_label": _tenant_label(tenant) if tenant else None,
             "plane": "instance" if is_admin else "account",
+            "auth_source": str(getattr(g, "identity_auth_source", "none")),
+            "owner_designation_verified": owner_via_supabase,
+            "identity_commitment_sha256": (
+                owner_identity_commitment(tenant) if owner_via_supabase and tenant else None
+            ),
             "tenancy_enabled": _tenant_auth_configured,
             "tenant_auth_mode": (
                 "supabase_auth_server"
@@ -899,6 +945,7 @@ def create_app(
                 else "off"
             ),
             "auth_required": bool(_sec.api_key or _tenant_auth_configured),
+            "runtime_context": build_runtime_context(is_admin=is_admin),
             # What this caller may reach, so the console can hide what would 403 rather than
             # letting the user find the boundary by trial and error.
             "allowed_routes": (None if is_admin else
@@ -1223,7 +1270,8 @@ def create_app(
     _NO_TENANT_KEY: Dict[str, Any] = {
         "text": "No model is connected to your account yet. Add an API key in Providers "
                 "to reason with your own model.",
-        "grounded": False, "blocked": False, "conscience_verdict": "APPROVED",
+        "grounded": False, "blocked": True, "conscience_verdict": "HELD_NO_MODEL",
+        "conscience_message": "No tenant model is connected; no reasoning verdict was produced.",
         "tenant_no_key": True,
     }
 
@@ -1310,7 +1358,7 @@ def create_app(
         from aureon.operator import keystore as _ks
         from aureon.operator.providers import build_provider_set_from_entries
 
-        return build_provider_set_from_entries(_ks.load(tenant))
+        return build_provider_set_from_entries(_ks.load(tenant), tenant_mode=True)
 
     def _lru_put(cache: OrderedDict[str, Any], key: str, value: Any) -> None:
         with _engine_lock:
@@ -1432,6 +1480,7 @@ def create_app(
     # ── Provider API-key management (instance-owned, encrypted keystore) ────────
     # BYO keys for every model. Keys are stored encrypted (keystore.py), masked on
     # read, never logged; writes hot-rebuild the switchboard (no restart).
+    from aureon.operator import connections_api as _conn_api
     from aureon.operator import keystore as _keystore
     from aureon.operator.provider_catalog import CATALOG, get_provider
 
@@ -1461,18 +1510,43 @@ def create_app(
         out = []
         for info in CATALOG:
             s = stored.get(info.id, {})
+            management = _conn_api.credential_management(
+                info.id, tenant=tenant, category="ai_llm",
+            )
+            credential_state = (
+                {}
+                if management["credential_management"] == "pinned_cloud_secret"
+                else s
+            )
             env_key = "" if tenant is not None else (os.environ.get(info.key_env, "") if info.key_env else "")
-            has_key = bool(s.get("has_key")) or bool(env_key)
-            key_masked = s.get("key_masked") or (_mask_env(env_key) if env_key else "")
-            source = "keystore" if s.get("has_key") else ("env" if env_key else "none")
+            env_model = ""
+            if tenant is None:
+                env_model = os.environ.get(_keystore.model_env(info.registry_name), "")
+                if info.id == "ollama":
+                    env_model = os.environ.get("AUREON_LLM_MODEL", "") or env_model
+            has_key = bool(credential_state.get("has_key")) or bool(env_key)
+            key_masked = credential_state.get("key_masked") or (_mask_env(env_key) if env_key else "")
+            source = "keystore" if credential_state.get("has_key") else ("env" if env_key else "none")
+            if tenant is None:
+                displayed_base_url = (
+                    credential_state.get("base_url")
+                    or (os.environ.get(info.base_url_env, "") if info.base_url_env else "")
+                    or info.default_base_url
+                )
+            else:
+                try:
+                    displayed_base_url = tenant_provider_base_url(info, s.get("base_url"))
+                except ValueError:
+                    displayed_base_url = tenant_provider_base_url(info)
             out.append({
                 **info.to_public_dict(),
-                "model": s.get("model") or info.default_model,
-                "base_url": s.get("base_url") or info.default_base_url,
+                **management,
+                "model": credential_state.get("model") or env_model or info.default_model,
+                "base_url": displayed_base_url or "",
                 "has_key": has_key,
                 "key_masked": key_masked,
                 "key_source": source,
-                "enabled": bool(s.get("enabled", True)) if s else True,
+                "enabled": bool(credential_state.get("enabled", True)) if credential_state else True,
                 "live": info.registry_name in live_names,
                 "last_test_at": s.get("last_test_at") if s else None,
                 "last_test_ok": s.get("last_test_ok") if s else None,
@@ -1487,15 +1561,36 @@ def create_app(
 
     @app.post("/api/providers/<provider_id>")
     def providers_set(provider_id: str):
-        if get_provider(provider_id) is None:
+        info = get_provider(provider_id)
+        if info is None:
             return _err(404, f"unknown provider: {provider_id}")
         tenant = getattr(g, "tenant", None)
+        management = _conn_api.credential_management(
+            provider_id, tenant=tenant, category="ai_llm",
+        )
+        if management["credential_writable"] is False:
+            return _err(
+                409,
+                _conn_api.PINNED_CLOUD_SECRET_REASON,
+                error_id=_conn_api.PINNED_CLOUD_SECRET_ERROR_ID,
+                credential_management="pinned_cloud_secret",
+            )
         body: Dict[str, Any] = request.get_json(silent=True) or {}
+        try:
+            base_url = (
+                tenant_provider_base_url(info, body.get("base_url"))
+                if tenant is not None
+                else body.get("base_url")
+            )
+            if tenant is not None and base_url is None:
+                base_url = ""
+        except ValueError:
+            return _err(400, "tenant provider URL must use the catalog endpoint")
         try:
             _keystore.save_provider(
                 provider_id,
                 api_key=body.get("api_key"),
-                base_url=body.get("base_url"),
+                base_url=base_url,
                 model=body.get("model"),
                 enabled=body.get("enabled"),
                 tenant=tenant,
@@ -1516,6 +1611,16 @@ def create_app(
         if get_provider(provider_id) is None:
             return _err(404, f"unknown provider: {provider_id}")
         tenant = getattr(g, "tenant", None)
+        management = _conn_api.credential_management(
+            provider_id, tenant=tenant, category="ai_llm",
+        )
+        if management["credential_writable"] is False:
+            return _err(
+                409,
+                _conn_api.PINNED_CLOUD_SECRET_REASON,
+                error_id=_conn_api.PINNED_CLOUD_SECRET_ERROR_ID,
+                credential_management="pinned_cloud_secret",
+            )
         _keystore.delete_provider(provider_id, tenant=tenant)
         if tenant is None:
             _rebuild_switchboard()
@@ -1545,7 +1650,17 @@ def create_app(
         # (which the adapters would resolve from the env).
         env_key = "" if tenant is not None else os.environ.get(info.key_env, "")
         api_key = body.get("api_key") or stored.get("api_key") or env_key
-        base_url = body.get("base_url") or stored.get("base_url") or info.default_base_url or None
+        requested_base_url = (
+            body.get("base_url") if "base_url" in body else stored.get("base_url")
+        )
+        try:
+            base_url = (
+                tenant_provider_base_url(info, requested_base_url)
+                if tenant is not None
+                else requested_base_url or info.default_base_url or None
+            )
+        except ValueError:
+            return _err(400, "tenant provider URL must use the catalog endpoint")
         model = body.get("model") or stored.get("model") or info.default_model
         if tenant is not None and not str(api_key or "").strip():
             return jsonify(_no_key_verdict(model))
@@ -1592,7 +1707,6 @@ def create_app(
         return jsonify({"ok": True, "flag": _switchboard.flag_view(flag), "applied": applied})
 
     # ── Unified Connections (all external sources: trading → NASA) ──────────────
-    from aureon.operator import connections_api as _conn_api
     from aureon.operator.connections_catalog import get_connection as _get_conn
 
     @app.get("/api/connections")
@@ -1616,13 +1730,38 @@ def create_app(
     @app.post("/api/connections/<conn_id>")
     def connections_set(conn_id: str):
         tenant = getattr(g, "tenant", None)
-        body: Dict[str, Any] = request.get_json(silent=True) or {}
+        body_raw = request.get_json(silent=True)
+        if body_raw is None:
+            body_raw = {}
+        if not isinstance(body_raw, dict):
+            return _err(400, "connection payload must be an object")
+        body: Dict[str, Any] = body_raw
         api_key = body.get("api_key")
-        extra = body.get("extra") or {}
         # LLM provider → keystore (+ switchboard rebuild only on the global/admin plane)
-        if get_provider(conn_id) is not None:
+        info = get_provider(conn_id)
+        if info is not None:
+            management = _conn_api.credential_management(
+                conn_id, tenant=tenant, category="ai_llm",
+            )
+            if management["credential_writable"] is False:
+                return _err(
+                    409,
+                    _conn_api.PINNED_CLOUD_SECRET_REASON,
+                    error_id=_conn_api.PINNED_CLOUD_SECRET_ERROR_ID,
+                    credential_management="pinned_cloud_secret",
+                )
+            try:
+                base_url = (
+                    tenant_provider_base_url(info, body.get("base_url"))
+                    if tenant is not None
+                    else body.get("base_url")
+                )
+                if tenant is not None and base_url is None:
+                    base_url = ""
+            except ValueError:
+                return _err(400, "tenant provider URL must use the catalog endpoint")
             _keystore.save_provider(
-                conn_id, api_key=api_key, base_url=body.get("base_url"),
+                conn_id, api_key=api_key, base_url=base_url,
                 model=body.get("model"), enabled=body.get("enabled"), tenant=tenant,
             )
             if tenant is None:
@@ -1634,26 +1773,84 @@ def create_app(
         conn = _get_conn(conn_id)
         if conn is None:
             return _err(404, f"unknown connection: {conn_id}")
+        management = _conn_api.credential_management(
+            conn_id, tenant=tenant, category=conn.category,
+        )
+        if management["credential_writable"] is False:
+            return _err(
+                409,
+                _conn_api.PINNED_CLOUD_SECRET_REASON,
+                error_id=_conn_api.PINNED_CLOUD_SECRET_ERROR_ID,
+                credential_management="pinned_cloud_secret",
+            )
+        try:
+            payload = _conn_api.validate_connection_payload(conn, body, operation="save")
+            # Refuse to merge into a legacy/corrupt entry containing fields the
+            # current catalog does not declare. Disconnecting the row remains
+            # available so the tenant can recover without retaining ambiguity.
+            _conn_api.validate_stored_connection_entry(conn, _keystore.load(tenant))
+        except _conn_api.ConnectionPayloadError as exc:
+            return _err(400, "connection credential payload rejected", reason_code=str(exc))
         # Exchange credentials on the global/admin plane validate + write the instance .env. A tenant
         # instead stores the credential in isolation (never touching the shared .env / os.environ).
         if tenant is None and conn.category == "exchange":
-            result = _conn_api.set_exchange_credential(conn, api_key or "", extra)
+            result = _conn_api.set_exchange_credential(
+                conn, payload.get("api_key", ""), payload.get("extra", {}),
+            )
             code = 200 if result.get("ok") else 502
             return jsonify(result), code
         # data source (or any tenant credential) → keystore; apply_to_env only on the global plane.
-        _keystore.save_provider(conn_id, api_key=api_key, enabled=body.get("enabled"),
-                                extra=extra, tenant=tenant)
+        _keystore.save_provider(
+            conn_id,
+            api_key=payload.get("api_key"),
+            enabled=payload.get("enabled"),
+            extra=payload.get("extra"),
+            tenant=tenant,
+        )
         if tenant is None:
             _keystore.apply_to_env()
         else:
             _invalidate_tenant_engines(tenant)
         return jsonify({"ok": True, "connection": _conn_api.connection_public(
-            conn, _keystore.load(tenant), {}, allow_env=tenant is None)})
+            conn, _keystore.load(tenant), {}, allow_env=tenant is None, tenant=tenant)})
+
+    @app.delete("/api/connections/<conn_id>")
+    def connections_delete(conn_id: str):
+        tenant = getattr(g, "tenant", None)
+        info = get_provider(conn_id)
+        conn = _get_conn(conn_id)
+        if info is None and conn is None:
+            return _err(404, f"unknown connection: {conn_id}")
+        category = "ai_llm" if info is not None else conn.category
+        management = _conn_api.credential_management(
+            conn_id, tenant=tenant, category=category,
+        )
+        if management["credential_writable"] is False:
+            return _err(
+                409,
+                _conn_api.PINNED_CLOUD_SECRET_REASON,
+                error_id=_conn_api.PINNED_CLOUD_SECRET_ERROR_ID,
+                credential_management="pinned_cloud_secret",
+            )
+        _keystore.delete_provider(conn_id, tenant=tenant)
+        if tenant is None:
+            if info is not None:
+                _rebuild_switchboard()
+            else:
+                _keystore.apply_to_env()
+        else:
+            _invalidate_tenant_engines(tenant)
+        return jsonify({"ok": True, "connection_id": conn_id, "disconnected": True})
 
     @app.post("/api/connections/<conn_id>/test")
     def connections_test(conn_id: str):
         tenant = getattr(g, "tenant", None)
-        body: Dict[str, Any] = request.get_json(silent=True) or {}
+        body_raw = request.get_json(silent=True)
+        if body_raw is None:
+            body_raw = {}
+        if not isinstance(body_raw, dict):
+            return _err(400, "connection payload must be an object")
+        body: Dict[str, Any] = body_raw
         # LLM → real prompt round-trip; data source → connectivity probe. A tenant tests ONLY their
         # own stored key — never the instance env key.
         info = get_provider(conn_id)
@@ -1661,17 +1858,49 @@ def create_app(
             stored = _keystore.load(tenant).get(conn_id, {})
             env_key = "" if tenant is not None else os.environ.get(info.key_env, "")
             api_key = body.get("api_key") or stored.get("api_key") or env_key
-            base_url = body.get("base_url") or stored.get("base_url") or info.default_base_url or None
+            requested_base_url = (
+                body.get("base_url") if "base_url" in body else stored.get("base_url")
+            )
+            try:
+                base_url = (
+                    tenant_provider_base_url(info, requested_base_url)
+                    if tenant is not None
+                    else requested_base_url or info.default_base_url or None
+                )
+            except ValueError:
+                return _err(400, "tenant provider URL must use the catalog endpoint")
             model = body.get("model") or stored.get("model") or info.default_model
             if tenant is not None and not str(api_key or "").strip():
                 return jsonify(_no_key_verdict(model))   # never let an empty key resolve from env
-            return jsonify(_test_provider_adapter(info, api_key, base_url, model))
+            return jsonify(_test_provider_adapter(
+                info,
+                api_key,
+                base_url,
+                model,
+                provider_id=conn_id,
+                tenant=tenant,
+            ))
         conn = _get_conn(conn_id)
         if conn is None:
             return _err(404, f"unknown connection: {conn_id}")
         stored = _keystore.load(tenant).get(conn_id, {})
+        try:
+            payload = _conn_api.validate_connection_payload(conn, body, operation="test")
+            _conn_api.validate_stored_connection_entry(conn, _keystore.load(tenant))
+        except _conn_api.ConnectionPayloadError as exc:
+            return _err(400, "connection credential payload rejected", reason_code=str(exc))
+        if conn.category == "exchange":
+            if tenant is None:
+                return jsonify(_conn_api.probe_owner_exchange_receipt(
+                    conn, build_cloud_trading_control_receipt(),
+                ))
+            return jsonify(_conn_api.probe_tenant_exchange(
+                conn,
+                payload=payload,
+                store=_keystore.load(tenant),
+            ))
         env_key = "" if tenant is not None else (os.environ.get(conn.key_env, "") if conn.key_env else "")
-        api_key = body.get("api_key") or stored.get("api_key") or env_key
+        api_key = payload.get("api_key") or stored.get("api_key") or env_key
         if tenant is not None and conn.key_env and not str(api_key or "").strip():
             return jsonify({"ok": False, "latency_ms": 0,
                             "error": "no key stored for your account — add one first"})
@@ -1749,10 +1978,61 @@ def create_app(
     # protected ingress gates. Their default capabilities disclose unavailable
     # release dispatch; registration cannot itself confer execution authority.
     from aureon.operator.coding_artifact_review import register_coding_review_routes
-    from aureon.operator.historical_backtest import register_historical_backtest_routes
+    from aureon.operator.coding_cloud_api import register_coding_cloud_routes
+    from aureon.operator.historical_backtest import (
+        CAPABILITY_PATH as HISTORICAL_BACKTEST_CAPABILITY_PATH,
+    )
+    from aureon.operator.historical_backtest import (
+        REPLAY_PATH as HISTORICAL_BACKTEST_REPLAY_PATH,
+    )
+    from aureon.operator.historical_backtest import (
+        historical_source_worker_ready,
+        register_historical_backtest_routes,
+    )
 
-    register_historical_backtest_routes(app)
+    def _historical_backtest_dispatch_available() -> bool:
+        if _cloud_intent_custody is None or not historical_source_worker_ready():
+            return False
+        if (
+            request.method == "GET"
+            and request.path == HISTORICAL_BACKTEST_CAPABILITY_PATH
+        ):
+            return True
+        receipt = getattr(g, "operator_cloud_intent_custody", None)
+        identity_kind = getattr(g, "identity_kind", None)
+        expected_owner = identity_kind in {"admin", "owner"}
+        expected_tenant = identity_kind == "tenant"
+        return bool(
+            request.method == "POST"
+            and request.path == HISTORICAL_BACKTEST_REPLAY_PATH
+            and isinstance(receipt, dict)
+            and receipt.get("schema")
+            == "aureon.operator.cloud-switchboard-intent-custody.v2"
+            and receipt.get("owner_route_authorized") is expected_owner
+            and receipt.get("tenant_route_authorized") is expected_tenant
+            and (expected_owner or expected_tenant)
+            and receipt.get("effect_class") == "public_historical_read_analysis"
+            and receipt.get("payload_schema")
+            == "aureon.operator.historical-backtest-request.v1"
+            and receipt.get("request_method") == "POST"
+            and receipt.get("request_path") == HISTORICAL_BACKTEST_REPLAY_PATH
+            and receipt.get("request_revision") == _cloud_intent_custody.revision
+            and receipt.get("route_rule") == HISTORICAL_BACKTEST_REPLAY_PATH
+            and receipt.get("external_read_authority") is True
+            and receipt.get("mutation_authority") is False
+            and receipt.get("state_mutation_authority") is False
+            and receipt.get("configuration_mutation_authority") is False
+            and receipt.get("external_communication_authority") is False
+            and receipt.get("tool_dispatch_authority") is False
+            and receipt.get("economic_mutation_authority") is False
+        )
+
+    register_historical_backtest_routes(
+        app,
+        dispatch_available=_historical_backtest_dispatch_available,
+    )
     register_coding_review_routes(app, root=Path(__file__).resolve().parents[2])
+    register_coding_cloud_routes(app)
     return app
 
 

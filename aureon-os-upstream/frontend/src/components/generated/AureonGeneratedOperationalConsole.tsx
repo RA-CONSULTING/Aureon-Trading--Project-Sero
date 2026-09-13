@@ -222,7 +222,7 @@ export function AureonGeneratedOperationalConsole() {
 
           <div className="flex flex-wrap gap-2">
             <Pill label={`mode ${shortText(actionMode)}`} kind={statusKind(actionMode)} />
-            <Pill label={`feed ${snapshot.runtimeEndpoint ? snapshot.runtimeEndpoint.replace("http://127.0.0.1:", "") : "not connected"}`} kind={runtimeConnected ? "info" : "bad"} />
+          <Pill label={`feed ${runtimeConnected ? "observed" : snapshot.runtimeEndpoint ? "configured; no receipt" : "not connected"}`} kind={runtimeConnected ? "info" : "bad"} />
             <Pill label={`completed tick ${timeLabel(runtimeEvidence.sourceTimestamp)}`} kind="quiet" />
             <Pill label={`HTTP receipt ${timeLabel(snapshot.loadedAt)}`} kind="quiet" />
             <Pill label={runtimeEvidence.reason} kind={runtimeConnected ? "info" : "warn"} />
@@ -350,7 +350,7 @@ export function AureonGeneratedOperationalConsole() {
                 </Panel>
                 <Panel title="Mind Hub And Self-Report" icon={Radio}>
                   <LineList items={[
-                    `mind hub: ${shortText(data.wake?.mind_hub_url || "http://127.0.0.1:13002/api/thoughts")}`,
+                    `mind hub: ${shortText(data.wake?.mind_hub_url || "Unavailable")}`,
                     `voice profile: ${shortText(uiSpec.expression_context?.voice_summary, "pending")}`,
                     `runtime translation: ${shortText(uiSpec.expression_context?.runtime_summary, "pending")}`,
                     `source count: ${compact(uiSpec.expression_context?.source_count)}`,

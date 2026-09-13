@@ -24,11 +24,18 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { email, fullName, location, dateOfBirth }: SignupNotificationRequest = await req.json();
 
-    console.log('[send-signup-notification] Processing signup notification for:', email);
+    const notificationRecipient = Deno.env
+      .get("SIGNUP_NOTIFICATION_RECIPIENT")
+      ?.trim();
+    if (!notificationRecipient) {
+      throw new Error("SIGNUP_NOTIFICATION_RECIPIENT is not configured");
+    }
+
+    console.log('[send-signup-notification] Processing signup notification');
 
     const emailResponse = await resend.emails.send({
       from: "AUREON Trading <onboarding@resend.dev>",
-      to: ["gary@raconsultingandbrokerageservices.com"],
+      to: [notificationRecipient],
       subject: "🎉 New User Signup - AUREON Trading Platform",
       html: `
         <!DOCTYPE html>
@@ -106,59 +113,59 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
             <div class="content">
               <p>A new user has signed up for the AUREON Trading Platform.</p>
-              
+
               <div class="info-box">
                 <h2 style="margin-top: 0; font-size: 18px; color: #667eea;">User Details</h2>
-                
+
                 <div class="info-row">
                   <span class="label">Email:</span>
                   <span class="value">${email}</span>
                 </div>
-                
+
                 ${fullName ? `
                 <div class="info-row">
                   <span class="label">Full Name:</span>
                   <span class="value">${fullName}</span>
                 </div>
                 ` : ''}
-                
+
                 ${location ? `
                 <div class="info-row">
                   <span class="label">Location:</span>
                   <span class="value">${location}</span>
                 </div>
                 ` : ''}
-                
+
                 ${dateOfBirth ? `
                 <div class="info-row">
                   <span class="label">Date of Birth:</span>
                   <span class="value">${new Date(dateOfBirth).toLocaleDateString()}</span>
                 </div>
                 ` : ''}
-                
+
                 <div class="info-row">
                   <span class="label">KYC Status:</span>
                   <span class="value" style="color: #ffc107;">⏳ Pending Review</span>
                 </div>
               </div>
-              
+
               <p style="background: #fff3cd; padding: 15px; border-radius: 6px; border-left: 4px solid #ffc107; margin: 20px 0;">
                 <strong>Action Required:</strong> Please review the KYC application in the admin dashboard.
               </p>
-              
+
               <div class="timestamp">
-                Registration Time: ${new Date().toLocaleString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric', 
-                  hour: '2-digit', 
+                Registration Time: ${new Date().toLocaleString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
                   minute: '2-digit',
                   timeZoneName: 'short'
                 })}
               </div>
             </div>
-            
+
             <div class="footer">
               <p>AUREON Quantum Trading System</p>
               <p>The Prism That Turns Fear Into Love 💚</p>

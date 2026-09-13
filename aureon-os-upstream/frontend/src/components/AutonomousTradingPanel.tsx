@@ -14,6 +14,8 @@ export const AutonomousTradingPanel = () => {
     opportunities,
     totalPairs,
     isScanning,
+    executionAvailable,
+    executionUnavailableReason,
     start,
     stop,
   } = useAutonomousTrading();
@@ -24,8 +26,8 @@ export const AutonomousTradingPanel = () => {
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Zap className="h-5 w-5 text-warning" />
-            AUREON Live Trading System
-            <Badge className="bg-gradient-to-r from-primary to-primary text-white ml-2">PROVIDER RECEIPTS</Badge>
+            AUREON Market Analysis
+            <Badge variant="outline" className="ml-2">ANALYSIS ONLY</Badge>
           </h3>
           <p className="text-sm text-muted-foreground">
             Master Equation (Λ) • 9 Auris Nodes • Lighthouse (Γ{'>'}0.945) • {totalPairs} fresh provider pairs
@@ -34,21 +36,26 @@ export const AutonomousTradingPanel = () => {
         {isActive ? (
           <Button onClick={stop} variant="destructive" size="lg">
             <Square className="h-4 w-4 mr-2" />
-            Stop Trading
+            Stop Analysis
           </Button>
         ) : (
           <Button onClick={start} size="lg">
             <Play className="h-4 w-4 mr-2" />
-            Start Trading
+            Start Analysis
           </Button>
         )}
       </div>
 
       {/* Status */}
+      {!executionAvailable && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
+          {executionUnavailableReason}
+        </div>
+      )}
       <div className="grid grid-cols-4 gap-4">
         <div className="p-4 rounded-lg bg-muted/50">
           <div className="text-2xl font-bold">{tradesExecuted}</div>
-          <div className="text-xs text-muted-foreground">Trades Executed</div>
+          <div className="text-xs text-muted-foreground">Orders Attempted</div>
         </div>
         <div className="p-4 rounded-lg bg-muted/50">
           <div className="text-2xl font-bold text-success">
@@ -75,7 +82,7 @@ export const AutonomousTradingPanel = () => {
         {isActive ? (
           <Badge className="bg-success">
             <Activity className="h-3 w-3 mr-1" />
-            ACTIVE
+            ANALYZING
           </Badge>
         ) : (
           <Badge variant="outline">PAUSED</Badge>

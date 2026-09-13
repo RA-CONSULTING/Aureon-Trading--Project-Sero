@@ -87,25 +87,14 @@ export function useAvailableAssets(): UseAvailableAssetsResult {
     }
   }, []);
 
-  // Sync assets from exchanges
-  const syncAssets = useCallback(async (exchanges: string[] = ['binance', 'kraken']) => {
+  // Refresh the read-only registry. Provider-side registry population is owned by
+  // the operator runtime; browser sessions never receive service-role authority.
+  const syncAssets = useCallback(async (_exchanges: string[] = ['binance', 'kraken']) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('sync-exchange-assets', {
-        body: { exchanges },
-      });
-
-      if (error) {
-        console.error('[useAvailableAssets] Sync error:', error);
-        throw error;
-      }
-
-      console.log('[useAvailableAssets] Sync result:', data);
-      
-      // Reload assets after sync
       await loadAssets();
     } catch (error) {
-      console.error('[useAvailableAssets] Sync failed:', error);
+      console.error('[useAvailableAssets] Refresh failed:', error);
       throw error;
     } finally {
       setIsLoading(false);

@@ -8,19 +8,30 @@ import sys
 import threading
 import time
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 
 import pytest
 from flask import Flask, g
 
 from aureon.operator.historical_backtest import (
-    CAPABILITY_PATH, REPLAY_PATH, BacktestError, Candle, Dataset, account_scope,
-    _run_source_worker, fetch_kraken_dataset, parse_kraken_dataset, register_historical_backtest_routes, run_replay, validate_config,
+    CAPABILITY_PATH,
+    REPLAY_PATH,
+    BacktestError,
+    Candle,
+    Dataset,
+    _run_source_worker,
+    account_scope,
+    fetch_kraken_dataset,
+    historical_source_worker_ready,
+    parse_kraken_dataset,
+    register_historical_backtest_routes,
+    run_replay,
+    validate_config,
 )
 
-NOW = datetime(2026, 9, 11, tzinfo=timezone.utc).timestamp()
-START = int(datetime(2026, 9, 1, tzinfo=timezone.utc).timestamp())
+NOW = datetime(2026, 9, 11, tzinfo=UTC).timestamp()
+START = int(datetime(2026, 9, 1, tzinfo=UTC).timestamp())
 
 
 def configuration(**changes):
@@ -209,6 +220,10 @@ def test_source_worker_has_no_inherited_provider_secrets(monkeypatch):
     monkeypatch.setenv("TEST_PROVIDER_SECRET", "offline-test-value")
     raw = _run_source_worker([sys.executable, "-I", "-S", "-B", "-c", "import os,json;print(json.dumps(sorted(os.environ)))"])
     assert "TEST_PROVIDER_SECRET" not in json.loads(raw)
+
+
+def test_packaged_source_worker_has_concrete_local_readiness():
+    assert historical_source_worker_ready() is True
 
 
 def test_source_worker_rejects_oversized_output():

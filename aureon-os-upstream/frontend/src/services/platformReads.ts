@@ -5,6 +5,7 @@ import { readBillingStatus, readRecordedCompanyProfile, readSwitchboardConfigura
 import { readOperatorReleaseReadiness } from "../lib/operatorReleaseReadiness";
 import { readOperatorAuthorizationLease } from "../lib/operatorAuthorization";
 import { readCloudTradingControl } from "../lib/cloudTradingControl";
+import { cloudTradingSourceEvidence } from "../lib/cloudTradingPresentation";
 
 export interface PlatformStatus {
   status?: string;
@@ -47,4 +48,5 @@ export const operatorAuthorizationLeaseStore = createReadOnlyPoller({
 export const cloudTradingControlStore = createReadOnlyPoller({
   read: async options => readCloudTradingControl(await api.get("/api/operator/cloud-trading-control", options)),
   receiptMaxAgeMs: 45_000,
+  validateSource: cloudTradingSourceEvidence,
 });

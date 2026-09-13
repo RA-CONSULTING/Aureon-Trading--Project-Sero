@@ -1,5 +1,9 @@
 from copy import deepcopy
-from aureon.exchanges.provider_ui_observations import project_capital_observation, record_capital_ui_observation
+
+from aureon.exchanges.provider_ui_observations import (
+    project_capital_observation,
+    record_capital_ui_observation,
+)
 
 
 class Receipt(list):
@@ -45,6 +49,7 @@ def test_unreconciled_positions_stay_visible_using_receipt_time_not_opened_at():
     assert projected["observed_count"] == 1
     assert projected["inventory_complete"] is True
     assert projected["rows"][0]["source_timestamp"] == 1000
+    assert projected["source_timestamp_kind"] == "provider_http_date"
     assert projected["rows"][0]["opened_at"] == 100
     assert projected["rows"][0]["fill_reconciled"] is False
     assert "private-deal" not in str(projected)

@@ -67,7 +67,7 @@ export const TradingAnalytics = () => {
         count: null,
         status: typeof error === 'object' && error !== null && typeof (error as { status?: unknown }).status === 'number' ? (error as { status: number }).status : 0,
         available: false,
-        reason: 'Closed-position analytics local backend is unavailable.',
+        reason: 'Closed-position analytics backend is unavailable.',
       });
     });
     return () => ticket.controller.abort();

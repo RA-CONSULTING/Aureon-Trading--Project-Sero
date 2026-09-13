@@ -61,8 +61,6 @@ AUREON_UI_CONFIG = {
         'market_data': '/functions/v1/fetch-all-tickers',
         'positions': '/functions/v1/fetch-open-positions',
         'positions_pnl': '/functions/v1/fetch-positions-pnl',
-        'coherence_forecast': '/functions/v1/forecast-coherence',
-        'unified_field': '/functions/v1/unified-field-analysis',
         'schumann': '/functions/v1/fetch-schumann-data',
         'harmonic_nexus': '/functions/v1/sync-harmonic-nexus',
         'trades': '/functions/v1/fetch-trades',
@@ -72,16 +70,12 @@ AUREON_UI_CONFIG = {
     # PUSH ENDPOINTS - Send terminal state TO the UI (your data enriches others)
     # ═══════════════════════════════════════════════════════════════════════
     'PUSH_ENDPOINTS': {
-        'terminal_state': '/functions/v1/ingest-terminal-state',
         'ecosystem_snapshot': '/functions/v1/ingest-ecosystem-snapshot',
-        'trades': '/functions/v1/ingest-trades',
         'brain_state': '/functions/v1/ingest-brain-state',
         'auris_state': '/functions/v1/ingest-auris-state',
-        'probability_matrix': '/functions/v1/ingest-probability-matrix',
         'performance': '/functions/v1/ingest-performance-tracker',
         'kelly': '/functions/v1/ingest-kelly-computation',
         'hnc': '/functions/v1/ingest-hnc-detection',
-        'telescope': '/functions/v1/ingest-telescope-state',
         'calibration': '/functions/v1/ingest-calibration-trade',
     },
     
@@ -371,9 +365,8 @@ class AureonUIValidator:
             return self.positions
     
     async def fetch_coherence_forecast(self) -> Dict[str, Any]:
-        """Fetch coherence forecast for optimal trading windows"""
-        data = await self._fetch_supabase(self.config['PULL_ENDPOINTS']['coherence_forecast'])
-        return data or {}
+        """Return no data until an identity-bound forecast source is configured."""
+        return {}
     
     # ─────────────────────────────────────────────────────────────────────────
     # 🪞 PUSH METHODS - Send YOUR terminal state to UI (you enrich everyone)
@@ -433,12 +426,8 @@ class AureonUIValidator:
         if missing or state.get('generated_values') is not False:
             logger.error("Terminal state not sent: missing fresh production fields: %s", ', '.join(missing))
             return False
-        payload = dict(state)
-        
-        return await self._push_supabase(
-            self.config['PUSH_ENDPOINTS']['terminal_state'],
-            payload
-        )
+        logger.warning("Terminal state not sent: shared privileged ingest is retired")
+        return False
     
     async def push_trade(self, trade: Dict[str, Any]) -> bool:
         """
@@ -458,16 +447,8 @@ class AureonUIValidator:
         if missing or trade.get('generated_values') is not False:
             logger.error("Trade not sent: incomplete provider receipt: %s", ', '.join(missing))
             return False
-        receipt = {key: value for key, value in trade.items() if key not in envelope_fields}
-        payload = {
-            key: trade[key] for key in envelope_fields
-        }
-        payload['trades'] = [receipt]
-        
-        return await self._push_supabase(
-            self.config['PUSH_ENDPOINTS']['trades'],
-            payload
-        )
+        logger.warning("Trade receipt not sent: shared privileged ingest is retired")
+        return False
     
     async def push_ecosystem_snapshot(self, ecosystem: Dict[str, Any]) -> bool:
         """

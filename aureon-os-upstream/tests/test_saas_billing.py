@@ -283,6 +283,38 @@ def test_billing_balance_guards():
     assert "missing" in r.get_json()["error"]
 
 
+def test_tenant_usage_returns_only_account_ledger_not_global_buffer(monkeypatch):
+    from aureon.saas import billing
+
+    class _AccountRest:
+        def __init__(self, _config):
+            pass
+
+        def select(self, table, filters, *, order=None, limit=None):
+            assert table == "saas_usage_events"
+            assert filters["tenant_id"] == "eq.u1"
+            return [{"kind": "api_request", "tenant_id": "u1"}]
+
+    monkeypatch.setattr(billing, "SupabaseRest", _AccountRest)
+    client = _app(
+        AUREON_LLM_OFFLINE="1",
+        AUREON_SUPABASE_JWT_SECRET="sekret",
+        SUPABASE_URL="https://x.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY="server-only",
+    )
+    token = _mk_jwt({"sub": "u1", "exp": time.time() + 3600}, "sekret")
+    response = client.get(
+        "/api/billing/usage",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["scope"] == "account"
+    assert body["events"] == [{"kind": "api_request", "tenant_id": "u1"}]
+    assert "buffer" not in body
+
+
 def test_charge_fee_disabled_by_default():
     c = _app(AUREON_LLM_OFFLINE="1")
     r = c.post("/api/billing/charge-fee", json={"user_id": "u1", "profit": 10})

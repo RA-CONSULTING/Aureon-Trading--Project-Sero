@@ -76,8 +76,8 @@ export default function LegalPage() {
           </Clause>
           <Clause heading="2. The Service">
             Aureon OS is a grounded AI operating layer for evidence-heavy, high-control work. Sensitive
-            actions — live trading, payments, external filings — require explicit human approval; the
-            platform never initiates them autonomously.
+            actions require explicit human authority. Live automation may continue only inside a
+            time-bounded operator release and remains subject to downstream execution gates.
           </Clause>
           <Clause heading="3. No financial advice">
             The Service is for research and informational purposes only. It does not constitute
@@ -145,7 +145,7 @@ export default function LegalPage() {
           </Clause>
           <Clause heading="Automation &amp; software risk">
             Automated systems can fail, misbehave under market extremes, or be affected by connectivity
-            or software defects. Sensitive actions require your explicit approval; you remain
+            or software defects. Live automation requires a time-bounded operator release; you remain
             responsible for monitoring and for the consequences of actions you authorise.
           </Clause>
         </Section>

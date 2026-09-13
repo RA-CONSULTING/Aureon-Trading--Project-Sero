@@ -85,42 +85,13 @@ export function BinanceCredentialsAdmin() {
       return;
     }
 
-    try {
-      // Auto-sync: Update ALL bots with the same credentials since they share the same wallet
-      const allBotCredentials = credentials.map(cred => ({
-        name: cred.name,
-        apiKey: apiKey.trim(),
-        apiSecret: apiSecret.trim(),
-      }));
-
-      const { data, error } = await supabase.functions.invoke('update-bot-credentials', {
-        body: {
-          credentials: allBotCredentials,
-        },
-      });
-
-      if (error) throw error;
-
-      const successCount = data?.summary?.successful || 0;
-      const totalCount = data?.summary?.total || 0;
-
-      toast({
-        title: '✅ All Bots Synced',
-        description: `Successfully updated ${successCount}/${totalCount} bots with new credentials`,
-      });
-
-      setEditingId(null);
-      setApiKey('');
-      setApiSecret('');
-      await fetchCredentials();
-    } catch (error: any) {
-      console.error('Failed to update credentials:', error);
-      toast({
-        title: '❌ Update Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
+    setApiKey('');
+    setApiSecret('');
+    toast({
+      title: 'Credential route retired',
+      description: `${name} (${id}) must be configured through the signed-in Connections workspace.`,
+      variant: 'destructive',
+    });
   };
 
   const handleToggleActive = async (id: string, currentActive: boolean) => {

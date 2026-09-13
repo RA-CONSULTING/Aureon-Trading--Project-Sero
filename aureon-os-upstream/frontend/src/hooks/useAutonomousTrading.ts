@@ -1,26 +1,23 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useMarketScanner, type MarketOpportunity } from './useMarketScanner';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { QGITASignalGenerator } from '@/core/qgitaSignalGenerator';
 import { MasterEquation } from '@/core/masterEquation';
 import type { MarketSnapshot } from '@/core/aurisNodes';
+import { unavailableTradingAction } from '@/lib/tradingActionAvailability';
 
 const LIGHTHOUSE_THRESHOLD = 0.945;
 
 export function useAutonomousTrading() {
   const [isActive, setIsActive] = useState(false);
-  const [tradesExecuted, setTradesExecuted] = useState(0);
-  const [executionReceipts, setExecutionReceipts] = useState<any[]>([]);
+  const [signalObservations, setSignalObservations] = useState<Record<string, unknown>[]>([]);
   const { opportunities, scanMarket, isScanning, totalPairs, lastError } = useMarketScanner();
   const { toast } = useToast();
   const signalGenerator = useRef(new QGITASignalGenerator());
   const masterEquation = useRef(new MasterEquation());
   const processingRef = useRef(false);
-  const liveExecutionConfirmedRef = useRef(false);
 
   const processOpportunity = useCallback(async (opp: MarketOpportunity) => {
-    if (!liveExecutionConfirmedRef.current) return;
     const snapshot: MarketSnapshot = {
       price: opp.price,
       volume: opp.volume24h,
@@ -49,27 +46,21 @@ export function useAutonomousTrading() {
     );
     if (!signal || !signal.lighthouse.isLHE || signal.tier !== 1 || signal.signalType === 'HOLD') return;
 
-    const { data, error } = await supabase.functions.invoke('execute-trade', {
-      body: {
-        liveExecutionConfirmed: true,
-        symbol: opp.symbol,
-        signalType: signal.signalType === 'BUY' ? 'LONG' : 'SHORT',
-        coherence: lambdaState.coherence,
-        lighthouseValue: signal.lighthouse.L,
-        lighthouseConfidence: signal.confidence,
-        prismLevel: signal.tier,
-        currentPrice: opp.price,
-        truthStatus: opp.truthStatus,
-        sourceId: opp.sourceId,
-        sourceTimestamp: opp.sourceTimestamp,
-        generatedValues: false,
-      },
-    });
-    if (error || !data?.success || data?.truthStatus !== 'live' || data?.generatedValues !== false) {
-      throw new Error(error?.message || data?.error || 'LIVE_EXECUTION_RECEIPT_REQUIRED');
-    }
-    setTradesExecuted((count) => count + 1);
-    setExecutionReceipts((receipts) => [...receipts, data].slice(-100));
+    const unavailable = unavailableTradingAction('autonomous_signal_order');
+    setSignalObservations((observations) => [...observations, {
+      symbol: opp.symbol,
+      signalType: signal.signalType,
+      confidence: signal.confidence,
+      tier: signal.tier,
+      coherence: lambdaState.coherence,
+      truthStatus: opp.truthStatus,
+      sourceId: opp.sourceId,
+      sourceTimestamp: opp.sourceTimestamp,
+      generatedValues: false,
+      executionAvailable: unavailable.available,
+      executionUnavailableReason: unavailable.code,
+      providerMutationAttempted: unavailable.provider_mutation_attempted,
+    }].slice(-100));
   }, []);
 
   useEffect(() => {
@@ -79,7 +70,7 @@ export function useAutonomousTrading() {
       processingRef.current = true;
       try {
         for (const opportunity of opportunities.slice(0, 20)) {
-          if (cancelled || !liveExecutionConfirmedRef.current) break;
+          if (cancelled) break;
           try {
             await processOpportunity(opportunity);
           } catch (error) {
@@ -102,10 +93,6 @@ export function useAutonomousTrading() {
   }, [isActive, scanMarket]);
 
   const start = useCallback(() => {
-    // Live execution is permanently disabled in this frontend build. The hook
-    // may still scan and surface opportunities, but it will never invoke the
-    // execute-trade edge function or set liveExecutionConfirmed.
-    liveExecutionConfirmedRef.current = false;
     setIsActive(true);
     toast({
       title: 'Autonomous analysis scan enabled',
@@ -114,22 +101,24 @@ export function useAutonomousTrading() {
   }, [toast]);
 
   const stop = useCallback(() => {
-    liveExecutionConfirmedRef.current = false;
     setIsActive(false);
     toast({
-      title: 'Autonomous execution stopped',
-      description: `${tradesExecuted} provider-confirmed order receipts recorded this session.`,
+      title: 'Autonomous analysis stopped',
+      description: `${signalObservations.length} qualifying signals observed. No orders were attempted.`,
     });
-  }, [tradesExecuted, toast]);
+  }, [signalObservations.length, toast]);
 
   return {
     isActive,
     isScanning,
-    tradesExecuted,
+    tradesExecuted: 0,
     totalProfit: null,
     totalFees: null,
     netProfit: null,
-    executionReceipts,
+    executionReceipts: [],
+    signalObservations,
+    executionAvailable: false,
+    executionUnavailableReason: unavailableTradingAction('autonomous_signal_order').message,
     opportunities: opportunities.slice(0, 20),
     totalPairs,
     lastError,

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
  * victory never loosens) runs server-side, gated off by default.
  */
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Heart, Trophy, Skull, ShieldAlert, Anchor } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

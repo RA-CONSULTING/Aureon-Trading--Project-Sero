@@ -30,8 +30,8 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await authClient.auth.getUser(token);
     if (authError || !user) throw new Error('INVALID_AUTHENTICATION');
 
-    const { action, huntSessionId, liveExecutionConfirmed } = await req.json();
-    
+    const { action, huntSessionId } = await req.json();
+
     console.log(`Hunt Loop ${action} request:`, { huntSessionId });
 
     if (action === 'scan') {
@@ -60,30 +60,6 @@ serve(async (req) => {
         );
       }
 
-      // Get active hive and agent
-      const { data: hives } = await supabase
-        .from('hive_instances')
-        .select('id')
-        .or(`id.eq.${huntSession.hive_sessions.root_hive_id},parent_hive_id.eq.${huntSession.hive_sessions.root_hive_id}`)
-        .eq('status', 'active')
-        .limit(1)
-        .single();
-
-      if (!hives) {
-        throw new Error('No active hive found');
-      }
-
-      const { data: agent } = await supabase
-        .from('hive_agents')
-        .select('id')
-        .eq('hive_id', hives.id)
-        .limit(1)
-        .single();
-
-      if (!agent) {
-        throw new Error('No active agent found');
-      }
-
       // Fetch market data from Binance
       const tickerResponse = await fetch('https://api.binance.com/api/v3/ticker/24hr');
       if (!tickerResponse.ok) {
@@ -106,13 +82,6 @@ serve(async (req) => {
         .limit(1000);
       if (qgitaError) throw new Error(`QGITA live signal read failed: ${qgitaError.message}`);
 
-      const positionSizeUSD = Number(Deno.env.get('HUNT_POSITION_SIZE_USD'));
-      const positionSizingConfigured = Number.isFinite(positionSizeUSD) && positionSizeUSD > 0;
-      const twapThresholdUsd = Number(huntSession.twap_threshold_usd);
-      const twapDurationSeconds = Number(huntSession.twap_duration_seconds);
-      const twapConfigured = Number.isFinite(twapThresholdUsd) && twapThresholdUsd > 0 &&
-        Number.isFinite(twapDurationSeconds) && twapDurationSeconds > 0;
-
       // Filter and score opportunities
       const opportunities = [];
       const validSourceTimestamps: string[] = [];
@@ -129,7 +98,7 @@ serve(async (req) => {
         if (![price, volume24h, priceChange, providerTimestamp].every(Number.isFinite) ||
             price <= 0 || volume24h < 0 || sourceAge < 0 || sourceAge > 5 * 60 * 1000) continue;
         validSourceTimestamps.push(sourceTimestamp);
-        
+
         // Calculate volatility as abs(price change)
         const volatility = Math.abs(priceChange);
 
@@ -168,7 +137,7 @@ serve(async (req) => {
       // Process each target through QGITA → OMS pipeline
       for (const target of topTargets) {
         let savedTargetId: string | null = null;
-        
+
         try {
           // Save target to database
           const { data: savedTarget } = await supabase
@@ -220,153 +189,28 @@ serve(async (req) => {
             }).eq('id', savedTargetId);
             continue;
           }
-          
-          // Priority = confidence + bonuses
-          let priority = Math.floor(confidence);
-          if (target.volatility24h > 10) priority = Math.min(100, priority + 10); // High vol bonus
-          if (target.volume24h > 10000000) priority = Math.min(100, priority + 5); // High volume bonus
 
           if (!savedTarget) continue;
 
-          // Update target with signal
+          // Retain the observed signal as analysis evidence. This tenant Edge
+          // Function has no authority to route an owner-runtime order.
           await supabase
             .from('hunt_targets')
             .update({
-              status: 'queued',
+              status: tier <= 2 ? 'analyzed' : 'rejected',
               signal_generated: true,
               signal_type: signalType,
               signal_confidence: confidence,
               signal_tier: tier,
+              order_queued: false,
+              rejection_reason: tier <= 2
+                ? 'GOVERNED_ORDER_REVIEW_DISPATCH_CLIENT_UNAVAILABLE'
+                : 'NATIVE_QGITA_TIER_3_NO_ACTION',
               processed_at: new Date().toISOString(),
             })
             .eq('id', savedTargetId);
 
           signalsGenerated++;
-
-          // Only queue Tier 1 and Tier 2 signals
-          if (tier <= 2) {
-            if (liveExecutionConfirmed !== true) {
-              await supabase.from('hunt_targets').update({
-                status: 'analyzed',
-                rejection_reason: 'LIVE_EXECUTION_NOT_CONFIRMED_ANALYSIS_ONLY',
-                processed_at: new Date().toISOString(),
-              }).eq('id', savedTargetId);
-              continue;
-            }
-            if (!positionSizingConfigured) {
-              await supabase.from('hunt_targets').update({
-                status: 'rejected',
-                rejection_reason: 'HUNT_POSITION_SIZE_USD_NOT_CONFIGURED',
-                processed_at: new Date().toISOString(),
-              }).eq('id', savedTargetId);
-              continue;
-            }
-            const tierMultiplier = tier === 1 ? 1.0 : 0.5;
-            const positionSize = positionSizeUSD * tierMultiplier;
-            const quantity = positionSize / target.price;
-            const orderValueUSD = positionSize;
-
-            // Check if order should use TWAP (above threshold)
-            if (!twapConfigured) {
-              await supabase.from('hunt_targets').update({
-                status: 'rejected',
-                rejection_reason: 'HUNT_TWAP_CONFIG_NOT_CONFIGURED',
-                processed_at: new Date().toISOString(),
-              }).eq('id', savedTargetId);
-              continue;
-            }
-            const useTWAP = orderValueUSD >= twapThresholdUsd;
-
-            if (useTWAP) {
-              // Place TWAP order directly
-              console.log(`📊 ${target.symbol} using TWAP: $${orderValueUSD.toFixed(2)}`);
-              
-              const { data: twapResult, error: twapError } = await supabase.functions.invoke('binance-algo-twap', {
-                headers: { Authorization: authHeader as string },
-                body: {
-                  action: 'place',
-                  symbol: target.symbol,
-                  side: signalType,
-                  quantity,
-                  duration: twapDurationSeconds,
-                  limitPrice: target.price,
-                  huntSessionId: huntSessionId,
-                  liveExecutionConfirmed: true,
-                  truthStatus: 'real_derived',
-                  sourceId: `qgita_signal:${qgitaSignal.id}:${qgitaSignal.source_id}+${target.sourceId}`,
-                  sourceTimestamp: [qgitaSignal.source_timestamp, target.sourceTimestamp].sort()[0],
-                  generatedValues: false,
-                },
-              });
-
-              if (twapResult?.success) {
-                await supabase
-                  .from('hunt_targets')
-                  .update({ 
-                    order_queued: true,
-                    status: 'twap_placed',
-                  })
-                  .eq('id', savedTargetId);
-
-                ordersQueued++;
-                console.log(`✅ ${target.symbol} TWAP placed: ${signalType} ${quantity.toFixed(8)} over ${huntSession.twap_duration_seconds}s`);
-              } else {
-                console.error(`❌ ${target.symbol} TWAP failed:`, twapError);
-              }
-            } else {
-              // Enqueue via OMS for regular execution
-              const { data: omsResult } = await supabase.functions.invoke('oms-leaky-bucket', {
-                headers: { Authorization: authHeader as string },
-                body: {
-                  action: 'enqueue',
-                  sessionId: huntSession.hive_session_id,
-                  hiveId: hives.id,
-                  agentId: agent.id,
-                  symbol: target.symbol,
-                  side: signalType,
-                  quantity,
-                  price: target.price,
-                  priority,
-                  metadata: {
-                    signalStrength: Number(qgitaSignal.strength),
-                    coherence: Number(qgitaSignal.cross_scale_coherence),
-                    lighthouseValue: Number(qgitaSignal.lighthouse_l),
-                    qgitaSignalId: qgitaSignal.id,
-                    qgitaSourceId: qgitaSignal.source_id,
-                    qgitaSourceTimestamp: qgitaSignal.source_timestamp,
-                    marketSourceId: target.sourceId,
-                    marketSourceTimestamp: target.sourceTimestamp,
-                    sourceId: `qgita_signal:${qgitaSignal.id}:${qgitaSignal.source_id}+${target.sourceId}`,
-                    sourceTimestamp: [qgitaSignal.source_timestamp, target.sourceTimestamp].sort()[0],
-                    truthStatus: 'real_derived',
-                    generatedValues: false,
-                    huntOpportunityScore: target.opportunityScore,
-                    volatility24h: target.volatility24h,
-                    volume24h: target.volume24h,
-                  },
-                },
-              });
-
-              if (omsResult?.success) {
-                await supabase
-                  .from('hunt_targets')
-                  .update({ order_queued: true })
-                  .eq('id', savedTargetId);
-
-                ordersQueued++;
-                console.log(`✅ ${target.symbol} queued: ${signalType} P${priority} Tier${tier}`);
-              }
-            }
-          } else {
-            // Tier 3 signals rejected
-            await supabase
-              .from('hunt_targets')
-              .update({
-                status: 'rejected',
-                rejection_reason: 'Tier 3 signal (confidence < 60%)',
-              })
-              .eq('id', savedTargetId);
-          }
 
         } catch (error) {
           console.error(`Failed to process ${target.symbol}:`, error);
@@ -414,7 +258,7 @@ serve(async (req) => {
         })
         .eq('id', huntSessionId);
 
-      console.log(`🦁 Hunt scan complete: ${topTargets.length} targets, ${signalsGenerated} signals, ${ordersQueued} queued (${scanDuration}ms)`);
+      console.log(`🦁 Hunt analysis complete: ${topTargets.length} targets, ${signalsGenerated} signals, no orders attempted (${scanDuration}ms)`);
 
       return new Response(
         JSON.stringify({
@@ -424,6 +268,10 @@ serve(async (req) => {
           targetsFound: topTargets.length,
           signalsGenerated,
           ordersQueued,
+          executionAvailable: false,
+          executionUnavailableReason: 'GOVERNED_ORDER_REVIEW_DISPATCH_CLIENT_UNAVAILABLE',
+          tenantRuntimeAuthority: false,
+          providerMutationAttempted: false,
           topTargets: topTargets.slice(0, 3).map(t => ({
             symbol: t.symbol,
             score: t.opportunityScore.toFixed(2),

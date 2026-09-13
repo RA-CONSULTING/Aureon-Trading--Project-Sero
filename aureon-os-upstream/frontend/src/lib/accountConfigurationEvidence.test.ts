@@ -71,6 +71,13 @@ test('identity requires explicit coherent fields; unknown never defaults to admi
   assert.equal(readIdentity({ ...tenant, allowed_routes: null }), null);
   const operator = { kind: 'open', is_admin: true, plane: 'instance', tenancy_enabled: false, auth_required: false, allowed_routes: null };
   assert.equal(readIdentity(operator)?.kind, 'open');
+  const owner = { kind: 'owner', is_admin: true, plane: 'instance', tenancy_enabled: true,
+    auth_required: true, allowed_routes: null, auth_source: 'supabase_auth_server',
+    owner_designation_verified: true, identity_commitment_sha256: 'a'.repeat(64) };
+  assert.equal(readIdentity(owner)?.kind, 'owner');
+  assert.equal(readIdentity({ ...owner, auth_source: 'unverified_jwt_claim' }), null);
+  assert.equal(readIdentity({ ...owner, owner_designation_verified: false }), null);
+  assert.equal(readIdentity({ ...owner, identity_commitment_sha256: 'short' }), null);
 });
 test('test receipt preserves actual zero latency and expires without clock renewal', () => {
   const source = captureTestReceipt({ ok: true, latency_ms: 0 }, 100_000);

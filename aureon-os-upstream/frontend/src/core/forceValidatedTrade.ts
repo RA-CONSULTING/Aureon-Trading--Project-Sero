@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { unavailableTradingAction } from '@/lib/tradingActionAvailability';
 
 export interface ValidationStep {
   step: number;
@@ -21,9 +22,11 @@ export interface ValidationTrace {
 
 export interface ForceTradeResult {
   success: boolean;
+  available: false;
   trace: ValidationTrace;
   message: string;
   error?: string;
+  providerMutationAttempted: false;
 }
 
 export async function forceValidatedTrade(
@@ -32,36 +35,19 @@ export async function forceValidatedTrade(
   side: 'BUY' | 'SELL' = 'BUY',
   mode: 'paper' | 'live' = 'paper'
 ): Promise<ForceTradeResult> {
-  console.log('[ForceValidatedTrade] Starting Cycle 1 validation...', { userId, symbol, side, mode });
-
-  try {
-    const { data, error } = await supabase.functions.invoke('force-validated-trade', {
-      body: { userId, symbol, side, mode },
-    });
-
-    if (error) {
-      console.error('[ForceValidatedTrade] Edge function error:', error);
-      return {
-        success: false,
-        trace: { steps: [], startTime: new Date().toISOString(), success: false },
-        message: `Edge function error: ${error.message}`,
-        error: error.message,
-      };
-    }
-
-    console.log('[ForceValidatedTrade] Validation complete:', data);
-    return data as ForceTradeResult;
-
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[ForceValidatedTrade] Failed:', errorMessage);
-    return {
-      success: false,
-      trace: { steps: [], startTime: new Date().toISOString(), success: false },
-      message: `Failed to execute forced validation: ${errorMessage}`,
-      error: errorMessage,
-    };
-  }
+  void userId;
+  void symbol;
+  void side;
+  void mode;
+  const unavailable = unavailableTradingAction('force_validated_trade');
+  return {
+    success: false,
+    available: false,
+    trace: { steps: [], startTime: new Date().toISOString(), success: false },
+    message: unavailable.message,
+    error: unavailable.code,
+    providerMutationAttempted: unavailable.provider_mutation_attempted,
+  };
 }
 
 // Get the last forced validation trade - simplified to avoid type issues

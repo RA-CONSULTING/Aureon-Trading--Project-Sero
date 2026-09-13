@@ -2,8 +2,10 @@ import React from 'react';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SwitchboardConfigurationCards } from './SwitchboardPage';
+import { readFileSync } from 'node:fs';
+import { LegacyReleaseDiagnosticPanel, SwitchboardConfigurationCards } from './SwitchboardPage';
 import { readSwitchboardConfiguration, type SwitchboardFlag } from '../../lib/platformConfiguration';
+import type { ReleaseReadinessReceipt } from '../../lib/operatorReleaseReadiness';
 
 function configuration() {
   const common: SwitchboardFlag = { id: 'ON_FLAG', env_var: 'ON_FLAG', label: 'Observed on', group: 'Actual registered group',
@@ -34,4 +36,24 @@ test('all configuration switches become unavailable for a view-only session or a
     assert.equal((html.match(/disabled=""/g) ?? []).length, 2);
     assert.equal((html.match(/role="switch"/g) ?? []).length, 2);
   }
+});
+
+test('legacy held checklist is diagnostic and appears after the operative signed cloud controller', () => {
+  const now = Date.now();
+  const legacyReceipt = {
+    data: {
+      requirements: [],
+      work_orders: [{ status: 'not_integrated' }],
+    },
+    loading: false, error: null, httpStatus: null, isReceiptCurrent: true, lastReceivedAt: now,
+  } as unknown as ReleaseReadinessReceipt;
+  const html = renderToStaticMarkup(<LegacyReleaseDiagnosticPanel receipt={legacyReceipt} />);
+  assert.match(html, /Legacy local release checklist · diagnostic only/);
+  assert.match(html, /does not decide cloud trading authority/);
+  assert.match(html, /signed cloud controller panel is the operative release status/);
+  assert.doesNotMatch(html, />Live release gate</);
+
+  const source = readFileSync(new URL('./SwitchboardPage.tsx', import.meta.url), 'utf8');
+  assert.match(source, /Signed cloud trading authority · operative status/);
+  assert.ok(source.indexOf('<CloudTradingControlPanel') < source.indexOf('<LegacyReleaseDiagnosticPanel'));
 });

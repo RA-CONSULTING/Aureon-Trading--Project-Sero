@@ -8,15 +8,12 @@ import { AureonGoldCapitalIntelligenceConsole } from './AureonGoldCapitalIntelli
 test('unavailable coding services leave meaningful workspace controls disabled and no local approval writer', () => {
   const html = renderToStaticMarkup(<AureonCodingOrganismConsole />);
   assert.match(html, /aureon-glass-page-header/);
-  assert.match(html, /Coding hub unavailable/);
-  assert.match(html, /Cadence unavailable/);
-  assert.match(html, /does not provide a persistent approval endpoint/);
-  const buttons = html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? [];
-  for (const label of ['Talk To Aureon', 'Reload Voice Worker', 'Full Coding Job', 'Send To Aureon', 'Approve', 'Request Revision', 'Reject']) {
-    const button = buttons.find(item => item.includes(label));
-    assert.ok(button, label);
-    assert.match(button, /disabled=""/, label);
-  }
+  assert.match(html, /Owner route unavailable/);
+  assert.match(html, /Cloud coding worker not commissioned/);
+  assert.match(html, /No prompt, chat, reload, autonomous job, repo mutation, proxy, or credential capability is exposed/);
+  assert.match(html, /Refresh authenticated status/);
+  assert.doesNotMatch(html, /Talk To Aureon|Reload Voice Worker|Full Coding Job|Send To Aureon|Approve|Request Revision|Reject/);
+  assert.doesNotMatch(html, /127\.0\.0\.1:13002|localhost:13002/);
   assert.doesNotMatch(html, /0\.00Hz|system active/);
 });
 

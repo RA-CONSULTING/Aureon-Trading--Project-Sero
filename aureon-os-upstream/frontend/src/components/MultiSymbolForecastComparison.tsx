@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, BarChart3, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 
 interface SymbolForecast {
@@ -27,12 +26,14 @@ const AVAILABLE_SYMBOLS = [
   { value: 'XRPUSDT', label: 'Ripple (XRP)' },
   { value: 'ADAUSDT', label: 'Cardano (ADA)' },
 ];
+const FORECAST_SOURCE_REQUIRED =
+  'Forecasting requires an identity-bound operator observation source.';
 
 export const MultiSymbolForecastComparison = () => {
   const [selectedSymbols, setSelectedSymbols] = useState<string[]>(['BTCUSDT']);
   const [forecasts, setForecasts] = useState<SymbolForecast[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(FORECAST_SOURCE_REQUIRED);
   const { toast } = useToast();
 
   const toggleSymbol = (symbol: string) => {
@@ -53,79 +54,15 @@ export const MultiSymbolForecastComparison = () => {
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
+    const message = FORECAST_SOURCE_REQUIRED;
+    setIsLoading(false);
+    setError(message);
     setForecasts([]);
-
-    try {
-      console.log('Generating forecasts for:', selectedSymbols);
-
-      const forecastPromises = selectedSymbols.map(async (symbol) => {
-        const { data, error: functionError } = await supabase.functions.invoke('forecast-coherence', {
-          body: { symbol },
-        });
-
-        if (functionError) {
-          console.error(`Error forecasting ${symbol}:`, functionError);
-          return null;
-        }
-
-        if (data.error) {
-          console.log(`Insufficient data for ${symbol}`);
-          return null;
-        }
-
-        // Extract key metrics
-        const optimalDays = data.forecast.filter((f: any) => f.predictedCoherence >= 0.945).length;
-        const allCoherences = data.forecast.map((f: any) => f.predictedCoherence);
-        const avgCoherence = allCoherences.reduce((a: number, b: number) => a + b, 0) / allCoherences.length;
-
-        return {
-          symbol,
-          bestDay: data.trends.bestDay,
-          bestHours: data.trends.bestHours,
-          peakCoherence: data.trends.peakCoherence,
-          avgCoherence,
-          optimalDaysCount: optimalDays,
-          trend: data.trends.overall,
-          confidence: data.confidence,
-          dataPoints: data.metadata.historicalDataPoints,
-        };
-      });
-
-      const results = await Promise.all(forecastPromises);
-      const validForecasts = results.filter(f => f !== null) as SymbolForecast[];
-
-      if (validForecasts.length === 0) {
-        setError('No sufficient data available for the selected cryptocurrencies. Continue running the system to collect data.');
-        toast({
-          title: "Insufficient Data",
-          description: "No forecasts could be generated. Continue collecting data.",
-          variant: "default",
-        });
-      } else {
-        // Sort by peak coherence descending
-        validForecasts.sort((a, b) => b.peakCoherence - a.peakCoherence);
-        setForecasts(validForecasts);
-
-        toast({
-          title: "Comparison Complete",
-          description: `Generated forecasts for ${validForecasts.length} cryptocurrencies.`,
-          duration: 5000,
-        });
-      }
-
-    } catch (error) {
-      console.error('Error generating comparison:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate comparison');
-      toast({
-        title: "Comparison Error",
-        description: "Failed to generate multi-symbol forecast. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    toast({
+      title: 'Operator forecast unavailable',
+      description: message,
+      variant: 'destructive',
+    });
   };
 
   const getTrendIcon = (trend: string) => {
@@ -167,7 +104,7 @@ export const MultiSymbolForecastComparison = () => {
           </div>
           <Button
             onClick={generateComparison}
-            disabled={isLoading || selectedSymbols.length === 0}
+            disabled
             className="gap-2"
           >
             {isLoading ? (
@@ -178,7 +115,7 @@ export const MultiSymbolForecastComparison = () => {
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Compare {selectedSymbols.length} Symbol{selectedSymbols.length !== 1 ? 's' : ''}
+                Operator source required
               </>
             )}
           </Button>

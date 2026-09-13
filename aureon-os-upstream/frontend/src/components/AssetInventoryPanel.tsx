@@ -91,7 +91,7 @@ export function AssetInventoryPanel({ className, compact = false }: AssetInvento
             disabled={isSyncing || isLoading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
+            {isSyncing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
       </CardHeader>

@@ -1,13 +1,13 @@
 import { GlassPageHeader } from "@/shell/GlassPage";
-import { CodingArtifactReviewPanel } from './CodingArtifactReviewPanel';
 import { consoleControlAvailable, consoleDisplayValue } from "@/lib/generatedConsoleDisplayEvidence";
 import { consoleReceiptCurrent } from "@/lib/generatedConsoleEvidence";
-import { useEffect, useRef, useState, type ChangeEvent, type ComponentType } from "react";
+import React, { useEffect, useRef, useState, type ChangeEvent, type ComponentType } from "react";
 import { BrainCircuit, CheckCircle2, Code2, FileText, MessageSquare, MousePointer2, Radio, RefreshCw, Send, ShieldCheck, TestTube2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/services/apiClient";
 import {
   AUREON_EVOLUTION_RUNTIME_PATCH_SUMMARY,
   AUREON_EVOLUTION_RUNTIME_PATCHES,
@@ -42,31 +42,14 @@ type ArtifactItem = {
   title: string;
 };
 
-const HUB_BASE = "http://127.0.0.1:13002";
-const LIVE_REFRESH_FALLBACK_MS = 1000;
-const FULL_ORGANISM_COMMAND = ".\\AUREON_PRODUCTION_LIVE.cmd -WaitForRefresh -MarketStatusPort 8791";
-const TERMINAL_PROMPT_COMMAND =
-  "Invoke-RestMethod http://127.0.0.1:13002/api/coding/prompt -Method Post -ContentType \"application/json\" -Body $body";
-
-async function fetchJson(url: string): Promise<JsonMap> {
-  try {
-    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (!response.ok) return {};
-    return await response.json();
-  } catch {
-    return {};
-  }
-}
+const CODING_STATUS_PATH = "/api/coding/status";
+const CODING_STATUS_SCHEMA = "aureon.operator.coding-cloud-status.v1";
+const LIVE_REFRESH_FALLBACK_MS = 5000;
+const NOT_COMMISSIONED_MESSAGE =
+  "The cloud coding worker is not commissioned. This authenticated page is read-only until a reviewed worker and action-custody contract are deployed.";
 
 function hasPayload(value: unknown): value is JsonMap {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value) && Object.keys(value as JsonMap).length > 0;
-}
-
-function summaryNumber(value: unknown, key: string): number {
-  if (!hasPayload(value)) return 0;
-  const summary = hasPayload(value.summary) ? value.summary : {};
-  const number = Number(summary[key] || 0);
-  return Number.isFinite(number) ? number : 0;
 }
 
 function fmt(value: unknown): string {
@@ -150,325 +133,90 @@ export function AureonCodingOrganismConsole() {
   const [prompt, setPrompt] = useState("Connect Aureon coding systems, inspect the repo, propose the smallest safe patch, and run focused tests.");
   const [runTests, setRunTests] = useState(true);
   const [includeDesktop, setIncludeDesktop] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const busy = false;
   const [error, setError] = useState("");
   const [loadedFileName, setLoadedFileName] = useState("");
   const [scopeAnswers, setScopeAnswers] = useState<Record<string, string>>({});
   const [phiStatus, setPhiStatus] = useState<JsonMap>({});
   const [chatInput, setChatInput] = useState("What can you see in the coding cockpit right now?");
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatBusy, setChatBusy] = useState(false);
+  const [chatMessages] = useState<ChatMessage[]>([]);
+  const chatBusy = false;
   const [chatError, setChatError] = useState("");
   const [ollamaStatus, setOllamaStatus] = useState<JsonMap>({});
-  const [reloadBusy, setReloadBusy] = useState(false);
+  const reloadBusy = false;
+  const [cloudStatus, setCloudStatus] = useState<JsonMap>({});
+  const [cloudStatusError, setCloudStatusError] = useState("");
   const [now, setNow] = useState(Date.now);
+  const [gatewayReceivedAt, setGatewayReceivedAt] = useState<number | null>(null);
   const [statusReceivedAt, setStatusReceivedAt] = useState<number | null>(null);
   const [phiReceivedAt, setPhiReceivedAt] = useState<number | null>(null);
   const [ollamaReceivedAt, setOllamaReceivedAt] = useState<number | null>(null);
-  const refreshInFlight = useRef({ status: false, phi: false, ollama: false });
+  const refreshInFlight = useRef(false);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
-
-
-  const enrichWithForgeState = async (payload: JsonMap): Promise<JsonMap> => {
-    const forgeState = await fetchJson("/aureon_capability_forge.json");
-    const qualityState = await fetchJson("/aureon_artifact_quality_report.json");
-    const creativeGuardianState = await fetchJson("/aureon_agent_creative_process_guardian.json");
-    const ollamaCognitiveState = await fetchJson("/aureon_ollama_cognitive_bridge.json");
-    const dynamicFilterState = await fetchJson("/aureon_dynamic_prompt_filter.json");
-    const stressAuditState = await fetchJson("/aureon_capability_stress_audit.json");
-    const complexStressState = await fetchJson("/aureon_complex_build_stress_audit.json");
-    const codingCapabilityState = await fetchJson("/aureon_coding_capability_unblocker.json");
-    const selfFixState = await fetchJson("/aureon_autonomous_self_fix_director.json");
-    const selfRunState = await fetchJson("/aureon_autonomous_self_run_loop.json");
-    const liveSelfRunState = await fetchJson(`${HUB_BASE}/api/autonomous-self-run/status`);
-    const publicJobsState = await fetchJson("/aureon_autonomous_job_executor.json");
-    const liveJobsState = await fetchJson(`${HUB_BASE}/api/autonomous-jobs/status`);
-    const evolutionQueueCertificationState = await fetchJson("/aureon_evolution_queue_autonomous_certification.json");
-    const workOrderExecutionState = await fetchJson("/aureon_frontend_work_order_execution.json");
-    const runtimePatchRegistryState = await fetchJson("/aureon_frontend_runtime_patch_registry.json");
-    const next = { ...payload };
-    if (hasPayload(forgeState) && !hasPayload(next.capability_forge)) {
-      next.capability_forge = forgeState;
-    }
-    if (hasPayload(qualityState) && !hasPayload(next.artifact_quality_report)) {
-      next.artifact_quality_report = qualityState;
-    }
-    if (hasPayload(creativeGuardianState) && !hasPayload(next.creative_process_guardian)) {
-      next.creative_process_guardian = creativeGuardianState;
-    }
-    if (hasPayload(ollamaCognitiveState) && !hasPayload(next.ollama_cognitive_bridge)) {
-      next.ollama_cognitive_bridge = ollamaCognitiveState;
-    }
-    if (hasPayload(dynamicFilterState) && !hasPayload(next.dynamic_prompt_filter)) {
-      next.dynamic_prompt_filter = dynamicFilterState;
-    }
-    if (hasPayload(stressAuditState) && !hasPayload(next.capability_stress_audit)) {
-      next.capability_stress_audit = stressAuditState;
-    }
-    if (hasPayload(complexStressState) && !hasPayload(next.complex_build_stress_audit)) {
-      next.complex_build_stress_audit = complexStressState;
-    }
-    if (hasPayload(codingCapabilityState) && !hasPayload(next.coding_capability_unblocker)) {
-      next.coding_capability_unblocker = codingCapabilityState;
-    }
-    if (hasPayload(selfFixState) && !hasPayload(next.autonomous_self_fix_director)) {
-      next.autonomous_self_fix_director = selfFixState;
-    }
-    if (hasPayload(liveSelfRunState) && summaryNumber(liveSelfRunState, "latest_task_count") > 0) {
-      next.autonomous_self_run_loop = liveSelfRunState;
-    } else if (
-      hasPayload(selfRunState) &&
-      (!hasPayload(next.autonomous_self_run_loop) ||
-        summaryNumber(selfRunState, "latest_task_count") > summaryNumber(next.autonomous_self_run_loop, "latest_task_count"))
-    ) {
-      next.autonomous_self_run_loop = selfRunState;
-    }
-    if (hasPayload(liveJobsState)) {
-      next.autonomous_job_executor = liveJobsState;
-    } else if (hasPayload(publicJobsState) && !hasPayload(next.autonomous_job_executor)) {
-      next.autonomous_job_executor = publicJobsState;
-    }
-    if (
-      hasPayload(evolutionQueueCertificationState) &&
-      (!hasPayload(next.evolution_queue_autonomous_certification) ||
-        summaryNumber(evolutionQueueCertificationState, "processed_count") >
-          summaryNumber(next.evolution_queue_autonomous_certification, "processed_count"))
-    ) {
-      next.evolution_queue_autonomous_certification = evolutionQueueCertificationState;
-    }
-    if (
-      hasPayload(workOrderExecutionState) &&
-      (!hasPayload(next.frontend_work_order_execution) ||
-        summaryNumber(workOrderExecutionState, "executed_count") > summaryNumber(next.frontend_work_order_execution, "executed_count"))
-    ) {
-      next.frontend_work_order_execution = workOrderExecutionState;
-    }
-    if (
-      hasPayload(runtimePatchRegistryState) &&
-      (!hasPayload(next.frontend_runtime_patch_registry) ||
-        summaryNumber(runtimePatchRegistryState, "active_patch_count") >
-          summaryNumber(next.frontend_runtime_patch_registry, "active_patch_count"))
-    ) {
-      next.frontend_runtime_patch_registry = runtimePatchRegistryState;
-    }
-    return next;
-  };
-
   const refresh = async () => {
-    if (refreshInFlight.current.status) return;
-    refreshInFlight.current.status = true;
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
     try {
-      const hubState = await fetchJson(`${HUB_BASE}/api/coding/status`);
-      setStatusReceivedAt(hasPayload(hubState) ? Date.now() : null);
-      if (hasPayload(hubState)) {
-        setStatus(await enrichWithForgeState(hubState.last_run || hubState));
-        return;
+      const payload = await api.get<JsonMap>("/api/coding/status", { timeoutMs: 8000 });
+      if (
+        payload.schema_version !== CODING_STATUS_SCHEMA ||
+        payload.capabilities?.status_read !== true ||
+        payload.authority?.owner_only !== true ||
+        payload.authority?.tenant_access !== false ||
+        payload.authority?.execution_authority !== false
+      ) {
+        throw new Error("coding_status_contract_invalid");
       }
-      const publicState = await fetchJson("/aureon_coding_organism_bridge.json");
-      setStatus(await enrichWithForgeState(publicState));
-    } finally { refreshInFlight.current.status = false; }
-  };
+      const receivedAt = Date.now();
+      const workerAvailable = payload.available === true && payload.commissioned === true;
+      const lastRun = hasPayload(payload.last_run) ? payload.last_run : {};
+      const phi = hasPayload(payload.phi) ? payload.phi : {};
+      const ollama = hasPayload(payload.ollama) ? payload.ollama : {};
 
-  const refreshPhiBridge = async () => {
-    if (refreshInFlight.current.phi) return;
-    refreshInFlight.current.phi = true;
-    const payload = await fetchJson(`${HUB_BASE}/api/phi-bridge/status`);
-    refreshInFlight.current.phi = false;
-    setPhiStatus(payload);
-    setPhiReceivedAt(hasPayload(payload) ? Date.now() : null);
-    if (!hasPayload(payload)) return;
-    if (hasPayload(payload.ollama_cognitive_bridge)) {
-      setOllamaStatus(payload.ollama_cognitive_bridge);
-      setOllamaReceivedAt(Date.now());
+      setCloudStatus(payload);
+      setCloudStatusError("");
+      setGatewayReceivedAt(receivedAt);
+      setStatus(lastRun);
+      setStatusReceivedAt(workerAvailable && hasPayload(lastRun) ? receivedAt : null);
+      setPhiStatus(phi);
+      setPhiReceivedAt(workerAvailable && phi.available === true ? receivedAt : null);
+      setOllamaStatus(ollama);
+      setOllamaReceivedAt(workerAvailable && ollama.available === true ? receivedAt : null);
+    } catch {
+      setCloudStatus({});
+      setCloudStatusError("Cannot reach the authenticated cloud coding status route.");
+      setGatewayReceivedAt(null);
+      setStatus({});
+      setStatusReceivedAt(null);
+      setPhiStatus({});
+      setPhiReceivedAt(null);
+      setOllamaStatus({});
+      setOllamaReceivedAt(null);
+    } finally {
+      refreshInFlight.current = false;
     }
-    const recent = payload.chat?.recent;
-    if (Array.isArray(recent) && recent.length) {
-      setChatMessages((current) =>
-        current.length
-          ? current
-          : recent
-              .filter((item: JsonMap) => item.role === "user" || item.role === "assistant")
-              .map((item: JsonMap) => ({
-                role: item.role,
-                text: String(item.text || ""),
-                ts: item.ts,
-                source: item.source,
-                model: item.model,
-                latency_ms: item.latency_ms,
-                weaver: item.weaver,
-                dynamic_filter: item.dynamic_filter,
-              }))
-      );
-    }
-  };
-
-  const refreshOllamaBridge = async () => {
-    if (refreshInFlight.current.ollama) return;
-    refreshInFlight.current.ollama = true;
-    try {
-      const livePayload = await fetchJson(`${HUB_BASE}/api/ollama-cognitive/status`);
-      setOllamaReceivedAt(hasPayload(livePayload) ? Date.now() : null);
-      if (hasPayload(livePayload)) { setOllamaStatus(livePayload); return; }
-      setOllamaStatus(await fetchJson("/aureon_ollama_cognitive_bridge.json"));
-    } finally { refreshInFlight.current.ollama = false; }
   };
 
   useEffect(() => {
     refresh();
-    refreshPhiBridge();
-    refreshOllamaBridge();
-    const timer = window.setInterval(() => {
-      refresh();
-      refreshPhiBridge();
-      refreshOllamaBridge();
-    }, LIVE_REFRESH_FALLBACK_MS);
+    const timer = window.setInterval(refresh, LIVE_REFRESH_FALLBACK_MS);
     return () => window.clearInterval(timer);
-    // refresh functions are intentionally rebound by live receipt state; this poller starts once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const submitPrompt = async (extraBody: JsonMap = {}) => {
-    if (!consoleControlAvailable(statusReceivedAt, busy) || !prompt.trim()) {
-      setError("A current coding hub receipt and a prompt are required before submitting a job.");
-      return;
-    }
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch(`${HUB_BASE}/api/coding/prompt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, run_tests: runTests, include_desktop: includeDesktop, ...extraBody }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "coding prompt failed");
-      }
-      setStatus(payload);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+    void extraBody;
+    setError(NOT_COMMISSIONED_MESSAGE);
   };
 
   const sendPhiChat = async () => {
-    const message = chatInput.trim();
-    if (!message || !consoleControlAvailable(phiReceivedAt, chatBusy || reloadBusy)) return;
-    setChatBusy(true);
-    setChatError("");
-    setChatInput("");
-    setChatMessages((current) => [
-      ...current.slice(-18),
-      { role: "user", text: message, ts: new Date().toISOString() },
-    ]);
-    try {
-      const response = await fetch(`${HUB_BASE}/api/phi-bridge/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          context: {
-            coding: {
-              status: status.status,
-              scope_status: summary.scope_status,
-              route_clean: summary.goal_route_clean,
-              tests_ok: summary.tests_ok,
-              ready_to_run: summary.ready_to_run,
-              blocking_snags: summary.blocking_snag_count || 0,
-              goal: status.what?.goal || prompt.slice(0, 240),
-            },
-            dashboard: {
-              panel: "AureonCodingOrganismConsole",
-              endpoint: `${HUB_BASE}/api/phi-bridge/chat`,
-            },
-          },
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "phi bridge chat failed");
-      }
-      setChatMessages((current) => [
-        ...current.slice(-19),
-        {
-          role: "assistant",
-          text: String(payload.reply || "No reply published."),
-          ts: payload.generated_at,
-          source: payload.reply_source,
-          model: payload.model,
-          latency_ms: payload.latency_ms,
-          response_quality: payload.response_quality
-            ? {
-                score: typeof payload.response_quality.score === "number" ? payload.response_quality.score : undefined,
-                passed: Boolean(payload.response_quality.passed),
-                compiler_applied: Boolean(payload.response_quality.compiler_applied),
-                snags: Array.isArray(payload.response_quality.snags)
-                  ? payload.response_quality.snags.map((item: unknown) => String(item))
-                  : [],
-              }
-            : undefined,
-          dynamic_filter: payload.dynamic_prompt_filter
-            ? {
-                filter_mode: payload.dynamic_prompt_filter.filter_mode,
-                lane: payload.dynamic_prompt_filter.lane,
-                task_family: payload.dynamic_prompt_filter.task_family,
-                source_packets: Array.isArray(payload.dynamic_prompt_filter.source_packets)
-                  ? payload.dynamic_prompt_filter.source_packets.map((packet: JsonMap) => ({
-                      title: String(packet.title || ""),
-                      source_path: String(packet.source_path || ""),
-                      confidence: Number(packet.confidence || 0),
-                    }))
-                  : [],
-                hnc_auris_report: payload.dynamic_prompt_filter.hnc_auris_report || {},
-                handover_ready: Boolean(payload.dynamic_prompt_filter.handover_ready),
-              }
-            : undefined,
-          weaver: payload.weaver_trace
-            ? {
-                policy: payload.weaver_trace.policy,
-                shards: Array.isArray(payload.weaver_trace.shards)
-                  ? payload.weaver_trace.shards.map((shard: JsonMap) => ({
-                      name: String(shard.name || ""),
-                      ok: Boolean(shard.ok),
-                      latency_ms: Number(shard.latency_ms || 0),
-                    }))
-                  : [],
-              }
-            : undefined,
-        },
-      ]);
-      await refreshPhiBridge();
-      await refresh();
-    } catch (err) {
-      setChatError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setChatBusy(false);
-    }
+    setChatError(NOT_COMMISSIONED_MESSAGE);
   };
 
   const reloadPhiVoiceWorker = async () => {
-    if (!consoleControlAvailable(phiReceivedAt, chatBusy || reloadBusy)) return;
-    setReloadBusy(true);
-    setChatError("");
-    try {
-      const response = await fetch(`${HUB_BASE}/api/phi-bridge/reload`, { method: "POST" });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || "phi voice reload failed");
-      }
-      if (hasPayload(payload.ollama_cognitive_bridge)) {
-        setOllamaStatus(payload.ollama_cognitive_bridge);
-      }
-      await refreshPhiBridge();
-    } catch (err) {
-      setChatError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setReloadBusy(false);
-    }
+    setChatError(NOT_COMMISSIONED_MESSAGE);
   };
 
   const approveScope = async () => {
@@ -597,11 +345,19 @@ export function AureonCodingOrganismConsole() {
   const journalStages = Array.isArray(journal.stages) ? journal.stages : [];
   const steps = Array.isArray(plan.steps) ? plan.steps : [];
   const statusReceiptCurrent = consoleReceiptCurrent(statusReceivedAt, now) && !error;
+  const gatewayReceiptCurrent = consoleReceiptCurrent(gatewayReceivedAt, now) && !cloudStatusError;
   const phiReceiptCurrent = consoleReceiptCurrent(phiReceivedAt, now);
   const ollamaReceiptCurrent = consoleReceiptCurrent(ollamaReceivedAt, now);
-  const codingControlAvailable = consoleControlAvailable(statusReceivedAt, busy, now);
-  const phiControlAvailable = consoleControlAvailable(phiReceivedAt, chatBusy || reloadBusy, now);
-  const hubActive = statusReceiptCurrent;
+  const codingServiceCommissioned = cloudStatus.available === true && cloudStatus.commissioned === true;
+  const codingControlAvailable =
+    codingServiceCommissioned &&
+    cloudStatus.capabilities?.coding_prompt === true &&
+    consoleControlAvailable(statusReceivedAt, busy, now);
+  const phiControlAvailable =
+    codingServiceCommissioned &&
+    cloudStatus.capabilities?.phi_chat === true &&
+    consoleControlAvailable(phiReceivedAt, chatBusy || reloadBusy, now);
+  const hubActive = codingServiceCommissioned && statusReceiptCurrent;
   const recordedCodingReady = Boolean(summary.goal_route_clean && summary.tests_ok && summary.ready_to_run && summary.blocking_snag_count === 0);
   const phiBridge = phiReceiptCurrent ? phiStatus.phi_bridge || {} : {};
   const phiCadence = phiBridge.cadence || {};
@@ -612,7 +368,7 @@ export function AureonCodingOrganismConsole() {
   const ollamaChecks = Array.isArray(ollamaBridge.proof_checklist) ? ollamaBridge.proof_checklist : [];
   const ollamaFlow = Array.isArray(ollamaBridge.handshake_flow) ? ollamaBridge.handshake_flow : [];
   const ollamaActions = Array.isArray(ollamaBridge.next_actions) ? ollamaBridge.next_actions : [];
-  const liveRefreshMs = Number(phiStatus.refresh_interval_ms || LIVE_REFRESH_FALLBACK_MS);
+  const liveRefreshMs = Number(cloudStatus.refresh_interval_ms || LIVE_REFRESH_FALLBACK_MS);
   const lastAssistant = [...chatMessages].reverse().find((item) => item.role === "assistant");
   const dynamicFilterState = (lastAssistant?.dynamic_filter || phiStatus.dynamic_prompt_filter || status.dynamic_prompt_filter || {}) as JsonMap;
   const dynamicSourcePackets = Array.isArray(dynamicFilterState.source_packets) ? dynamicFilterState.source_packets : [];
@@ -625,7 +381,7 @@ export function AureonCodingOrganismConsole() {
     <div className="space-y-5">
     <GlassPageHeader eyebrow="Coding System" title="Coding organism" icon={Code2}
       description="Prompt and chat workspaces, scoped jobs, test receipts and recorded artifact evidence."
-      actions={<Badge variant="outline">Coding hub {statusReceiptCurrent ? "reachable" : "unavailable"}</Badge>} />
+      actions={<Badge variant={gatewayReceiptCurrent ? "success" : "warning"}>Owner route {gatewayReceiptCurrent ? "reachable" : "unavailable"}</Badge>} />
     <Card className="mb-5 bg-card/80">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
@@ -634,9 +390,12 @@ export function AureonCodingOrganismConsole() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">Hub HTTP receipt: {statusReceiptCurrent ? "current" : "unavailable or expired"} · Phi HTTP receipt: {phiReceiptCurrent ? "current" : "unavailable or expired"}. Receipts expire after 30 seconds and do not attest metric or model freshness. Other panels show recorded reports.</p>
+        <p className="text-xs text-muted-foreground">
+          Authenticated owner route: {gatewayReceiptCurrent ? "current" : "unavailable or expired"} · Coding worker: {codingServiceCommissioned ? "commissioned" : "not commissioned"} · Phi worker: {phiReceiptCurrent ? "current" : "not commissioned"}. No recorded JSON is treated as a live worker receipt.
+        </p>
+        {cloudStatusError ? <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">{cloudStatusError}</div> : null}
         <div className="flex flex-wrap gap-2">
-          <Badge variant={status.ok ? "success" : "warning"}>{status.status || "prompt evidence unavailable"}</Badge>
+          <Badge variant={codingServiceCommissioned && status.ok ? "success" : "warning"}>{status.status || cloudStatus.status || "coding status unavailable"}</Badge>
           <Badge variant="outline">Recorded source {status.generated_at ? new Date(status.generated_at).toLocaleString() : "Unavailable"}</Badge>
           <Badge variant={summary.goal_engine_routed ? "success" : "warning"}>recorded goal route {summary.goal_engine_routed ? "routed" : "unavailable"}</Badge>
           <Badge variant={summary.scope_locked ? "success" : "warning"}>scope {String(summary.scope_status || "scope unavailable").replace(/_/g, " ")}</Badge>
@@ -661,31 +420,33 @@ export function AureonCodingOrganismConsole() {
             <div>
               <div className="text-sm font-medium text-primary">Human Coding Cockpit</div>
               <div className="mt-1 text-xs text-primary/75">
-                Start the full organism in PowerShell, then use this panel as the human prompt terminal while Aureon scopes, recruits, builds, tests, snags, and hands over.
+                This cloud cockpit reaches the owner-authenticated operator plane over the current website origin. Prompt and repo-changing actions remain unavailable until a separately reviewed coding worker is commissioned.
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">Job evidence: recorded</Badge>
-              <Badge variant={hubActive ? "success" : "warning"}>hub {hubActive ? "reachable" : "unavailable"}</Badge>
+              <Badge variant="outline">Job evidence: {hasPayload(status) ? "recorded" : "unavailable"}</Badge>
+              <Badge variant={hubActive ? "success" : "warning"}>worker {hubActive ? "reachable" : "not commissioned"}</Badge>
               <Badge variant="outline">Recorded handover {recordedCodingReady ? "ready" : "gated or unavailable"}</Badge>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-2 text-xs md:grid-cols-3">
             <div>
-              <div className="uppercase text-primary/70">Full organism terminal</div>
-              <div className="mt-1 font-mono text-primary">{FULL_ORGANISM_COMMAND}</div>
+              <div className="uppercase text-primary/70">Owner route</div>
+              <div className="mt-1 font-mono text-primary">GET {CODING_STATUS_PATH}</div>
             </div>
             <div>
-              <div className="uppercase text-primary/70">Local coding endpoint</div>
-              <div className="mt-1 font-mono text-primary">{HUB_BASE}/api/coding/prompt</div>
+              <div className="uppercase text-primary/70">Worker state</div>
+              <div className="mt-1 font-mono text-primary">{cloudStatus.reason_code || "status route unavailable"}</div>
             </div>
             <div>
-              <div className="uppercase text-primary/70">PowerShell prompt call</div>
-              <div className="mt-1 font-mono text-primary">{TERMINAL_PROMPT_COMMAND}</div>
+              <div className="uppercase text-primary/70">Authority</div>
+              <div className="mt-1 font-mono text-primary">read-only · owner only · no proxy or repo mutation</div>
             </div>
           </div>
         </div>
 
+        {codingServiceCommissioned ? (
+          <>
         <div className="rounded-md border border-primary/30 bg-primary/10 p-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-2">
@@ -693,7 +454,7 @@ export function AureonCodingOrganismConsole() {
               <div>
                 <div className="text-sm font-medium text-primary">Aureon Phi Live Chat</div>
                 <div className="mt-1 text-xs text-primary/75">
-                  Local organism chat through Phi Bridge, ThoughtBus, and the in-house voice adapter.
+                  This lane activates only after the cloud coding worker publishes a current commissioned receipt.
                 </div>
               </div>
             </div>
@@ -772,7 +533,7 @@ export function AureonCodingOrganismConsole() {
               ))}
               {!chatMessages.length ? (
                 <div className="rounded-md border border-primary/20 bg-background/20 p-3 text-xs text-primary/75">
-                  The chat lane is waiting for your first live message.
+                  {codingServiceCommissioned ? "The commissioned chat lane is waiting for your first live message." : "Chat is unavailable because the cloud coding worker is not commissioned."}
                 </div>
               ) : null}
             </div>
@@ -799,6 +560,7 @@ export function AureonCodingOrganismConsole() {
               data-testid="phi-chat-input"
               aria-label="Phi chat message"
               value={chatInput}
+              disabled={!phiControlAvailable}
               onChange={(event) => setChatInput(event.target.value)}
               onKeyDown={(event) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
@@ -830,13 +592,13 @@ export function AureonCodingOrganismConsole() {
               <div>
                 <div className="text-sm font-medium text-primary">Ollama Cognitive Handshake</div>
                 <div className="mt-1 text-xs text-primary/75">
-                  Ollama acts as the local language worker while Aureon's metacognitive, HNC/Auris, role, and ThoughtBus evidence keep the answer grounded.
+                  Ollama readiness is reported only by a commissioned cloud coding worker; provider configuration alone does not make this lane live.
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant={ollamaSummary.ollama_reachable ? "success" : "warning"}>
-                Ollama {ollamaSummary.ollama_reachable ? "reachable" : "offline"}
+                Ollama {ollamaSummary.ollama_reachable ? "reachable" : "not commissioned"}
               </Badge>
               <Badge variant={ollamaBridge.ok ? "success" : "warning"}>
                 {ollamaBridge.status || "handshake waiting"}
@@ -1396,7 +1158,10 @@ export function AureonCodingOrganismConsole() {
               </div>
             </div>
             <div className="rounded-md border border-primary/25 bg-background/25 p-3">
-              <CodingArtifactReviewPanel recordedState={String(approvalState)} />
+              <div className="text-xs font-medium text-primary">Recorded artifact review</div>
+              <div className="mt-2 text-xs text-primary/70">
+                {String(approvalState).replace(/_/g, " ")}. This cloud status surface has no approval writer.
+              </div>
               {qualitySnags.length ? (
                 <div className="mt-3 space-y-1">
                   {qualitySnags.slice(0, 4).map((snag: JsonMap) => (
@@ -1848,7 +1613,7 @@ export function AureonCodingOrganismConsole() {
               ))}
               {!journalStages.length ? (
                 <div className="rounded-md border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
-                  No work journal has been published yet. Send a prompt to Aureon to produce one.
+                  No current cloud work journal is available. A commissioned worker must publish one before this panel can show it.
                 </div>
               ) : null}
             </div>
@@ -1894,6 +1659,7 @@ export function AureonCodingOrganismConsole() {
             <Textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
+              disabled={!codingControlAvailable}
               className="min-h-[130px] font-mono text-xs"
             />
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1901,6 +1667,7 @@ export function AureonCodingOrganismConsole() {
                 <input
                   type="checkbox"
                   checked={runTests}
+                  disabled={!codingControlAvailable}
                   onChange={(event) => setRunTests(event.target.checked)}
                   className="h-4 w-4"
                 />
@@ -1910,18 +1677,19 @@ export function AureonCodingOrganismConsole() {
                 <input
                   type="checkbox"
                   checked={includeDesktop}
+                  disabled={!codingControlAvailable}
                   onChange={(event) => setIncludeDesktop(event.target.checked)}
                   className="h-4 w-4"
                 />
                 Prepare desktop/run handoff
               </label>
               <div className="flex flex-wrap gap-2">
-                <label className="inline-flex cursor-pointer items-center rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground">
+                <label aria-disabled={!codingControlAvailable} className={`inline-flex items-center rounded-md border border-input bg-background px-3 py-2 text-xs font-medium ${codingControlAvailable ? "cursor-pointer hover:bg-accent hover:text-accent-foreground" : "cursor-not-allowed opacity-50"}`}>
                   <Upload className="mr-2 h-4 w-4" />
                   {loadedFileName ? loadedFileName : "Load MD"}
-                  <input type="file" accept=".md,.txt" className="hidden" onChange={loadPromptFile} />
+                  <input type="file" accept=".md,.txt" className="hidden" onChange={loadPromptFile} disabled={!codingControlAvailable} />
                 </label>
-                <Button size="sm" variant="outline" onClick={refresh} disabled={busy}>
+                <Button size="sm" variant="outline" onClick={refresh}>
                   Refresh
                 </Button>
                 <Button size="sm" variant="outline" onClick={sendFullCodingJob} disabled={!codingControlAvailable || !prompt.trim()}>
@@ -2029,6 +1797,20 @@ export function AureonCodingOrganismConsole() {
             ) : null}
           </div>
         </div>
+          </>
+        ) : (
+          <div data-testid="coding-worker-unavailable" className="rounded-md border border-warning/35 bg-warning/10 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-warning">Cloud coding worker not commissioned</div>
+                <div className="mt-1 max-w-3xl text-xs text-warning/80">
+                  The owner status route is live and authenticated, but there is no reviewed cloud worker behind it. No prompt, chat, reload, autonomous job, repo mutation, proxy, or credential capability is exposed.
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={refresh}>Refresh authenticated status</Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
     </div>

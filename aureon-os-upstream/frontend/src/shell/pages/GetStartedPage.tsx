@@ -25,10 +25,12 @@ import {
   ScrollText,
   Shield,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useProviderConfiguration } from "@/hooks/useSetupStatus";
+import { useIdentity } from "@/hooks/useIdentity";
 import { configurationMessage, setupFromReceipt } from "@/lib/accountConfigurationEvidence";
 import { onboardingProviderEvidence } from "@/lib/onboardingEvidence";
+import { operatingContextView } from "@/lib/operatingContext";
 import { COMPANY, RECOGNITION } from "../companyFacts";
 
 const GOLD = "#FFB800";
@@ -157,6 +159,10 @@ function SoftChip({
 }
 
 export default function GetStartedPage() {
+  const location = useLocation();
+  const identityReceipt = useIdentity();
+  const operatingContext = operatingContextView(identityReceipt.identity, identityReceipt.known);
+  const ownerRouteRedirect = Boolean((location.state as { ownerRouteRedirect?: boolean } | null)?.ownerRouteRedirect);
   const configuration = useProviderConfiguration();
   const setup = setupFromReceipt(configuration);
   const providerEvidence = onboardingProviderEvidence(setup.known ? configuration.providers : null);
@@ -184,12 +190,20 @@ export default function GetStartedPage() {
         style={{ borderColor: `${GOLD}55`, background: `${GOLD}0d` }}
       >
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>
-          Model setup · account configuration
+          {operatingContext.kind === 'owner' ? 'Owner runtime · instance configuration' : operatingContext.kind === 'tenant' ? 'Account workspace · held configuration' : 'Model setup · verifying context'}
         </p>
         <p className="mt-0.5 text-[10px] uppercase tracking-wide" style={{ color: `${GOLD}cc` }}>
-          Setup comes from the current account. Connection tests show their original recorded date.
+          {operatingContext.kind === 'owner'
+            ? 'Setup comes from the protected instance. Connection tests show their original recorded date.'
+            : 'Setup comes from the current account. Connection tests show their original recorded date.'}
         </p>
       </div>
+
+      {ownerRouteRedirect && operatingContext.kind === 'tenant' && (
+        <div role="status" className="rounded-md border border-cyan-400/30 bg-cyan-400/[0.06] px-3 py-2 text-xs text-zinc-300">
+          That surface belongs to the protected owner instance. Your private account workspace stayed active, and no owner runtime setting changed.
+        </div>
+      )}
 
       <div
         className="flex items-center gap-2 rounded-md border px-3 py-2"
@@ -207,7 +221,9 @@ export default function GetStartedPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Get Started</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            Configure this account's private keys, verify its connections, and open the system.
+            {operatingContext.kind === 'owner'
+              ? 'Review the cloud instance configuration, its masked credential inventory, and current provider receipts.'
+              : 'Configure this account\'s private keys, verify its connections, and open its workspace.'}
           </p>
         </div>
         <Link
@@ -226,15 +242,18 @@ export default function GetStartedPage() {
           <div className="flex items-start gap-3">
             <KeyRound className="mt-0.5 h-5 w-5 shrink-0" style={{ color: CYAN }} />
             <div>
-              <h2 className="text-sm font-semibold text-zinc-100">Connect your account</h2>
+              <h2 className="text-sm font-semibold text-zinc-100">
+                {operatingContext.kind === 'owner' ? 'Owner instance connections' : 'Connect your account'}
+              </h2>
               <p className="mt-1 max-w-3xl text-xs leading-relaxed text-zinc-400">
-                Add this user's exchange, market-data and notification credentials in Connections.
-                Values are stored in the signed-in account's encrypted tenant store and are never
-                taken from another user or returned to the browser.
+                {operatingContext.kind === 'owner'
+                  ? 'This protected cloud instance keeps its runtime configuration and preconfigured credentials server-side. Connections shows masked presence and separately dated provider evidence; tenant sessions cannot replace this configuration.'
+                  : 'Add this user\'s exchange, market-data and notification credentials in Connections. Values are stored in the signed-in account\'s encrypted tenant store and are never taken from the owner instance, another user, or returned to the browser.'}
               </p>
               <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-500">
-                Saving a key records configuration only. A dated provider test and separate human
-                trading approval are still required before an execution route can be treated as usable.
+                {operatingContext.kind === 'owner'
+                  ? 'Preconfigured does not mean currently available. Require a dated test or signed provider receipt; no order activity is inferred.'
+                  : 'This workspace begins held. Saving a key records configuration only; a dated provider test and separate human trading approval are required before an execution route can be treated as usable.'}
               </p>
             </div>
           </div>
@@ -243,7 +262,7 @@ export default function GetStartedPage() {
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
             style={{ background: GOLD, color: "#0a0a0a" }}
           >
-            Add account keys
+            {operatingContext.kind === 'owner' ? 'Review instance connections' : 'Add account keys'}
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>

@@ -52,6 +52,7 @@ import { useIdentity } from "@/hooks/useIdentity";
 import { BrandMark } from "./Brand";
 import { PageSkeleton, RouteErrorBoundary } from "./Page";
 import { BackendStatusBanner } from "@/components/BackendStatusBanner";
+import { OperatingContextBanner } from "@/components/OperatingContextBanner";
 import { LiveVitals } from "@/components/LiveVitals";
 import { SiteFooter } from "./SiteFooter";
 import { RiskDisclaimer } from "@/components/RiskDisclaimer";
@@ -191,7 +192,9 @@ function ShellSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
-          <StatusIndicator />
+          {identity.isAdmin ? <StatusIndicator /> : (
+            <div className="text-xs text-muted-foreground">Private account workspace</div>
+          )}
         </div>
       </SidebarFooter>
       <SidebarRail />
@@ -245,6 +248,7 @@ function useLegacyHashRedirect() {
 
 export default function ShellLayout() {
   useLegacyHashRedirect();
+  const { identity } = useIdentity();
   const location = useLocation();
   const item = navItemForPath(location.pathname);
   const section = sectionForPath(location.pathname);
@@ -259,7 +263,7 @@ export default function ShellLayout() {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <ShellBreadcrumb />
           <div className="ml-auto flex items-center gap-3">
-            <LiveVitals />
+            {identity.isAdmin && <LiveVitals />}
             {item?.live && (
               <Badge variant="outline" className="hidden text-[10px] sm:inline-flex">
                 data source
@@ -268,7 +272,8 @@ export default function ShellLayout() {
             <CommandPalette />
           </div>
         </header>
-        <BackendStatusBanner />
+        {identity.isAdmin && <BackendStatusBanner />}
+        <OperatingContextBanner />
         <main className="flex-1 overflow-auto">
           {isTrading && (
             <div className="px-4 pt-4">

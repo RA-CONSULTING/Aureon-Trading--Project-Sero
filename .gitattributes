@@ -1,1 +1,13 @@
 # The complete encrypted archive is distributed as GitHub Release assets.
+
+# Supabase production cutover evidence hashes the exact checked-out bytes.
+/aureon-os-upstream/supabase/functions/** text eol=lf
+/aureon-os-upstream/supabase/migrations/** text eol=lf
+/aureon-os-upstream/docs/evidence/supabase/** text eol=lf
+# Historical provider snapshots retain provider-significant trailing bytes.
+/aureon-os-upstream/docs/evidence/supabase/edge-functions/20260811/** whitespace=-trailing-space
+/aureon-os-upstream/docs/SUPABASE_PRODUCTION_CUTOVER_20260913.md text eol=lf
+/aureon-os-upstream/scripts/operations/supabase_credential_hardening_cutover.py text eol=lf
+/aureon-os-upstream/scripts/operations/supabase_owner_readback_via_management.py text eol=lf
+/aureon-os-upstream/scripts/validation/audit_supabase_production_edge_surface.py text eol=lf
+/deployment/google-cloud/trading-control/supabase_owner_readback.py text eol=lf

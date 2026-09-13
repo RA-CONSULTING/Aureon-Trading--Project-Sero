@@ -7,7 +7,13 @@ import json
 import time
 import uuid
 
-from contract import INTENT_SCHEMA, canonical_bytes, validate_intent
+from contract import (
+    INTENT_SCHEMA,
+    canonical_bytes,
+    probe_runtime_measurement_sha256,
+    validate_intent,
+    validate_readiness_release_binding,
+)
 
 
 SCOPE = [
@@ -33,8 +39,21 @@ def _sha(data: bytes) -> str:
 
 
 def build_probe(*, event_sha256: str, lease_expires_at_ms: int,
-                revision: str, now_ms: int | None = None) -> dict:
+                revision: str, now_ms: int | None = None,
+                readiness_release: dict | None = None) -> dict:
     current = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    authorization = {
+        "active": True,
+        "expires_at_ms": int(lease_expires_at_ms),
+        "event_sha256": event_sha256,
+        "scope_sha256": _sha(json.dumps(SCOPE, separators=(",", ":")).encode()),
+        "release_authority": False,
+        "mutation_authority": False,
+    }
+    if readiness_release is not None:
+        authorization["readiness_release"] = validate_readiness_release_binding(
+            readiness_release,
+        )
     intent = {
         "schema": INTENT_SCHEMA,
         "intent_id": _sha((str(uuid.uuid4()) + str(current)).encode()),
@@ -43,17 +62,11 @@ def build_probe(*, event_sha256: str, lease_expires_at_ms: int,
         "account_scope": "owner",
         "created_at_ms": current,
         "expires_at_ms": current + 60_000,
-        "authorization": {
-            "active": True,
-            "expires_at_ms": int(lease_expires_at_ms),
-            "event_sha256": event_sha256,
-            "scope_sha256": _sha(json.dumps(SCOPE, separators=(",", ":")).encode()),
-            "release_authority": False,
-            "mutation_authority": False,
-        },
+        "authorization": authorization,
         "requested_controls": dict(SAFE_CONTROLS),
         "market_evidence_sha256": _sha(b"all-four-production-auth-read-probe:no-mutation"),
-        "runtime_measurement_sha256": _sha((revision + ":held").encode()),
+        "runtime_measurement_sha256": probe_runtime_measurement_sha256(revision),
+        "source_revision": revision,
         "order": None,
         "dry_run": True,
     }

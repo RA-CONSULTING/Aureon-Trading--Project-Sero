@@ -1,0 +1,8 @@
+# Deterministic public-entry build context. The public certificate is supplied
+# from the commissioned VM after its fingerprint is verified; private keys are
+# never copied into this directory.
+**
+!Dockerfile
+!requirements.txt
+!public_entry.py
+!bridge-cert.pem

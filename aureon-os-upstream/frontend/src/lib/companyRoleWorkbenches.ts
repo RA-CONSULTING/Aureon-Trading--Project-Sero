@@ -7,7 +7,7 @@ export const COMPANY_CAPABILITY_SURFACES = {
   company_workforce: {
     label: 'Agent company workforce',
     apiRoute: '/api/company',
-    uiPath: '/cognition/agents',
+    uiPath: '/platform/coverage',
   },
   coverage_map: {
     label: 'Whole-system coverage map',
@@ -47,7 +47,7 @@ export const COMPANY_CAPABILITY_SURFACES = {
   authority_map: {
     label: 'Independent authority map',
     apiRoute: '/api/operator/authority-map',
-    uiPath: '/cognition/agents',
+    uiPath: '/platform/coverage',
   },
   result_binding: {
     label: 'Protected result binding',

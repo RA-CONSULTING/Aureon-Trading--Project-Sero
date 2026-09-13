@@ -2,8 +2,7 @@
  * Terminal Sync Hook
  * Prime Sentinel: GARY LECKEY 02111991
  * 
- * Reads REAL data from database tables populated by Python terminal
- * via ingest-terminal-state endpoint
+ * Reads provider-backed runtime observations from the operator gateway.
  * 
  * PUBLIC LIVE FEED - No authentication required
  */
@@ -241,14 +240,12 @@ export function useTerminalSync(enabled: boolean = true, intervalMs: number = 50
     }
   }, []);
 
-  // Fetch session data from aureon_user_sessions (populated by Python)
+  // Fetch only the authenticated caller's safe status projection.
   const fetchSessionData = useCallback(async () => {
     try {
       const { data, error } = await supabase
-        .from('aureon_user_sessions')
-        .select('*')
-        .eq('user_id', LIVE_FEED_USER_ID)
-        .single();
+        .rpc('get_aureon_user_session_status')
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         if (TERMINAL_SYNC_DEBUG) {
@@ -690,15 +687,6 @@ export function useTerminalSync(enabled: boolean = true, intervalMs: number = 50
         ? ((session.total_pnl_usdt || tradeStats.totalPnl || 0) / session.total_equity_usdt) * 100 
         : 0,
       avgHoldTimeMinutes: runtimeStats?.avg_hold_time_minutes || 0,
-      recentTrades: Array.isArray(session.recent_trades) ? (session.recent_trades as Array<any>).map((trade) => ({
-        time: String(trade?.time || ''),
-        side: String(trade?.side || 'BUY'),
-        symbol: String(trade?.symbol || ''),
-        quantity: Number(trade?.quantity || 0),
-        pnl: Number(trade?.pnl || 0),
-        success: Boolean(trade?.success),
-      })) : [],
-      
       // Positions from trading_positions (pushed by Python)
       activePositions: mappedPositions,
       
@@ -723,8 +711,8 @@ export function useTerminalSync(enabled: boolean = true, intervalMs: number = 50
       hncCoherencePercent: hncState?.harmonic_fidelity || (session.current_coherence || 0) * 100,
       hncModifier: hncState?.imperial_yield || 0.8,
       
-      // Trading mode
-      tradingMode: (session.trading_mode || 'BALANCED') as 'AGGRESSIVE' | 'CONSERVATIVE' | 'BALANCED',
+      // Strategy thresholds come from the read-only runtime stats feed. The
+      // account status RPC deliberately carries no execution authority.
       entryCoherenceThreshold: runtimeStats?.entry_threshold || 0.2,
       exitCoherenceThreshold: runtimeStats?.exit_threshold || 0.15,
       riskMultiplier: runtimeStats?.risk_multiplier || 0.5,

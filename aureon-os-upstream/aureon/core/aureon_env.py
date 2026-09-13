@@ -52,6 +52,12 @@ CREDENTIAL_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("OLLAMA_API_KEY", ("AUREON_OLLAMA_API_KEY", "AUREON_LLM_API_KEY")),
     ("AUREON_OLLAMA_API_KEY", ("OLLAMA_API_KEY", "AUREON_LLM_API_KEY")),
     ("AUREON_LLM_API_KEY", ("OLLAMA_API_KEY", "AUREON_OLLAMA_API_KEY")),
+    # Alpaca renamed its Python environment variables over time.  Several
+    # preserved owner environments still use the SDK-native APCA names, while
+    # the unified trader consumes the canonical ALPACA names.  Canonicalise in
+    # both directions without replacing an explicitly supplied canonical value.
+    ("ALPACA_API_KEY", ("ALPACA_KEY", "APCA_API_KEY_ID")),
+    ("ALPACA_SECRET_KEY", ("ALPACA_API_SECRET", "ALPACA_SECRET", "APCA_API_SECRET_KEY")),
     ("ALPACA_API_SECRET", ("ALPACA_SECRET_KEY", "ALPACA_SECRET")),
     ("ALPACA_KEY", ("ALPACA_API_KEY",)),
     ("ALPACA_SECRET", ("ALPACA_SECRET_KEY", "ALPACA_API_SECRET")),

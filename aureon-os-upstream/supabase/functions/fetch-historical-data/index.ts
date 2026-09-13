@@ -32,7 +32,7 @@ serve(async (req) => {
     url.searchParams.append('limit', Math.min(limit, 1000).toString());
 
     const response = await fetch(url.toString());
-    
+
     if (!response.ok) {
       throw new Error(`Binance API error: ${response.statusText}`);
     }

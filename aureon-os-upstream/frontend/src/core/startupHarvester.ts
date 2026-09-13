@@ -11,7 +11,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { unifiedBus } from './unifiedBus';
 import { temporalLadder, SYSTEMS } from './temporalLadder';
 import { elephantMemory } from './elephantMemory';
-import { capitalPool } from './capitalPool';
+import {
+  GOVERNED_ORDER_ACTION_UNAVAILABLE_CODE,
+  GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
+} from '@/lib/tradingActionAvailability';
 
 export interface HarvestCandidate {
   symbol: string;
@@ -35,13 +38,14 @@ export interface HarvestResult {
   candidates: HarvestCandidate[];
   executed: HarvestCandidate[];
   errors: string[];
+  executionAvailable: false;
+  executionUnavailableReason: string;
 }
 
 const HARVEST_CONFIG = {
   minProfitPct: 0.5, // Min 0.5% profit to harvest
   minValueUsd: 10, // Min $10 value to consider
   excludeAssets: ['USDT', 'USDC', 'BUSD', 'USD', 'EUR', 'GBP'], // Don't sell stablecoins
-  maxHarvestPct: 0.50, // Max 50% of any asset to harvest
 };
 
 class StartupHarvester {
@@ -145,6 +149,8 @@ class StartupHarvester {
       candidates: [],
       executed: [],
       errors: [],
+      executionAvailable: false,
+      executionUnavailableReason: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
     };
 
     try {
@@ -166,51 +172,9 @@ class StartupHarvester {
       console.log(`[Harvester] ${toHarvest.length} positions eligible for harvest`);
 
       if (dryRun) {
-        console.log('[Harvester] DRY RUN - No trades executed');
-        result.executed = toHarvest;
-        result.harvested = toHarvest.length;
-        result.totalProfit = toHarvest.reduce((sum, c) => sum + c.unrealizedPnL, 0);
+        console.log('[Harvester] Analysis complete - no orders attempted');
       } else {
-        // Execute sells
-        for (const candidate of toHarvest) {
-          try {
-            const sellQty = candidate.quantity * HARVEST_CONFIG.maxHarvestPct;
-            
-            const { data, error } = await supabase.functions.invoke('execute-trade', {
-              body: {
-                symbol: candidate.symbol,
-                signalType: 'SHORT', // SELL
-                quantity: sellQty,
-                price: candidate.currentPrice,
-                recommendedExchange: candidate.exchange,
-              }
-            });
-
-            if (error || !data?.success) {
-              result.errors.push(`${candidate.symbol}: ${error?.message || data?.error}`);
-              continue;
-            }
-
-            result.executed.push(candidate);
-            result.harvested++;
-            result.totalProfit += candidate.unrealizedPnL * HARVEST_CONFIG.maxHarvestPct;
-
-            // Update elephant memory
-            elephantMemory.recordTrade(
-              candidate.symbol, 
-              candidate.unrealizedPnL * HARVEST_CONFIG.maxHarvestPct,
-              'SELL'
-            );
-
-            // Release from capital pool
-            capitalPool.release(candidate.symbol, candidate.unrealizedPnL * HARVEST_CONFIG.maxHarvestPct);
-
-            console.log(`[Harvester] Harvested ${candidate.symbol} | Qty: ${sellQty.toFixed(6)} | Profit: $${(candidate.unrealizedPnL * HARVEST_CONFIG.maxHarvestPct).toFixed(2)}`);
-
-          } catch (error: any) {
-            result.errors.push(`${candidate.symbol}: ${error.message}`);
-          }
-        }
+        result.errors.push(`${GOVERNED_ORDER_ACTION_UNAVAILABLE_CODE}: ${GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE}`);
       }
 
       this.lastResult = result;

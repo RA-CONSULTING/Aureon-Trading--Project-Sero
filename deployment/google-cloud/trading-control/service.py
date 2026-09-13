@@ -28,11 +28,19 @@ from contract import (
     RECEIPT_SCHEMA,
     REVIEW_SCHEMA,
     canonical_bytes,
+    build_periodic_readiness_statement,
     digest,
+    EXECUTOR_READINESS_SCHEMA,
+    RECEIPT_READINESS_SCHEMA,
+    periodic_readiness_probe,
     unsigned_stage,
+    unsigned_readiness_envelope,
     validate_intent,
+    validate_readiness_envelope,
+    validate_provider_probe_readback,
     validate_stage,
 )
+from provider_boundary import valid_instrument_readiness_blocker
 
 
 _PROJECT = re.compile(r"[a-z][a-z0-9-]{4,61}[a-z0-9]")
@@ -317,10 +325,21 @@ def _intent_from_chain(value: Mapping[str, Any]) -> dict[str, Any]:
     raise ContractError("intent_chain_missing")
 
 
+def _current_intent(
+    value: Mapping[str, Any], *, config: ServiceConfig, now_ms: int,
+) -> dict[str, Any]:
+    intent = validate_intent(
+        value, now_ms=now_ms, max_order_usd=config.max_order_usd,
+        live_release=config.live_execution_release,
+    )
+    if intent["source_revision"] != config.revision:
+        raise ContractError("intent_source_revision_mismatch")
+    return intent
+
+
 def _review(input_value: Mapping[str, Any], config: ServiceConfig, signer: Signer,
             _verifier: Verifier, now_ms: int) -> dict[str, Any]:
-    intent = validate_intent(input_value, now_ms=now_ms, max_order_usd=config.max_order_usd,
-                             live_release=config.live_execution_release)
+    intent = _current_intent(input_value, config=config, now_ms=now_ms)
     prior = digest(intent)
     stage = {
         "schema": REVIEW_SCHEMA,
@@ -339,8 +358,7 @@ def _dispatch(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
         raise CloudBoundaryError("review_key_pin_missing")
     review = _verify_stage(input_value, schema=REVIEW_SCHEMA, payload_key="intent",
                            verifier=verifier, expected_key=config.review_key_version)
-    intent = validate_intent(review["intent"], now_ms=now_ms, max_order_usd=config.max_order_usd,
-                             live_release=config.live_execution_release)
+    intent = _current_intent(review["intent"], config=config, now_ms=now_ms)
     if review["intent_id"] != intent["intent_id"] or review["prior_sha256"] != digest(intent):
         raise ContractError("review_intent_join_invalid")
     prior = digest(review)
@@ -356,15 +374,15 @@ def _dispatch(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
 
 
 def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Signer,
-              verifier: Verifier, now_ms: int, executor_factory: Callable[[float], Any] | None = None) -> dict[str, Any]:
+              verifier: Verifier, now_ms: int,
+              executor_factory: Callable[[float, float], Any] | None = None) -> dict[str, Any]:
     if config.dispatch_key_version is None or config.review_key_version is None:
         raise CloudBoundaryError("executor_key_pins_missing")
     dispatch = _verify_stage(input_value, schema=DISPATCH_SCHEMA, payload_key="review",
                              verifier=verifier, expected_key=config.dispatch_key_version)
     review = _verify_stage(dispatch["review"], schema=REVIEW_SCHEMA, payload_key="intent",
                            verifier=verifier, expected_key=config.review_key_version)
-    intent = validate_intent(review["intent"], now_ms=now_ms, max_order_usd=config.max_order_usd,
-                             live_release=config.live_execution_release)
+    intent = _current_intent(review["intent"], config=config, now_ms=now_ms)
     if dispatch["intent_id"] != intent["intent_id"] or dispatch["prior_sha256"] != digest(review):
         raise ContractError("dispatch_review_join_invalid")
     execution_error: type[Exception] | tuple[()] = ()
@@ -378,7 +396,9 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
         if not config.order_adapter_ready:
             raise ContractError("live_order_adapter_unavailable")
         try:
-            outcome = executor_factory(config.max_daily_budget_usd).execute(
+            outcome = executor_factory(
+                config.max_daily_budget_usd, config.max_order_usd,
+            ).execute(
                 intent, dispatch_sha256=digest(dispatch),
             )
         except execution_error as exc:
@@ -386,14 +406,55 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
         if not isinstance(outcome, Mapping) or outcome.get("schema") != "aureon.cloud-trade-live-result.v1":
             raise CloudBoundaryError("live_executor_result_invalid")
         outcome = dict(outcome)
+        preflight_sha256 = outcome.get("instrument_preflight_sha256")
+        if (outcome.get("status") in {"provider_observed", "uncertain"}
+                and (not isinstance(preflight_sha256, str)
+                     or re.fullmatch(r"[0-9a-f]{64}", preflight_sha256) is None)):
+            raise CloudBoundaryError("live_instrument_preflight_missing")
+        if (outcome.get("status") == "rejected" and preflight_sha256 is not None
+                and (not isinstance(preflight_sha256, str)
+                     or re.fullmatch(r"[0-9a-f]{64}", preflight_sha256) is None)):
+            raise CloudBoundaryError("live_instrument_preflight_invalid")
+        blocker = outcome.get("instrument_readiness_blocker")
+        reason_code = outcome.get("reason_code")
+        provider_rule_rejection = (
+            outcome.get("status") == "rejected"
+            and isinstance(reason_code, str)
+            and any(reason_code.startswith(venue + "_") for venue in (
+                "alpaca", "binance", "capital", "kraken",
+            ))
+        )
+        if (blocker is not None and (
+                outcome.get("status") != "rejected"
+                or not valid_instrument_readiness_blocker(
+                    blocker, venue=outcome.get("venue"), reason_code=reason_code,
+                ))):
+            raise CloudBoundaryError("live_instrument_readiness_blocker_invalid")
+        if provider_rule_rejection and blocker is None:
+            raise CloudBoundaryError("live_instrument_readiness_blocker_missing")
     else:
         if intent["kind"] != PROBE_KIND or intent["dry_run"] is not True:
             raise ContractError("executor_probe_contract_invalid")
+        if periodic_readiness_probe(intent) and config.live_execution_release is not True:
+            raise ContractError("periodic_readiness_release_not_active")
         provider_readback = None
         if config.provider_probe_enabled:
             try:
-                provider_readback = executor_factory(config.max_daily_budget_usd).provider_probe()
+                provider_readback = executor_factory(
+                    config.max_daily_budget_usd, config.max_order_usd,
+                ).provider_probe(
+                    source_revision=config.revision,
+                    observed_at_ms=now_ms,
+                )
             except execution_error as exc:
+                raise CloudBoundaryError(str(exc)) from exc
+            try:
+                provider_readback = validate_provider_probe_readback(
+                    provider_readback,
+                    source_revision=config.revision,
+                    now_ms=now_ms,
+                )
+            except ContractError as exc:
                 raise CloudBoundaryError(str(exc)) from exc
         outcome = {
             "schema": "aureon.cloud-trade-probe-result.v1",
@@ -406,8 +467,31 @@ def _executor(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sig
                 "durable_budget_ledger": config.durable_budget_ledger,
                 "order_adapter_ready": config.order_adapter_ready,
                 "live_result_binding_ready": True,
+                "instrument_preflight_enforced": True,
             },
         }
+        if periodic_readiness_probe(intent):
+            statement = build_periodic_readiness_statement(
+                intent,
+                provider_readback,
+                outcome["executor_capabilities"],
+                now_ms=now_ms,
+            )
+            unsigned_attestation = {
+                "schema": EXECUTOR_READINESS_SCHEMA,
+                "statement": statement,
+                "statement_sha256": digest(statement),
+                "authority_id": _AUTHORITY_IDS["executor"],
+                "key_version": signer.key_version,
+                "signed_at_ms": now_ms,
+            }
+            outcome["readiness_attestation"] = {
+                **unsigned_attestation,
+                "signature": signer.sign(canonical_bytes(unsigned_attestation)),
+            }
+            validate_readiness_envelope(
+                outcome["readiness_attestation"], role="executor", now_ms=now_ms,
+            )
     result = {"dispatch": dispatch, "outcome": outcome}
     prior = digest(dispatch)
     stage = {
@@ -431,8 +515,7 @@ def _receipt(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sign
     if not isinstance(result, Mapping) or not isinstance(result.get("dispatch"), Mapping):
         raise ContractError("executor_result_shape_invalid")
     intent = _intent_from_chain(executor)
-    validate_intent(intent, now_ms=now_ms, max_order_usd=config.max_order_usd,
-                    live_release=config.live_execution_release)
+    _current_intent(intent, config=config, now_ms=now_ms)
     outcome = result.get("outcome")
     if not isinstance(outcome, Mapping) or outcome.get("intent_id", intent["intent_id"]) != intent["intent_id"]:
         raise ContractError("terminal_outcome_invalid")
@@ -441,20 +524,63 @@ def _receipt(input_value: Mapping[str, Any], config: ServiceConfig, signer: Sign
                 or outcome.get("provider_mutation_attempted") is not False
                 or outcome.get("orders_attempted") != 0 or outcome.get("orders_submitted") != 0):
             raise ContractError("probe_terminal_outcome_invalid")
+        readiness_attestation = outcome.get("readiness_attestation")
+        if periodic_readiness_probe(intent):
+            if not isinstance(readiness_attestation, Mapping):
+                raise ContractError("periodic_readiness_attestation_missing")
+            attestation = validate_readiness_envelope(
+                readiness_attestation, role="executor", now_ms=now_ms,
+            )
+            if attestation["key_version"] != config.executor_key_version:
+                raise ContractError("periodic_readiness_executor_key_mismatch")
+            try:
+                verifier.verify(
+                    config.executor_key_version,
+                    canonical_bytes(unsigned_readiness_envelope(attestation)),
+                    attestation["signature"],
+                )
+            except Exception as exc:
+                raise ContractError("periodic_readiness_executor_signature_invalid") from exc
+        elif readiness_attestation is not None:
+            raise ContractError("activation_probe_readiness_attestation_forbidden")
     else:
         status = outcome.get("status")
+        blocker = outcome.get("instrument_readiness_blocker")
+        reason_code = outcome.get("reason_code")
+        valid_blocker = blocker is None or (
+            status == "rejected"
+            and valid_instrument_readiness_blocker(
+                blocker, venue=outcome.get("venue"), reason_code=reason_code,
+            )
+        )
+        provider_rule_rejection = (
+            status == "rejected"
+            and isinstance(reason_code, str)
+            and any(reason_code.startswith(venue + "_") for venue in (
+                "alpaca", "binance", "capital", "kraken",
+            ))
+        )
         valid = (
             outcome.get("schema") == "aureon.cloud-trade-live-result.v1"
             and outcome.get("dry_run") is False
             and outcome.get("dispatch_sha256") == digest(result["dispatch"])
             and status in {"provider_observed", "rejected", "uncertain"}
+            and valid_blocker
+            and (not provider_rule_rejection or blocker is not None)
             and ((status == "provider_observed" and outcome.get("provider_mutation_attempted") is True
                   and outcome.get("orders_attempted") == 1 and outcome.get("orders_submitted") == 1
-                  and isinstance(outcome.get("provider_readback_sha256"), str))
+                  and isinstance(outcome.get("provider_readback_sha256"), str)
+                  and isinstance(outcome.get("instrument_preflight_sha256"), str)
+                  and re.fullmatch(r"[0-9a-f]{64}", outcome["instrument_preflight_sha256"]) is not None)
                  or (status == "rejected" and outcome.get("provider_mutation_attempted") is False
-                     and outcome.get("orders_attempted") == 0 and outcome.get("orders_submitted") == 0)
+                     and outcome.get("orders_attempted") == 0 and outcome.get("orders_submitted") == 0
+                     and (outcome.get("instrument_preflight_sha256") is None
+                          or (isinstance(outcome.get("instrument_preflight_sha256"), str)
+                              and re.fullmatch(r"[0-9a-f]{64}", outcome["instrument_preflight_sha256"]))))
                  or (status == "uncertain" and outcome.get("provider_mutation_attempted") is True
-                     and outcome.get("orders_attempted") == 1 and outcome.get("orders_submitted") is None))
+                     and outcome.get("orders_attempted") == 1 and outcome.get("orders_submitted") is None
+                     and isinstance(outcome.get("instrument_preflight_sha256"), str)
+                     and re.fullmatch(r"[0-9a-f]{64}", outcome["instrument_preflight_sha256"]) is not None))
         )
         if not valid:
             raise ContractError("live_terminal_outcome_invalid")
@@ -475,7 +601,7 @@ _HANDLERS = {"review": _review, "dispatch": _dispatch, "executor": _executor, "r
 
 def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = None,
                verifier: Verifier | None = None, publisher: Publisher | None = None,
-               clock=time.time, executor_factory: Callable[[float], Any] | None = None,
+               clock=time.time, executor_factory: Callable[[float, float], Any] | None = None,
                release_gate: Any | None = None, attestation_store: Any | None = None) -> Flask:
     cfg = ServiceConfig.from_env() if config is None else config
     kms = KmsBoundary(cfg.key_version)
@@ -502,6 +628,7 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
             "durable_budget_ledger": cfg.durable_budget_ledger,
             "order_adapter_ready": cfg.order_adapter_ready,
             "probe_path_ready": True,
+            "instrument_preflight_enforced": True,
         })
 
     @app.post("/process")
@@ -510,6 +637,7 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
             value = _decode_push(request.get_json(silent=True))
             now_ms = int(float(clock()) * 1000)
             active_config = cfg
+            active_release_state = None
             if cfg.live_execution_release:
                 if cfg.controller_key_version is None:
                     raise CloudBoundaryError("release_controller_key_missing")
@@ -520,7 +648,12 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
                         cfg.controller_key_version, stage_verifier, cfg.revision,
                     )
                 try:
-                    released = gate.is_active(_intent_from_chain(value), now_ms=now_ms)
+                    gate_intent = _intent_from_chain(value)
+                    if hasattr(gate, "active_state"):
+                        active_release_state = gate.active_state(gate_intent, now_ms=now_ms)
+                        released = active_release_state is not None
+                    else:
+                        released = gate.is_active(gate_intent, now_ms=now_ms)
                 except Exception as exc:
                     raise CloudBoundaryError("signed_release_state_unavailable") from exc
                 active_config = replace(cfg, live_execution_release=released)
@@ -530,13 +663,64 @@ def create_app(*, config: ServiceConfig | None = None, signer: Signer | None = N
                                  now_ms, executor_factory)
             else:
                 result = handler(value, active_config, stage_signer, stage_verifier, now_ms)
+            result_intent = _intent_from_chain(result)
             if (cfg.role == "receipt" and cfg.attestation_store_enabled
-                    and _intent_from_chain(result)["kind"] == PROBE_KIND):
+                    and result_intent["kind"] == PROBE_KIND):
                 store = attestation_store
                 if store is None:
                     from cloud_state import FirestoreControlState
                     store = FirestoreControlState()
-                store.put_probe_attestation(result, stored_at_ms=now_ms)
+                if periodic_readiness_probe(result_intent):
+                    if active_release_state is None:
+                        raise CloudBoundaryError("periodic_readiness_release_not_active")
+                    executor_attestation = result["executor"]["result"]["outcome"].get(
+                        "readiness_attestation",
+                    )
+                    executor_attestation = validate_readiness_envelope(
+                        executor_attestation, role="executor", now_ms=now_ms,
+                    )
+                    statement = executor_attestation["statement"]
+                    unsigned_endorsement = {
+                        "schema": RECEIPT_READINESS_SCHEMA,
+                        "executor_attestation_sha256": digest(executor_attestation),
+                        "statement_sha256": executor_attestation["statement_sha256"],
+                        "source_revision": statement["source_revision"],
+                        "release_generation": statement["release_generation"],
+                        "release_state_sha256": statement["release_state_sha256"],
+                        "authorization_event_sha256": statement["authorization_event_sha256"],
+                        "authorization_expires_at_ms": statement["authorization_expires_at_ms"],
+                        "observed_at_ms": statement["observed_at_ms"],
+                        "expires_at_ms": statement["expires_at_ms"],
+                        "authority_id": _AUTHORITY_IDS["receipt"],
+                        "key_version": stage_signer.key_version,
+                        "signed_at_ms": now_ms,
+                    }
+                    receipt_endorsement = {
+                        **unsigned_endorsement,
+                        "signature": stage_signer.sign(canonical_bytes(unsigned_endorsement)),
+                    }
+                    validate_readiness_envelope(
+                        receipt_endorsement,
+                        role="receipt",
+                        now_ms=now_ms,
+                        executor_attestation_sha256=digest(executor_attestation),
+                    )
+                    store.put_periodic_readiness_attestation(
+                        executor_attestation,
+                        receipt_endorsement,
+                        stored_at_ms=now_ms,
+                    )
+                elif active_release_state is None:
+                    # ``current_probe`` is activation evidence pinned by the
+                    # controller-signed release.  An unbound probe that races
+                    # with (or follows) activation may still be useful as a
+                    # terminal receipt, but it must never replace that pinned
+                    # activation document.  Only the generation-bound,
+                    # separately signed readiness document may rotate while a
+                    # release is active.
+                    store.put_probe_attestation(
+                        result, source_revision=cfg.revision, stored_at_ms=now_ms,
+                    )
             published = stage_publisher.publish(result)
             return jsonify({
                 "ok": True, "role": cfg.role, "intent_id": result["intent_id"],

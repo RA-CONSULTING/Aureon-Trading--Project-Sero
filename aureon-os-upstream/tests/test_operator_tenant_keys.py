@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import importlib
 import json
+import logging
 import os
 import time
 
@@ -86,7 +87,9 @@ def _openai_view(payload: dict) -> dict:
 def test_resolve_identity_matrix():
     # open: neither secret configured
     assert resolve_identity(None, operator_key="", jwt_secret="") == \
-        __import__("aureon.operator.identity", fromlist=["Identity"]).Identity("open", None, True)
+        __import__("aureon.operator.identity", fromlist=["Identity"]).Identity(
+            "open", None, True, auth_source="open"
+        )
     # admin: static key
     i = resolve_identity(f"Bearer {ADMIN_KEY}", operator_key=ADMIN_KEY, jwt_secret=SECRET)
     assert (i.kind, i.tenant, i.ok) == ("admin", None, True)
@@ -162,6 +165,38 @@ def test_tenant_can_live_test_own_key(env):
     assert set(body) >= {"ok", "latency_ms", "model"}   # an honest verdict, not a 500
 
 
+def test_tenant_unified_connection_test_preserves_account_scope(env, monkeypatch):
+    client, _ks, _cfg = env
+    import aureon.operator.operator_server as srv
+
+    observed = {}
+
+    def fake_test(info, api_key, base_url, model, *, provider_id, tenant=None):
+        observed.update({
+            "provider_id": provider_id,
+            "tenant": tenant,
+            "api_key": api_key,
+            "model": model,
+        })
+        return {"ok": True, "latency_ms": 1, "model": model}
+
+    monkeypatch.setattr(srv, "_test_provider_adapter", fake_test)
+    response = client.post(
+        "/api/connections/openai/test",
+        json={"api_key": "tenant-route-test-key", "model": "tenant-route-test-model"},
+        headers=_tenant("aaa"),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["ok"] is True
+    assert observed == {
+        "provider_id": "openai",
+        "tenant": "aaa",
+        "api_key": "tenant-route-test-key",
+        "model": "tenant-route-test-model",
+    }
+
+
 # ── per-tenant live reasoning ────────────────────────────────────────────────────
 
 def test_tenant_without_key_gets_honest_keyless_reply(env):
@@ -180,7 +215,7 @@ def test_tenant_with_key_reasons_on_own_model(env):
     client, _ks, _cfg = env
     before = os.environ.get("OLLAMA_API_KEY")
     client.post("/api/providers/ollama",
-                json={"api_key": "tok", "base_url": "http://x", "model": "llama3"},
+                json={"api_key": "tok", "base_url": "https://ollama.com/v1", "model": "llama3"},
                 headers=_tenant("aaa"))
     r = client.post("/api/cognition/reason", json={"prompt": "say OK"}, headers=_tenant("aaa"))
     assert r.status_code == 200
@@ -190,6 +225,418 @@ def test_tenant_with_key_reasons_on_own_model(env):
     # delta, not absolute (see test_tenant_write_never_mutates_os_environ)
     assert os.environ.get("OLLAMA_API_KEY") == before     # no env leak from reasoning
     assert os.environ.get("OLLAMA_API_KEY") != "tok"
+
+
+@pytest.mark.parametrize(
+    "url",
+    (
+        "http://169.254.169.254/computeMetadata/v1/",
+        "http://127.0.0.1:8080/v1",
+        "http://10.1.2.3/v1",
+        "https://example.invalid/v1",
+        "https://api.openai.com/v1?next=http://metadata.google.internal/",
+        "https://api.openai.com@169.254.169.254/v1",
+    ),
+)
+def test_tenant_direct_provider_url_is_rejected_before_storage(env, url):
+    client, ks, _cfg = env
+
+    response = client.post(
+        "/api/providers/openai",
+        json={"api_key": "tenant-key", "base_url": url},
+        headers=_tenant("ssrf-direct"),
+    )
+
+    assert response.status_code == 400
+    assert ks.load("ssrf-direct") == {}
+
+
+def test_tenant_unified_connection_url_is_pinned_to_catalog(env):
+    client, ks, _cfg = env
+
+    rejected = client.post(
+        "/api/connections/openai",
+        json={"api_key": "tenant-key", "base_url": "http://192.168.1.4/v1"},
+        headers=_tenant("ssrf-connection"),
+    )
+    accepted = client.post(
+        "/api/connections/openai",
+        json={"api_key": "tenant-key", "base_url": "https://api.openai.com/v1/"},
+        headers=_tenant("ssrf-connection"),
+    )
+
+    assert rejected.status_code == 400
+    assert accepted.status_code == 200
+    assert ks.load("ssrf-connection")["openai"]["base_url"] == "https://api.openai.com/v1"
+
+
+def test_tenant_byok_remains_writable_when_owner_cloud_secrets_are_pinned(env, monkeypatch):
+    client, ks, _cfg = env
+    monkeypatch.setenv(
+        ks.PINNED_ENV_VARS_ENV,
+        "NASA_API_KEY,NOAA_API_KEY,USGS_API_KEY,OLLAMA_API_KEY,AUREON_LLM_BASE_URL,AUREON_LLM_MODEL",
+    )
+    monkeypatch.setenv("AUREON_CLOUD_EXCHANGE_CREDENTIALS_PINNED", "1")
+    headers = _tenant("pinned-owner-byo-tenant")
+
+    assert client.post(
+        "/api/providers/ollama",
+        json={"api_key": "tenant-ollama", "base_url": "https://ollama.com/v1"},
+        headers=headers,
+    ).status_code == 200
+    assert client.post(
+        "/api/connections/nasa", json={"api_key": "tenant-nasa"}, headers=headers,
+    ).status_code == 200
+    assert client.post(
+        "/api/connections/binance",
+        json={"api_key": "tenant-binance", "extra": {"BINANCE_API_SECRET": "tenant-secret"}},
+        headers=headers,
+    ).status_code == 200
+
+    stored = ks.load("pinned-owner-byo-tenant")
+    assert stored["ollama"]["api_key"] == "tenant-ollama"
+    assert stored["nasa"]["api_key"] == "tenant-nasa"
+    assert stored["binance"]["api_key"] == "tenant-binance"
+
+
+def test_tenant_exchange_test_uses_only_its_stored_catalog_fields(env, monkeypatch):
+    client, ks, _cfg = env
+    import aureon.operator.connections_api as connections_api
+
+    headers = _tenant("exchange-test-a")
+    assert client.post(
+        "/api/connections/binance",
+        json={
+            "api_key": "tenant-binance-primary",
+            "extra": {"BINANCE_API_SECRET": "tenant-binance-secondary"},
+        },
+        headers=headers,
+    ).status_code == 200
+    observed = {}
+
+    class Probe:
+        def authenticate(self, venue, values):
+            observed.update(venue=venue, values=dict(values))
+            return {
+                "ok": True,
+                "authenticated": True,
+                "http_status": 200,
+                "latency_ms": 1,
+                "error": "",
+                "reason_code": "exchange_authenticated",
+                "probe_scope": "credential",
+                "provider_mutation_attempted": False,
+            }
+
+    monkeypatch.setattr(connections_api, "TenantExchangeProbe", Probe)
+    response = client.post(
+        "/api/connections/binance/test", json={}, headers=headers,
+    )
+
+    assert response.status_code == 200 and response.get_json()["authenticated"] is True
+    assert observed == {
+        "venue": "binance",
+        "values": {
+            "BINANCE_API_KEY": "tenant-binance-primary",
+            "BINANCE_API_SECRET": "tenant-binance-secondary",
+        },
+    }
+    assert ks.load("exchange-test-a")["binance"]["api_key"] == "tenant-binance-primary"
+
+
+def test_tenant_exchange_test_never_falls_back_to_owner_environment(env, monkeypatch):
+    client, _ks, _cfg = env
+    import aureon.operator.connections_api as connections_api
+
+    monkeypatch.setenv("BINANCE_API_KEY", "owner-primary-must-not-be-used")
+    monkeypatch.setenv("BINANCE_API_SECRET", "owner-secondary-must-not-be-used")
+    observed = {}
+
+    class Probe:
+        def authenticate(self, venue, values):
+            observed.update(venue=venue, values=dict(values))
+            return {
+                "ok": False,
+                "authenticated": False,
+                "http_status": 0,
+                "latency_ms": 0,
+                "error": "exchange_credentials_incomplete",
+                "reason_code": "exchange_credentials_incomplete",
+                "probe_scope": "credential",
+                "provider_mutation_attempted": False,
+            }
+
+    monkeypatch.setattr(connections_api, "TenantExchangeProbe", Probe)
+    response = client.post(
+        "/api/connections/binance/test", json={}, headers=_tenant("exchange-test-empty"),
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["reason_code"] == "exchange_credentials_incomplete"
+    assert observed == {"venue": "binance", "values": {}}
+    assert "owner-primary" not in response.get_data(as_text=True)
+    assert "owner-secondary" not in response.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("path", ["/api/connections/binance", "/api/connections/binance/test"])
+def test_tenant_exchange_payload_rejects_unknown_or_malformed_fields_before_storage_or_probe(
+    env, monkeypatch, path
+):
+    client, ks, _cfg = env
+    import aureon.operator.connections_api as connections_api
+
+    called = False
+
+    class Probe:
+        def authenticate(self, *_args, **_kwargs):
+            nonlocal called
+            called = True
+            raise AssertionError("invalid payload reached provider probe")
+
+    monkeypatch.setattr(connections_api, "TenantExchangeProbe", Probe)
+    headers = _tenant("exchange-invalid")
+    attempts = (
+        {"api_key": "value", "extra": {"UNDECLARED": "value"}},
+        {"api_key": "value", "extra": {"BINANCE_API_SECRET": "bad\r\nvalue"}},
+        {"api_key": ["not", "text"], "extra": {"BINANCE_API_SECRET": "value"}},
+        {"api_key": "value", "unexpected": "value"},
+    )
+    for payload in attempts:
+        response = client.post(path, json=payload, headers=headers)
+        assert response.status_code == 400
+        assert response.get_json()["error"]["reason_code"].startswith("connection_")
+    assert called is False
+    assert ks.load("exchange-invalid") == {}
+
+
+def test_tenant_connection_delete_is_subject_isolated_and_llm_delete_path_remains(env):
+    client, ks, _cfg = env
+    for tenant, suffix in (("delete-a", "a"), ("delete-b", "b")):
+        headers = _tenant(tenant)
+        assert client.post(
+            "/api/connections/binance",
+            json={
+                "api_key": f"binance-{suffix}",
+                "extra": {"BINANCE_API_SECRET": f"binance-secondary-{suffix}"},
+            },
+            headers=headers,
+        ).status_code == 200
+        assert client.post(
+            "/api/connections/openai",
+            json={"api_key": f"openai-{suffix}"},
+            headers=headers,
+        ).status_code == 200
+
+    deleted = client.delete("/api/connections/binance", headers=_tenant("delete-a"))
+    llm_deleted = client.delete("/api/providers/openai", headers=_tenant("delete-a"))
+
+    assert deleted.status_code == 200 and deleted.get_json() == {
+        "ok": True, "connection_id": "binance", "disconnected": True,
+    }
+    assert llm_deleted.status_code == 200
+    assert "binance" not in ks.load("delete-a") and "openai" not in ks.load("delete-a")
+    assert ks.load("delete-b")["binance"]["api_key"] == "binance-b"
+    assert ks.load("delete-b")["openai"]["api_key"] == "openai-b"
+
+
+def test_undeclared_stored_exchange_field_is_rejected_until_tenant_disconnects(env, monkeypatch):
+    client, ks, _cfg = env
+    import aureon.operator.connections_api as connections_api
+
+    tenant = "legacy-extra"
+    ks.save_provider(
+        "binance",
+        api_key="tenant-primary",
+        extra={
+            "BINANCE_API_SECRET": "tenant-secondary",
+            "LEGACY_UNDECLARED_FIELD": "must-not-reach-transport",
+        },
+        tenant=tenant,
+    )
+    called = False
+
+    class Probe:
+        def authenticate(self, *_args, **_kwargs):
+            nonlocal called
+            called = True
+            raise AssertionError("undeclared stored field reached transport")
+
+    monkeypatch.setattr(connections_api, "TenantExchangeProbe", Probe)
+    response = client.post(
+        "/api/connections/binance/test", json={}, headers=_tenant(tenant),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"]["reason_code"] == "connection_credential_store_invalid"
+    assert called is False
+    assert client.delete(
+        "/api/connections/binance", headers=_tenant(tenant),
+    ).status_code == 200
+    assert "binance" not in ks.load(tenant)
+
+
+def test_persisted_tenant_url_is_rejected_before_provider_test(env, monkeypatch):
+    client, ks, _cfg = env
+    import aureon.operator.operator_server as srv
+
+    ks.save_provider(
+        "openai",
+        api_key="tenant-key",
+        base_url="http://metadata.google.internal/computeMetadata/v1/",
+        tenant="ssrf-persisted",
+    )
+
+    called = False
+
+    def must_not_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        nonlocal called
+        called = True
+        raise AssertionError("provider adapter must not receive a persisted custom URL")
+
+    monkeypatch.setattr(srv, "_test_provider_adapter", must_not_run)
+    response = client.post(
+        "/api/providers/openai/test",
+        json={},
+        headers=_tenant("ssrf-persisted"),
+    )
+
+    assert response.status_code == 400
+    assert called is False
+
+
+def test_persisted_custom_url_cannot_enter_tenant_reasoning_provider_set():
+    from aureon.operator.provider_catalog import get_provider
+    from aureon.operator.providers import (
+        build_provider_set_from_entries,
+        tenant_provider_base_url,
+    )
+
+    assert tenant_provider_base_url(get_provider("ollama")) == "https://ollama.com/v1"
+    providers = build_provider_set_from_entries(
+        {
+            "openai": {
+                "api_key": "tenant-key",
+                "base_url": "http://169.254.169.254/latest/meta-data/",
+                "enabled": True,
+            }
+        },
+        tenant_mode=True,
+    )
+    assert providers == {}
+
+
+def test_tenant_provider_transport_rejects_redirects_and_proxies():
+    from aureon.operator import providers
+
+    class Response:
+        status_code = 200
+        is_redirect = False
+        is_permanent_redirect = False
+        history = ()
+
+    class Session:
+        trust_env = True
+        proxies = {"https": "http://ambient-proxy.invalid"}
+        max_redirects = 30
+
+        def __init__(self):
+            self.kwargs = None
+            self.redirect = False
+
+        def request(self, method, url, **kwargs):  # noqa: ANN001
+            self.kwargs = kwargs
+            response = Response()
+            if self.redirect:
+                response.status_code = 302
+                response.is_redirect = True
+            return response
+
+        def post(self, url, **kwargs):  # noqa: ANN001
+            return self.request("POST", url, **kwargs)
+
+    adapter = type("Adapter", (), {"_session": Session()})()
+    providers._harden_tenant_transport(adapter)
+    assert adapter._session.trust_env is False
+    assert adapter._session.proxies == {}
+    assert adapter._session.max_redirects == 0
+
+    adapter._session.post("https://api.openai.com/v1/chat/completions")
+    assert adapter._session.kwargs["allow_redirects"] is False
+    assert adapter._session.kwargs["proxies"] == {}
+    with pytest.raises(RuntimeError, match="redirects_forbidden"):
+        adapter._session.post(
+            "https://api.openai.com/v1/chat/completions", allow_redirects=True
+        )
+    with pytest.raises(RuntimeError, match="proxy_forbidden"):
+        adapter._session.post(
+            "https://api.openai.com/v1/chat/completions",
+            proxies={"https": "http://proxy.invalid"},
+        )
+    adapter._session.redirect = True
+    with pytest.raises(RuntimeError, match="redirect_rejected"):
+        adapter._session.post("https://api.openai.com/v1/chat/completions")
+
+
+def test_gemini_key_is_header_only_and_transport_error_is_sanitized(monkeypatch, caplog):
+    from aureon.operator.providers import AureonGeminiAdapter
+
+    canary = "GEMINI-CANARY-SECRET-123456"
+    observed = {}
+
+    class FailingSession:
+        def post(self, url, **kwargs):  # noqa: ANN001
+            observed.update({"url": url, "headers": kwargs.get("headers", {})})
+            raise RuntimeError(f"transport echoed {canary}")
+
+    adapter = AureonGeminiAdapter(api_key=canary)
+    adapter._session = FailingSession()
+    monkeypatch.delenv("AUREON_LLM_OFFLINE", raising=False)
+    monkeypatch.delenv("AUREON_AUDIT_MODE", raising=False)
+    monkeypatch.delenv("AUREON_DISABLE_LLM_HTTP", raising=False)
+    with caplog.at_level(logging.ERROR, logger="aureon.operator.providers"):
+        result = adapter.prompt([{"role": "user", "content": "OK"}])
+
+    assert "?key=" not in observed["url"]
+    assert canary not in observed["url"]
+    assert observed["headers"]["x-goog-api-key"] == canary
+    assert canary not in result.text
+    assert canary not in caplog.text
+
+
+def test_provider_test_canary_never_enters_response_receipt_or_logs(env, monkeypatch, caplog):
+    client, ks, _cfg = env
+    from aureon.inhouse_ai.llm_adapter import LLMResponse
+    from aureon.operator import providers
+
+    canary = "PROVIDER-TEST-CANARY-SECRET-987654"
+    client.post(
+        "/api/providers/gemini",
+        json={"api_key": canary},
+        headers=_tenant("canary-tenant"),
+    )
+
+    class EchoingAdapter:
+        def prompt(self, *args, **kwargs):  # noqa: ANN002, ANN003
+            return LLMResponse(
+                text=f"[ERROR] upstream URL contained {canary}", stop_reason="error"
+            )
+
+    monkeypatch.setattr(providers, "build_adapter", lambda *args, **kwargs: EchoingAdapter())
+    with caplog.at_level(logging.WARNING):
+        response = client.post(
+            "/api/providers/gemini/test",
+            json={},
+            headers=_tenant("canary-tenant"),
+        )
+
+    payload_text = response.get_data(as_text=True)
+    stored = ks.load("canary-tenant")["gemini"]
+    assert response.status_code == 200
+    assert canary not in payload_text
+    assert stored["last_test_error"] == "provider_test_failed"
+    assert canary not in stored["last_test_error"]
+    assert canary.encode() not in ks._store_path("canary-tenant").read_bytes()
+    assert canary not in caplog.text
 
 
 def test_tenant_reasoning_is_isolated(env):

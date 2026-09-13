@@ -79,35 +79,13 @@ export function useQuantumTelescope(): UseQuantumTelescopeReturn {
     }
   }, []);
 
-  const persistObservation = useCallback(async (obs: TelescopeObservation, temporalId: string): Promise<void> => {
-    try {
-      const { error } = await supabase.functions.invoke('ingest-telescope-state', {
-        body: {
-          temporal_id: temporalId,
-          symbol: obs.symbol,
-          beam: obs.lightBeam,
-          refractions: {
-            tetrahedron: obs.refractions[0]?.resonance ?? 0,
-            hexahedron: obs.refractions[1]?.resonance ?? 0,
-            octahedron: obs.refractions[2]?.resonance ?? 0,
-            icosahedron: obs.refractions[3]?.resonance ?? 0,
-            dodecahedron: obs.refractions[4]?.resonance ?? 0,
-          },
-          geometric_alignment: obs.geometricAlignment,
-          dominant_solid: obs.dominantSolid,
-          probability_spectrum: obs.probabilitySpectrum,
-          holographic_projection: obs.holographicProjection,
-          focal_coherence: obs.focalCoherence,
-          prism_boost_factor: obs.prismBoostFactor,
-        },
-      });
-
-      if (error) {
-        console.error('[useQuantumTelescope] Persist error:', error);
-      }
-    } catch (err) {
-      console.error('[useQuantumTelescope] Persist exception:', err);
-    }
+  const persistObservation = useCallback(async (
+    _obs: TelescopeObservation,
+    _temporalId: string,
+  ): Promise<void> => {
+    throw new Error(
+      'Shared telescope persistence requires the identity-bound operator runtime.',
+    );
   }, []);
 
   return {

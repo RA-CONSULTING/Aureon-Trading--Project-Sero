@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from datetime import UTC, datetime
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -29,10 +30,13 @@ def _ready(now: float):
         "capabilities": {
             "durable_budget_ledger": True, "order_adapter_ready": True,
             "all_four_provider_readback_pinned": True, "live_result_binding_ready": True,
+            "instrument_preflight_enforced": True,
             "controller_integrated": True,
         },
         "last_probe": {
             "current": True, "receipt_sha256": "2" * 64,
+            "source_revision": "a" * 40,
+            "runtime_measurement_sha256": release.probe_runtime_measurement_sha256("a" * 40),
             "provider_readback": {"readback_sha256": "3" * 64},
         },
     }
@@ -57,6 +61,35 @@ def test_activation_request_binds_current_evidence_and_publishes_once():
     assert value["authorization_event_sha256"] == "1" * 64
     assert value["probe_receipt_sha256"] == "2" * 64
     assert value["provider_readback_sha256"] == "3" * 64
+
+
+def test_activation_rejects_readiness_without_instrument_preflight_gate():
+    control = _ready(1_800_000_000)
+    control["capabilities"].pop("instrument_preflight_enforced")
+    with pytest.raises(release.CloudTradingReleaseError, match="prerequisites_not_ready"):
+        release.publish_release_request(
+            "activate", control,
+            environ={"AUREON_REVISION": "a" * 40}, now=1_800_000_000,
+            requester=lambda *_args, **_kwargs: Response({"messageIds": ["unexpected"]}),
+            token_provider=lambda: "x" * 40,
+        )
+
+
+def test_activation_rejects_replayed_probe_from_another_revision_without_publish():
+    control = _ready(1_800_000_000)
+    control["last_probe"]["source_revision"] = "b" * 40
+    control["last_probe"]["runtime_measurement_sha256"] = (
+        release.probe_runtime_measurement_sha256("b" * 40)
+    )
+    calls = []
+    with pytest.raises(release.CloudTradingReleaseError, match="probe_revision_mismatch"):
+        release.publish_release_request(
+            "activate", control,
+            environ={"AUREON_REVISION": "a" * 40}, now=1_800_000_000,
+            requester=lambda *args, **kwargs: calls.append((args, kwargs)),
+            token_provider=lambda: "x" * 40,
+        )
+    assert calls == []
 
 
 def test_hold_request_is_always_fail_closed_and_carries_no_lease_evidence():

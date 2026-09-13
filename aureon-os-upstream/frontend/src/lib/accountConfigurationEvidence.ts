@@ -71,26 +71,38 @@ export function setupFromReceipt(receipt: ReadOnlySnapshot<ProviderList>) {
   };
 }
 
-export type IdentityKind = 'open' | 'admin' | 'tenant' | 'unknown';
+export type IdentityKind = 'open' | 'admin' | 'owner' | 'tenant' | 'unknown';
 export interface Identity {
   kind: IdentityKind; isAdmin: boolean; tenantLabel: string | null;
   plane: 'instance' | 'account' | 'unknown'; tenancyEnabled: boolean | null;
   authRequired: boolean | null; allowedRoutes: string[] | null;
+  authSource?: string; ownerDesignationVerified?: boolean;
+  identityCommitmentSha256?: string | null;
 }
 export const UNKNOWN_IDENTITY: Identity = { kind: 'unknown', isAdmin: false, tenantLabel: null,
-  plane: 'unknown', tenancyEnabled: null, authRequired: null, allowedRoutes: null };
+  plane: 'unknown', tenancyEnabled: null, authRequired: null, allowedRoutes: null,
+  authSource: 'unknown', ownerDesignationVerified: false, identityCommitmentSha256: null };
 export function readIdentity(value: unknown): Identity | null {
   const data = record(value);
-  if (!data || !['open', 'admin', 'tenant'].includes(String(data.kind)) || typeof data.is_admin !== 'boolean'
+  if (!data || !['open', 'admin', 'owner', 'tenant'].includes(String(data.kind)) || typeof data.is_admin !== 'boolean'
     || typeof data.tenancy_enabled !== 'boolean' || typeof data.auth_required !== 'boolean'
     || !['instance', 'account'].includes(String(data.plane))) return null;
+  const owner = data.kind === 'owner';
   if ((data.is_admin && (data.kind === 'tenant' || data.plane !== 'instance'))
     || (!data.is_admin && (data.kind !== 'tenant' || data.plane !== 'account'))
+    || (owner && (data.auth_source !== 'supabase_auth_server'
+      || data.owner_designation_verified !== true
+      || typeof data.identity_commitment_sha256 !== 'string'
+      || !/^[0-9a-f]{64}$/.test(data.identity_commitment_sha256)))
+    || (!owner && data.owner_designation_verified === true)
     || (data.allowed_routes !== null && (!Array.isArray(data.allowed_routes) || data.allowed_routes.some(item => typeof item !== 'string')))
     || (!data.is_admin && !Array.isArray(data.allowed_routes))) return null;
   return { kind: data.kind as IdentityKind, isAdmin: data.is_admin, tenantLabel: typeof data.tenant_label === 'string' ? data.tenant_label : null,
     plane: data.plane as Identity['plane'], tenancyEnabled: data.tenancy_enabled, authRequired: data.auth_required,
-    allowedRoutes: data.allowed_routes as string[] | null };
+    allowedRoutes: data.allowed_routes as string[] | null,
+    authSource: typeof data.auth_source === 'string' ? data.auth_source : undefined,
+    ownerDesignationVerified: data.owner_designation_verified === true,
+    identityCommitmentSha256: typeof data.identity_commitment_sha256 === 'string' ? data.identity_commitment_sha256 : null };
 }
 
 /** A completed user-requested test, dated by its actual HTTP response receipt. */

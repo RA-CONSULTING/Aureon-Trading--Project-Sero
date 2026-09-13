@@ -53,36 +53,13 @@ function floorToStep(value: number, step: number): number {
   return Number((Math.floor(value / step) * step).toFixed(precision));
 }
 
-async function invokeOms(
-  supabaseUrl: string,
-  anonKey: string,
-  authorization: string,
-  body: Record<string, unknown>,
-): Promise<any> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/oms-leaky-bucket`, {
-    method: 'POST',
-    headers: {
-      Authorization: authorization,
-      apikey: anonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json();
-  if (!response.ok || payload?.success !== true) {
-    throw new Error(`OMS_${String(body.action).toUpperCase()}_FAILED:${payload?.error || response.status}`);
-  }
-  return payload;
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')?.trim();
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim();
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')?.trim();
-    if (!supabaseUrl || !serviceKey || !anonKey) throw new Error('SUPABASE_RUNTIME_NOT_CONFIGURED');
+    if (!supabaseUrl || !serviceKey) throw new Error('SUPABASE_RUNTIME_NOT_CONFIGURED');
 
     const authorization = req.headers.get('Authorization');
     const token = authorization?.replace(/^Bearer\s+/i, '');
@@ -159,7 +136,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         session: hiveSession,
-        message: 'Queen-Hive connected to fresh live equity and native QGITA routing',
+        message: 'Queen-Hive analysis session connected to fresh equity evidence; order dispatch is unavailable',
+        executionAvailable: false,
+        executionUnavailableReason: 'GOVERNED_ORDER_REVIEW_DISPATCH_CLIENT_UNAVAILABLE',
+        tenantRuntimeAuthority: false,
+        providerMutationAttempted: false,
         truthStatus: 'real_derived',
         sourceId: observedSession.measurement_source_id,
         sourceTimestamp: balanceTimestamp,
@@ -351,50 +332,30 @@ serve(async (req) => {
           continue;
         }
 
-        const priority = Math.max(0, Math.min(100, Math.round(confidenceScale * 100)));
-        try {
-          const oms = await invokeOms(supabaseUrl, anonKey, authorization, {
-            action: 'enqueue',
-            sessionId,
-            hiveId: agent.hive_id,
-            agentId: agent.id,
-            symbol,
-            side,
-            quantity,
-            price,
-            priority,
-            metadata: {
-              signalStrength: strength,
-              coherence,
-              lighthouseValue,
-              qgitaSignalId: signal.id,
-              truthStatus: 'real_derived',
-              sourceId: `qgita_signal:${signal.id}:${signal.source_id}+binance:/api/v3/ticker/24hr`,
-              sourceTimestamp: [sourceTimestamp, ticker.sourceTimestamp].sort()[0],
-              marketSourceId: 'binance:/api/v3/ticker/24hr',
-              marketSourceTimestamp: ticker.sourceTimestamp,
-              generatedValues: false,
-            },
-          });
-          queued.push({ agentId: agent.id, symbol, side, quantity, price, orderId: oms.orderId, qgitaSignalId: signal.id });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          if (/duplicate|unique/i.test(message)) skipped.push({ agentId: agent.id, symbol, reason: 'SIGNAL_ALREADY_ROUTED' });
-          else throw error;
-        }
+        skipped.push({
+          agentId: agent.id,
+          symbol,
+          side,
+          quantity,
+          price,
+          reason: 'GOVERNED_ORDER_REVIEW_DISPATCH_CLIENT_UNAVAILABLE',
+          providerMutationAttempted: false,
+        });
       }
 
-      const execution = queued.length > 0
-        ? await invokeOms(supabaseUrl, anonKey, authorization, { action: 'process' })
-        : {
-            processed: 0,
-            failed: 0,
-            results: [],
-            truthStatus: 'no_data',
-            sourceId: 'qgita_signal_states',
-            sourceTimestamp: signalRows?.[0]?.source_timestamp ?? null,
-            generatedValues: false,
-          };
+      const execution = {
+        processed: 0,
+        failed: 0,
+        results: [],
+        truthStatus: 'no_data',
+        sourceId: 'qgita_signal_states',
+        sourceTimestamp: signalRows?.[0]?.source_timestamp ?? null,
+        generatedValues: false,
+        available: false,
+        unavailableReason: 'GOVERNED_ORDER_REVIEW_DISPATCH_CLIENT_UNAVAILABLE',
+        tenantRuntimeAuthority: false,
+        providerMutationAttempted: false,
+      };
       const stepTimestamp = new Date().toISOString();
       const { data: updatedSession, error: updateError } = await supabase
         .from('hive_sessions')
@@ -418,8 +379,12 @@ serve(async (req) => {
         queued,
         skipped,
         execution,
+        executionAvailable: false,
+        executionUnavailableReason: 'GOVERNED_ORDER_REVIEW_DISPATCH_CLIENT_UNAVAILABLE',
+        tenantRuntimeAuthority: false,
+        providerMutationAttempted: false,
         truthStatus: 'real_derived',
-        sourceId: 'qgita_signal_states,binance:/api/v3/ticker/24hr,/api/v3/exchangeInfo,/api/v3/order',
+        sourceId: 'qgita_signal_states,binance:/api/v3/ticker/24hr,/api/v3/exchangeInfo',
         sourceTimestamp: Array.from(tickerBySymbol.values()).map((row) => row.sourceTimestamp).sort()[0] ?? null,
         generatedValues: false,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });

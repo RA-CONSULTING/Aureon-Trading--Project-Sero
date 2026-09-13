@@ -1,0 +1,13 @@
+# Deterministic authority image build context, matching the Dockerfile COPY
+# closure exactly.
+**
+!Dockerfile
+!requirements.txt
+!contract.py
+!service.py
+!firestore_ledger.py
+!provider_boundary.py
+!live_executor.py
+!cloud_state.py
+!release_gate.py
+!release_controller.py

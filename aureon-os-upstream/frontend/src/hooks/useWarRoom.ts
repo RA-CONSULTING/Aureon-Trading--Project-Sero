@@ -214,26 +214,12 @@ export function useWarRoom() {
       scanIntervalRef.current = null;
     }
 
-    try {
-      const { error } = await supabase.functions.invoke('emergency-stop');
-      
-      if (error) throw error;
-
-      setWarState(prev => ({ ...prev, status: 'emergency_stopped' }));
-      
-      toast({
-        title: '🚨 EMERGENCY STOP EXECUTED',
-        description: 'All positions closed, orders cancelled',
-        variant: 'destructive',
-      });
-    } catch (error: any) {
-      console.error('Emergency stop failed:', error);
-      toast({
-        title: '❌ Emergency Stop Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
+    setWarState(prev => ({ ...prev, status: 'emergency_stopped' }));
+    toast({
+      title: 'Local war-room loop stopped',
+      description: 'No order cancellation was claimed. Use the protected operator switchboard for cloud execution controls.',
+      variant: 'destructive',
+    });
   }, [toast]);
 
   const updateConfig = useCallback((config: Partial<WarConfig>) => {

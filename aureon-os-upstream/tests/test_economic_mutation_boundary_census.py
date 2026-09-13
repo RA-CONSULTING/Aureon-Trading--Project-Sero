@@ -24,25 +24,26 @@ def census() -> dict[str, Any]:
 def test_inventory_is_exact_but_truthfully_not_certified(census: dict[str, Any]) -> None:
     assert census["inventory_aligned"] is True
     assert census["certified_no_bypass"] is False
-    assert census["detected_count"] == 1607
-    assert census["classified_count"] == 1607
-    assert census["blocker_count"] == 1236
+    assert census["source_files_scanned"] == 4720
+    assert census["detected_count"] == 1668
+    assert census["classified_count"] == 1668
+    assert census["blocker_count"] == 1218
     assert census["parse_errors"] == []
     assert census["unallowlisted"] == []
     assert census["stale_allowlist_entries"] == []
     assert census["counts_by_classification"] == {
-        "dry-run-test-demo-only": 122,
+        "dry-run-test-demo-only": 198,
         "economic-boundary-last-mile": 4,
-        "live-capable-unguarded-blocker": 1236,
-        "provider-client-raw-transport-guard": 245,
+        "live-capable-unguarded-blocker": 1218,
+        "provider-client-raw-transport-guard": 248,
         "unreachable-quarantined-launcher": 0,
     }
     assert census["counts_by_provider"] == {
-        "alpaca": 235,
-        "binance": 371,
-        "capital": 207,
-        "kraken": 445,
-        "multi-provider": 343,
+        "alpaca": 233,
+        "binance": 411,
+        "capital": 202,
+        "kraken": 449,
+        "multi-provider": 367,
         "oanda": 6,
     }
 
@@ -54,7 +55,7 @@ def test_every_entry_is_explicitly_owned_and_line_independent(
     assert all(item["rationale"].strip() for item in census["findings"])
     assert all(item["owner"].strip() for item in census["findings"])
     allowlist = AUDITOR.load_allowlist()
-    assert len(allowlist) == 1607
+    assert len(allowlist) == 1668
     assert all("line" not in entry for entry in allowlist.values())
 
 
@@ -93,7 +94,7 @@ def test_guarded_last_mile_and_provider_raw_transport_guards_are_exact(
         for finding in census["findings"]
         if finding["classification"] == "provider-client-raw-transport-guard"
     ]
-    assert len(provider_guards) == 245
+    assert len(provider_guards) == 248
     assert {finding["file"] for finding in provider_guards} == {
         "Kings_Accounting_Suite/aureon_systems/queen_quantum_frog.py",
         "Kings_Accounting_Suite/core/hnc_hmrc_api.py",
@@ -104,6 +105,9 @@ def test_guarded_last_mile_and_provider_raw_transport_guards_are_exact(
         "aureon/exchanges/capital_client.py",
         "aureon/exchanges/kraken_client.py",
         "aureon/exchanges/kraken_margin_penny_trader.py",
+        "aureon/operator/historical_backtest.py",
+        "aureon/operator/legacy_runtime_api.py",
+        "aureon/operator/tenant_exchange_probe.py",
         "aureon/bots/gaia_aggressive_reclaimerfix.py",
         "aureon/bots/orca_complete_kill_cycle.py",
         "aureon/queen/queen_quantum_frog.py",
@@ -456,7 +460,7 @@ def test_guarded_last_mile_and_provider_raw_transport_guards_are_exact(
         for finding in census["blockers"]
         if finding["file"] == "aureon/exchanges/kraken_margin_penny_trader.py"
     ]
-    assert len(margin_residual) == 10
+    assert len(margin_residual) == 9
     assert all(
         "urllib.request.Request" in finding["canonical_call"]
         for finding in margin_residual

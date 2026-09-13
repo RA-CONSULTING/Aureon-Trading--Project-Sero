@@ -179,6 +179,19 @@ def test_gap_triggers_acquisition_and_outcome_is_measured():
     assert res.envelope()["acquisition"]["outcome"] == "acquired"
 
 
+def test_exhausted_aggregate_budget_reports_unavailable_without_extra_call():
+    adapter = _Plan([("text", "I don't know that.")])
+    cognition = _cog(adapter)
+    cognition.max_model_calls = 1
+    res = cognition.reason("explain something obscure")
+
+    assert adapter.calls == 1
+    assert res.acquisition["triggered"] is True
+    assert res.acquisition["outcome"] == "unavailable"
+    assert res.acquisition["synthesized"] is False
+    assert "model-call budget exhausted" in res.acquisition["blocker"]
+
+
 def test_offline_acquisition_is_honestly_unavailable(monkeypatch):
     monkeypatch.setenv("AUREON_LLM_OFFLINE", "1")
     adapter = _Plan([("text", "I don't know that."),

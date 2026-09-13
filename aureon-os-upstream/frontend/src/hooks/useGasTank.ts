@@ -15,6 +15,8 @@ interface GasTankState {
   isLoading: boolean;
 }
 
+export const GAS_TANK_TOPUP_STATUS = 'PROVIDER_VERIFIED_TOPUP_REQUIRED' as const;
+
 export const useGasTank = (userId: string | null) => {
   const { toast } = useToast();
   const [receipt, setReceipt] = useState<{ observed: boolean; userId: string | null; receivedAt: number | null; reason: string }>({
@@ -189,47 +191,12 @@ export const useGasTank = (userId: string | null) => {
     };
   }, [userId, state.status, toast]);
 
-  const topUp = async (amount: number, membershipType: 'founder' | 'standard' = 'standard') => {
-    if (!userId) {
-      toast({
-        title: 'Error',
-        description: 'User not authenticated',
-        variant: 'destructive',
-      });
-      return { success: false };
-    }
-
-    try {
-      const { data, error } = await supabase.functions.invoke('gas-tank-topup', {
-        body: { userId, amount, membershipType },
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast({
-          title: '✅ Top-up Successful',
-          description: `Added £${amount.toFixed(2)} to your gas tank`,
-          variant: 'default',
-        });
-        return { success: true, data: data.account };
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      console.error('Top-up error:', error);
-      toast({
-        title: 'Top-up Failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
-      });
-      return { success: false };
-    }
-  };
-
   return {
     ...state,
     receipt: { ...receipt, observed: receipt.observed && receipt.userId === userId },
-    topUp,
+    topUp: {
+      available: false,
+      reason: GAS_TANK_TOPUP_STATUS,
+    },
   };
 };

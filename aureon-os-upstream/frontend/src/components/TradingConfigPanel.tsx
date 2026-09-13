@@ -1,12 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
 import { Settings, AlertTriangle, TrendingUp, Shield } from "lucide-react";
 
 interface TradingConfig {
@@ -17,94 +15,12 @@ interface TradingConfig {
 }
 
 export const TradingConfigPanel = () => {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [config, setConfig] = useState<TradingConfig>({
+  const [config] = useState<TradingConfig>({
     tradingMode: 'paper',
     minCoherence: 0.70,
     maxPositions: 15,
     autoTrading: false,
   });
-
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('aureon_user_sessions')
-        .select('trading_mode, is_trading_active')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (data) {
-        setConfig(prev => ({
-          ...prev,
-          tradingMode: (data.trading_mode as 'paper' | 'live') || 'paper',
-          autoTrading: data.is_trading_active || false,
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading config:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveConfig = async () => {
-    setSaving(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast({
-          title: "Not authenticated",
-          description: "Please log in to save settings",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('aureon_user_sessions')
-        .update({
-          trading_mode: config.tradingMode,
-          is_trading_active: config.autoTrading,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('user_id', session.user.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Settings saved",
-        description: "Trading configuration updated successfully",
-      });
-    } catch (error) {
-      console.error('Error saving config:', error);
-      toast({
-        title: "Error saving settings",
-        description: "Please try again",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -133,9 +49,7 @@ export const TradingConfigPanel = () => {
             </div>
             <Switch
               checked={config.tradingMode === 'live'}
-              onCheckedChange={(checked) => 
-                setConfig(prev => ({ ...prev, tradingMode: checked ? 'live' : 'paper' }))
-              }
+              disabled
             />
           </div>
           
@@ -176,9 +90,7 @@ export const TradingConfigPanel = () => {
               min={0.50}
               max={0.99}
               step={0.01}
-              onValueChange={([value]) => 
-                setConfig(prev => ({ ...prev, minCoherence: value }))
-              }
+              disabled
               className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
@@ -209,12 +121,7 @@ export const TradingConfigPanel = () => {
               min={1}
               max={50}
               value={config.maxPositions}
-              onChange={(e) => 
-                setConfig(prev => ({ 
-                  ...prev, 
-                  maxPositions: Math.min(50, Math.max(1, parseInt(e.target.value) || 1))
-                }))
-              }
+              disabled
               className="max-w-[120px]"
             />
             <p className="text-sm text-muted-foreground">
@@ -231,9 +138,7 @@ export const TradingConfigPanel = () => {
             </div>
             <Switch
               checked={config.autoTrading}
-              onCheckedChange={(checked) => 
-                setConfig(prev => ({ ...prev, autoTrading: checked }))
-              }
+              disabled
             />
           </div>
         </CardContent>
@@ -241,8 +146,8 @@ export const TradingConfigPanel = () => {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button onClick={saveConfig} disabled={saving}>
-          {saving ? 'Saving...' : 'Save Configuration'}
+        <Button disabled>
+          Use the governed Operator Switchboard
         </Button>
       </div>
     </div>

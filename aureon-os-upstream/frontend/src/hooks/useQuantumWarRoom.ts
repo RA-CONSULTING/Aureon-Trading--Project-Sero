@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { temporalLadder, SYSTEMS } from '@/core/temporalLadder';
 import { unifiedBus } from '@/core/unifiedBus';
@@ -132,19 +131,17 @@ export function useQuantumWarRoom() {
   }, [state.status, toast, startTrading]);
 
   const emergencyStop = useCallback(async () => {
-    try {
-      const { error } = await supabase.functions.invoke('emergency-stop');
-      if (error) throw error;
-      stopTrading();
-      setState((previous) => ({ ...previous, status: 'emergency_stopped' }));
-      temporalLadder.broadcast(SYSTEMS.QUANTUM_QUACKERS, 'EMERGENCY_STOP', {
-        reason: 'manual_trigger',
-        observed_at: new Date().toISOString(),
-      });
-      toast({ title: 'Emergency stop', description: 'All trading halted.', variant: 'destructive' });
-    } catch (error: any) {
-      toast({ title: 'Emergency stop failed', description: error.message, variant: 'destructive' });
-    }
+    stopTrading();
+    setState((previous) => ({ ...previous, status: 'emergency_stopped' }));
+    temporalLadder.broadcast(SYSTEMS.QUANTUM_QUACKERS, 'LOCAL_ANALYSIS_STOPPED', {
+      reason: 'manual_trigger',
+      observed_at: new Date().toISOString(),
+    });
+    toast({
+      title: 'Local analysis stopped',
+      description: 'Cloud execution controls remain in the protected operator switchboard.',
+      variant: 'destructive',
+    });
   }, [toast, stopTrading]);
 
   return { state, launchAssault, emergencyStop };

@@ -34,13 +34,15 @@ import { positionManager, type Position } from './positionManager';
 import { capitalPool, type CapitalState, type PositionSizeResult } from './capitalPool';
 import { gaiaLatticeEngine, type LatticeState } from './gaiaLatticeEngine';
 import { startupHarvester } from './startupHarvester';
-import { lotSizeValidator } from './lotSizeValidator';
 import { supabase } from '@/integrations/supabase/client';
 import { getEarthStreams, earthStreamsMonitor, type SimpleEarthStreams } from '@/lib/earth-streams';
+import { unavailableTradingAction } from '@/lib/tradingActionAvailability';
 
 
 export interface TradeExecutionResult {
   success: boolean;
+  available?: false;
+  providerMutationAttempted?: false;
   orderId?: string;
   executedPrice?: number;
   quantity?: number;
@@ -1058,138 +1060,19 @@ export class UnifiedOrchestrator {
     lighthouseState?: LighthouseState | null,
     prismOutput?: PrismOutput | null
   ): Promise<TradeExecutionResult> {
-    const exchange = decision.recommendedExchange;
-    const positionSize = decision.positionSizeUsd;
-    if (!exchange || !Number.isFinite(positionSize) || (positionSize as number) <= 0 ||
-        !marketSnapshot || !lambdaState || !lighthouseState || !prismOutput) {
-      return { success: false, error: 'LIVE_EXECUTION_INPUTS_REQUIRED' };
-    }
-    
-    console.log(`[UnifiedOrchestrator] Executing ${decision.action} on ${symbol} via ${exchange} | Size: $${positionSize.toFixed(2)}`);
-    
-    try {
-      // Phase 5C: Pre-validate authentication and credentials
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        console.error('[UnifiedOrchestrator] No auth session available for trade execution');
-        return { success: false, error: 'Not authenticated' };
-      }
-      
-      // Phase 5C: Validate user has credentials for target exchange
-      const { data: userSession, error: sessionError } = await supabase
-        .from('aureon_user_sessions')
-        .select('binance_api_key_encrypted, kraken_api_key_encrypted, alpaca_api_key_encrypted, capital_api_key_encrypted')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-      
-      if (sessionError || !userSession) {
-        console.error('[UnifiedOrchestrator] Cannot verify user credentials:', sessionError?.message);
-        return { success: false, error: 'Cannot verify trading credentials' };
-      }
-      
-      // Check exchange-specific credentials
-      const credentialField = `${exchange}_api_key_encrypted` as keyof typeof userSession;
-      if (!userSession[credentialField]) {
-        console.error(`[UnifiedOrchestrator] Missing ${exchange} API credentials`);
-        return { success: false, error: `Missing ${exchange} API credentials. Add them in Settings.` };
-      }
-
-      // Prepare trade payload
-      const signalType = decision.action === 'BUY' ? 'LONG' : 'SHORT';
-      const currentPrice = marketSnapshot.price;
-      
-      // GAP CLOSURE: Validate lot size before execution
-      const quantity = positionSize / currentPrice;
-      const lotValidation = await lotSizeValidator.validate(symbol, quantity, currentPrice, exchange);
-      
-      if (!lotValidation.valid) {
-        console.warn(`[UnifiedOrchestrator] Lot size validation failed: ${lotValidation.error}`);
-        return { success: false, error: lotValidation.error };
-      }
-      
-      const payload = {
-        symbol,
-        signalType,
-        liveExecutionConfirmed: this.liveExecutionConfirmed,
-        coherence: lambdaState.coherence,
-        lighthouseValue: lighthouseState.L,
-        lighthouseConfidence: lighthouseState.confidence,
-        prismLevel: prismOutput.level,
-        currentPrice: lotValidation.adjustedPrice,
-        price: lotValidation.adjustedPrice,
-        quantity: lotValidation.adjustedQuantity,
-        recommendedExchange: exchange,
-        positionSizeUsd: lotValidation.adjustedQuantity * lotValidation.adjustedPrice,
-        truthStatus: marketSnapshot.truthStatus,
-        sourceId: marketSnapshot.sourceId,
-        sourceTimestamp: marketSnapshot.sourceTimestamp,
-        generatedValues: false,
-      };
-
-      console.log('[UnifiedOrchestrator] Calling execute-trade edge function:', payload);
-
-      // Call the execute-trade edge function
-      const { data, error } = await supabase.functions.invoke('execute-trade', {
-        body: payload,
-      });
-
-      if (error) {
-        console.error('[UnifiedOrchestrator] Trade execution failed:', error);
-        return { success: false, error: error.message || 'Trade execution failed' };
-      }
-
-      if (!data?.success) {
-        console.error('[UnifiedOrchestrator] Trade rejected:', data?.error);
-        return { success: false, error: data?.error || 'Trade rejected' };
-      }
-
-      const execution = data.execution;
-      const receiptTime = Date.parse(String(data.sourceTimestamp || execution?.source_timestamp || ''));
-      const orderId = String(execution?.exchange_order_id || '');
-      const executedPrice = Number(execution?.executed_price);
-      const executedQuantity = Number(execution?.quantity);
-      if (data.truthStatus !== 'live' || data.generatedValues !== false || !data.sourceId ||
-          !orderId || !Number.isFinite(executedPrice) || executedPrice <= 0 ||
-          !Number.isFinite(executedQuantity) || executedQuantity <= 0 ||
-          !Number.isFinite(receiptTime) || Date.now() - receiptTime < 0 || Date.now() - receiptTime > 300_000) {
-        return { success: false, error: 'INVALID_OR_STALE_EXCHANGE_EXECUTION_RECEIPT' };
-      }
-
-      console.log('[UnifiedOrchestrator] Trade executed successfully:', data);
-
-      // Broadcast the trade event with full routing info
-      temporalLadder.broadcast(SYSTEMS.MASTER_EQUATION, 'TRADE_EXECUTED', {
-        action: decision.action,
-        symbol,
-        confidence: decision.confidence,
-        exchange,
-        positionSizeUsd: positionSize,
-        orderId,
-        executedPrice,
-        executedQuantity,
-        truthStatus: 'live',
-        sourceId: data.sourceId,
-        sourceTimestamp: data.sourceTimestamp,
-        generatedValues: false,
-      });
-
-      return {
-        success: true,
-        orderId,
-        executedPrice,
-        quantity: executedQuantity,
-        exchange,
-        truthStatus: 'live',
-        sourceId: data.sourceId,
-        sourceTimestamp: data.sourceTimestamp,
-        generatedValues: false,
-      };
-
-    } catch (err: any) {
-      console.error('[UnifiedOrchestrator] Trade execution error:', err);
-      return { success: false, error: err.message || 'Unexpected error' };
-    }
+    void decision;
+    void symbol;
+    void marketSnapshot;
+    void lambdaState;
+    void lighthouseState;
+    void prismOutput;
+    const unavailable = unavailableTradingAction('unified_orchestrator_execute_trade');
+    return {
+      success: false,
+      available: false,
+      providerMutationAttempted: false,
+      error: unavailable.code,
+    };
   }
   
   /**
@@ -1202,7 +1085,9 @@ export class UnifiedOrchestrator {
   }
 
   setLiveExecutionConfirmation(confirmed: boolean): void {
-    this.liveExecutionConfirmed = confirmed === true;
+    void confirmed;
+    this.liveExecutionConfirmed = false;
+    console.warn('[UnifiedOrchestrator] Live execution remains unavailable on this frontend surface.');
   }
   
   /**

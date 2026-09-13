@@ -83,7 +83,7 @@ export function useQueenHive() {
         setIsRunning(true);
         
         toast({
-          title: "🐝 Queen-Hive Deployed",
+          title: "🐝 Queen-Hive Analysis Started",
           description: data.message,
         });
 
@@ -118,10 +118,12 @@ export function useQueenHive() {
         await fetchStatus(sessionId);
 
         const equityText = Number.isFinite(Number(data.equity)) ? `$${Number(data.equity).toFixed(2)}` : 'unavailable';
-        console.log(`Live step ${data.step}: ${data.trades} provider-confirmed trades, ${equityText} equity`);
+        console.log(`Analysis step ${data.step}: ${data.skipped?.length ?? 0} signals reviewed, ${equityText} equity evidence`);
         toast({
-          title: 'Live step completed',
-          description: `${data.trades} provider-confirmed trades; ${data.skipped?.length ?? 0} routes skipped`,
+          title: 'Analysis step completed',
+          description: data.executionAvailable === false
+            ? `${data.skipped?.length ?? 0} signals reviewed; no orders attempted because dispatch is unavailable`
+            : `${data.trades} provider-confirmed trades; ${data.skipped?.length ?? 0} routes skipped`,
         });
       } else {
         throw new Error(data.error || 'LIVE_STEP_FAILED');
@@ -145,7 +147,7 @@ export function useQueenHive() {
       if (data.success) {
         toast({
           title: "🛑 Queen-Hive Stopped",
-          description: "All trading activity halted",
+          description: "Queen-Hive analysis session stopped",
         });
 
         // Fetch final status

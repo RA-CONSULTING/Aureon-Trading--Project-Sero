@@ -21,7 +21,7 @@ const ROUTE_TO_PAGE: Record<string, string> = {
   "/api/metacognition": "/cognition/metacognition", "/api/affect": "/ops/affect",
   "/api/soul": "/ops/soul", "/api/inner-work": "/ops/inner-work",
   "/api/pursuit": "/ops/pursuit", "/api/approvals": "/ops/approvals",
-  "/api/company": "/cognition/agents", "/api/organism": "/console",
+  "/api/company": "/platform/coverage", "/api/organism": "/console",
 };
 function SurfaceCard({ surface, now }: { surface: ConsciousnessSurface; now: number }) {
   const page = ROUTE_TO_PAGE[surface.route];

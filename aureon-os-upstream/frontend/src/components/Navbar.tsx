@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { endTenantBrowserSession } from "@/services/tenantSession";
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -39,12 +40,12 @@ const Navbar = () => {
   };
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast.error("Failed to sign out");
-    } else {
-      toast.success("Signed out successfully");
-      navigate("/auth");
+    try {
+      await endTenantBrowserSession(options => supabase.auth.signOut(options));
+      toast.success("Signed out of this account workspace", { description: "The owner cloud runtime continues independently." });
+      navigate("/console");
+    } catch {
+      toast.error("Failed to sign out of this account workspace");
     }
   };
 

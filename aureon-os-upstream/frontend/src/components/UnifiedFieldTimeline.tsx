@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
 import { Clock, TrendingUp, Zap, Activity } from "lucide-react";
 import { 
   LineChart, 
@@ -61,16 +60,8 @@ export const UnifiedFieldTimeline = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchAnalysis = async () => {
-    try {
-      const { data: analysisData, error } = await supabase.functions.invoke('unified-field-analysis');
-      
-      if (error) throw error;
-      setData(analysisData);
-    } catch (error) {
-      console.error('Error fetching unified field analysis:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    setData(null);
+    setIsLoading(false);
   };
 
   useEffect(() => {

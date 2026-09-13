@@ -1,10 +1,10 @@
 /**
- * Harmonic Nexus Research Console — claim-honest shipped glass (research_nexus_v1).
+ * Harmonic Nexus Research Console â€” claim-honest shipped glass (research_nexus_v1).
  *
  * /research/nexus paint: zinc/gold/cyan only; EXAMPLE hard on EVERY numeric;
  * observed vs dark honesty; AGRA aspirational; confidence withheld until probe.
  * No mystic-as-instruments; no solfeggio/lighthouse-as-market; no paint-green;
- * no fake LIVE chips. Banner: SHIPPED GLASS · EXAMPLE LAYOUT WHERE MARKED
+ * no fake LIVE chips. Banner: SHIPPED GLASS Â· EXAMPLE LAYOUT WHERE MARKED
  */
 
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
@@ -26,7 +26,7 @@ const PANEL_SOLID = "#121212";
 const BORDER = "#3f3f46";
 const ZINC = "#a1a1aa";
 
-/** EXAMPLE meters — illustrative only; not live probes. Confidence withheld. */
+/** EXAMPLE meters â€” illustrative only; not live probes. Confidence withheld. */
 const EXAMPLE_OVERALL = "0.62";
 const EXAMPLE_SNR_DB = "8.7";
 const EXAMPLE_FRESHNESS = "87";
@@ -50,17 +50,17 @@ const FEEDS: FeedCard[] = [
     lane: "observed",
     title: "OBSERVED",
     subtitle: "Evidence-linked detections",
-    source: "NOAA / SWPC · SOLAR & GEOPHYSICAL FEED",
+    source: "NOAA / SWPC Â· SOLAR & GEOPHYSICAL FEED",
     age: "12m",
     footerUrl: "swpc.noaa.gov",
-    footerRef: "ACE · GOES · DSCOVR",
+    footerRef: "ACE Â· GOES Â· DSCOVR",
     chart: "wave-cyan",
   },
   {
     lane: "dark",
     title: "DARK",
     subtitle: "Unconfirmed / low-evidence",
-    source: "NASA / ADS · ASTROPHYSICS FEED",
+    source: "NASA / ADS Â· ASTROPHYSICS FEED",
     age: "2h 47m",
     footerUrl: "ui.adsabs.harvard.edu",
     footerRef: "arXiv reference",
@@ -70,7 +70,7 @@ const FEEDS: FeedCard[] = [
     lane: "hold",
     title: "HOLD",
     subtitle: "Awaiting replication / context",
-    source: "NOAA / NCEI · GEOMAGNETIC FEED",
+    source: "NOAA / NCEI Â· GEOMAGNETIC FEED",
     age: "6h 19m",
     footerUrl: "ncei.noaa.gov",
     footerRef: "INTERMAGNET Kp Index",
@@ -196,7 +196,7 @@ function FeedColumn({ feed }: { feed: FeedCard }) {
         >
           <MiniWave tone={chartTone} />
           <p className="mt-1 text-center text-[9px] uppercase tracking-wider text-zinc-500">
-            Illustrative trace · not a live instrument
+            Illustrative trace Â· not a live instrument
           </p>
         </div>
         <div className="border-t pt-2 text-[10px] text-zinc-500" style={{ borderColor: BORDER }}>
@@ -257,7 +257,7 @@ function MeterCard({
           </p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wide text-zinc-400">{detail}</p>
           <p className="mt-1 text-[9px] uppercase tracking-wider" style={{ color: `${GOLD}cc` }}>
-            Confidence withheld · awaiting probe
+            Confidence withheld Â· awaiting probe
           </p>
         </div>
       </div>
@@ -293,7 +293,7 @@ export default function NexusLiveDashboard() {
       >
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>
-            SHIPPED GLASS · EXAMPLE LAYOUT WHERE MARKED
+            SHIPPED GLASS Â· EXAMPLE LAYOUT WHERE MARKED
           </p>
           <ExampleBadge />
           <ExampleBadge label="AGRA ASPIRATIONAL" />
@@ -303,7 +303,7 @@ export default function NexusLiveDashboard() {
           style={{ color: `${GOLD}cc` }}
         >
           <AlertTriangle className="h-3 w-3 shrink-0" style={{ color: GOLD }} />
-          Meters & ages are EXAMPLE · confidence withheld until probe · not trading instruments
+          Meters & ages are EXAMPLE Â· confidence withheld until probe Â· not trading instruments
         </p>
       </div>
 
@@ -320,12 +320,12 @@ export default function NexusLiveDashboard() {
             </h1>
           </div>
           <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
-            Coherence · Observation · Evidence
+            Coherence Â· Observation Â· Evidence
           </p>
         </div>
         <div className="text-right text-[10px] uppercase tracking-wide text-zinc-500">
-          <p>Shipped glass · not mystic UI</p>
-          <p className="mt-0.5">Research strip · claim-honest feed</p>
+          <p>Shipped glass Â· not mystic UI</p>
+          <p className="mt-0.5">Research strip Â· claim-honest feed</p>
         </div>
       </header>
 
@@ -394,14 +394,14 @@ export default function NexusLiveDashboard() {
               </h2>
               <ExampleBadge />
               <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                Hard EXAMPLE · AGRA aspirational · confidence withheld
+                Hard EXAMPLE Â· AGRA aspirational Â· confidence withheld
               </span>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MeterCard
                 label="Overall coherence"
                 value={`${EXAMPLE_OVERALL} / 1.0`}
-                detail="Moderate · stable (illustrative)"
+                detail="Moderate Â· stable (illustrative)"
                 ring={0.62}
               />
               <MeterCard
@@ -418,7 +418,7 @@ export default function NexusLiveDashboard() {
               <MeterCard
                 label="Source diversity"
                 value={EXAMPLE_SOURCE_DIV}
-                detail="NOAA · NASA · NCEI · ADS"
+                detail="NOAA Â· NASA Â· NCEI Â· ADS"
               />
             </div>
           </div>
@@ -438,7 +438,7 @@ export default function NexusLiveDashboard() {
                 <p className="font-semibold uppercase tracking-wide" style={{ color: GOLD }}>
                   Focus: Harmonic Nexus
                 </p>
-                <p className="mt-1 text-zinc-400">Investigating phase and resonance as research signals — not market tools.</p>
+                <p className="mt-1 text-zinc-400">Investigating phase and resonance as research signals â€” not market tools.</p>
               </li>
               <li className="rounded-md border p-2.5" style={{ borderColor: BORDER, background: PANEL_SOLID }}>
                 <p className="font-semibold uppercase tracking-wide" style={{ color: GOLD }}>
@@ -485,7 +485,7 @@ export default function NexusLiveDashboard() {
                   Research lens
                 </p>
                 <p className="mt-1 text-[11px] text-zinc-400">
-                  These are research signals and EXAMPLE layout chrome — not trading predictions, not biofield proof,
+                  These are research signals and EXAMPLE layout chrome â€” not trading predictions, not biofield proof,
                   not live instrument readouts.
                 </p>
               </div>
@@ -514,7 +514,7 @@ export default function NexusLiveDashboard() {
           </p>
         </div>
         <p className="text-[9px] uppercase tracking-wide text-zinc-600">
-          Aureon Evidence OS · zinc-950 · gold · cyan · shipped glass
+          Aureon Evidence OS Â· zinc-950 Â· gold Â· cyan Â· shipped glass
         </p>
       </footer>
     </div>

@@ -42,11 +42,6 @@ export function useUserDataVerification() {
   });
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const maskApiKey = (key: string | null): string | null => {
-    if (!key || key.length < 8) return null;
-    return `****${key.slice(-4)}`;
-  };
-
   const verifyUserData = useCallback(async () => {
     setIsVerifying(true);
     
@@ -64,12 +59,11 @@ export function useUserDataVerification() {
         return;
       }
 
-      // Get user's session data from database
+      // The RPC returns only the caller's safe status projection. Browser
+      // roles cannot select exchange ciphertext or trading authority columns.
       const { data: sessionData, error: sessionError } = await supabase
-        .from('aureon_user_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .rpc('get_aureon_user_session_status')
+        .maybeSingle();
 
       if (sessionError) {
         console.warn('[UserDataVerification] No session found:', sessionError);
@@ -82,31 +76,31 @@ export function useUserDataVerification() {
       const exchanges: ExchangeVerification[] = [
         {
           exchange: 'Binance',
-          hasCredentials: !!(sessionData?.binance_api_key_encrypted),
-          partialApiKey: maskApiKey(sessionData?.binance_api_key_encrypted?.slice(-8) || null),
+          hasCredentials: sessionData?.binance_credentials_configured === true,
+          partialApiKey: null,
           lastVerified: sessionData?.updated_at || null,
-          status: sessionData?.binance_api_key_encrypted ? 'VERIFIED' : 'UNVERIFIED',
+          status: sessionData?.binance_credentials_configured ? 'VERIFIED' : 'UNVERIFIED',
         },
         {
           exchange: 'Kraken',
-          hasCredentials: !!(sessionData?.kraken_api_key_encrypted),
-          partialApiKey: maskApiKey(sessionData?.kraken_api_key_encrypted?.slice(-8) || null),
+          hasCredentials: sessionData?.kraken_credentials_configured === true,
+          partialApiKey: null,
           lastVerified: sessionData?.updated_at || null,
-          status: sessionData?.kraken_api_key_encrypted ? 'VERIFIED' : 'UNVERIFIED',
+          status: sessionData?.kraken_credentials_configured ? 'VERIFIED' : 'UNVERIFIED',
         },
         {
           exchange: 'Alpaca',
-          hasCredentials: !!(sessionData?.alpaca_api_key_encrypted),
-          partialApiKey: maskApiKey(sessionData?.alpaca_api_key_encrypted?.slice(-8) || null),
+          hasCredentials: sessionData?.alpaca_credentials_configured === true,
+          partialApiKey: null,
           lastVerified: sessionData?.updated_at || null,
-          status: sessionData?.alpaca_api_key_encrypted ? 'VERIFIED' : 'UNVERIFIED',
+          status: sessionData?.alpaca_credentials_configured ? 'VERIFIED' : 'UNVERIFIED',
         },
         {
           exchange: 'Capital.com',
-          hasCredentials: !!(sessionData?.capital_api_key_encrypted),
-          partialApiKey: maskApiKey(sessionData?.capital_api_key_encrypted?.slice(-8) || null),
+          hasCredentials: sessionData?.capital_credentials_configured === true,
+          partialApiKey: null,
           lastVerified: sessionData?.updated_at || null,
-          status: sessionData?.capital_api_key_encrypted ? 'VERIFIED' : 'UNVERIFIED',
+          status: sessionData?.capital_credentials_configured ? 'VERIFIED' : 'UNVERIFIED',
         },
       ];
 

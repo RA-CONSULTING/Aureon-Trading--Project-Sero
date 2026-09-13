@@ -12,6 +12,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import ShellLayout from "./ShellLayout";
 import PublicLayout from "./PublicLayout";
 import { AuthGate } from "@/components/AuthGate";
+import { PlaneRoute } from "@/components/PlaneRoute";
 import { ALL_NAV_ITEMS } from "./nav";
 
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -39,7 +40,7 @@ export const router = createBrowserRouter([
     ),
     children: ALL_NAV_ITEMS.map((item) => ({
       path: item.path.replace(/^\//, ""),
-      element: <item.Component />,
+      element: <PlaneRoute operatorOnly={item.operatorOnly}><item.Component /></PlaneRoute>,
     })),
   },
   { path: "*", element: <Navigate to="/" replace /> },

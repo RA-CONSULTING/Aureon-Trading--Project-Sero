@@ -95,4 +95,6 @@ test('chat renders the verdict parser instead of the legacy fabricated approval 
   assert.match(source, /reply\.blocked === false && verdict\.approved/);
   assert.doesNotMatch(source, /conscience_verdict\s*\|\|\s*["']APPROVED/);
   assert.match(source, /Operator requests held/);
+  assert.match(source, /busy \|\| needsKey \|\| !input\.trim\(\)/);
+  assert.match(source, /Connect and test your own model before chatting/);
 });

@@ -20,7 +20,7 @@ import threading
 import time
 import urllib.parse
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -38,6 +38,7 @@ MAX_REPLAY_CANDLES = 672
 MAX_CONCURRENT_REPLAYS = 2
 SOURCE_PROCESS_TIMEOUT_SECONDS = 15.0
 SOURCE_PROCESS_CLEANUP_SECONDS = 2.0
+MAX_SOURCE_WORKER_BYTES = 64 * 1024
 PAIRS = {
     "BTCUSD": ("XBTUSD", frozenset({"XXBTZUSD", "XBTUSD", "BTCUSD"})),
     "ETHUSD": ("ETHUSD", frozenset({"XETHZUSD", "ETHUSD"})),
@@ -84,7 +85,7 @@ class Dataset:
 
 
 def _iso(timestamp: float) -> str:
-    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.fromtimestamp(timestamp, UTC).isoformat().replace("+00:00", "Z")
 
 
 def _canonical(value: Any) -> bytes:
@@ -124,7 +125,7 @@ def validate_config(value: Any, *, now: float | None = None) -> dict[str, Any]:
         if not isinstance(text, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
             raise BacktestError(f"{field} must be a UTC calendar date.")
         try:
-            dates.append(datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=timezone.utc))
+            dates.append(datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=UTC))
         except ValueError as exc:
             raise BacktestError(f"{field} is invalid.") from exc
     if dates[1] < dates[0]:
@@ -139,8 +140,8 @@ def validate_config(value: Any, *, now: float | None = None) -> dict[str, Any]:
 
 
 def _window(config: Mapping[str, Any]) -> tuple[int, int]:
-    start = int(datetime.strptime(config["startDate"], "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
-    end = int((datetime.strptime(config["endDate"], "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)).timestamp())
+    start = int(datetime.strptime(config["startDate"], "%Y-%m-%d").replace(tzinfo=UTC).timestamp())
+    end = int((datetime.strptime(config["endDate"], "%Y-%m-%d").replace(tzinfo=UTC) + timedelta(days=1)).timestamp())
     return start, end
 
 
@@ -230,6 +231,45 @@ def _run_source_worker(command: list[str], *, timeout_seconds: float = SOURCE_PR
     return raw
 
 
+def _source_worker_path() -> Path:
+    """Resolve only the packaged, non-linked public-read worker."""
+
+    module_dir = Path(__file__).resolve().parent
+    candidate = Path(__file__).with_name("historical_source_worker.py")
+    try:
+        if candidate.is_symlink():
+            raise OSError("linked worker")
+        worker = candidate.resolve(strict=True)
+        stat = worker.stat()
+    except OSError as exc:
+        raise BacktestError(
+            "Packaged historical source worker is unavailable.",
+            code="source_worker_unavailable",
+            status=503,
+        ) from exc
+    if (
+        worker.parent != module_dir
+        or not worker.is_file()
+        or not 0 < stat.st_size <= MAX_SOURCE_WORKER_BYTES
+    ):
+        raise BacktestError(
+            "Packaged historical source worker is unavailable.",
+            code="source_worker_unavailable",
+            status=503,
+        )
+    return worker
+
+
+def historical_source_worker_ready() -> bool:
+    """Return concrete local dispatch readiness without reading a provider."""
+
+    try:
+        _source_worker_path()
+        return Path(sys.executable).resolve(strict=True).is_file()
+    except (BacktestError, OSError):
+        return False
+
+
 def fetch_kraken_dataset(config: Mapping[str, Any]) -> Dataset:
     if no_external_api_calls():
         raise BacktestError("Public source reads are held by AUREON_NO_EXTERNAL_API_CALLS.", code="external_reads_held", status=503)
@@ -239,7 +279,7 @@ def fetch_kraken_dataset(config: Mapping[str, Any]) -> Dataset:
     query = urllib.parse.urlencode({"pair": PAIRS[config["symbol"]][0], "interval": config["intervalMinutes"],
                                     "since": since})
     url = PROVIDER_URL + "?" + query
-    worker = Path(__file__).with_name("historical_source_worker.py")
+    worker = _source_worker_path()
     raw = _run_source_worker([sys.executable, "-I", "-S", "-B", str(worker), "--symbol", config["symbol"],
                               "--interval-minutes", str(config["intervalMinutes"]), "--since", str(since)])
     return parse_kraken_dataset(raw, symbol=config["symbol"], interval_minutes=config["intervalMinutes"],
@@ -313,7 +353,11 @@ def run_replay(dataset: Dataset, configuration: Mapping[str, Any], *, now: float
     for point in equity:
         peak = max(peak, point["equity"])
         drawdown = max(drawdown, (peak - point["equity"]) / peak * 100)
-    changes = [b["equity"] / a["equity"] - 1 for a, b in zip(equity, equity[1:]) if a["equity"] > 0]
+    changes = [
+        b["equity"] / a["equity"] - 1
+        for a, b in zip(equity, equity[1:], strict=False)
+        if a["equity"] > 0
+    ]
     deviation = statistics.stdev(changes) if len(changes) > 1 else 0.0
     sharpe = statistics.mean(changes) / deviation * math.sqrt(365 * 1440 / config["intervalMinutes"]) if deviation > 0 else None
     results = {"totalTrades": len(trades), "winRate": len(wins) / len(trades) * 100 if trades else None,
@@ -425,7 +469,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fee-bps", type=float, default=40)
     parser.add_argument("--slippage-bps", type=float, default=5)
     args = parser.parse_args(argv)
-    end = datetime.now(timezone.utc).date() - timedelta(days=1)
+    end = datetime.now(UTC).date() - timedelta(days=1)
     if not 1 <= args.days <= 672:
         parser.error("days must be between 1 and 672 (the candle bound is checked separately)")
     config = {"symbol": args.symbol, "startDate": (end - timedelta(days=args.days - 1)).isoformat(), "endDate": end.isoformat(),

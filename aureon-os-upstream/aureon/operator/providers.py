@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any, Dict, Generator, List
+from urllib.parse import urlsplit
 
 from aureon.inhouse_ai.llm_adapter import (
     AureonLocalAdapter,
@@ -34,7 +35,7 @@ from aureon.inhouse_ai.llm_adapter import (
     StreamChunk,
     _llm_http_disabled,
 )
-from aureon.ollama_config import ensure_ollama_runtime_config
+from aureon.ollama_config import OLLAMA_CLOUD_OPENAI_BASE_URL, ensure_ollama_runtime_config
 
 logger = logging.getLogger("aureon.operator.providers")
 
@@ -161,15 +162,25 @@ class AureonGeminiAdapter(LLMAdapter):
             "maxOutputTokens": int(max_tokens),
             "temperature": float(temperature),
         }
-        url = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
+        # Keep the reusable tenant credential out of the URL. URLs are routinely
+        # copied into exception strings, proxy logs, traces and provider-test
+        # receipts; Gemini supports the x-goog-api-key header for this API.
+        url = f"{self.base_url}/models/{self.model}:generateContent"
         try:
             timeout = float(os.environ.get("AUREON_LLM_REQUEST_TIMEOUT_S", "30") or "30")
-            resp = self._session.post(url, json=payload, timeout=max(1.0, timeout))
+            resp = self._session.post(
+                url,
+                json=payload,
+                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+                timeout=max(1.0, timeout),
+            )
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:  # noqa: BLE001 — normalise any transport failure
-            logger.error("Gemini request failed: %s", e)
-            return LLMResponse(text=f"[ERROR] {e}", stop_reason="error")
+            # Exception messages can contain full request URLs or echoed
+            # headers. Log only the class and return a fixed status.
+            logger.error("Gemini request failed (%s)", type(e).__name__)
+            return LLMResponse(text="[ERROR] Gemini provider request failed", stop_reason="error")
 
         text_parts: List[str] = []
         for cand in data.get("candidates", []) or []:
@@ -335,7 +346,87 @@ def build_provider_set(
     return build_registry(allow_local=allow_local, force_offline=force_offline)
 
 
-def build_adapter(kind: str, *, api_key: str, base_url: Any = None, model: str = "") -> LLMAdapter:
+def tenant_provider_base_url(info: Any, supplied: Any = None) -> str | None:
+    """Return the one catalog-pinned cloud endpoint allowed for a tenant.
+
+    Per-user URLs are credentials-plus-network input. Allowing an arbitrary URL
+    would turn cognition and the connection-test route into an authenticated
+    SSRF primitive. Tenant adapters therefore use only reviewed provider
+    endpoints; Ollama is pinned to its cloud API rather than host loopback.
+    """
+    provider_id = str(getattr(info, "id", "") or "")
+    pinned = (
+        OLLAMA_CLOUD_OPENAI_BASE_URL
+        if provider_id == "ollama"
+        else str(getattr(info, "default_base_url", "") or "").strip()
+    )
+    requested = str(supplied or "").strip()
+
+    # Providers such as Anthropic fix their endpoint inside the SDK. They do
+    # not accept any tenant-supplied override.
+    if not pinned:
+        if requested:
+            raise ValueError("tenant_provider_custom_url_rejected")
+        return None
+
+    candidate = requested or pinned
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError as exc:
+        raise ValueError("tenant_provider_custom_url_rejected") from exc
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or candidate.rstrip("/") != pinned.rstrip("/")
+    ):
+        raise ValueError("tenant_provider_custom_url_rejected")
+    return pinned
+
+
+def _harden_tenant_transport(adapter: LLMAdapter) -> LLMAdapter:
+    """Disable ambient proxies and redirect following for tenant HTTP calls."""
+    session = getattr(adapter, "_session", None)
+    if session is not None:
+        session.trust_env = False
+        session.proxies.clear()
+        session.max_redirects = 0
+        original_request = session.request
+
+        def pinned_request(method: str, url: str, **kwargs: Any) -> Any:
+            if kwargs.get("allow_redirects") not in (None, False):
+                raise RuntimeError("tenant_provider_redirects_forbidden")
+            if kwargs.get("proxies"):
+                raise RuntimeError("tenant_provider_proxy_forbidden")
+            kwargs["allow_redirects"] = False
+            kwargs["proxies"] = {}
+            response = original_request(method, url, **kwargs)
+            status = int(getattr(response, "status_code", 0) or 0)
+            if (
+                300 <= status < 400
+                or bool(getattr(response, "is_redirect", False))
+                or bool(getattr(response, "is_permanent_redirect", False))
+                or bool(getattr(response, "history", ()))
+            ):
+                raise RuntimeError("tenant_provider_redirect_rejected")
+            return response
+
+        session.request = pinned_request
+    adapter._aureon_tenant_network_policy = "catalog_pinned_no_redirects"
+    return adapter
+
+
+def build_adapter(
+    kind: str,
+    *,
+    api_key: str,
+    base_url: Any = None,
+    model: str = "",
+    tenant_network: bool = False,
+) -> LLMAdapter:
     """Construct one adapter of ``kind`` from an EXPLICIT key — no ``os.environ`` read or write.
 
     The single source of truth for the catalog-kind → adapter-class mapping, shared by the live
@@ -343,21 +434,25 @@ def build_adapter(kind: str, *, api_key: str, base_url: Any = None, model: str =
     never touches the process env, it is safe to call per-request with a tenant's own key.
     """
     if kind in ("openai", "openai_compat"):
-        return AureonOpenAIAdapter(api_key=api_key, base_url=base_url, model=model)
-    if kind == "grok":
-        return AureonGrokAdapter(api_key=api_key, base_url=base_url, model=model)
-    if kind == "gemini":
-        return AureonGeminiAdapter(api_key=api_key, model=model, base_url=base_url)
-    if kind == "anthropic":
+        adapter = AureonOpenAIAdapter(api_key=api_key, base_url=base_url, model=model)
+    elif kind == "grok":
+        adapter = AureonGrokAdapter(api_key=api_key, base_url=base_url, model=model)
+    elif kind == "gemini":
+        adapter = AureonGeminiAdapter(api_key=api_key, model=model, base_url=base_url)
+    elif kind == "anthropic":
         from aureon.inhouse_ai.llm_adapter import AureonAnthropicAdapter
 
-        return AureonAnthropicAdapter(api_key=api_key, model=model)
-    from aureon.inhouse_ai.llm_adapter import AureonLocalAdapter  # local / self-hosted (Ollama)
+        adapter = AureonAnthropicAdapter(api_key=api_key, model=model)
+    else:
+        from aureon.inhouse_ai.llm_adapter import AureonLocalAdapter  # local / self-hosted (Ollama)
 
-    return AureonLocalAdapter(api_key=api_key, base_url=base_url, model=model)
+        adapter = AureonLocalAdapter(api_key=api_key, base_url=base_url, model=model)
+    return _harden_tenant_transport(adapter) if tenant_network else adapter
 
 
-def build_provider_set_from_entries(entries: Dict[str, Dict[str, Any]]) -> Dict[str, LLMAdapter]:
+def build_provider_set_from_entries(
+    entries: Dict[str, Dict[str, Any]], *, tenant_mode: bool = False,
+) -> Dict[str, LLMAdapter]:
     """Assemble a switchboard from explicit keystore ``entries`` — **no ``os.environ`` reads/writes**.
 
     ``entries`` is a keystore dict (``{provider_id: {api_key, base_url, model, enabled}}``), e.g.
@@ -377,10 +472,16 @@ def build_provider_set_from_entries(entries: Dict[str, Dict[str, Any]]) -> Dict[
         if info is None or not api_key:
             continue
         try:
+            base_url = (
+                tenant_provider_base_url(info, entry.get("base_url"))
+                if tenant_mode
+                else str(entry.get("base_url", "") or "") or info.default_base_url
+            )
             out[info.registry_name] = build_adapter(
                 info.kind, api_key=api_key,
-                base_url=str(entry.get("base_url", "") or "") or info.default_base_url,
+                base_url=base_url,
                 model=str(entry.get("model", "") or "") or info.default_model,
+                tenant_network=tenant_mode,
             )
         except Exception:  # noqa: BLE001 — a bad entry is skipped, never sinks the set
             logger.warning("could not build adapter for provider %s", provider_id)
@@ -414,5 +515,6 @@ __all__ = [
     "build_provider_set",
     "build_adapter",
     "build_provider_set_from_entries",
+    "tenant_provider_base_url",
     "describe_provider_set",
 ]

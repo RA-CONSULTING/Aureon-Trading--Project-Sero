@@ -62,6 +62,7 @@ def test_reservation_atomically_claims_effect_and_daily_budget_then_transitions(
     ledger = make_ledger(fake)
     result = ledger.reserve(
         intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
+        instrument_preflight_sha256="d" * 64,
         venue="binance", quote_value_usd=5.0, now_ms=1_789_000_000_000,
     )
     assert result["created"] is True and result["state"] == "claimed"
@@ -78,9 +79,11 @@ def test_existing_effect_is_returned_without_reserving_budget_twice():
     fake = Firestore()
     ledger = make_ledger(fake)
     first = ledger.reserve(intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
-                           venue="alpaca", quote_value_usd=2.0, now_ms=1_789_000_000_000)
+                           instrument_preflight_sha256="d" * 64, venue="alpaca",
+                           quote_value_usd=2.0, now_ms=1_789_000_000_000)
     second = ledger.reserve(intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
-                            venue="alpaca", quote_value_usd=2.0, now_ms=1_789_000_000_100)
+                            instrument_preflight_sha256="d" * 64, venue="alpaca",
+                            quote_value_usd=2.0, now_ms=1_789_000_000_100)
     assert first["created"] is True and second["created"] is False
     assert sum(1 for method, url, _ in fake.calls if url.endswith(":commit")) == 1
 
@@ -90,21 +93,29 @@ def test_budget_and_commitment_mismatch_fail_closed():
     ledger = make_ledger(fake, budget=4)
     with pytest.raises(ledger_module.LedgerError, match="daily_budget_exceeded"):
         ledger.reserve(intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
-                       venue="kraken", quote_value_usd=5.0, now_ms=1_789_000_000_000)
+                       instrument_preflight_sha256="d" * 64, venue="kraken",
+                       quote_value_usd=5.0, now_ms=1_789_000_000_000)
     assert not any(url.endswith(":commit") for _, url, _ in fake.calls)
     fake = Firestore()
     ledger = make_ledger(fake)
     ledger.reserve(intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
-                   venue="capital", quote_value_usd=1.0, now_ms=1_789_000_000_000)
+                   instrument_preflight_sha256="d" * 64, venue="capital",
+                   quote_value_usd=1.0, now_ms=1_789_000_000_000)
+    with pytest.raises(ledger_module.LedgerError, match="commitment_mismatch"):
+        ledger.reserve(intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
+                       instrument_preflight_sha256="f" * 64, venue="capital",
+                       quote_value_usd=1.0, now_ms=1_789_000_000_050)
     with pytest.raises(ledger_module.LedgerError, match="commitment_mismatch"):
         ledger.reserve(intent_id="a" * 64, order_sha256="e" * 64, authorization_sha256="c" * 64,
-                       venue="capital", quote_value_usd=1.0, now_ms=1_789_000_000_100)
+                       instrument_preflight_sha256="d" * 64, venue="capital",
+                       quote_value_usd=1.0, now_ms=1_789_000_000_100)
 
 
 def test_document_payload_contains_no_credentials():
     fake = Firestore()
     make_ledger(fake).reserve(intent_id="a" * 64, order_sha256="b" * 64, authorization_sha256="c" * 64,
-                              venue="binance", quote_value_usd=1.0, now_ms=1_789_000_000_000)
+                              instrument_preflight_sha256="d" * 64, venue="binance",
+                              quote_value_usd=1.0, now_ms=1_789_000_000_000)
     encoded = json.dumps(fake.calls).lower()
     for forbidden in ("api_key", "secret_key", "password", "credential"):
         assert forbidden not in encoded

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE } from '@/lib/tradingActionAvailability';
 
 export interface TradeAuditEntry {
   id: string;
@@ -40,6 +41,8 @@ export interface UseTradeValidationResult {
   stats: TradeValidationStats;
   isLoading: boolean;
   lastPolled: Date | null;
+  mutationActionsAvailable: false;
+  mutationUnavailableReason: string;
   pollConfirmations: () => Promise<void>;
   confirmTrade: (tradeId: string, orderId: string, symbol: string, exchange: string) => Promise<void>;
   filterByStatus: (status: string) => TradeAuditEntry[];
@@ -50,7 +53,7 @@ export interface UseTradeValidationResult {
 export function useTradeValidation(): UseTradeValidationResult {
   const [trades, setTrades] = useState<TradeAuditEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastPolled, setLastPolled] = useState<Date | null>(null);
+  const lastPolled: Date | null = null;
 
   // Load trades from database
   const loadTrades = useCallback(async () => {
@@ -101,29 +104,8 @@ export function useTradeValidation(): UseTradeValidationResult {
 
   // Poll for trade confirmations
   const pollConfirmations = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('poll-trade-confirmations', {
-        body: {},
-      });
-
-      if (error) {
-        console.error('[useTradeValidation] Poll error:', error);
-        throw error;
-      }
-
-      console.log('[useTradeValidation] Poll result:', data);
-      setLastPolled(new Date());
-      
-      // Reload trades after polling
-      await loadTrades();
-    } catch (error) {
-      console.error('[useTradeValidation] Poll failed:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadTrades]);
+    throw new Error(GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE);
+  }, []);
 
   // Confirm a specific trade
   const confirmTrade = useCallback(async (
@@ -132,30 +114,12 @@ export function useTradeValidation(): UseTradeValidationResult {
     symbol: string,
     exchange: string
   ) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('confirm-trade', {
-        body: {
-          trade_id: tradeId,
-          external_order_id: orderId,
-          symbol,
-          exchange,
-        },
-      });
-
-      if (error) {
-        console.error('[useTradeValidation] Confirm error:', error);
-        throw error;
-      }
-
-      console.log('[useTradeValidation] Confirm result:', data);
-      
-      // Reload trades after confirmation
-      await loadTrades();
-    } catch (error) {
-      console.error('[useTradeValidation] Confirm failed:', error);
-      throw error;
-    }
-  }, [loadTrades]);
+    void tradeId;
+    void orderId;
+    void symbol;
+    void exchange;
+    throw new Error(GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE);
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -231,6 +195,8 @@ export function useTradeValidation(): UseTradeValidationResult {
     stats,
     isLoading,
     lastPolled,
+    mutationActionsAvailable: false,
+    mutationUnavailableReason: GOVERNED_ORDER_ACTION_UNAVAILABLE_MESSAGE,
     pollConfirmations,
     confirmTrade,
     filterByStatus,

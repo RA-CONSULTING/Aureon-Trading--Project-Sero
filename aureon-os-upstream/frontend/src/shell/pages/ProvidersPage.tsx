@@ -40,6 +40,9 @@ interface Provider extends ProviderView {
   has_key: boolean;
   key_masked: string;
   key_source: "keystore" | "env" | "none";
+  credential_management?: "account_keystore" | "instance_configuration" | "pinned_cloud_secret";
+  credential_writable?: boolean;
+  credential_management_reason?: string;
   enabled: boolean;
   live: boolean;
 }
@@ -80,6 +83,7 @@ export default function ProvidersPage() {
   });
 
   async function save(p: Provider, extra?: Partial<{ enabled: boolean }>) {
+    if (p.credential_writable === false) return;
     const operationVersion = version.current;
     const d = normalizeProviderDraft(p, drafts[p.id]);
     patch(p, { saving: true });
@@ -135,6 +139,7 @@ export default function ProvidersPage() {
   }
 
   async function clearKey(p: Provider) {
+    if (p.credential_writable === false) return;
     const operationVersion = version.current;
     try {
       await api.del(`/api/providers/${p.id}`);
@@ -184,6 +189,7 @@ export default function ProvidersPage() {
           {providers.length === 0 && <Card><CardContent className="pt-6 text-sm text-muted-foreground">The current configuration returned an empty provider inventory.</CardContent></Card>}
           {providers.map((p) => {
             const d = normalizeProviderDraft(p, drafts[p.id]);
+            const managedByPinnedSecret = p.credential_management === "pinned_cloud_secret" || p.credential_writable === false;
             const observedTest = datedTestEvidence(tests[p.id]);
             return (
               <Card key={p.id} className="flex flex-col">
@@ -194,6 +200,7 @@ export default function ProvidersPage() {
                       {statusBadge(p)}
                       <Switch
                         checked={p.enabled}
+                        disabled={managedByPinnedSecret}
                         onCheckedChange={(v) => save(p, { enabled: v })}
                         aria-label={`Enable ${p.label}`}
                       />
@@ -218,6 +225,11 @@ export default function ProvidersPage() {
                   </p>
                   {failures[p.id] && <p className="text-xs text-destructive">Test request unavailable: {failures[p.id]}</p>}
                   {observedTest.current && tests[p.id]?.error && <p className="text-xs text-muted-foreground">{tests[p.id].error}</p>}
+                  {managedByPinnedSecret && (
+                    <p className="text-xs text-warning" data-testid={`pinned-secret-${p.id}`}>
+                      {p.credential_management_reason || "Managed by a pinned cloud secret. Update Secret Manager and redeploy to change this owner configuration."}
+                    </p>
+                  )}
                   <div className="space-y-1.5">
                     <Label htmlFor={`key-${p.id}`}>
                       API key{p.key_optional ? " (optional for local)" : ""}
@@ -229,12 +241,14 @@ export default function ProvidersPage() {
                         placeholder={p.has_key ? "•••• (leave blank to keep)" : "paste key"}
                         value={d.apiKey}
                         autoComplete="off"
+                        disabled={managedByPinnedSecret}
                         onChange={(e) => patch(p, { apiKey: e.target.value })}
                       />
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
+                        disabled={managedByPinnedSecret}
                         onClick={() => patch(p, { show: !d.show })}
                         aria-label={d.show ? "Hide key" : "Show key"}
                       >
@@ -249,6 +263,7 @@ export default function ProvidersPage() {
                       <Input
                         id={`model-${p.id}`}
                         value={d.model}
+                        disabled={managedByPinnedSecret}
                         onChange={(e) => patch(p, { model: e.target.value })}
                       />
                     </div>
@@ -258,6 +273,7 @@ export default function ProvidersPage() {
                         id={`url-${p.id}`}
                         value={d.baseUrl}
                         placeholder={p.default_base_url}
+                        disabled={managedByPinnedSecret}
                         onChange={(e) => patch(p, { baseUrl: e.target.value })}
                       />
                     </div>
@@ -281,7 +297,7 @@ export default function ProvidersPage() {
                       >
                         Docs <ExternalLink className="h-3 w-3" />
                       </a>
-                      {p.has_key && (
+                      {p.has_key && !managedByPinnedSecret && (
                         <button
                           type="button"
                           className="text-muted-foreground hover:text-destructive hover:underline"
@@ -302,9 +318,9 @@ export default function ProvidersPage() {
                         {d.testing && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
                         Test
                       </Button>
-                      <Button type="button" size="sm" disabled={d.saving} onClick={() => save(p)}>
+                      <Button type="button" size="sm" disabled={d.saving || managedByPinnedSecret} onClick={() => save(p)}>
                         {d.saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-                        Save
+                        {managedByPinnedSecret ? 'Managed' : 'Save'}
                       </Button>
                     </div>
                   </div>

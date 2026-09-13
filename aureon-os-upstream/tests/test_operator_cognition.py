@@ -219,6 +219,26 @@ def test_general_domain_prompt_is_answered_not_refused(isolated_repo_index):
     assert "sponge cake" in res.text.lower()
 
 
+def test_aggregate_model_call_budget_prevents_unbounded_refinement(
+    isolated_repo_index,
+):
+    adapter = ScriptedAdapter(final="this draft stops mid")
+    res = _cog(adapter, max_model_calls=1).reason("Explain the operator")
+
+    assert adapter.calls == 1
+    assert res.turns == 1
+    assert res.text == "this draft stops mid"
+    assert res.bake["passes"] == 1
+    assert res.bake["refined"] is False
+    assert any("model-call budget exhausted" in reason for reason in res.bake["reasons"])
+
+
+@pytest.mark.parametrize("value", [True, 0, 19, "3"])
+def test_aggregate_model_call_budget_is_strictly_bounded(value):
+    with pytest.raises(ValueError, match="max_model_calls"):
+        _cog(ScriptedAdapter(), max_model_calls=value)
+
+
 def test_consequential_prompt_reaches_reasoning_but_not_a_generic_effect_route(
     monkeypatch,
 ):

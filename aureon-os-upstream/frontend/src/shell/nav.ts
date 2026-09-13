@@ -10,12 +10,10 @@ import { type ComponentType, lazy } from "react";
 import {
   Activity,
   BarChart3,
-  Bot,
   Boxes,
   Brain,
   Briefcase,
   Building2,
-  Coins,
   Compass,
   CreditCard,
   Feather,
@@ -40,7 +38,6 @@ import {
   Sun,
   TerminalSquare,
   UserCircle,
-  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,9 +54,8 @@ export interface NavItem {
   hidden?: boolean;
   /** Manages the INSTANCE rather than the signed-in user's own account, so its backing routes are
    *  operator-only and would 403 for a tenant (see docs/architecture/MULTI_TENANT_AUTH.md).
-   *  Hidden from the sidebar for a signed-in end user so they are not invited to click into a
-   *  refusal. This is a curated list, not derived — the backend gate is the actual enforcer, so a
-   *  missing flag costs a confusing error, never an exposure. */
+   *  Hidden from tenant navigation and redirected by PlaneRoute when reached by URL. This remains
+   *  a presentation boundary; the backend gate is the authoritative enforcer. */
   operatorOnly?: boolean;
 }
 
@@ -91,6 +87,7 @@ export const NAV_SECTIONS: NavSection[] = [
         description: "Platform health, domains, and quick routes",
         icon: LayoutDashboard,
         Component: lazy(() => import("./pages/OverviewPage")),
+        operatorOnly: true,
       },
       {
         path: "/platform/repo-map",
@@ -138,16 +135,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Building2,
         Component: lazy(() => import("./pages/CompanyPage")),
       },
-      {
-        path: "/platform/console",
-        label: "Legacy Console",
-        description: "The original nine-tab operational console (superseded by the shell)",
-        icon: TerminalSquare,
-        Component: lazy(() => import("./pages/LegacyConsolePage")),
-        // Retired from the front door: still routed so deep links / legacy #hash
-        // redirects resolve, but hidden from the sidebar + command palette.
-        hidden: true,
-      },
     ],
   },
   {
@@ -160,6 +147,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Briefcase,
         Component: lazy(() => import("./pages/WarRoomPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/trading/hft",
@@ -168,6 +156,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: TerminalSquare,
         Component: lazy(() => import("./pages/HftDeskPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/trading/live",
@@ -176,6 +165,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Activity,
         Component: lazy(() => import("./pages/LiveBridgePage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/trading/orca",
@@ -184,6 +174,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Ship,
         Component: lazy(() => import("@/components/UnifiedOrcaCommandDashboard")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/trading/analytics",
@@ -192,6 +183,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: BarChart3,
         Component: lazyNamed(() => import("@/components/TradingAnalytics"), "TradingAnalytics"),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/trading/backtesting",
@@ -249,6 +241,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Sparkles,
         Component: lazy(() => import("./pages/ConsciousnessPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/cognition/systems",
@@ -257,6 +250,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Brain,
         Component: lazy(() => import("./pages/CognitivePage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/cognition/metacognition",
@@ -265,6 +259,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Activity,
         Component: lazy(() => import("./pages/MetacognitionPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/cognition/operator",
@@ -273,13 +268,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: MessageSquare,
         Component: lazy(() => import("./pages/OperatorChatPage")),
         live: true,
-      },
-      {
-        path: "/cognition/agents",
-        label: "Agent Company",
-        description: "Agent departments, roles, and the org map",
-        icon: Bot,
-        Component: lazyNamed(() => import("@/components/generated/AureonAgentCompanyConsole"), "AureonAgentCompanyConsole"),
       },
       {
         path: "/cognition/providers",
@@ -301,6 +289,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: ShieldCheck,
         Component: lazy(() => import("./pages/DefensePage")),
         live: true,
+        operatorOnly: true,
       },
     ],
   },
@@ -310,31 +299,13 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         path: "/coding/organism",
         label: "Coding Organism",
-        description: "The coding agent forge: chat, tests, handover proof",
+        description: "Authenticated cloud coding status and commissioning boundary",
         icon: Brain,
-        Component: lazyNamed(() => import("@/components/generated/AureonCodingOrganismConsole"), "AureonCodingOrganismConsole"),
-      },
-      {
-        path: "/coding/skills",
-        label: "Skill Base",
-        description: "Coding agent skill inventory",
-        icon: Wrench,
-        Component: lazyNamed(() => import("@/components/generated/AureonCodingAgentSkillBaseConsole"), "AureonCodingAgentSkillBaseConsole"),
-      },
-      {
-        path: "/coding/work-orders",
-        label: "Work Orders",
-        description: "Work-order execution and burndown",
-        icon: ListChecks,
-        Component: lazyNamed(() => import("@/components/generated/AureonWorkOrderExecutionConsole"), "AureonWorkOrderExecutionConsole"),
-        operatorOnly: true,
-      },
-      {
-        path: "/coding/director",
-        label: "Director Bridge",
-        description: "Director-to-build capability bridge",
-        icon: Compass,
-        Component: lazyNamed(() => import("@/components/generated/AureonDirectorCapabilityBridgeConsole"), "AureonDirectorCapabilityBridgeConsole"),
+        Component: lazyNamed(
+          () => import("@/components/generated/AureonCodingOrganismConsole"),
+          "AureonCodingOrganismConsole",
+        ),
+        live: true,
         operatorOnly: true,
       },
     ],
@@ -351,20 +322,13 @@ export const NAV_SECTIONS: NavSection[] = [
         live: true,
       },
       {
-        path: "/ops/gold-capital",
-        label: "Gold & Capital",
-        description: "Gold and capital intelligence company",
-        icon: Coins,
-        Component: lazyNamed(() => import("@/components/generated/AureonGoldCapitalIntelligenceConsole"), "AureonGoldCapitalIntelligenceConsole"),
-        operatorOnly: true,
-      },
-      {
         path: "/ops/affect",
         label: "Affect",
         description: "How Aureon feels — victory, defeat, fear & resolve from real signals",
         icon: Flame,
         Component: lazy(() => import("./pages/AffectPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/ops/soul",
@@ -373,6 +337,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Feather,
         Component: lazy(() => import("./pages/SoulPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/ops/inner-work",
@@ -381,6 +346,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Sun,
         Component: lazy(() => import("./pages/InnerWorkPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/ops/pursuit",
@@ -389,6 +355,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Compass,
         Component: lazy(() => import("./pages/PursuitPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/ops/approvals",
@@ -397,6 +364,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: ListChecks,
         Component: lazy(() => import("./pages/ApprovalsPage")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/ops/systems",
@@ -405,6 +373,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Hammer,
         Component: lazy(() => import("@/components/SystemsIntegrationDashboard")),
         live: true,
+        operatorOnly: true,
       },
       {
         path: "/ops/operational",
@@ -412,6 +381,7 @@ export const NAV_SECTIONS: NavSection[] = [
         description: "Manifest-driven operational console",
         icon: Heart,
         Component: lazyNamed(() => import("@/components/generated/AureonGeneratedOperationalConsole"), "AureonGeneratedOperationalConsole"),
+        operatorOnly: true,
       },
     ],
   },
@@ -419,20 +389,15 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const ALL_NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
 
-/** Sections with hidden items removed and any now-empty section dropped —
- *  the nav surface the sidebar and command palette render. Routes are still
- *  generated from ALL_NAV_ITEMS, so hidden pages stay reachable by URL. */
+/** Sections with hidden items removed and any now-empty section dropped. */
 export const VISIBLE_NAV_SECTIONS: NavSection[] = NAV_SECTIONS
   .map((s) => ({ ...s, items: s.items.filter((i) => !i.hidden) }))
   .filter((s) => s.items.length > 0);
 
 /** The nav surface for a given plane.
  *
- *  A signed-in end user does not get the instance-control pages: their backing routes are
- *  operator-only, so showing them would only invite a click into a 403. Routes stay generated from
- *  ALL_NAV_ITEMS, so nothing becomes unreachable by URL — this is presentation, and the backend gate
- *  remains the enforcer. `isAdmin` defaults true so any caller that has not resolved an identity
- *  yet (or an older backend with no `/api/me`) sees exactly today's nav. */
+ * A signed-in end user does not get instance runtime or mutation pages. PlaneRoute also redirects
+ * their direct URLs to onboarding, while the backend gate remains the authoritative enforcer. */
 export function navSectionsForPlane(isAdmin: boolean): NavSection[] {
   if (isAdmin) return VISIBLE_NAV_SECTIONS;
   return VISIBLE_NAV_SECTIONS
@@ -448,19 +413,15 @@ export function sectionForPath(pathname: string): NavSection | undefined {
   return NAV_SECTIONS.find((s) => s.items.some((i) => i.path === pathname));
 }
 
-/**
- * Legacy hash deep links (#trading, #repo-map, …) → shell routes. Tabs that
- * remain inside the legacy console keep their hash so the console opens on the
- * right tab.
- */
+/** Legacy hash deep links resolve only to commissioned shell routes. */
 export const HASH_REDIRECTS: Record<string, string> = {
   "#overview": "/console",
   "#repo-map": "/platform/repo-map",
-  "#live-ops": "/platform/console#live-ops",
-  "#coding": "/coding/organism",
-  "#trading": "/platform/console#trading",
-  "#security": "/platform/console#security",
-  "#inventory": "/platform/console#inventory",
-  "#agents": "/cognition/agents",
-  "#evidence": "/platform/console#evidence",
+  "#live-ops": "/trading/war-room",
+  "#coding": "/platform/coverage",
+  "#trading": "/trading/war-room",
+  "#security": "/ops/connections",
+  "#inventory": "/platform/coverage",
+  "#agents": "/platform/coverage",
+  "#evidence": "/evidence",
 };

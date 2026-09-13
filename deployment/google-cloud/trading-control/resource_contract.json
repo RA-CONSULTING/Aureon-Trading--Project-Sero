@@ -1,48 +1,1104 @@
 {
-  "schema": "aureon.cloud-trading-authority-resources.v1",
+  "schema": "aureon.cloud-trading-authority-resources.v3",
   "project": "aureon-trading",
+  "project_number": "4435775023",
   "region": "europe-west1",
-  "keyring": "aureon-trading-prod",
-  "secret": {
-    "id": "aureon-owner-exchange-credentials-20260912",
-    "version": "1",
-    "reader": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
-  },
-  "stages": [
-    {
-      "role": "review",
-      "service_account": "aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
-      "input_subscription": "aureon-trade-review-v1",
-      "output_topic": "aureon-trade-reviewed-v1",
-      "signing_key": "aureon-review-signing",
-      "signing_key_version": "1"
-    },
-    {
-      "role": "dispatch",
-      "service_account": "aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
-      "input_subscription": "aureon-trade-dispatch-v1",
-      "output_topic": "aureon-trade-dispatch-v1",
-      "signing_key": "aureon-dispatch-signing",
-      "signing_key_version": "1"
-    },
-    {
-      "role": "executor",
-      "service_account": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
-      "input_subscription": "aureon-trade-executor-v1",
-      "output_topic": "aureon-trade-executor-results-v1",
-      "signing_key": "aureon-executor-signing",
-      "signing_key_version": "1"
-    },
-    {
-      "role": "receipt",
-      "service_account": "aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
-      "input_subscription": "aureon-trade-receipt-v1",
-      "output_topic": "aureon-trade-terminal-receipts-v1",
-      "signing_key": "aureon-receipt-signing",
-      "signing_key_version": "1"
-    }
+  "zone": "europe-west1-b",
+  "required_apis": [
+    "artifactregistry.googleapis.com",
+    "cloudkms.googleapis.com",
+    "firestore.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "pubsub.googleapis.com",
+    "run.googleapis.com",
+    "secretmanager.googleapis.com"
   ],
-  "terminal_readback_subscription": "aureon-trade-terminal-readback-v1",
+  "release": {
+    "source_revision": "${SOURCE_REVISION}",
+    "authority_image": "${AUTHORITY_IMAGE}",
+    "authority_image_repository": "europe-west1-docker.pkg.dev/aureon-trading/aureon-web/aureon-trading-authority",
+    "public_entry_image": "${PUBLIC_ENTRY_IMAGE}",
+    "public_entry_image_repository": "europe-west1-docker.pkg.dev/aureon-trading/aureon-web/aureon-public-entry",
+    "images_must_use_sha256_digest": true,
+    "all_services_must_share_source_revision": true,
+    "supabase_project_ref": "${SUPABASE_PROJECT_REF}",
+    "supabase_owner_subject": "${SUPABASE_OWNER_SUBJECT}",
+    "supabase_owner_email_sha256": "${SUPABASE_OWNER_EMAIL_SHA256}",
+    "iap_admin_email_sha256": "${IAP_ADMIN_EMAIL_SHA256}",
+    "supabase_owner_provider_receipt": {
+      "schema": "aureon.supabase-owner-provider-readback.v1",
+      "provider": "supabase_auth_admin",
+      "required_app_metadata_role": "owner",
+      "maximum_age_seconds": 300,
+      "exact_sha256_acknowledgement_required": true,
+      "plaintext_email_forbidden": true
+    }
+  },
+  "commissioning": {
+    "phase_order": [
+      "immutable-image-build",
+      "vm-release-prepare-and-broker-bootstrap",
+      "vm-broker-identity-attachment",
+      "resource-prepare",
+      "zero-traffic-revision-stage",
+      "subscription-replacement",
+      "legacy-retirement",
+      "staged-revision-attestation",
+      "vm-release-and-reboot-readback",
+      "external-reviewed-traffic-promotion",
+      "finalize"
+    ],
+    "old_union_cleanup_requires_broker_identity_readback": true,
+    "resource_prepare_deferrals": [
+      "cloud_run_revision",
+      "vm_release_readback",
+      "immutable_subscription_replacement",
+      "legacy_subscription_retirement",
+      "destructive_iam_cleanup_until_broker_identity_attached"
+    ],
+    "staged_revision_attestation": {
+      "schema": "aureon.cloud-trading-authority-commission-receipt.v1",
+      "required_status": "staged_attested",
+      "latest_created_must_equal_latest_ready": true,
+      "staged_revision_traffic_percent": 0,
+      "all_seven_services_required": true,
+      "vm_readback_deferred": true
+    },
+    "cloud_run_no_traffic_plan_schema": "aureon.gcp.cloud-run-no-traffic-plan.v1",
+    "cloud_run_no_traffic_stage_receipt_schema": "aureon.gcp.cloud-run-no-traffic-stage-receipt.v1",
+    "immutable_image_build_plan_schema": "aureon.gcp.immutable-image-build-plan.v1",
+    "immutable_image_build_receipt_schema": "aureon.gcp.immutable-image-build-receipt.v1",
+    "legacy_retirement_progress_receipt_schema": "aureon.gcp.pubsub-legacy-retirement-progress.v1",
+    "legacy_retirement_phase_receipt_schema": "aureon.gcp.pubsub-legacy-retirement-phase-receipt.v1",
+    "vm_identity_commission_plan_schema": "aureon.gcp.vm-identity-commission-plan.v1",
+    "vm_identity_commission_receipt_schema": "aureon.gcp.vm-identity-commission-receipt.v1",
+    "traffic_promotion_is_external_reviewed_operation": true,
+    "release_authority": false,
+    "mutation_authority": false
+  },
+  "keyring": "aureon-trading-prod",
+  "cloud_run": {
+    "authority_request_timeout_seconds": 120,
+    "public_entry_request_timeout_seconds": 90,
+    "authority_ingress": "internal",
+    "container_concurrency": 8,
+    "services": [
+      {
+        "role": "controller",
+        "name": "aureon-trade-controller",
+        "url": "https://aureon-trade-controller-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-trade-controller@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "authority_image",
+        "timeout_seconds": 120,
+        "ingress": "internal",
+        "iap_enabled": false,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 20
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": null,
+        "invokers": [
+          "serviceAccount:aureon-trade-controller@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "environment": {
+          "AUREON_SERVICE_MODULE": "release_controller",
+          "AUREON_GCP_PROJECT": "aureon-trading",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_KMS_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1",
+          "AUREON_OUTPUT_TOPIC": "projects/aureon-trading/topics/aureon-trade-release-receipts-v1"
+        }
+      },
+      {
+        "role": "review",
+        "name": "aureon-trade-review",
+        "url": "https://aureon-trade-review-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "authority_image",
+        "timeout_seconds": 120,
+        "ingress": "internal",
+        "iap_enabled": false,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 1
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": null,
+        "invokers": [
+          "serviceAccount:aureon-trade-review@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "environment": {
+          "AUREON_TRADING_AUTHORITY_ROLE": "review",
+          "AUREON_GCP_PROJECT": "aureon-trading",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_KMS_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-review-signing/cryptoKeyVersions/1",
+          "AUREON_OUTPUT_TOPIC": "projects/aureon-trading/topics/aureon-trade-reviewed-v1",
+          "AUREON_REVIEW_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-review-signing/cryptoKeyVersions/1",
+          "AUREON_DISPATCH_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-dispatch-signing/cryptoKeyVersions/1",
+          "AUREON_EXECUTOR_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-executor-signing/cryptoKeyVersions/1",
+          "AUREON_CONTROLLER_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1",
+          "AUREON_LIVE_EXECUTION_RELEASE": "1",
+          "AUREON_DURABLE_BUDGET_LEDGER": "0",
+          "AUREON_ORDER_ADAPTER_READY": "0",
+          "AUREON_MAX_ORDER_USD": "5"
+        }
+      },
+      {
+        "role": "dispatch",
+        "name": "aureon-trade-dispatch",
+        "url": "https://aureon-trade-dispatch-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "authority_image",
+        "timeout_seconds": 120,
+        "ingress": "internal",
+        "iap_enabled": false,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 1
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": null,
+        "invokers": [
+          "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "environment": {
+          "AUREON_TRADING_AUTHORITY_ROLE": "dispatch",
+          "AUREON_GCP_PROJECT": "aureon-trading",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_KMS_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-dispatch-signing/cryptoKeyVersions/1",
+          "AUREON_OUTPUT_TOPIC": "projects/aureon-trading/topics/aureon-trade-dispatch-v1",
+          "AUREON_REVIEW_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-review-signing/cryptoKeyVersions/1",
+          "AUREON_DISPATCH_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-dispatch-signing/cryptoKeyVersions/1",
+          "AUREON_EXECUTOR_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-executor-signing/cryptoKeyVersions/1",
+          "AUREON_CONTROLLER_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1",
+          "AUREON_LIVE_EXECUTION_RELEASE": "1",
+          "AUREON_DURABLE_BUDGET_LEDGER": "0",
+          "AUREON_ORDER_ADAPTER_READY": "0",
+          "AUREON_MAX_ORDER_USD": "5"
+        }
+      },
+      {
+        "role": "executor",
+        "name": "aureon-trade-executor",
+        "url": "https://aureon-trade-executor-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "authority_image",
+        "timeout_seconds": 120,
+        "ingress": "internal",
+        "iap_enabled": false,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 1
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": {
+          "network": "aureon-sero-network",
+          "subnetwork": "aureon-web-entry-europe-west1",
+          "tags": [],
+          "egress": "all-traffic"
+        },
+        "invokers": [
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "environment": {
+          "AUREON_TRADING_AUTHORITY_ROLE": "executor",
+          "AUREON_GCP_PROJECT": "aureon-trading",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_KMS_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-executor-signing/cryptoKeyVersions/1",
+          "AUREON_OUTPUT_TOPIC": "projects/aureon-trading/topics/aureon-trade-executor-results-v1",
+          "AUREON_REVIEW_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-review-signing/cryptoKeyVersions/1",
+          "AUREON_DISPATCH_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-dispatch-signing/cryptoKeyVersions/1",
+          "AUREON_EXECUTOR_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-executor-signing/cryptoKeyVersions/1",
+          "AUREON_CONTROLLER_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1",
+          "AUREON_LIVE_EXECUTION_RELEASE": "1",
+          "AUREON_DURABLE_BUDGET_LEDGER": "1",
+          "AUREON_ORDER_ADAPTER_READY": "1",
+          "AUREON_MAX_ORDER_USD": "5",
+          "AUREON_PROVIDER_PROBE_ENABLED": "1",
+          "AUREON_MAX_DAILY_ORDER_USD": "20"
+        }
+      },
+      {
+        "role": "receipt",
+        "name": "aureon-trade-receipt",
+        "url": "https://aureon-trade-receipt-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "authority_image",
+        "timeout_seconds": 120,
+        "ingress": "internal",
+        "iap_enabled": false,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 1
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": null,
+        "invokers": [
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "environment": {
+          "AUREON_TRADING_AUTHORITY_ROLE": "receipt",
+          "AUREON_GCP_PROJECT": "aureon-trading",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_KMS_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-receipt-signing/cryptoKeyVersions/1",
+          "AUREON_OUTPUT_TOPIC": "projects/aureon-trading/topics/aureon-trade-terminal-receipts-v1",
+          "AUREON_REVIEW_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-review-signing/cryptoKeyVersions/1",
+          "AUREON_DISPATCH_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-dispatch-signing/cryptoKeyVersions/1",
+          "AUREON_EXECUTOR_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-executor-signing/cryptoKeyVersions/1",
+          "AUREON_CONTROLLER_KEY_VERSION": "projects/aureon-trading/locations/europe-west1/keyRings/aureon-trading-prod/cryptoKeys/aureon-controller-signing/cryptoKeyVersions/1",
+          "AUREON_LIVE_EXECUTION_RELEASE": "1",
+          "AUREON_DURABLE_BUDGET_LEDGER": "0",
+          "AUREON_ORDER_ADAPTER_READY": "0",
+          "AUREON_MAX_ORDER_USD": "5",
+          "AUREON_ATTESTATION_STORE_ENABLED": "1"
+        }
+      },
+      {
+        "role": "public-user-entry",
+        "name": "aureon-fusion-web",
+        "url": "https://aureon-fusion-web-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-web-entry@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "public_entry_image",
+        "timeout_seconds": 90,
+        "ingress": "all",
+        "iap_enabled": false,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 20
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": {
+          "network": "aureon-sero-network",
+          "subnetwork": "aureon-web-entry-europe-west1",
+          "tags": [
+            "aureon-web-entry"
+          ],
+          "egress": "private-ranges-only"
+        },
+        "invokers": [
+          "allUsers"
+        ],
+        "environment": {
+          "AUREON_BRIDGE_CA_FILE": "/app/bridge-cert.pem",
+          "AUREON_BRIDGE_URL": "https://10.40.0.2:8443",
+          "AUREON_DEPLOYMENT_HOLD": "1",
+          "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+          "AUREON_DISABLE_REAL_ORDERS": "1",
+          "AUREON_ENTRY_SERVICE_ACCOUNT_EMAIL": "aureon-web-entry@aureon-trading.iam.gserviceaccount.com",
+          "AUREON_ENTRY_SERVICE_ACCOUNT_ID": "109030005065741045787",
+          "AUREON_LIVE_TRADING": "0",
+          "AUREON_ORDER_INTENT_PUBLISH": "0",
+          "AUREON_PUBLIC_ROLE": "entry",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+          "AUREON_PUBLIC_ORIGIN": "https://aureon-fusion-web-25xhneniva-ew.a.run.app",
+          "AUREON_IAP_AUDIENCE": "/projects/4435775023/locations/europe-west1/services/aureon-fusion-web",
+          "AUREON_PUBLIC_ACCESS_MODE": "user"
+        }
+      },
+      {
+        "role": "private-owner-entry",
+        "name": "aureon-fusion-operator",
+        "url": "https://aureon-fusion-operator-25xhneniva-ew.a.run.app",
+        "service_account": "aureon-web-entry@aureon-trading.iam.gserviceaccount.com",
+        "image_parameter": "public_entry_image",
+        "timeout_seconds": 90,
+        "ingress": "all",
+        "iap_enabled": true,
+        "container_concurrency": 8,
+        "resources": {
+          "cpu": "1",
+          "memory": "512Mi"
+        },
+        "scaling": {
+          "min_instances": 0,
+          "max_instances": 20
+        },
+        "startup_cpu_boost": true,
+        "cpu_idle": true,
+        "startup_probe": {
+          "kind": "tcp",
+          "port": 8080,
+          "initial_delay_seconds": 0,
+          "timeout_seconds": 240,
+          "period_seconds": 240,
+          "failure_threshold": 1
+        },
+        "direct_vpc": {
+          "network": "aureon-sero-network",
+          "subnetwork": "aureon-web-entry-europe-west1",
+          "tags": [
+            "aureon-web-entry"
+          ],
+          "egress": "private-ranges-only"
+        },
+        "invokers": [
+          "serviceAccount:service-4435775023@gcp-sa-iap.iam.gserviceaccount.com"
+        ],
+        "environment": {
+          "AUREON_BRIDGE_CA_FILE": "/app/bridge-cert.pem",
+          "AUREON_BRIDGE_URL": "https://10.40.0.2:8443",
+          "AUREON_DEPLOYMENT_HOLD": "1",
+          "AUREON_DISABLE_EXCHANGE_MUTATIONS": "1",
+          "AUREON_DISABLE_REAL_ORDERS": "1",
+          "AUREON_ENTRY_SERVICE_ACCOUNT_EMAIL": "aureon-web-entry@aureon-trading.iam.gserviceaccount.com",
+          "AUREON_ENTRY_SERVICE_ACCOUNT_ID": "109030005065741045787",
+          "AUREON_LIVE_TRADING": "0",
+          "AUREON_ORDER_INTENT_PUBLISH": "0",
+          "AUREON_PUBLIC_ROLE": "entry",
+          "AUREON_REVISION": "${SOURCE_REVISION}",
+          "AUREON_UNIFIED_ORDER_EXECUTOR": "0",
+          "AUREON_PUBLIC_ORIGIN": "https://aureon-fusion-operator-25xhneniva-ew.a.run.app",
+          "AUREON_IAP_AUDIENCE": "/projects/4435775023/locations/europe-west1/services/aureon-fusion-operator",
+          "AUREON_IAP_ADMIN_EMAIL_SHA256": "${IAP_ADMIN_EMAIL_SHA256}",
+          "AUREON_PUBLIC_ACCESS_MODE": "iap"
+        }
+      }
+    ],
+    "private_services_without_anonymous_invoker": [
+      "aureon-fusion-operator",
+      "aureon-trade-controller",
+      "aureon-trade-review",
+      "aureon-trade-dispatch",
+      "aureon-trade-executor",
+      "aureon-trade-receipt"
+    ],
+    "rollback_service_without_anonymous_invoker": "aureon-fusion-public"
+  },
+  "pubsub": {
+    "service_agent": "service-4435775023@gcp-sa-pubsub.iam.gserviceaccount.com",
+    "topics": [
+      {
+        "name": "aureon-trade-release-requests-v1",
+        "publishers": [
+          "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-trade-release-receipts-v1",
+        "publishers": [
+          "serviceAccount:aureon-trade-controller@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-trade-intents-v1",
+        "publishers": [
+          "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-trade-reviewed-v1",
+        "publishers": [
+          "serviceAccount:aureon-trade-review@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-trade-dispatch-v1",
+        "publishers": [
+          "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-trade-executor-results-v1",
+        "publishers": [
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-trade-terminal-receipts-v1",
+        "publishers": [
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com"
+        ]
+      }
+    ],
+    "immutable_subscription_replacement": {
+      "schema": "aureon.gcp.subscription-replacement-readback.v1",
+      "provider": "cloud_monitoring_and_gce_systemd",
+      "maximum_age_seconds": 300,
+      "minimum_window_seconds": 120,
+      "minimum_sample_count": 3,
+      "required_metrics": [
+        "pubsub.googleapis.com/subscription/num_undelivered_messages",
+        "pubsub.googleapis.com/subscription/oldest_unacked_message_age"
+      ],
+      "exact_sha256_acknowledgement_required": true,
+      "targets": [
+        {
+          "subscription": "aureon-trade-release-controller-push-v1",
+          "topic": "aureon-trade-release-requests-v1",
+          "publisher_member": "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com",
+          "publisher_runtime": "gce_systemd",
+          "publisher_unit": "aureon-cloud-operator.service",
+          "required_active_state": "inactive",
+          "required_sub_state": "dead",
+          "required_unit_file_state": "disabled"
+        }
+      ]
+    },
+    "push_subscriptions": [
+      {
+        "name": "aureon-trade-release-controller-push-v1",
+        "topic": "aureon-trade-release-requests-v1",
+        "service": "aureon-trade-controller",
+        "push_endpoint": "https://aureon-trade-controller-25xhneniva-ew.a.run.app/process",
+        "oidc_service_account": "aureon-trade-controller@aureon-trading.iam.gserviceaccount.com",
+        "oidc_audience": "https://aureon-trade-controller-25xhneniva-ew.a.run.app",
+        "ack_deadline_seconds": 120,
+        "message_retention_duration": "604800s",
+        "expiration_period": "never",
+        "minimum_backoff": "10s",
+        "maximum_backoff": "600s",
+        "enable_message_ordering": true,
+        "push_no_wrapper": false
+      },
+      {
+        "name": "aureon-trade-review-push-v1",
+        "topic": "aureon-trade-intents-v1",
+        "service": "aureon-trade-review",
+        "push_endpoint": "https://aureon-trade-review-25xhneniva-ew.a.run.app/process",
+        "oidc_service_account": "aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
+        "oidc_audience": "https://aureon-trade-review-25xhneniva-ew.a.run.app",
+        "ack_deadline_seconds": 120,
+        "message_retention_duration": "604800s",
+        "expiration_period": "never",
+        "minimum_backoff": "10s",
+        "maximum_backoff": "600s",
+        "enable_message_ordering": true,
+        "push_no_wrapper": false
+      },
+      {
+        "name": "aureon-trade-dispatch-push-v1",
+        "topic": "aureon-trade-reviewed-v1",
+        "service": "aureon-trade-dispatch",
+        "push_endpoint": "https://aureon-trade-dispatch-25xhneniva-ew.a.run.app/process",
+        "oidc_service_account": "aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+        "oidc_audience": "https://aureon-trade-dispatch-25xhneniva-ew.a.run.app",
+        "ack_deadline_seconds": 120,
+        "message_retention_duration": "604800s",
+        "expiration_period": "never",
+        "minimum_backoff": "10s",
+        "maximum_backoff": "600s",
+        "enable_message_ordering": true,
+        "push_no_wrapper": false
+      },
+      {
+        "name": "aureon-trade-executor-push-v1",
+        "topic": "aureon-trade-dispatch-v1",
+        "service": "aureon-trade-executor",
+        "push_endpoint": "https://aureon-trade-executor-25xhneniva-ew.a.run.app/process",
+        "oidc_service_account": "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+        "oidc_audience": "https://aureon-trade-executor-25xhneniva-ew.a.run.app",
+        "ack_deadline_seconds": 120,
+        "message_retention_duration": "604800s",
+        "expiration_period": "never",
+        "minimum_backoff": "10s",
+        "maximum_backoff": "600s",
+        "enable_message_ordering": true,
+        "push_no_wrapper": false
+      },
+      {
+        "name": "aureon-trade-receipt-push-v1",
+        "topic": "aureon-trade-executor-results-v1",
+        "service": "aureon-trade-receipt",
+        "push_endpoint": "https://aureon-trade-receipt-25xhneniva-ew.a.run.app/process",
+        "oidc_service_account": "aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+        "oidc_audience": "https://aureon-trade-receipt-25xhneniva-ew.a.run.app",
+        "ack_deadline_seconds": 120,
+        "message_retention_duration": "604800s",
+        "expiration_period": "never",
+        "minimum_backoff": "10s",
+        "maximum_backoff": "600s",
+        "enable_message_ordering": true,
+        "push_no_wrapper": false
+      }
+    ],
+    "terminal_readback_subscription": {
+      "name": "aureon-trade-terminal-readback-v1",
+      "topic": "aureon-trade-terminal-receipts-v1",
+      "subscribers": [
+        "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 60,
+      "message_retention_duration": "604800s",
+      "expiration_period": "never",
+      "enable_message_ordering": true,
+      "enable_exactly_once_delivery": true,
+      "push_config_forbidden": true
+    },
+    "retire_after_zero_backlog": [
+      "aureon-trade-review-v1",
+      "aureon-trade-dispatch-v1",
+      "aureon-trade-executor-v1",
+      "aureon-trade-receipt-v1"
+    ],
+    "legacy_retirement_receipt": {
+      "schema": "aureon.gcp.pubsub-legacy-retirement-readback.v1",
+      "provider": "cloud_monitoring",
+      "maximum_age_seconds": 900,
+      "minimum_window_seconds": 120,
+      "minimum_sample_count": 3,
+      "required_metrics": [
+        "pubsub.googleapis.com/subscription/num_undelivered_messages",
+        "pubsub.googleapis.com/subscription/oldest_unacked_message_age"
+      ],
+      "all_measurements_must_be_zero": true,
+      "exact_sha256_acknowledgement_required": true,
+      "automatic_subscription_deletion": false,
+      "receipt_gated_deletion_phase": "legacy-retirement"
+    },
+    "legacy_archive_receipt": {
+      "schema": "aureon.gcp.pubsub-legacy-archive-receipt.v1",
+      "provider": "google_cloud_storage_and_pubsub",
+      "required_status": "archived_and_acknowledged",
+      "minimum_empty_poll_confirmations": 2,
+      "publisher_units": [
+        "aureon-cloud-operator.service",
+        "aureon-cloud-trade-receipt.service"
+      ],
+      "exact_receipt_sha256_acknowledgement_required": true,
+      "exact_scope_sha256_acknowledgement_required": true,
+      "subscription_deletion_forbidden": true,
+      "order_execution_forbidden": true,
+      "cloud_run_traffic_change_forbidden": true,
+      "release_authority_forbidden": true
+    },
+    "forbidden_project_level_roles": [
+      "roles/pubsub.publisher",
+      "roles/pubsub.subscriber"
+    ]
+  },
+  "iam": {
+    "pubsub_oidc_token_creators": [
+      "aureon-trade-controller@aureon-trading.iam.gserviceaccount.com",
+      "aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
+      "aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+      "aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+      "aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com"
+    ],
+    "kms_keys": [
+      {
+        "name": "aureon-controller-signing",
+        "version": "1",
+        "signers": [
+          "serviceAccount:aureon-trade-controller@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "public_key_viewers": [
+          "serviceAccount:aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-review-signing",
+        "version": "1",
+        "signers": [
+          "serviceAccount:aureon-trade-review@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "public_key_viewers": [
+          "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-dispatch-signing",
+        "version": "1",
+        "signers": [
+          "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "public_key_viewers": [
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-executor-signing",
+        "version": "1",
+        "signers": [
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "public_key_viewers": [
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "name": "aureon-receipt-signing",
+        "version": "1",
+        "signers": [
+          "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com"
+        ],
+        "public_key_viewers": [
+          "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+        ]
+      }
+    ],
+    "secrets": [
+      {
+        "id": "aureon-operator-http-20260911",
+        "version": "1",
+        "readers": [
+          "serviceAccount:aureon-vm-ui@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "id": "aureon-supabase-tenant-20260912",
+        "version": "1",
+        "readers": [
+          "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "id": "aureon-owner-runtime-providers-20260913",
+        "version": "1",
+        "readers": [
+          "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com",
+          "serviceAccount:aureon-vm-provider@aureon-trading.iam.gserviceaccount.com"
+        ]
+      },
+      {
+        "id": "aureon-owner-exchange-credentials-20260912",
+        "version": "1",
+        "readers": [
+          "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
+        ]
+      }
+    ],
+    "firestore": {
+      "database": "projects/aureon-trading/databases/(default)",
+      "location": "europe-west1",
+      "delete_protection": true,
+      "custom_roles": [
+        {
+          "id": "AureonTradeFirestoreReadV1",
+          "title": "Aureon trade Firestore read v1",
+          "stage": "GA",
+          "permissions": [
+            "datastore.databases.get",
+            "datastore.entities.get"
+          ],
+          "members": [
+            "serviceAccount:aureon-trade-review@aureon-trading.iam.gserviceaccount.com",
+            "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com",
+            "serviceAccount:aureon-vm-operator@aureon-trading.iam.gserviceaccount.com",
+            "serviceAccount:aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com"
+          ]
+        },
+        {
+          "id": "AureonTradeFirestoreWriteV1",
+          "title": "Aureon trade Firestore write v1",
+          "stage": "GA",
+          "permissions": [
+            "datastore.databases.get",
+            "datastore.entities.create",
+            "datastore.entities.get",
+            "datastore.entities.update"
+          ],
+          "members": [
+            "serviceAccount:aureon-trade-controller@aureon-trading.iam.gserviceaccount.com",
+            "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com",
+            "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com"
+          ]
+        }
+      ],
+      "forbidden_predefined_roles": [
+        "roles/datastore.user",
+        "roles/datastore.viewer",
+        "roles/datastore.owner"
+      ],
+      "iam_is_database_permission_scoped_not_collection_scoped": true,
+      "collection_separation_requires_signed_application_contract": true
+    }
+  },
+  "vm_workload_identity": {
+    "instance": "aureon-sero-20260906",
+    "attached_service_account": "aureon-vm-token-broker@aureon-trading.iam.gserviceaccount.com",
+    "attached_oauth_scopes": [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ],
+    "attached_identity_has_no_data_plane_roles": true,
+    "broker_unit": "aureon-cloud-token-broker.service",
+    "broker_exec": "/srv/aureon/venv/bin/python /srv/aureon/runtime/workspace/deployment/google-cloud/vm_token_broker.py",
+    "token_lifetime_seconds": 1800,
+    "rotation_seconds": 300,
+    "token_schema": "aureon.gcp.workload-access-token.v1",
+    "token_payload_binds_service_account": true,
+    "metadata_ipv4": "169.254.169.254/32",
+    "metadata_ipv6": "fd20:ce::254/128",
+    "workloads": [
+      {
+        "name": "ui",
+        "service_account": "aureon-vm-ui@aureon-trading.iam.gserviceaccount.com",
+        "user": "aureon-ui",
+        "supplementary_groups": [],
+        "token_file": "/run/aureon-cloud-identity/ui/token.json",
+        "units": [
+          "aureon-cloud-ui.service"
+        ],
+        "capabilities": [
+          "secret:aureon-operator-http-20260911:1:read"
+        ]
+      },
+      {
+        "name": "operator",
+        "service_account": "aureon-vm-operator@aureon-trading.iam.gserviceaccount.com",
+        "user": "aureon-operator",
+        "supplementary_groups": [
+          "aureon-control-readers"
+        ],
+        "token_file": "/run/aureon-cloud-identity/operator/token.json",
+        "units": [
+          "aureon-cloud-operator.service"
+        ],
+        "capabilities": [
+          "secret:aureon-operator-http-20260911:1:read",
+          "secret:aureon-supabase-tenant-20260912:1:read",
+          "secret:aureon-owner-runtime-providers-20260913:1:read",
+          "topic:aureon-trade-release-requests-v1:publish",
+          "firestore:release:read",
+          "kms:aureon-controller-signing:public-key-read"
+        ],
+        "required_environment": {
+          "AUREON_SUPABASE_OWNER_SUBJECT": "${SUPABASE_OWNER_SUBJECT}",
+          "AUREON_SUPABASE_OWNER_EMAIL_SHA256": "${SUPABASE_OWNER_EMAIL_SHA256}"
+        }
+      },
+      {
+        "name": "trade-bridge",
+        "service_account": "aureon-vm-trade-bridge@aureon-trading.iam.gserviceaccount.com",
+        "user": "aureon-trade-bridge",
+        "supplementary_groups": [
+          "aureon-control-readers"
+        ],
+        "token_file": "/run/aureon-cloud-identity/trade-bridge/token.json",
+        "units": [
+          "aureon-cloud-trade-receipt.service"
+        ],
+        "capabilities": [
+          "topic:aureon-trade-intents-v1:publish",
+          "subscription:aureon-trade-terminal-readback-v1:consume",
+          "firestore:release-and-readiness:read",
+          "kms:authority-chain:public-key-read"
+        ]
+      },
+      {
+        "name": "provider",
+        "service_account": "aureon-vm-provider@aureon-trading.iam.gserviceaccount.com",
+        "user": "aureon-provider",
+        "supplementary_groups": [],
+        "token_file": "/run/aureon-cloud-identity/provider/token.json",
+        "units": [
+          "aureon-organ@heartbeat_daemon.service",
+          "aureon-organ@hnc_live_daemon.service"
+        ],
+        "capabilities": [
+          "secret:aureon-owner-runtime-providers-20260913:1:read"
+        ]
+      }
+    ],
+    "all_workload_units_require": {
+      "AUREON_VM_TOKEN_BROKER_REQUIRED": "1",
+      "AUREON_GCP_PROJECT_NUMBER": "4435775023",
+      "metadata_denied": true
+    },
+    "public_bridge": {
+      "unit": "aureon-public-bridge.service",
+      "certificate_path": "/etc/aureon-public/bridge-cert.pem",
+      "certificate_receipt_schema": "aureon.gcp.vm-public-bridge-certificate-receipt.v1",
+      "certificate_fingerprint_algorithm": "x509-der-sha256",
+      "required_ip_sans": [
+        "10.40.0.2"
+      ],
+      "minimum_remaining_validity_seconds": 86400,
+      "private_key_export_forbidden": true,
+      "required_environment": {
+        "AUREON_IAP_ADMIN_EMAIL_SHA256": "${IAP_ADMIN_EMAIL_SHA256}"
+      },
+      "plaintext_identity_forbidden": true
+    },
+    "token_storage": [
+      {
+        "path": "/run/aureon-cloud-identity",
+        "kind": "directory",
+        "owner": "root",
+        "group": "root",
+        "mode": "750"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/ui",
+        "kind": "directory",
+        "owner": "root",
+        "group": "aureon-ui",
+        "mode": "750"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/ui/token.json",
+        "kind": "regular file",
+        "owner": "root",
+        "group": "aureon-ui",
+        "mode": "640"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/operator",
+        "kind": "directory",
+        "owner": "root",
+        "group": "aureon-operator",
+        "mode": "750"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/operator/token.json",
+        "kind": "regular file",
+        "owner": "root",
+        "group": "aureon-operator",
+        "mode": "640"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/trade-bridge",
+        "kind": "directory",
+        "owner": "root",
+        "group": "aureon-trade-bridge",
+        "mode": "750"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/trade-bridge/token.json",
+        "kind": "regular file",
+        "owner": "root",
+        "group": "aureon-trade-bridge",
+        "mode": "640"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/provider",
+        "kind": "directory",
+        "owner": "root",
+        "group": "aureon-provider",
+        "mode": "750"
+      },
+      {
+        "path": "/run/aureon-cloud-identity/provider/token.json",
+        "kind": "regular file",
+        "owner": "root",
+        "group": "aureon-provider",
+        "mode": "640"
+      }
+    ],
+    "shared_state_exchange": [
+      {
+        "path": "/var/lib/aureon-control-exchange",
+        "kind": "directory",
+        "owner": "root",
+        "group": "aureon-control-readers",
+        "mode": "750"
+      },
+      {
+        "path": "/var/lib/aureon-control-exchange/release-ledger",
+        "kind": "directory",
+        "owner": "aureon-operator",
+        "group": "aureon-control-readers",
+        "mode": "750"
+      },
+      {
+        "path": "/var/lib/aureon-control-exchange/release-ledger/release-ledger.jsonl",
+        "kind": "regular file",
+        "owner": "aureon-operator",
+        "group": "aureon-control-readers",
+        "mode": "640"
+      },
+      {
+        "path": "/var/lib/aureon-control-exchange/trade-readback",
+        "kind": "directory",
+        "owner": "aureon-trade-bridge",
+        "group": "aureon-control-readers",
+        "mode": "750"
+      },
+      {
+        "path": "/var/lib/aureon-control-exchange/trade-readback/latest-terminal-receipt.json",
+        "kind": "regular file",
+        "owner": "aureon-trade-bridge",
+        "group": "aureon-control-readers",
+        "mode": "640"
+      },
+      {
+        "path": "/var/lib/aureon-control-exchange/trade-readback/latest-order-intent-bridge.json",
+        "kind": "regular file",
+        "owner": "aureon-trade-bridge",
+        "group": "aureon-control-readers",
+        "mode": "640"
+      }
+    ],
+    "all_aureon_units": [
+      "aureon-cloud-token-broker.service",
+      "aureon-cloud-operator.service",
+      "aureon-cloud-trade-receipt.service",
+      "aureon-cloud-ui.service",
+      "aureon-organ@assessment_snapshot_producer.service",
+      "aureon-organ@aureon_radar_bridge.service",
+      "aureon-organ@global_energy_aggregator.service",
+      "aureon-organ@harmonic_affect_producer.service",
+      "aureon-organ@heartbeat_daemon.service",
+      "aureon-organ@hnc_core.service",
+      "aureon-organ@hnc_live_daemon.service",
+      "aureon-organ@market_stream_feeder.service",
+      "aureon-organ@mind_neural_canvas.service",
+      "aureon-organ@planetary_monitor_daemon.service",
+      "aureon-organ@queen_mind.service",
+      "aureon-organ@real_time_data_feeder.service",
+      "aureon-organ@schumann_real_daemon.service",
+      "aureon-organ@sero_autonomous_expansion.service",
+      "aureon-organ@sero_space_weather.service",
+      "aureon-organ@solar_system_collector.service",
+      "aureon-organ@soul_protection_daemon.service",
+      "aureon-organ@unified_market_status.service",
+      "aureon-organ@unified_market_trader.service",
+      "aureon-public-bridge.service"
+    ],
+    "only_metadata_unit": "aureon-cloud-token-broker.service",
+    "old_union_identity": "aureon-cloud-runtime@aureon-trading.iam.gserviceaccount.com",
+    "old_union_identity_must_have_no_data_plane_roles": true,
+    "direct_metadata_workload_access_is_production_blocker": true,
+    "owner_identity_binding": {
+      "provider_resolved_subject_required": true,
+      "provider_confirmed_email_sha256_required": true,
+      "plaintext_email_forbidden": true,
+      "operator_unit_only": true
+    },
+    "release_readback_receipt": {
+      "schema": "aureon.gcp.vm-release-readback.v1",
+      "maximum_age_seconds": 900,
+      "exact_raw_sha256_acknowledgement_required": true,
+      "required_status": "passed",
+      "required_attached_oauth_scopes": [
+        "https://www.googleapis.com/auth/cloud-platform"
+      ],
+      "required_loopback_roles": {
+        "operator": "aureon-cloud-operator.service",
+        "ui-gateway": "aureon-cloud-ui.service"
+      },
+      "required_controlled_restart": "passed",
+      "required_reboot_validation": "pending_separate_cutover_evidence",
+      "minimum_token_validity_seconds": 120,
+      "maximum_token_lifetime_seconds": 1860,
+      "secret_values_forbidden": true
+    },
+    "reboot_continuity_receipt": {
+      "schema": "aureon.gcp.vm-reboot-continuity.v1",
+      "maximum_age_seconds": 900,
+      "exact_raw_sha256_acknowledgement_required": true,
+      "must_bind_vm_release_receipt": true,
+      "required_status": "passed",
+      "required_vm_status": "RUNNING",
+      "required_loopback_roles": {
+        "operator": "aureon-cloud-operator.service",
+        "ui-gateway": "aureon-cloud-ui.service",
+        "public-bridge": "aureon-public-bridge.service"
+      },
+      "boot_id_must_change": true,
+      "secret_values_forbidden": true
+    }
+  },
+  "periodic_readiness": {
+    "activation_document": "aureon_trade_attestations/current_probe",
+    "refresh_document": "aureon_trade_attestations/current_readiness",
+    "interval_seconds": 120,
+    "maximum_age_seconds": 300,
+    "provider_deadline_seconds": 18,
+    "worker_timeout_seconds": 120,
+    "maximum_allowance_usd": 5,
+    "executor_signing_key": "aureon-executor-signing",
+    "receipt_signing_key": "aureon-receipt-signing",
+    "release_binding": "exact_controller_generation_request_event_expiry_revision_and_signed_state_digest",
+    "release_authority": false,
+    "mutation_authority": false
+  },
   "effect_ledger": {
     "database": "projects/aureon-trading/databases/(default)",
     "location": "europe-west1",
@@ -51,7 +1107,8 @@
     "daily_budget_usd": 20,
     "maximum_order_usd": 5
   },
-  "live_execution_release": false,
+  "stage_live_execution_release_gate": true,
+  "release_authority": "controller_signed_state",
   "durable_budget_ledger": true,
   "order_adapter_ready": true
 }

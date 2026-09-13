@@ -110,7 +110,7 @@ export default function OperatorChatPage() {
   const ask = async (prompt: string) => {
     const trimmed = prompt.trim();
     const version = sessionVersion.current;
-    if (!trimmed || busy || request.current?.version === version) return;
+    if (!trimmed || busy || needsKey || request.current?.version === version) return;
     request.current?.controller.abort();
     const controller = new AbortController();
     request.current = { version, controller };
@@ -125,7 +125,7 @@ export default function OperatorChatPage() {
       const reply = await api.post<CognitionReply>(
         "/api/cognition/reason",
         { prompt: trimmed },
-        { timeoutMs: 60000, signal: controller.signal },
+        { timeoutMs: 80000, signal: controller.signal },
       );
       if (stillCurrent()) setSession(previous => sessionVersion.current === version
         ? appendChatSessionTurn(previous, version, { role: 'aureon', text: reply.text || '(empty answer)', reply }) : previous);
@@ -324,6 +324,7 @@ export default function OperatorChatPage() {
       >
         <Textarea
           value={input}
+          disabled={needsKey}
           onChange={(e) => {
             const value = e.target.value;
             const version = sessionVersion.current;
@@ -335,11 +336,11 @@ export default function OperatorChatPage() {
               ask(input);
             }
           }}
-          placeholder="Ask the Aureon cognition… (Enter to send, Shift+Enter for newline)"
+          placeholder={needsKey ? "Connect and test your own model before chatting" : "Ask the Aureon cognition… (Enter to send, Shift+Enter for newline)"}
           className="min-h-[44px] resize-none"
           rows={1}
         />
-        <Button type="submit" disabled={busy || !input.trim()} aria-label="Send">
+        <Button type="submit" disabled={busy || needsKey || !input.trim()} aria-label="Send">
           <Send className="h-4 w-4" />
         </Button>
       </form>

@@ -13,6 +13,8 @@ def readback(received_at=1_000.0, *, ready=False):
         "receipt": {
             "intent_id": "1" * 64,
             "receipt_sha256": "2" * 64,
+            "source_revision": "a" * 40,
+            "runtime_measurement_sha256": control.probe_runtime_measurement_sha256("a" * 40),
             "chain_verified": True,
             "dry_run": True,
             "provider_mutation_attempted": False,
@@ -23,9 +25,11 @@ def readback(received_at=1_000.0, *, ready=False):
                 "durable_budget_ledger": ready,
                 "order_adapter_ready": ready,
                 "live_result_binding_ready": ready,
+                "instrument_preflight_enforced": ready,
             },
             "provider_readback": ({
                 "provider_count": 4, "all_authenticated": True,
+                "instrument_preflight_enforced": True,
                 "readback_sha256": "4" * 64, "providers": {},
             } if ready else None),
             "authority_ids": {
@@ -83,7 +87,7 @@ def test_current_signed_probe_is_reported_without_granting_live_authority(tmp_pa
     path.write_text(json.dumps(readback()), encoding="utf-8")
     patch_sources(monkeypatch)
     result = control.build_cloud_trading_control_receipt(
-        environ={}, now=1_010, readback_path=path,
+        environ={"AUREON_REVISION": "a" * 40}, now=1_010, readback_path=path,
     )
     assert result["last_probe"]["current"] is True
     assert result["capabilities"]["signed_authority_chain"] is True
@@ -100,7 +104,8 @@ def test_current_signed_probe_is_reported_without_granting_live_authority(tmp_pa
 def test_missing_readback_and_expired_lease_fail_closed(tmp_path, monkeypatch):
     patch_sources(monkeypatch, requested={**control.LIVE_CONTROLS, "AUREON_LIVE_TRADING": False}, active=False)
     result = control.build_cloud_trading_control_receipt(
-        environ={}, now=1_010, readback_path=tmp_path / "missing.json",
+        environ={"AUREON_REVISION": "a" * 40},
+        now=1_010, readback_path=tmp_path / "missing.json",
     )
     assert result["truth_status"] == "unavailable"
     assert result["read_state"] == "unavailable"
@@ -115,6 +120,7 @@ def test_even_complete_configuration_claims_cannot_self_release(tmp_path, monkey
     path.write_text(json.dumps(readback()), encoding="utf-8")
     patch_sources(monkeypatch)
     env = {
+        "AUREON_REVISION": "a" * 40,
         "AUREON_LIVE_EXECUTION_RELEASE": "1",
         "AUREON_DURABLE_BUDGET_LEDGER": "1",
         "AUREON_ORDER_ADAPTER_READY": "1",
@@ -139,6 +145,7 @@ def test_signed_executor_and_provider_evidence_still_requires_controller(tmp_pat
     path.write_text(json.dumps(readback(ready=True)), encoding="utf-8")
     patch_sources(monkeypatch)
     env = {
+        "AUREON_REVISION": "a" * 40,
         "AUREON_CLOUD_TRADE_RELEASE_RECEIPT_SHA256": "5" * 64,
         "AUREON_CLOUD_TRADE_LIVE_RESULT_BINDING_SHA256": "6" * 64,
     }
@@ -156,8 +163,148 @@ def test_signed_held_controller_makes_operator_activation_eligible(tmp_path, mon
     path = tmp_path / "receipt.json"
     path.write_text(json.dumps(readback(ready=True)), encoding="utf-8")
     patch_sources(monkeypatch, controller=True)
-    result = control.build_cloud_trading_control_receipt(environ={}, now=1_010, readback_path=path)
+    result = control.build_cloud_trading_control_receipt(
+        environ={"AUREON_REVISION": "a" * 40}, now=1_010, readback_path=path,
+    )
     assert result["operator_can_apply_live"] is True
     assert result["production_ready"] is False
     assert result["release_authority"] is False
     assert result["blockers"] == ["live_execution_release_held"]
+
+
+def test_operator_activation_requires_preflight_capability_in_signed_probe(tmp_path, monkeypatch):
+    value = readback(ready=True)
+    value["receipt"]["executor_capabilities"]["instrument_preflight_enforced"] = False
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    patch_sources(monkeypatch, controller=True)
+    result = control.build_cloud_trading_control_receipt(
+        environ={"AUREON_REVISION": "a" * 40}, now=1_010, readback_path=path,
+    )
+    assert result["operator_can_apply_live"] is False
+    assert result["capabilities"]["instrument_preflight_enforced"] is False
+    assert "provider_instrument_preflight_receipt_missing" in result["blockers"]
+
+
+def test_fresh_probe_from_prior_revision_cannot_make_operator_ready(tmp_path, monkeypatch):
+    value = readback(ready=True)
+    value["receipt"]["source_revision"] = "b" * 40
+    value["receipt"]["runtime_measurement_sha256"] = (
+        control.probe_runtime_measurement_sha256("b" * 40)
+    )
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(value), encoding="utf-8")
+    patch_sources(monkeypatch, controller=True)
+    result = control.build_cloud_trading_control_receipt(
+        environ={"AUREON_REVISION": "a" * 40}, now=1_010, readback_path=path,
+    )
+    assert result["truth_status"] == "unavailable"
+    assert result["last_probe"] is None
+    assert result["operator_can_apply_live"] is False
+    assert result["production_ready"] is False
+    assert "current_signed_authority_probe_missing" in result["blockers"]
+
+
+def active_controller(*, expires=2_000.0):
+    return {
+        "schema": "aureon.cloud-trade-release-state.v1",
+        "state": "active",
+        "generation": 2,
+        "request_id": "7" * 64,
+        "requested_controls_sha256": control._digest(control.LIVE_CONTROLS),
+        "authorization_event_sha256": "3" * 64,
+        "authorization_expires_at_ms": int(expires * 1000),
+        "probe_receipt_sha256": "8" * 64,
+        "provider_readback_sha256": "9" * 64,
+        "source_revision": "a" * 40,
+        "signed_at_ms": 1_000_000,
+        "controller_key_version": "controller-key/1",
+        "signature": "signed",
+        "update_time": "now",
+    }
+
+
+def bridge_status(*, observed_at=1_010.0, expires=2_000.0):
+    return {
+        "schema": control.BRIDGE_STATUS_SCHEMA,
+        "observed_at": observed_at,
+        "revision": "a" * 40,
+        "state": "idle",
+        "operational": True,
+        "candidate_ready": False,
+        "blockers": ["qualifying_candidate_unavailable"],
+        "source": {
+            "runtime_status_sha256": "a" * 64,
+            "generated_at_ms": 1_009_000,
+            "age_ms": 1_000,
+        },
+        "controller_release": {
+            "state": "active",
+            "generation": 2,
+            "request_id": "7" * 64,
+            "source_revision": "a" * 40,
+            "authorization_event_sha256": "3" * 64,
+            "authorization_expires_at_ms": int(expires * 1000),
+        },
+        "last_publish": None,
+        "release_authority": True,
+        "mutation_authority": False,
+    }
+
+
+def test_active_release_requires_current_operational_intent_bridge(tmp_path, monkeypatch):
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(readback(ready=True)), encoding="utf-8")
+    bridge_path = tmp_path / "bridge.json"
+    bridge_path.write_text(json.dumps(bridge_status()), encoding="utf-8")
+    requested = dict(control.LIVE_CONTROLS)
+    monkeypatch.setattr(control, "_controls", lambda: (requested, dict(requested)))
+    monkeypatch.setattr(control, "_authorization", lambda: {
+        "active": True,
+        "state": "active",
+        "expires_at": 2_000.0,
+        "expires_at_iso": "1970-01-01T00:33:20Z",
+        "ledger_event_sha256": "3" * 64,
+    })
+    monkeypatch.setattr(
+        control, "read_controller_release",
+        lambda **_kwargs: (active_controller(), None),
+    )
+    result = control.build_cloud_trading_control_receipt(
+        environ={"AUREON_REVISION": "a" * 40},
+        now=1_010,
+        readback_path=receipt_path,
+        bridge_status_path=bridge_path,
+    )
+    assert result["capabilities"]["governed_order_intent_bridge"] is True
+    assert result["intent_bridge"]["operational"] is True
+    assert result["production_ready"] is True
+    assert result["release_authority"] is True
+    assert result["blockers"] == []
+
+
+def test_active_release_without_bridge_status_is_not_production_ready(tmp_path, monkeypatch):
+    receipt_path = tmp_path / "receipt.json"
+    receipt_path.write_text(json.dumps(readback(ready=True)), encoding="utf-8")
+    requested = dict(control.LIVE_CONTROLS)
+    monkeypatch.setattr(control, "_controls", lambda: (requested, dict(requested)))
+    monkeypatch.setattr(control, "_authorization", lambda: {
+        "active": True,
+        "state": "active",
+        "expires_at": 2_000.0,
+        "expires_at_iso": "1970-01-01T00:33:20Z",
+        "ledger_event_sha256": "3" * 64,
+    })
+    monkeypatch.setattr(
+        control, "read_controller_release",
+        lambda **_kwargs: (active_controller(), None),
+    )
+    result = control.build_cloud_trading_control_receipt(
+        environ={"AUREON_REVISION": "a" * 40},
+        now=1_010,
+        readback_path=receipt_path,
+        bridge_status_path=tmp_path / "missing-bridge.json",
+    )
+    assert result["capabilities"]["governed_order_intent_bridge"] is False
+    assert result["production_ready"] is False
+    assert "order_intent_bridge_status_missing" in result["blockers"]

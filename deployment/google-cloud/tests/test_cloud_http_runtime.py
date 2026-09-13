@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -17,6 +18,7 @@ from werkzeug.test import Client
 from werkzeug.wrappers import Response
 
 MODULE = Path(__file__).resolve().parents[1] / "cloud_http_runtime.py"
+sys.path.insert(0, str(MODULE.parent))
 spec = importlib.util.spec_from_file_location("cloud_http_runtime", MODULE)
 cloud = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cloud)
@@ -27,6 +29,16 @@ REVISION = "a" * 40
 RESOURCE = "projects/123456789/secrets/operator-http/versions/7"
 TENANT_CONFIG = {"project_url": "https://abcdefghijklmnopqrst.supabase.co",
                  "publishable_key": "sb_publishable_" + "x" * 48}
+PROVIDER_CONFIG = {
+    "NASA_API_KEY": "offline_nasa_" + "n" * 32,
+    "NOAA_API_KEY": "offline_noaa_" + "o" * 32,
+    "USGS_API_KEY": "offline_usgs_" + "u" * 32,
+    "OLLAMA_API_KEY": "offline_ollama_" + "m" * 32,
+    "AUREON_LLM_BASE_URL": "https://ollama.com/v1",
+    "AUREON_LLM_MODEL": "gpt-oss:120b-cloud",
+}
+OWNER_SUBJECT = "12345678-1234-4123-8123-123456789abc"
+OWNER_EMAIL_SHA256 = "d" * 64
 
 
 def secret_response(data=FIXTURE.encode(), **override):
@@ -65,6 +77,159 @@ class SecretTests(unittest.TestCase):
         ):
             with self.assertRaises(cloud.CloudHTTPError):
                 cloud.validate_supabase_tenant_config(json.dumps(payload).encode())
+
+    def test_owner_provider_config_is_closed_and_canonical(self):
+        raw = json.dumps(PROVIDER_CONFIG).encode()
+        self.assertEqual(cloud.validate_owner_provider_config(raw), PROVIDER_CONFIG)
+        invalid = (
+            {},
+            {key: value for key, value in PROVIDER_CONFIG.items() if key != "NASA_API_KEY"},
+            {**PROVIDER_CONFIG, "OPENAI_API_KEY": "forbidden_extra_field"},
+            {**PROVIDER_CONFIG, "NASA_API_KEY": "DEMO_KEY"},
+            {**PROVIDER_CONFIG, "NOAA_API_KEY": "contains whitespace"},
+            {**PROVIDER_CONFIG, "USGS_API_KEY": "line\nbreak"},
+            {**PROVIDER_CONFIG, "OLLAMA_API_KEY": 123},
+            {**PROVIDER_CONFIG, "AUREON_LLM_BASE_URL": "http://localhost:11434/v1"},
+            {**PROVIDER_CONFIG, "AUREON_LLM_BASE_URL": "https://ollama.com/v1?token=bad"},
+            {**PROVIDER_CONFIG, "AUREON_LLM_MODEL": "bad model"},
+        )
+        for payload in invalid:
+            with self.subTest(payload=payload), self.assertRaises(cloud.CloudHTTPError):
+                cloud.validate_owner_provider_config(json.dumps(payload).encode())
+        duplicate = json.dumps(PROVIDER_CONFIG).replace(
+            '"NASA_API_KEY":', '"NASA_API_KEY":"duplicate_value","NASA_API_KEY":', 1
+        ).encode()
+        with self.assertRaises(cloud.CloudHTTPError):
+            cloud.validate_owner_provider_config(duplicate)
+
+    def test_owner_provider_values_enter_only_operator_boot_settings(self):
+        root = Path("/srv/aureon/runtime/workspace/aureon-os-upstream")
+        with patch.dict(
+            os.environ,
+            {
+                "AUREON_SUPABASE_OWNER_SUBJECT": OWNER_SUBJECT,
+                "AUREON_SUPABASE_OWNER_EMAIL_SHA256": OWNER_EMAIL_SHA256,
+            },
+            clear=False,
+        ):
+            settings = cloud._operator_boot_settings(
+                root, REVISION, FIXTURE, TENANT_CONFIG, PROVIDER_CONFIG
+            )
+        self.assertEqual(
+            {key: settings[key] for key in cloud.OWNER_PROVIDER_KEYS}, PROVIDER_CONFIG
+        )
+        self.assertEqual(settings["AUREON_OPERATOR_HOST"], "127.0.0.1")
+        self.assertEqual(settings["AUREON_OPERATOR_REVISION"], REVISION)
+        self.assertEqual(
+            settings[cloud.PINNED_PROVIDER_ENV_VARS_ENV],
+            ",".join(cloud.OWNER_PROVIDER_KEYS),
+        )
+        self.assertEqual(settings[cloud.CLOUD_EXCHANGE_CREDENTIALS_PINNED_ENV], "1")
+        self.assertEqual(settings[cloud.CLOUD_CREDENTIAL_ISOLATION_ENV], "1")
+        self.assertEqual(settings["PYTHON_DOTENV_DISABLED"], "1")
+        self.assertEqual(
+            {key: settings[key] for key in cloud.CLOUD_OPERATOR_SAFE_MODE_ENV},
+            cloud.CLOUD_OPERATOR_SAFE_MODE_ENV,
+        )
+
+    def test_operator_boot_scrubs_ambient_exchange_and_dotenv_authority(self):
+        environment = {
+            **{key: "ambient-secret" for key in cloud.CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS},
+            **{key: "unsafe" for key in cloud.CLOUD_EXCHANGE_MODE_ENV_VARS},
+            **{key: "/private/env" for key in cloud.CLOUD_ENV_LOADER_CONTROL_VARS},
+            "UNRELATED_SETTING": "retained",
+        }
+        cloud.isolate_operator_environment(environment)
+        self.assertFalse(set(cloud.CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS) & set(environment))
+        self.assertFalse(set(cloud.CLOUD_ENV_LOADER_CONTROL_VARS) & set(environment))
+        self.assertEqual(environment["UNRELATED_SETTING"], "retained")
+        self.assertEqual(environment["PYTHON_DOTENV_DISABLED"], "1")
+        self.assertEqual(environment[cloud.CLOUD_EXCHANGE_CREDENTIALS_PINNED_ENV], "1")
+        self.assertEqual(
+            {key: environment[key] for key in cloud.CLOUD_OPERATOR_SAFE_MODE_ENV},
+            cloud.CLOUD_OPERATOR_SAFE_MODE_ENV,
+        )
+
+    def test_operator_boot_requires_complete_provider_confirmed_owner_binding(self):
+        root = Path("/srv/aureon/runtime/workspace/aureon-os-upstream")
+        values = (
+            {},
+            {"AUREON_SUPABASE_OWNER_SUBJECT": OWNER_SUBJECT},
+            {"AUREON_SUPABASE_OWNER_EMAIL_SHA256": OWNER_EMAIL_SHA256},
+            {
+                "AUREON_SUPABASE_OWNER_SUBJECT": "not-a-uuid",
+                "AUREON_SUPABASE_OWNER_EMAIL_SHA256": OWNER_EMAIL_SHA256,
+            },
+        )
+        for environment in values:
+            with self.subTest(environment=environment), patch.dict(
+                os.environ, environment, clear=True
+            ), self.assertRaisesRegex(
+                cloud.CloudHTTPError, "cloud_owner_identity_binding_required"
+            ):
+                cloud._operator_boot_settings(
+                    root, REVISION, FIXTURE, TENANT_CONFIG, PROVIDER_CONFIG
+                )
+
+    def test_owner_provider_worker_pipe_is_revalidated_by_parent(self):
+        captured = {}
+
+        class Child:
+            returncode = 0
+
+            def communicate(self, timeout):
+                captured["timeout"] = timeout
+                return json.dumps(PROVIDER_CONFIG).encode(), b""
+
+        def popen(command, **kwargs):
+            captured.update(command=command, options=kwargs)
+            return Child()
+
+        self.assertEqual(
+            cloud.load_cloud_owner_provider_config(
+                "test-project", "owner-provider", "9", popen=popen
+            ),
+            PROVIDER_CONFIG,
+        )
+        self.assertEqual(captured["timeout"], cloud.SECRET_DEADLINE)
+        self.assertIn("owner-provider", captured["command"])
+        self.assertNotIn(PROVIDER_CONFIG["NASA_API_KEY"], " ".join(captured["command"]))
+        self.assertEqual(captured["options"]["stdout"], subprocess.PIPE)
+
+        class Smuggled(Child):
+            def communicate(self, timeout):
+                return json.dumps({**PROVIDER_CONFIG, "OPENAI_API_KEY": "smuggled"}).encode(), b""
+
+        with self.assertRaises(cloud.CloudHTTPError):
+            cloud.load_cloud_owner_provider_config(
+                "test-project", "owner-provider", "9", popen=lambda *a, **k: Smuggled()
+            )
+
+    def test_owner_provider_worker_verifies_resource_and_checksum(self):
+        calls = []
+        resource = "projects/123456789/secrets/owner-provider/versions/9"
+        payload = json.dumps(PROVIDER_CONFIG, separators=(",", ":")).encode()
+
+        def reader(url, headers, **options):
+            calls.append(url)
+            if url.endswith("project/project-id"):
+                return b"test-project"
+            if url.endswith("project/numeric-project-id"):
+                return b"123456789"
+            if url.endswith("default/token"):
+                return json.dumps({"access_token": "offline_metadata_fixture", "expires_in": 3600,
+                                   "token_type": "Bearer"}).encode()
+            return json.dumps({
+                "name": resource,
+                "payload": {"data": base64.b64encode(payload).decode(),
+                            "dataCrc32c": str(cloud.crc32c(payload))},
+            }).encode()
+
+        result = cloud.fetch_secret_worker(
+            "test-project", "owner-provider", "9", reader, secret_kind="owner-provider"
+        )
+        self.assertEqual(json.loads(result), PROVIDER_CONFIG)
+        self.assertEqual(calls[-1], "https://secretmanager.googleapis.com/v1/" + resource + ":access")
 
     def test_tenant_config_worker_pipe_is_revalidated_by_parent(self):
         captured = {}
@@ -181,6 +346,16 @@ class GatewayTests(unittest.TestCase):
                 return jsonify(error="unauthenticated"), 401
             return jsonify(error="production_magic_star_release_unavailable", dispatch=False), 503
 
+        @self.backend.route("/api/orca-observations", methods=["GET"])
+        def orca_observations():
+            if request.headers.get("Authorization") != "Bearer " + FIXTURE:
+                return jsonify(error="unauthenticated"), 401
+            return jsonify(
+                schema_version="aureon.operator.orca-observations.v2",
+                provider_calls=False,
+                mutation_authority=False,
+            )
+
         self.operator = Client(cloud.operator_envelope(self.backend, REVISION, tenant_auth_ready=True), Response)
         self.app = cloud.create_ui_gateway(self.root, REVISION, FIXTURE, self.transport)
         self.client = self.app.test_client()
@@ -205,6 +380,20 @@ class GatewayTests(unittest.TestCase):
             response = self.get(headers=headers)
             self.assertEqual(response.status_code, 200)
             self.assertNotIn(FIXTURE.encode(), response.data)
+
+    def test_cognition_routes_receive_the_extended_upstream_budget(self):
+        for path in (
+            "/api/cognition/reason",
+            "/api/cognition/stream?prompt=fixture",
+            "/api/operator/respond",
+            "/api/operator/stream?prompt=fixture",
+        ):
+            self.assertEqual(
+                cloud.api_upstream_timeout(path),
+                cloud.COGNITION_UPSTREAM_TIMEOUT_SECONDS,
+            )
+        for path in ("/api/me", "/api/terminal-state", "/api/coding/status"):
+            self.assertEqual(cloud.api_upstream_timeout(path), 30)
 
     def test_missing_evidence_none_and_auth_failure_never_inject(self):
         for headers in ({}, {"Sec-Fetch-Site": "none"}, {"Origin": "http://127.0.0.1:5173", "X-Aureon-Auth-Resolution": "failed"},
@@ -250,6 +439,31 @@ class GatewayTests(unittest.TestCase):
         )
         self.assertEqual(passive.status_code, 200)
         self.assertNotIn("X-Aureon-Operator-Intent", self.calls[-1][3])
+        operator_passive = self.get(
+            "/api/orca-observations",
+            headers={"Origin": "http://127.0.0.1:5173", "X-Aureon-Operator-Intent": receipt},
+        )
+        self.assertEqual(operator_passive.status_code, 200)
+        self.assertNotIn("X-Aureon-Operator-Intent", self.calls[-1][3])
+
+    def test_tenant_intent_and_exact_bearer_forward_together_without_admin_fallback(self):
+        receipt = "a" * 80 + "." + "b" * 80 + "." + "c" * 80
+        tenant_bearer = "Bearer tenant.header.signature"
+        response = self.client.post(
+            "/api/providers/openai",
+            json={"api_key": "fixture-only"},
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "Authorization": tenant_bearer,
+                "X-Aureon-Operator-Intent": receipt,
+            },
+            base_url="http://127.0.0.1:5173",
+        )
+        self.assertEqual(response.status_code, 404)
+        forwarded = self.calls[-1][3]
+        self.assertEqual(forwarded["Authorization"], tenant_bearer)
+        self.assertEqual(forwarded["X-Aureon-Operator-Intent"], receipt)
+        self.assertNotEqual(forwarded["Authorization"], "Bearer " + FIXTURE)
 
     def test_bad_origin_host_peer_and_oversized_auth_are_denied_locally(self):
         for headers in ({"Origin": "https://evil.invalid"}, {"Origin": "http://127.0.0.1:5174"},
@@ -261,13 +475,20 @@ class GatewayTests(unittest.TestCase):
 
     def test_all_passive_routes_strip_every_credential_and_keep_queries(self):
         for path, port, mapped in (("/api/terminal-state", 8791, "/api/terminal-state"),
-                                   ("/api/flight-test", 8791, "/api/flight-test"),
-                                   ("/api/orca-observations", 8888, "/api/observations")):
+                                   ("/api/flight-test", 8791, "/api/flight-test")):
             response = self.get(path + "?limit=3", headers={"Origin": "http://127.0.0.1:5173", "Authorization": "Bearer " + FIXTURE,
                                                            "Cookie": "private=cookie", "X-Forwarded-For": "192.0.2.1"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(self.calls[-1][:3], (port, "GET", mapped + "?limit=3"))
             self.assertEqual(self.calls[-1][3], {})
+        response = self.get(
+            "/api/orca-observations?limit=3",
+            headers={"Origin": "http://127.0.0.1:5173", "Authorization": "Bearer " + FIXTURE,
+                     "Cookie": "private=cookie", "X-Forwarded-For": "192.0.2.1"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.calls[-1][:3], (8080, "GET", "/api/orca-observations?limit=3"))
+        self.assertEqual(self.calls[-1][3], {"Authorization": "Bearer " + FIXTURE})
         response = self.client.post("/api/flight-test", base_url="http://127.0.0.1:5173")
         self.assertEqual(response.status_code, 405)
         self.assertEqual(len(self.calls), 3)

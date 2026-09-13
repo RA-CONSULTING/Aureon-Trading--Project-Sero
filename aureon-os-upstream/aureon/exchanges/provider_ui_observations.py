@@ -4,11 +4,11 @@ This module performs no I/O and never changes a returned provider receipt,
 execution eligibility, accounting, or reconciliation state.
 """
 
-from functools import wraps
-from email.utils import parsedate_to_datetime
 import hashlib
 import math
 import time
+from email.utils import parsedate_to_datetime
+from functools import wraps
 from threading import RLock
 from typing import Any
 
@@ -34,7 +34,8 @@ def project_capital_observation(observation: Any, kind: str, *, demo_mode: bool,
     received_at = _number(getattr(observation, "received_at", None))
     result = {
         "provider": "capital", "kind": kind, "source": f"capital:GET /{kind}",
-        "source_timestamp": timestamp, "received_at": received_at,
+        "source_timestamp": timestamp, "source_timestamp_kind": "provider_http_date",
+        "received_at": received_at,
         "max_age_seconds": max_age_seconds, "generated_values": False,
         "status": "unavailable", "reason": "provider_observation_unavailable", "rows": [],
         "observed_count": None, "inventory_complete": None,

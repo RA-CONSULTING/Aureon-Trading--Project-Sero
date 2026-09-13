@@ -26,7 +26,7 @@ interface CorrelationData {
 export function SolarFlareCorrelation() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const { data: correlations, isLoading, refetch } = useQuery({
+  const { data: correlations, isLoading } = useQuery({
     queryKey: ['solar-flare-correlations'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -43,18 +43,9 @@ export function SolarFlareCorrelation() {
   const runAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-solar-correlations');
-      
-      if (error) throw error;
-      
-      toast.success(`Analysis complete! Analyzed ${data.analyzed_flares} solar flares`, {
-        description: `X-class: ${data.x_class_count}, M-class: ${data.m_class_count}`
+      toast.error('Legacy analysis publisher retired', {
+        description: 'Use the operator telemetry workspace for provider-backed analysis.',
       });
-      
-      await refetch();
-    } catch (error) {
-      console.error('Analysis error:', error);
-      toast.error('Failed to analyze solar correlations');
     } finally {
       setIsAnalyzing(false);
     }

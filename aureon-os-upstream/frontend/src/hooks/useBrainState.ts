@@ -177,11 +177,7 @@ export function useBrainState(enabled: boolean = true, intervalMs: number = 1000
           .limit(1)
           .maybeSingle(),
         supabase
-          .from("aureon_user_sessions")
-          .select(
-            "current_coherence,current_lambda,current_lighthouse_signal,dominant_node,prism_state,is_trading_active"
-          )
-          .eq("user_id", LIVE_FEED_USER_ID)
+          .rpc("get_aureon_user_session_status")
           .maybeSingle(),
       ]);
 
@@ -203,12 +199,6 @@ export function useBrainState(enabled: boolean = true, intervalMs: number = 1000
             council_consensus:
               !brainData?.council_consensus && sessionData.dominant_node
                 ? `${sessionData.dominant_node} DOMINANT`
-                : undefined,
-            council_action:
-              !brainData?.council_action && sessionData.is_trading_active != null
-                ? sessionData.is_trading_active
-                  ? "ACTIVE"
-                  : "HOLD"
                 : undefined,
           }
         : {};

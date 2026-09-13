@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { readSchumannObservation, type SchumannData } from '@/lib/earthObservationEvidence';
+import { api } from '@/services/apiClient';
 export type { SchumannData, SchumannHarmonic } from '@/lib/earthObservationEvidence';
 
 /** Direct observations only. NOAA-derived proxies cannot establish station measurements. */
@@ -17,14 +18,10 @@ export function useSchumannResonance() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const response = await fetch('/api/research/schumann', {
-          method: 'GET',
-          credentials: 'same-origin',
-          cache: 'no-cache',
+        const data = await api.get<unknown>('/api/research/schumann', {
           signal: aborter.signal,
+          timeoutMs: 8_000,
         });
-        if (!response.ok) throw new Error(`Schumann gateway returned HTTP ${response.status}`);
-        const data = await response.json();
         if (cancelled) return;
         lastPayload = data;
         const observation = readSchumannObservation(data);

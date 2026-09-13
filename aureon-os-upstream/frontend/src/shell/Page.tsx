@@ -4,7 +4,7 @@
  * honest live-data notice for dashboards that need a running backend.
  */
 
-import { Component, type ReactNode } from "react";
+import React, { Component, type ReactNode } from "react";
 import { AlertTriangle, RefreshCcw, Wifi } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

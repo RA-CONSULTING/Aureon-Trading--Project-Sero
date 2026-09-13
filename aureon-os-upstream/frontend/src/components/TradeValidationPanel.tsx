@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,25 +18,14 @@ export function TradeValidationPanel({ className, compact = false }: TradeValida
     stats,
     isLoading,
     lastPolled,
-    pollConfirmations,
+    mutationActionsAvailable,
+    mutationUnavailableReason,
     filterByStatus,
     getPendingTrades,
     getRecentTrades,
   } = useTradeValidation();
 
-  const [isPolling, setIsPolling] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
-
-  const handlePoll = async () => {
-    setIsPolling(true);
-    try {
-      await pollConfirmations();
-    } catch (error) {
-      console.error('Poll failed:', error);
-    } finally {
-      setIsPolling(false);
-    }
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -127,15 +116,18 @@ export function TradeValidationPanel({ className, compact = false }: TradeValida
           <Button
             variant="outline"
             size="sm"
-            onClick={handlePoll}
-            disabled={isPolling || isLoading}
+            disabled={!mutationActionsAvailable || isLoading}
+            title={mutationUnavailableReason}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isPolling ? 'animate-spin' : ''}`} />
-            {isPolling ? 'Polling...' : 'Poll Confirmations'}
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Provider Poll Unavailable
           </Button>
         </div>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
+          {mutationUnavailableReason} Recorded trade evidence remains readable below.
+        </div>
         {/* Stats Summary */}
         <div className="grid grid-cols-4 gap-3 mb-4">
           <div className="bg-muted/50 rounded-lg p-3 text-center">

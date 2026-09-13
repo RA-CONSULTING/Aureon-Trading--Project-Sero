@@ -87,7 +87,12 @@ def app_env(tmp_path, monkeypatch):
 
 
 def _connect_model(client, headers, **over):
-    body = {"api_key": "tok", "base_url": "http://tenant.invalid", "model": "llama3", **over}
+    body = {
+        "api_key": "tok",
+        "base_url": "https://ollama.com/v1",
+        "model": "llama3",
+        **over,
+    }
     return client.post("/api/providers/ollama", json=body, headers=headers)
 
 
@@ -214,6 +219,8 @@ def test_keyless_tenant_streams_get_the_honest_keyless_reply(app_env):
         r = client.get(path, headers=_tenant("nokey"))
         assert r.status_code == 200
         assert b"tenant_no_key" in r.data
+        assert b"HELD_NO_MODEL" in r.data
+        assert b'"blocked": true' in r.data
 
 
 # ── HIGH: a keyless tenant probe must not resolve the instance env key ──────────
@@ -280,6 +287,25 @@ def test_tenant_provider_view_reports_live_from_their_own_plane(app_env):
                 if p["id"] == "ollama")
     assert view["has_key"] is True
     assert view["live"] is True
+
+
+def test_tenant_can_read_only_fixed_public_research_projections(app_env, monkeypatch):
+    client, _srv, _ks = app_env
+
+    import aureon.saas.gateway as gateway
+
+    monkeypatch.setattr(
+        gateway,
+        "_bounded_public_json",
+        lambda url: ([{"time_tag": "2026-09-13T10:00:00Z", "source": "DSCOVR", "proton_speed": 410}], 1789293600000),
+    )
+    noaa = client.get("/api/research/noaa/wind", headers=_tenant("aaa"))
+
+    assert noaa.status_code == 200
+    assert noaa.get_json()["feed"] == "wind"
+    assert "this route is operator-only" not in json.dumps(noaa.get_json())
+    # Mutation methods are absent from the tenant allowlist and from the route.
+    assert client.post("/api/research/noaa/wind", json={}, headers=_tenant("aaa")).status_code in (403, 405)
 
 
 # ── auth-input robustness ──────────────────────────────────────────────────────
@@ -829,6 +855,15 @@ def test_tenant_can_read_their_own_identity(app_env):
     assert body["plane"] == "account"
     assert body["tenancy_enabled"] is True
     assert isinstance(body["allowed_routes"], list) and body["allowed_routes"]
+    assert body["runtime_context"] == {
+        "workspace_scope": "tenant_account",
+        "credential_scope": "account",
+        "execution_state": "held",
+        "owner_runtime_read": False,
+        "owner_runtime_control": False,
+        "owner_runtime_session_effect": "none",
+        "order_submission_enabled": False,
+    }
 
 
 def test_identity_never_echoes_the_raw_jwt_subject(app_env):
@@ -849,6 +884,72 @@ def test_identity_tells_the_operator_they_are_the_operator(app_env):
     assert body["plane"] == "instance"
     assert body["tenant_label"] is None
     assert body["allowed_routes"] is None      # an operator is not route-limited
+    assert body["runtime_context"]["workspace_scope"] == "owner_instance"
+    assert body["runtime_context"]["credential_scope"] == "instance"
+    assert body["runtime_context"]["execution_state"] == "governed"
+    assert body["runtime_context"]["owner_runtime_read"] is True
+    assert body["runtime_context"]["owner_runtime_control"] is True
+    # /api/me must not infer live release from identity alone.
+    assert body["runtime_context"]["order_submission_enabled"] is None
+
+
+def test_tenant_billing_status_does_not_expose_instance_posture(app_env, monkeypatch):
+    client, _srv, _ks = app_env
+    from aureon.operator import metrics
+    from aureon.saas import metering
+
+    monkeypatch.setattr(metrics, "token_usage_totals", lambda: {"owner-model": 987654})
+    monkeypatch.setattr(metering.get_buffer(), "stats", lambda: {
+        "sink": "owner-private-sink", "queued": 42,
+    })
+    response = client.get("/api/billing/status", headers=_tenant("aaa"))
+    assert response.status_code == 200
+    body = response.get_json()
+    encoded = json.dumps(body)
+    assert body["scope"] == "account"
+    assert body["execution_state"] == "held"
+    assert body["charge_endpoint"] == {"enabled": False, "operator_only": True}
+    assert "missing_env" not in body
+    assert "owner-model" not in encoded
+    assert "owner-private-sink" not in encoded
+
+
+@pytest.mark.parametrize("method,path,body", [
+    ("GET", "/api/operator/cloud-trading-control", None),
+    ("GET", "/api/operator/authorization-lease", None),
+    ("POST", "/api/operator/cloud-trading-control/apply", {}),
+    ("POST", "/api/operator/authorization-lease", {}),
+])
+def test_tenant_cannot_read_or_change_owner_cloud_control(app_env, method, path, body):
+    client, _srv, _ks = app_env
+    response = client.open(path, method=method, headers=_tenant("aaa"), json=body)
+    assert response.status_code == 403
+    assert response.get_json()["error"]["plane"] == "admin"
+
+
+@pytest.mark.parametrize("path", [
+    "/api/organism",
+    "/api/company",
+    "/api/defense",
+    "/api/consciousness",
+    "/api/metacognition",
+    "/api/affect",
+    "/api/soul",
+    "/api/inner-work",
+    "/api/pursuit",
+    "/api/automation",
+    "/api/cognition",
+    "/api/cognition/field",
+    "/api/cognition/bus",
+    "/api/cognition/mycelium",
+    "/api/cognition/connectome",
+    "/api/cognition/brain",
+])
+def test_tenant_cannot_read_owner_runtime_showcase(app_env, path):
+    client, _srv, _ks = app_env
+    response = client.get(path, headers=_tenant("aaa"))
+    assert response.status_code == 403
+    assert response.get_json()["error"]["plane"] == "admin"
 
 
 def test_identity_says_nothing_about_the_instance(app_env):

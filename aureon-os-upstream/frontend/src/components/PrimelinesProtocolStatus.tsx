@@ -17,11 +17,11 @@ export function PrimelinesProtocolStatus() {
               Primelines Protocol Gateway
             </CardTitle>
             <CardDescription>
-              Backend integration layer • All operations validated through temporal identity
+              Local protocol view • Governed operator source required for validation
             </CardDescription>
           </div>
-          <Badge className="text-xs" style={{ backgroundColor: 'hsl(var(--chart-1))' }}>
-            ACTIVE
+          <Badge variant="outline" className="text-xs">
+            NOT CONFIGURED
           </Badge>
         </div>
       </CardHeader>
@@ -35,7 +35,7 @@ export function PrimelinesProtocolStatus() {
               <span className="text-sm font-semibold">Temporal Identity</span>
             </div>
             <Badge variant="outline" className="text-xs">
-              VERIFIED
+              UNVERIFIED
             </Badge>
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs">
@@ -90,8 +90,8 @@ export function PrimelinesProtocolStatus() {
             <span className="text-xs font-semibold text-foreground">AI-Powered Validation</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            All operations validated through Lovable AI (Gemini 2.5 Flash) • 
-            Checks temporal coherence, harmonic resonance, unity probability, and dimensional alignment
+            No external validation call is made from this browser session. Connect an
+            identity-bound operator protocol source before relying on these operations.
           </p>
         </div>
 

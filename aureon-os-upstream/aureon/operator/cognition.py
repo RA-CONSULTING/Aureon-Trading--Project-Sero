@@ -263,6 +263,7 @@ class AureonCognition:
         allow_writes: bool = True,
         allow_shell: bool = True,
         max_turns: int = 6,
+        max_model_calls: int | None = None,
         join_mesh: bool = True,
         mesh_broadcast: bool = True,
         source: str = "aureon.cognition",
@@ -401,7 +402,20 @@ class AureonCognition:
             raise TypeError(
                 "an HNC- and governance-capable tool registry is required"
             ) from exc
+        if isinstance(max_turns, bool) or not isinstance(max_turns, int) or not 1 <= max_turns <= 8:
+            raise ValueError("max_turns must be an integer from 1 to 8")
+        if max_model_calls is None:
+            raw_model_calls = str(
+                os.environ.get("AUREON_COGNITION_MAX_MODEL_CALLS", "18") or ""
+            ).strip()
+            if not raw_model_calls.isdigit():
+                raise ValueError("AUREON_COGNITION_MAX_MODEL_CALLS must be an integer")
+            max_model_calls = int(raw_model_calls)
+        if (isinstance(max_model_calls, bool) or not isinstance(max_model_calls, int)
+                or not 1 <= max_model_calls <= 18):
+            raise ValueError("max_model_calls must be an integer from 1 to 18")
         self.max_turns = max_turns
+        self.max_model_calls = max_model_calls
         self.source = source
         self._allow_repo_grounding = bool(allow_repo_grounding)
         self._allow_organism_context = bool(allow_organism_context)
@@ -868,7 +882,11 @@ class AureonCognition:
         *,
         phase: str,
         observer_prompt: str,
-    ) -> None:
+    ) -> tuple[bool, bool]:
+        remaining_model_calls = self.max_model_calls - res.turns
+        if remaining_model_calls <= 0:
+            return False, False
+        prior_text = res.text
         pending: List[ToolInvocation] = []
         dispatch_gates: Dict[str, Dict[str, Any]] = {}
 
@@ -907,7 +925,7 @@ class AureonCognition:
             self.adapter,
             tools=self.tools,
             system_prompt=system_prompt,
-            max_turns=self.max_turns,
+            max_turns=min(self.max_turns, remaining_model_calls),
             governance_required=True,
             authorize_tool_dispatch=_authorize,
             dispatch_context_provider=_dispatch_context,
@@ -1014,9 +1032,30 @@ class AureonCognition:
             res.errors.append({"phase": "loop", "error": str(exc)})
             text = f"[cognition error] {exc}"
 
-        res.text = (text or "").strip()
+        # AgentRunner ends with an assistant message only after a model response
+        # without tool calls.  If the final permitted call emitted tools, the
+        # runner has evidence but no post-tool synthesis.  Preserve the prior
+        # answer rather than replacing it with an empty/partial tool preamble.
+        completed = bool(
+            getattr(runner, "_messages", None)
+            and runner._messages[-1].get("role") == "assistant"
+        )
+        candidate = (text or "").strip()
+        if completed or candidate:
+            res.text = candidate
+        else:
+            res.text = prior_text
         res.turns += getattr(runner, "_turn_count", 0)   # accumulates across bake passes
-        self._publish(res, "loop", {"turns": res.turns, "n_tools": len(res.tool_calls)})
+        self._publish(
+            res,
+            "loop",
+            {
+                "turns": res.turns,
+                "n_tools": len(res.tool_calls),
+                "completed": completed,
+            },
+        )
+        return True, completed
 
     # ------------------------------------------------------------------
     # Gate (one canonical HNC decision; legacy aperture is telemetry only)
@@ -1142,11 +1181,33 @@ class AureonCognition:
             return
         self._publish(res, "acquire", {"gaps": gaps})
         tools_before = len(res.tool_calls)
-        self._run_loop(acquisition_prompt(prompt, res.text, gaps),
-                       system_prompt, res, phase="acquisition",
-                       observer_prompt=prompt)
+        started, completed = self._run_loop(
+            acquisition_prompt(prompt, res.text, gaps),
+            system_prompt,
+            res,
+            phase="acquisition",
+            observer_prompt=prompt,
+        )
+        if not started:
+            res.acquisition = {
+                "triggered": True,
+                "gaps": gaps,
+                "outcome": "unavailable",
+                "blocker": "aggregate model-call budget exhausted before acquisition",
+                "synthesized": False,
+            }
+            return
         verdict = acquisition_outcome(tools_before, res)
-        res.acquisition = {"triggered": True, "gaps": gaps, **verdict}
+        res.acquisition = {
+            "triggered": True,
+            "gaps": gaps,
+            **verdict,
+            "synthesized": completed,
+        }
+        if not completed:
+            res.acquisition["blocker"] = (
+                "aggregate model-call budget exhausted before post-tool synthesis"
+            )
 
     # ------------------------------------------------------------------
     # Bake (the completeness signal: one refinement pass, never a churn)
@@ -1172,9 +1233,30 @@ class AureonCognition:
                     "second pass would add no knowledge")
             return
         self._publish(res, "bake", {"reasons": first["reasons"]})
-        self._run_loop(refinement_prompt(prompt, res.text, first["reasons"]),
-                       system_prompt, res, phase="bake",
-                       observer_prompt=prompt)
+        started, completed = self._run_loop(
+            refinement_prompt(prompt, res.text, first["reasons"]),
+            system_prompt,
+            res,
+            phase="bake",
+            observer_prompt=prompt,
+        )
+        if not started:
+            res.bake["reasons"].append(
+                "not refined: aggregate model-call budget exhausted"
+            )
+            return
+        if not completed:
+            res.bake = {
+                "passes": 2,
+                "complete": False,
+                "reasons": [
+                    *list(first["reasons"]),
+                    "not refined: aggregate model-call budget exhausted before synthesis",
+                ],
+                "first_pass_reasons": list(first["reasons"]),
+                "refined": False,
+            }
+            return
         second = assess_completeness(prompt, res.text)
         res.bake = {"passes": 2, "complete": second["complete"],
                     "reasons": list(second["reasons"]),

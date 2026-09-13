@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[2]
+PRODUCTION_INVENTORY_RELATIVE = Path(
+    "docs/evidence/supabase/edge-functions/20260913/production_attack_surface.json"
+)
 
 FUNCTION_SECTION = "functions"
 PRIVILEGE_ENV_NAMES = {
@@ -63,6 +66,23 @@ REVIEWED_CUSTOM_AUTH: dict[str, tuple[re.Pattern[str], ...]] = {
 def _read_config(repo_root: Path) -> dict[str, Any]:
     config_path = repo_root / "supabase" / "config.toml"
     return tomllib.loads(config_path.read_text(encoding="utf-8"))
+
+
+def _production_dispositions(repo_root: Path) -> dict[str, str]:
+    inventory_path = repo_root / PRODUCTION_INVENTORY_RELATIVE
+    if not inventory_path.is_file():
+        return {}
+    payload = json.loads(inventory_path.read_text(encoding="utf-8"))
+    rows = payload.get("functions", [])
+    if not isinstance(rows, list):
+        raise ValueError("production Edge Function inventory must contain an array")
+    return {
+        row["slug"]: row["disposition"]
+        for row in rows
+        if isinstance(row, dict)
+        and isinstance(row.get("slug"), str)
+        and isinstance(row.get("disposition"), str)
+    }
 
 
 def _callable_methods(source: str) -> list[str]:
@@ -172,6 +192,7 @@ def _mutation_operations(source: str) -> list[str]:
 
 def build_auth_matrix(repo_root: Path = DEFAULT_REPO_ROOT) -> list[dict[str, Any]]:
     config = _read_config(repo_root)
+    production_dispositions = _production_dispositions(repo_root)
     configured_functions = config.get(FUNCTION_SECTION, {})
     if not isinstance(configured_functions, dict):
         raise ValueError("supabase/config.toml functions section must be a table")
@@ -196,6 +217,15 @@ def build_auth_matrix(repo_root: Path = DEFAULT_REPO_ROOT) -> list[dict[str, Any
         credentials = sorted(
             label for env_name, label in PRIVILEGE_ENV_NAMES.items() if env_name in source
         )
+        environment_names = sorted(
+            set(re.findall(r"Deno\.env\.get\(\s*['\"]([A-Z0-9_]+)['\"]", source))
+        )
+        sensitive_environment_names = sorted(
+            name
+            for name in environment_names
+            if name.endswith(("_KEY", "_SECRET", "_TOKEN", "_PASSWORD"))
+            or name in {"SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"}
+        )
         operations = _mutation_operations(source)
         db_operations = sorted(set(operations).intersection(DB_MUTATION_OPERATIONS))
         storage_operations = sorted(
@@ -210,6 +240,12 @@ def build_auth_matrix(repo_root: Path = DEFAULT_REPO_ROOT) -> list[dict[str, Any
         )
         privileged_mutation = has_privileged_credential and bool(
             db_operations or storage_operations or auth_admin_operations or edge_invocation
+        )
+        privileged_read = has_privileged_credential and bool(
+            _database_targets(source) or _storage_targets(source)
+        )
+        secret_backed_provider = bool(sensitive_environment_names) and bool(
+            re.search(r"\bfetch\s*\(|fetchExternalLlm\s*\(", source)
         )
         custom_auth = _custom_auth_mechanism(source)
         allowlisted = _custom_auth_allowlisted(function_dir.name, source)
@@ -226,6 +262,18 @@ def build_auth_matrix(repo_root: Path = DEFAULT_REPO_ROOT) -> list[dict[str, Any
         else:
             protection = "none"
 
+        privileged_access = privileged_mutation or privileged_read
+        if not privileged_access and not secret_backed_provider:
+            authority = "not_required"
+        elif allowlisted and custom_auth == "supabase_auth_get_user":
+            authority = "reviewed_subject_auth"
+        elif custom_auth == "shared_secret_exact_compare":
+            authority = "independent_service_secret"
+        elif verify_jwt:
+            authority = "gateway_jwt_only_insufficient"
+        else:
+            authority = "none"
+
         matrix.append(
             {
                 "function": function_dir.name,
@@ -235,15 +283,23 @@ def build_auth_matrix(repo_root: Path = DEFAULT_REPO_ROOT) -> list[dict[str, Any
                 "verify_jwt_source": "explicit" if config_declared else "default_true",
                 "callable_methods": _callable_methods(source),
                 "credentials": credentials,
+                "environment_names": environment_names,
+                "sensitive_environment_names": sensitive_environment_names,
                 "database_targets": _database_targets(source),
                 "storage_targets": _storage_targets(source),
                 "invoked_edge_functions": _invoked_edge_functions(source),
                 "mutation_operations": operations,
                 "privileged_mutation": privileged_mutation,
+                "privileged_read": privileged_read,
+                "privileged_access": privileged_access,
+                "secret_backed_provider": secret_backed_provider,
                 "custom_auth": custom_auth,
                 "custom_auth_allowlisted": allowlisted,
                 "cors_mentions_authorization": cors_mentions_authorization,
                 "protection": protection,
+                "authority": authority,
+                "production_active": function_dir.name in production_dispositions,
+                "production_disposition": production_dispositions.get(function_dir.name),
             }
         )
     return matrix
@@ -253,9 +309,14 @@ def policy_violations(matrix: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         row
         for row in matrix
-        if row["privileged_mutation"]
-        and not row["verify_jwt"]
-        and not row["custom_auth_allowlisted"]
+        if row["production_active"]
+        and (
+            row["authority"] == "gateway_jwt_only_insufficient"
+            or (
+                row["secret_backed_provider"]
+                and row["production_disposition"] != "retired"
+            )
+        )
     ]
 
 
@@ -272,6 +333,8 @@ def main() -> int:
         "offline": True,
         "function_count": len(matrix),
         "privileged_mutation_count": sum(bool(row["privileged_mutation"]) for row in matrix),
+        "privileged_read_count": sum(bool(row["privileged_read"]) for row in matrix),
+        "production_active_count": sum(bool(row["production_active"]) for row in matrix),
         "violations": [row["function"] for row in violations],
         "functions": matrix,
     }

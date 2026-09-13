@@ -10,7 +10,7 @@ interface OMSQueueMonitorProps {
 }
 
 export function OMSQueueMonitor({ sessionId }: OMSQueueMonitorProps) {
-  const { status, orders, cancelOrder, isProcessing } = useOMSQueue(sessionId);
+  const { status, orders, cancelOrder, isProcessing, mutationActionsAvailable, mutationUnavailableReason } = useOMSQueue(sessionId);
 
   if (!sessionId) {
     return (
@@ -40,38 +40,40 @@ export function OMSQueueMonitor({ sessionId }: OMSQueueMonitorProps) {
     );
   }
 
-  const utilizationColor = 
+  const utilizationColor = status.rateLimit === null ? 'text-muted-foreground' :
     status.rateLimit.utilization > 90 ? 'text-destructive' :
-    status.rateLimit.utilization > 70 ? 'text-warning' :
-    'text-success';
+    status.rateLimit.utilization > 70 ? 'text-warning' : 'text-success';
 
   return (
     <Card className="border-border/50 bg-card/50">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Activity className={`h-5 w-5 ${isProcessing ? 'animate-pulse text-primary' : 'text-primary'}`} />
-          OMS Leaky Bucket Queue
+          Recorded OMS Queue
         </CardTitle>
         <CardDescription>
-          Priority queue with rate limit protection (100 orders/10s)
+          Read-only queue rows for this tenant session
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
+          {mutationUnavailableReason}
+        </div>
         {/* Rate Limit Status */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm text-muted-foreground">Rate Limit Utilization</span>
             <span className={`text-sm font-mono font-semibold ${utilizationColor}`}>
-              {status.rateLimit.utilization.toFixed(1)}%
+              {status.rateLimit ? `${status.rateLimit.utilization.toFixed(1)}%` : 'Unavailable'}
             </span>
           </div>
           <Progress 
-            value={status.rateLimit.utilization} 
+            value={status.rateLimit?.utilization ?? 0}
             className="h-2"
           />
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{status.rateLimit.used}/{status.rateLimit.limit} used</span>
-            <span>{status.rateLimit.available} slots available</span>
+            <span>{status.rateLimit ? `${status.rateLimit.used}/${status.rateLimit.limit} used` : 'No current rate-limit receipt'}</span>
+            <span>{status.rateLimit ? `${status.rateLimit.available} slots available` : 'Unavailable'}</span>
           </div>
         </div>
 
@@ -101,7 +103,7 @@ export function OMSQueueMonitor({ sessionId }: OMSQueueMonitorProps) {
               Exec/min
             </div>
             <div className="text-2xl font-bold text-success">
-              {status.metrics?.orders_executed_last_minute || 0}
+              {status.metrics?.orders_executed_last_minute ?? 'Unavailable'}
             </div>
           </div>
         </div>
@@ -142,6 +144,8 @@ export function OMSQueueMonitor({ sessionId }: OMSQueueMonitorProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => cancelOrder(order.id)}
+                        disabled={!mutationActionsAvailable}
+                        title={mutationUnavailableReason}
                         className="h-8 w-8 p-0"
                       >
                         <X className="h-4 w-4" />

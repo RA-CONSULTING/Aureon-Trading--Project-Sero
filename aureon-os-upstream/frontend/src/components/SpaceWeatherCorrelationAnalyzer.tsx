@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
 import { TrendingUp, TrendingDown, Activity, Wind, Zap } from "lucide-react";
 import { 
   ScatterChart, 
@@ -69,16 +68,8 @@ export const SpaceWeatherCorrelationAnalyzer = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchCorrelation = async () => {
-    try {
-      const { data: analysisData, error } = await supabase.functions.invoke('analyze-space-weather-correlation');
-      
-      if (error) throw error;
-      setData(analysisData);
-    } catch (error) {
-      console.error('Error fetching space weather correlation:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    setData(null);
+    setIsLoading(false);
   };
 
   useEffect(() => {

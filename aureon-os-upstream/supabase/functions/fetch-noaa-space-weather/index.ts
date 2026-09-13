@@ -4,6 +4,7 @@ import {
   fetchLiveJson,
   liveProvenance,
   requireFiniteNumber,
+  requireFreshTimestamp,
 } from "../_shared/real_data.ts";
 
 const corsHeaders = {
@@ -55,6 +56,32 @@ type ForecastRow = {
   noaa_scale: string | null;
 };
 
+type ForecastPacket = {
+  rows: ForecastRow[];
+  sourceTimestamp: string;
+};
+
+async function fetchForecast(): Promise<ForecastPacket> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(FORECAST_URL, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`LIVE_SOURCE_HTTP:${response.status}:${FORECAST_URL}`);
+    const lastModified = response.headers.get("Last-Modified");
+    if (!lastModified) throw new Error("LIVE_SOURCE_TIMESTAMP_MISSING:NOAA_SWPC_FORECAST");
+    requireFreshTimestamp(lastModified, TELEMETRY_TTL_MS, "NOAA_SWPC_FORECAST.Last-Modified");
+    const sourceTimestamp = new Date(lastModified).toISOString();
+    const rows = await response.json() as ForecastRow[];
+    if (!Array.isArray(rows)) throw new Error("LIVE_SOURCE_INVALID:NOAA_SWPC_FORECAST");
+    return { rows, sourceTimestamp };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function epoch(timestamp: string): number {
   return Date.parse(timestamp.endsWith("Z") ? timestamp : `${timestamp}Z`);
 }
@@ -82,13 +109,14 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const [windRows, imfRows, goesRows, kpRows, forecastRows] = await Promise.all([
+    const [windRows, imfRows, goesRows, kpRows, forecastPacket] = await Promise.all([
       fetchLiveJson<WindRow[]>(WIND_URL),
       fetchLiveJson<ImfRow[]>(IMF_URL),
       fetchLiveJson<GoesMagRow[]>(GOES_MAG_URL),
       fetchLiveJson<KpRow[]>(KP_URL),
-      fetchLiveJson<ForecastRow[]>(FORECAST_URL),
+      fetchForecast(),
     ]);
+    const forecastRows = forecastPacket.rows;
 
     const activeImf = imfRows.filter((row) => row.active && row.bz_gsm !== null);
     const solarWindData = windRows
@@ -142,7 +170,12 @@ serve(async (req) => {
 
     const solarProvenance = liveProvenance("noaa_swpc_rtsw", WIND_URL, currentSolarWind.timestamp, TELEMETRY_TTL_MS);
     const magProvenance = liveProvenance("noaa_swpc_goes_magnetometer", GOES_MAG_URL, currentMag.timestamp, TELEMETRY_TTL_MS);
-    const forecastProvenance = derivedProvenance("noaa_swpc_kp_forecast", FORECAST_URL, new Date().toISOString(), TELEMETRY_TTL_MS);
+    const forecastProvenance = derivedProvenance(
+      "noaa_swpc_kp_forecast",
+      FORECAST_URL,
+      forecastPacket.sourceTimestamp,
+      TELEMETRY_TTL_MS,
+    );
     const stormLevel = currentMag.kIndex >= 8 ? "Severe" : currentMag.kIndex >= 6 ? "Strong" : currentMag.kIndex >= 5 ? "Moderate" : currentMag.kIndex >= 4 ? "Minor" : "Quiet";
     const auroraVisible = currentForecast.kpIndex >= 5;
     const auroraLocation = currentForecast.kpIndex >= 7 ? "Mid-latitudes (45°+)" : currentForecast.kpIndex >= 5 ? "High latitudes (55°+)" : currentForecast.kpIndex >= 3 ? "Arctic Circle (65°+)" : "Polar regions only";

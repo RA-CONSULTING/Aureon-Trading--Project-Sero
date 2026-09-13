@@ -4530,6 +4530,39 @@ export type Database = {
     }
     Functions: {
       cleanup_old_logs: { Args: never; Returns: undefined }
+      get_aureon_user_session_status: {
+        Args: never
+        Returns: {
+          alpaca_credentials_configured: boolean
+          available_balance_usdt: number | null
+          binance_credentials_configured: boolean
+          capital_credentials_configured: boolean
+          created_at: string | null
+          current_coherence: number | null
+          current_lambda: number | null
+          current_lighthouse_signal: number | null
+          dominant_node: string | null
+          gas_tank_balance: number | null
+          id: string
+          kraken_credentials_configured: boolean
+          last_quantum_update_at: string | null
+          last_trade_at: string | null
+          measurement_collected_at: string | null
+          measurement_generated_values: boolean
+          measurement_source_id: string | null
+          measurement_source_timestamp: string | null
+          measurement_truth_status: string
+          prism_level: number | null
+          prism_state: string | null
+          total_equity_usd: number | null
+          total_equity_usdt: number | null
+          total_pnl_usdt: number | null
+          total_trades: number | null
+          updated_at: string | null
+          user_id: string
+          winning_trades: number | null
+        }[]
+      }
       get_latest_harmonic_state: {
         Args: { p_temporal_id: string }
         Returns: {

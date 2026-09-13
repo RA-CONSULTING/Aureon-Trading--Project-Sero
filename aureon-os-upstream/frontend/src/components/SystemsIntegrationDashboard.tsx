@@ -12,13 +12,6 @@ import { QuantumStatePanel } from './warroom/QuantumStatePanel';
 import { AurisNodesOrbit } from './warroom/AurisNodesOrbit';
 import { UnifiedBusStatus } from './warroom/UnifiedBusStatus';
 
-const PENDING_SOURCES = [
-  'Independent Temporal Ladder heartbeats and failover receipts',
-  'Measured Zero Point and Dimensional Dialler observations',
-  'Measured Akashic frequency and alignment observations',
-  'Reconciled Queen Hive equity and generation ledger',
-];
-
 export function SystemsIntegrationDashboard() {
   const terminal = useTerminalState();
   const evidence = readWarRoomEvidence(terminal.state, terminal.isFresh);
@@ -40,11 +33,8 @@ export function SystemsIntegrationDashboard() {
     <AurisNodesOrbit evidence={evidence} />
     <UnifiedBusStatus evidence={evidence} />
     <details className="rounded-lg border border-border bg-card p-4">
-      <summary className="cursor-pointer font-medium">Source coverage · {PENDING_SOURCES.length} integrations pending observations</summary>
-      <p className="mt-3 text-sm text-muted-foreground">These integrations remain unavailable until the runtime publishes the corresponding source evidence.</p>
-      <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-        {PENDING_SOURCES.map((source) => <li key={source}>{source}</li>)}
-      </ul>
+      <summary className="cursor-pointer font-medium">Source coverage</summary>
+      <p className="mt-3 text-sm text-muted-foreground">Each panel above reports only evidence present in the current runtime receipt. Missing source fields remain unavailable; this view does not infer a fixed integration count.</p>
     </details>
     <p className="text-sm text-muted-foreground">This read-only view does not activate integrations or change execution controls. <Link to="/trading/war-room" className="text-primary underline">Open the Trading War Room</Link> for execution status and complete source coverage.</p>
   </div>;

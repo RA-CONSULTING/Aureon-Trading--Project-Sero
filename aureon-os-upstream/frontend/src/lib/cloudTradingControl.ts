@@ -15,6 +15,8 @@ export type CloudTradeControls = Record<CloudTradeControlId, boolean>;
 export interface CloudTradingProbe {
   intent_id: string;
   receipt_sha256: string;
+  source_revision: string;
+  runtime_measurement_sha256: string;
   received_at: number;
   age_seconds: number;
   current: boolean;
@@ -29,13 +31,53 @@ export interface CloudTradingProbe {
     durable_budget_ledger: boolean;
     order_adapter_ready: boolean;
     live_result_binding_ready: boolean;
+    instrument_preflight_enforced: boolean;
   } | null;
   provider_readback: {
     provider_count: 4;
     all_authenticated: true;
+    instrument_preflight_enforced: true;
     readback_sha256: string;
     providers: Record<'alpaca' | 'binance' | 'capital' | 'kraken', { authenticated: true; account_binding_sha256: string }>;
   } | null;
+}
+
+export interface CloudOrderIntentBridge {
+  schema: 'aureon.cloud-order-intent-bridge-status.v1';
+  observed_at: number;
+  revision: string;
+  state: 'blocked' | 'idle' | 'published' | 'publish_outcome_unknown';
+  operational: boolean;
+  candidate_ready: boolean;
+  blockers: string[];
+  source: {
+    runtime_status_sha256: string;
+    generated_at_ms: number;
+    age_ms: number;
+  } | null;
+  controller_release: {
+    state: 'active';
+    generation: number;
+    request_id: string;
+    source_revision: string;
+    authorization_event_sha256: string;
+    authorization_expires_at_ms: number;
+  } | null;
+  last_publish: {
+    topic: string;
+    intent_id: string;
+    client_order_id: string;
+    intent_sha256: string;
+    market_evidence_sha256: string;
+    venue: 'alpaca' | 'binance' | 'capital' | 'kraken';
+    symbol: string;
+    side: 'BUY' | 'SELL';
+    quote_value_usd: number;
+    pubsub_message_id: string;
+    published_at_ms: number;
+  } | null;
+  release_authority: boolean;
+  mutation_authority: false;
 }
 
 export interface CloudTradingControlReceipt {
@@ -68,6 +110,7 @@ export interface CloudTradingControlReceipt {
     source_revision: string;
     controller_key_version: string;
   } | null;
+  intent_bridge: CloudOrderIntentBridge | null;
   blockers: string[];
   production_ready: boolean;
   release_authority: boolean;
@@ -99,16 +142,21 @@ function probe(value: unknown): value is CloudTradingProbe {
   const provider = record(raw?.provider_readback);
   const providers = record(provider?.providers);
   const providerNames = ['alpaca', 'binance', 'capital', 'kraken'] as const;
-  const executorValid = executor === null || (Object.keys(executor).length === 4
-    && ['live_execution_release', 'durable_budget_ledger', 'order_adapter_ready', 'live_result_binding_ready']
+  const executorValid = executor === null || (Object.keys(executor).length === 5
+    && ['live_execution_release', 'durable_budget_ledger', 'order_adapter_ready', 'live_result_binding_ready', 'instrument_preflight_enforced']
       .every(key => typeof executor[key] === 'boolean'));
-  const providerValid = provider === null || (provider.provider_count === 4 && provider.all_authenticated === true
+  const providerValid = provider === null || (Object.keys(provider).length === 5
+    && provider.provider_count === 4 && provider.all_authenticated === true
+    && provider.instrument_preflight_enforced === true
     && hex64(provider.readback_sha256) && providers !== null && Object.keys(providers).length === 4
     && providerNames.every(name => {
       const row = record(providers[name]);
-      return row?.authenticated === true && hex64(row.account_binding_sha256);
+      return row !== null && Object.keys(row).length === 2
+        && row.authenticated === true && hex64(row.account_binding_sha256);
     }));
   return raw !== null && hex64(raw.intent_id) && hex64(raw.receipt_sha256)
+    && typeof raw.source_revision === 'string' && /^[a-f0-9]{40,64}$/.test(raw.source_revision)
+    && hex64(raw.runtime_measurement_sha256)
     && typeof raw.received_at === 'number' && Number.isFinite(raw.received_at)
     && typeof raw.age_seconds === 'number' && Number.isFinite(raw.age_seconds)
     && typeof raw.current === 'boolean' && raw.chain_verified === true
@@ -118,6 +166,42 @@ function probe(value: unknown): value is CloudTradingProbe {
     && raw.provider_mutation_attempted === false
     && raw.orders_attempted === 0 && raw.orders_submitted === 0
     && executorValid && providerValid;
+}
+
+function intentBridge(value: unknown): value is CloudOrderIntentBridge | null {
+  if (value === null) return true;
+  const raw = record(value);
+  const source = record(raw?.source);
+  const release = record(raw?.controller_release);
+  const published = record(raw?.last_publish);
+  const sourceValid = source === null || (hex64(source.runtime_status_sha256)
+    && typeof source.generated_at_ms === 'number' && Number.isSafeInteger(source.generated_at_ms)
+    && typeof source.age_ms === 'number' && Number.isSafeInteger(source.age_ms));
+  const releaseValid = release === null || (release.state === 'active'
+    && typeof release.generation === 'number' && Number.isSafeInteger(release.generation) && release.generation > 0
+    && hex64(release.request_id) && typeof release.source_revision === 'string'
+    && /^[a-f0-9]{40,64}$/.test(release.source_revision)
+    && hex64(release.authorization_event_sha256)
+    && typeof release.authorization_expires_at_ms === 'number' && Number.isSafeInteger(release.authorization_expires_at_ms));
+  const publishValid = published === null || (published.topic === 'projects/aureon-trading/topics/aureon-trade-intents-v1'
+    && ['intent_id', 'client_order_id', 'intent_sha256', 'market_evidence_sha256'].every(key => hex64(published[key]))
+    && ['alpaca', 'binance', 'capital', 'kraken'].includes(String(published.venue))
+    && typeof published.symbol === 'string' && /^[A-Z0-9][A-Z0-9./_-]{1,31}$/.test(published.symbol)
+    && (published.side === 'BUY' || published.side === 'SELL')
+    && typeof published.quote_value_usd === 'number' && Number.isFinite(published.quote_value_usd)
+    && published.quote_value_usd > 0 && published.quote_value_usd <= 5
+    && typeof published.pubsub_message_id === 'string' && /^[0-9]{1,64}$/.test(published.pubsub_message_id)
+    && typeof published.published_at_ms === 'number' && Number.isSafeInteger(published.published_at_ms));
+  return raw !== null && raw.schema === 'aureon.cloud-order-intent-bridge-status.v1'
+    && typeof raw.observed_at === 'number' && Number.isFinite(raw.observed_at)
+    && typeof raw.revision === 'string' && /^[a-f0-9]{40,64}$/.test(raw.revision)
+    && ['blocked', 'idle', 'published', 'publish_outcome_unknown'].includes(String(raw.state))
+    && typeof raw.operational === 'boolean' && typeof raw.candidate_ready === 'boolean'
+    && Array.isArray(raw.blockers) && raw.blockers.every(item => typeof item === 'string' && item.length > 0)
+    && sourceValid && releaseValid && publishValid
+    && typeof raw.release_authority === 'boolean' && raw.mutation_authority === false
+    && (raw.release_authority === (release !== null))
+    && (raw.state !== 'published' || (raw.operational === true && raw.candidate_ready === true && published !== null));
 }
 
 function controllerRelease(value: unknown): boolean {
@@ -130,7 +214,8 @@ function controllerRelease(value: unknown): boolean {
     && typeof raw.authorization_expires_at_ms === 'number' && Number.isSafeInteger(raw.authorization_expires_at_ms)
     && typeof raw.signed_at_ms === 'number' && Number.isSafeInteger(raw.signed_at_ms)
     && typeof raw.source_revision === 'string' && /^[a-f0-9]{40,64}$/.test(raw.source_revision)
-    && typeof raw.controller_key_version === 'string' && raw.controller_key_version.includes('/aureon-controller-signing/');
+    && typeof raw.controller_key_version === 'string'
+    && /^[A-Za-z0-9._:/-]{3,512}$/.test(raw.controller_key_version);
 }
 
 export function readCloudTradingControl(value: unknown): CloudTradingControlReceipt {
@@ -153,6 +238,7 @@ export function readCloudTradingControl(value: unknown): CloudTradingControlRece
     || !capabilities || Object.values(capabilities).some(item => typeof item !== 'boolean')
     || !(raw.last_probe === null || probe(raw.last_probe))
     || !controllerRelease(raw.controller_release)
+    || !intentBridge(raw.intent_bridge)
     || !Array.isArray(raw.blockers) || raw.blockers.some(item => typeof item !== 'string' || !/^[a-z0-9_]+$/.test(item))
     || typeof raw.production_ready !== 'boolean'
     || typeof raw.release_authority !== 'boolean' || raw.mutation_authority !== false
@@ -160,10 +246,14 @@ export function readCloudTradingControl(value: unknown): CloudTradingControlRece
     throw new Error('Cloud trading control evidence unavailable');
   }
   const release = record(raw.controller_release);
+  const bridge = record(raw.intent_bridge);
+  const lastProbe = record(raw.last_probe);
   if ((raw.production_ready && (!raw.operator_can_apply_live || raw.blockers.length > 0 || raw.release_authority !== true))
-    || raw.release_authority !== raw.production_ready
     || authorization.release_authority !== raw.release_authority
-    || (raw.release_authority && release?.state !== 'active')) {
+    || (raw.release_authority && release?.state !== 'active')
+    || (raw.production_ready && (lastProbe === null || lastProbe.current !== true
+      || lastProbe.provider_readback === null || bridge?.operational !== true
+      || bridge?.release_authority !== true))) {
     throw new Error('Cloud trading control evidence inconsistent');
   }
   return raw as unknown as CloudTradingControlReceipt;

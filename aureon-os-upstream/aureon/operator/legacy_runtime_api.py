@@ -24,7 +24,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Callable, Dict, Tuple
 
 logger = logging.getLogger("aureon.operator.legacy_runtime_api")
@@ -116,7 +116,7 @@ def _terminal_receipt_payload(state: Dict[str, Any]) -> Dict[str, Any]:
         "read_state": "observed",
         "available": bool(summary["ok"] and not summary["stale"]),
         "received_at": now,
-        "received_at_iso": datetime.fromtimestamp(now, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "received_at_iso": datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z"),
         "digest_sha256": hashlib.sha256(body).hexdigest(),
         "digest_scope": "compact_terminal_summary",
         "terminal": summary,
@@ -170,6 +170,20 @@ def register_legacy_runtime_routes(app: Any) -> int:
                 "mutation_authority": False,
             })
             return jsonify(payload)
+
+    def _orca_observations() -> Any:
+        """Project saved terminal-state position receipts; never call a provider."""
+        from aureon.operator.orca_observations import build_operator_orca_observations
+
+        try:
+            read_status, _flight, _env = _status_handlers()
+            payload = build_operator_orca_observations(read_status())
+        except Exception as exc:  # noqa: BLE001 - stable unavailable contract on read failure
+            logger.debug("operator Orca observations unavailable: %s", exc)
+            payload = build_operator_orca_observations({})
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     def _flight_test_route() -> Any:
         try:
@@ -245,6 +259,7 @@ def register_legacy_runtime_routes(app: Any) -> int:
     routes = (
         ("/api/terminal-state", "legacy_terminal_state", _terminal_state, ["GET"]),
         ("/api/operator/terminal-receipt", "operator_terminal_receipt", _terminal_receipt, ["GET"]),
+        ("/api/orca-observations", "operator_orca_observations", _orca_observations, ["GET"]),
         ("/api/flight-test", "legacy_flight_test", _flight_test_route, ["GET"]),
         ("/api/reboot-advice", "legacy_reboot_advice", _reboot_advice, ["GET"]),
         ("/api/env-credentials", "legacy_env_credentials", _env_credentials, ["GET"]),

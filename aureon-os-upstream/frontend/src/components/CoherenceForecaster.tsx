@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Sparkles, Calendar, Clock, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -37,59 +36,25 @@ interface ForecastData {
 }
 
 const DAYS_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const FORECAST_SOURCE_REQUIRED =
+  'Forecasting requires an identity-bound operator observation source.';
 
 export const CoherenceForecaster = () => {
   const [forecastData, setForecastData] = useState<ForecastData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(FORECAST_SOURCE_REQUIRED);
   const { toast } = useToast();
 
   const generateForecast = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log('Calling forecast-coherence function...');
-
-      const { data, error: functionError } = await supabase.functions.invoke('forecast-coherence', {
-        body: {},
-      });
-
-      if (functionError) {
-        console.error('Function error:', functionError);
-        throw functionError;
-      }
-
-      if (data.error) {
-        setError(data.message || data.error);
-        toast({
-          title: "Insufficient Data",
-          description: data.message || "Not enough historical data for forecasting.",
-          variant: "default",
-        });
-        return;
-      }
-
-      console.log('Forecast data received:', data);
-      setForecastData(data);
-
-      toast({
-        title: "Forecast Generated",
-        description: `Analyzed ${data.metadata?.historicalDataPoints || 0} data points to predict optimal trading windows.`,
-        duration: 5000,
-      });
-
-    } catch (error) {
-      console.error('Error generating forecast:', error);
-      setError(error instanceof Error ? error.message : 'Failed to generate forecast');
-      toast({
-        title: "Forecast Error",
-        description: "Failed to generate coherence forecast. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    const message = FORECAST_SOURCE_REQUIRED;
+    setIsLoading(false);
+    setForecastData(null);
+    setError(message);
+    toast({
+      title: 'Operator forecast unavailable',
+      description: message,
+      variant: 'destructive',
+    });
   };
 
   const formatHours = (hours: number[]): string => {
@@ -153,7 +118,7 @@ export const CoherenceForecaster = () => {
           </div>
           <Button
             onClick={generateForecast}
-            disabled={isLoading}
+            disabled
             className="gap-2"
           >
             {isLoading ? (
@@ -164,7 +129,7 @@ export const CoherenceForecaster = () => {
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Generate Forecast
+                Operator source required
               </>
             )}
           </Button>
@@ -177,7 +142,7 @@ export const CoherenceForecaster = () => {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-warning mt-0.5" />
                 <div>
-                  <h4 className="font-semibold text-sm mb-1">Insufficient Data</h4>
+                  <h4 className="font-semibold text-sm mb-1">Governed source required</h4>
                   <p className="text-xs text-muted-foreground">{error}</p>
                 </div>
               </div>

@@ -23,21 +23,40 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 ROOT = Path(__file__).resolve().parent
 CONTRACT_ROOT = ROOT / "trading-control"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 if str(CONTRACT_ROOT) not in sys.path:
     sys.path.insert(0, str(CONTRACT_ROOT))
 
 from contract import (  # noqa: E402
+    ContractError,
     DISPATCH_SCHEMA,
     EXECUTOR_SCHEMA,
     RECEIPT_SCHEMA,
     REVIEW_SCHEMA,
     canonical_bytes,
+    build_readiness_release_binding,
     digest,
+    periodic_readiness_probe,
     unsigned_stage,
     validate_intent,
+    validate_provider_probe_readback,
+    validate_readiness_envelope,
     validate_stage,
 )
 from make_probe import build_probe  # noqa: E402
+from cloud_order_intent_bridge import (  # noqa: E402
+    BRIDGE_INTERVAL_SECONDS,
+    BridgeError as IntentBridgeError,
+    DEFAULT_STATE,
+    DEFAULT_STATUS,
+    OrderIntentBridge,
+)
+from provider_boundary import valid_instrument_readiness_blocker  # noqa: E402
+from vm_workload_identity import (  # noqa: E402
+    WorkloadIdentityError,
+    broker_token,
+)
 
 
 PROJECT = "aureon-trading"
@@ -60,8 +79,12 @@ KEYS = {
     "executor": f"{KEY_PREFIX}/aureon-executor-signing/cryptoKeyVersions/1",
     "receipt": f"{KEY_PREFIX}/aureon-receipt-signing/cryptoKeyVersions/1",
 }
-DEFAULT_OUTPUT = Path("/srv/aureon/cache/trading-control/latest-terminal-receipt.json")
-DEFAULT_LIVE_OUTPUT = Path("/srv/aureon/cache/trading-control/latest-live-terminal-receipt.json")
+DEFAULT_OUTPUT = Path(
+    "/var/lib/aureon-control-exchange/trade-readback/latest-terminal-receipt.json"
+)
+DEFAULT_LIVE_OUTPUT = Path(
+    "/var/lib/aureon-trade-bridge/latest-live-terminal-receipt.json"
+)
 _MESSAGE_ID = re.compile(r"[0-9]{1,64}")
 _PROVIDER_ID = re.compile(r"[A-Za-z0-9._:/-]{1,256}")
 _HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -103,6 +126,12 @@ def _http(url: str, *, method: str = "GET", headers: Mapping[str, str] | None = 
 
 
 def access_token(reader=_http) -> str:
+    try:
+        token = broker_token()
+    except WorkloadIdentityError as exc:
+        raise CollectorError(str(exc)) from exc
+    if token is not None:
+        return token
     raw = reader(METADATA, headers={"Metadata-Flavor": "Google"}, timeout=5)
     try:
         value = json.loads(raw)
@@ -128,7 +157,8 @@ def _cloud_json(raw: bytes, code: str) -> dict[str, Any]:
 
 def publish_control_probe(*, revision: str, reader=_http, current_time=time.time,
                           environ: Mapping[str, str] | None = None,
-                          authorization_builder=None) -> dict[str, str] | None:
+                          authorization_builder=None,
+                          release: Mapping[str, Any] | None = None) -> dict[str, str] | None:
     """Publish one held, zero-mutation probe while the owner lease is active."""
     env = os.environ if environ is None else environ
     if not _REVISION.fullmatch(str(revision or "")):
@@ -157,11 +187,26 @@ def publish_control_probe(*, revision: str, reader=_http, current_time=time.time
             or not math.isfinite(float(expires_at)) or float(expires_at) <= now
             or float(expires_at) > now + 259_200):
         raise CollectorError("probe_authorization_invalid")
+    readiness_release = None
+    if isinstance(release, Mapping) and release.get("state") == "active":
+        try:
+            candidate = build_readiness_release_binding(release)
+        except ContractError:
+            candidate = None
+        if (
+            candidate is not None
+            and candidate["source_revision"] == revision
+            and candidate["authorization_event_sha256"] == event_sha256
+            and candidate["authorization_expires_at_ms"] == int(float(expires_at) * 1000)
+            and candidate["authorization_expires_at_ms"] > int(now * 1000)
+        ):
+            readiness_release = candidate
     probe = build_probe(
         event_sha256=str(event_sha256),
         lease_expires_at_ms=int(float(expires_at) * 1000),
         revision=revision,
         now_ms=int(now * 1000),
+        readiness_release=readiness_release,
     )
     token = access_token(reader)
     response = reader(
@@ -182,7 +227,11 @@ def publish_control_probe(*, revision: str, reader=_http, current_time=time.time
             or not isinstance(message_ids[0], str)
             or not _MESSAGE_ID.fullmatch(message_ids[0])):
         raise CollectorError("probe_publish_response_invalid")
-    return {"message_id": message_ids[0], "intent_id": probe["intent_id"]}
+    return {
+        "message_id": message_ids[0],
+        "intent_id": probe["intent_id"],
+        "mode": "periodic_readiness" if readiness_release is not None else "activation_probe",
+    }
 
 
 def _verify_signature(stage: Mapping[str, Any], expected_key: str, *, token: str,
@@ -253,17 +302,50 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
                 or set(capabilities) != {
                     "live_execution_release", "durable_budget_ledger",
                     "order_adapter_ready", "live_result_binding_ready",
+                    "instrument_preflight_enforced",
                 }
                 or any(type(value) is not bool for value in capabilities.values())):
             raise CollectorError("terminal_executor_capabilities_invalid")
+        readiness_attestation = outcome.get("readiness_attestation")
+        if periodic_readiness_probe(intent):
+            try:
+                readiness_attestation = validate_readiness_envelope(
+                    readiness_attestation, role="executor", now_ms=current,
+                )
+            except ContractError as exc:
+                raise CollectorError("terminal_periodic_readiness_invalid") from exc
+            if readiness_attestation["key_version"] != KEYS["executor"]:
+                raise CollectorError("terminal_periodic_readiness_key_invalid")
+            _verify_signature(
+                readiness_attestation, KEYS["executor"], token=token, reader=reader,
+            )
+        elif readiness_attestation is not None:
+            raise CollectorError("terminal_activation_probe_readiness_forbidden")
     else:
         status = outcome.get("status")
+        blocker = outcome.get("instrument_readiness_blocker")
+        reason_code = outcome.get("reason_code")
+        valid_blocker = blocker is None or (
+            status == "rejected"
+            and valid_instrument_readiness_blocker(
+                blocker, venue=outcome.get("venue"), reason_code=reason_code,
+            )
+        )
+        provider_rule_rejection = (
+            status == "rejected"
+            and isinstance(reason_code, str)
+            and any(reason_code.startswith(venue + "_") for venue in (
+                "alpaca", "binance", "capital", "kraken",
+            ))
+        )
         valid_live = (
             intent["dry_run"] is False
             and outcome.get("schema") == "aureon.cloud-trade-live-result.v1"
             and outcome.get("intent_id") == intent["intent_id"]
             and outcome.get("dispatch_sha256") == digest(dispatch)
             and status in {"provider_observed", "rejected", "uncertain"}
+            and valid_blocker
+            and (not provider_rule_rejection or blocker is not None)
             and ((status == "provider_observed"
                   and outcome.get("provider_mutation_attempted") is True
                   and outcome.get("orders_attempted") == 1
@@ -273,15 +355,22 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
                   and _PROVIDER_ID.fullmatch(outcome["provider_order_id"]) is not None
                   and _PROVIDER_ID.fullmatch(outcome["provider_client_order_id"]) is not None
                   and isinstance(outcome.get("provider_readback_sha256"), str)
-                  and re.fullmatch(r"[0-9a-f]{64}", outcome["provider_readback_sha256"]) is not None)
+                  and re.fullmatch(r"[0-9a-f]{64}", outcome["provider_readback_sha256"]) is not None
+                  and isinstance(outcome.get("instrument_preflight_sha256"), str)
+                  and re.fullmatch(r"[0-9a-f]{64}", outcome["instrument_preflight_sha256"]) is not None)
                  or (status == "rejected"
                      and outcome.get("provider_mutation_attempted") is False
                      and outcome.get("orders_attempted") == 0
-                     and outcome.get("orders_submitted") == 0)
+                     and outcome.get("orders_submitted") == 0
+                     and (outcome.get("instrument_preflight_sha256") is None
+                          or (isinstance(outcome.get("instrument_preflight_sha256"), str)
+                              and re.fullmatch(r"[0-9a-f]{64}", outcome["instrument_preflight_sha256"]) is not None)))
                  or (status == "uncertain"
                      and outcome.get("provider_mutation_attempted") is True
                      and outcome.get("orders_attempted") == 1
-                     and outcome.get("orders_submitted") is None))
+                     and outcome.get("orders_submitted") is None
+                     and isinstance(outcome.get("instrument_preflight_sha256"), str)
+                     and re.fullmatch(r"[0-9a-f]{64}", outcome["instrument_preflight_sha256"]) is not None))
         )
         if not valid_live:
             raise CollectorError("terminal_live_outcome_invalid")
@@ -289,23 +378,18 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
     provider_readback = outcome.get("provider_readback") if is_probe else None
     provider_summary = None
     if provider_readback is not None:
-        providers = provider_readback.get("providers") if isinstance(provider_readback, Mapping) else None
-        if (not isinstance(provider_readback, Mapping)
-                or provider_readback.get("schema") != "aureon.cloud-trade-provider-readback.v1"
-                or provider_readback.get("provider_count") != 4
-                or provider_readback.get("all_authenticated") is not True
-                or provider_readback.get("provider_mutation_attempted") is not False
-                or not isinstance(providers, Mapping)
-                or set(providers) != {"alpaca", "binance", "capital", "kraken"}
-                or any(not isinstance(row, Mapping) or row.get("venue") != venue
-                       or row.get("authenticated") is not True
-                       or not isinstance(row.get("account_binding_sha256"), str)
-                       or not re.fullmatch(r"[0-9a-f]{64}", row["account_binding_sha256"])
-                       for venue, row in providers.items())
-                or provider_readback.get("readback_sha256") != digest(providers)):
+        try:
+            provider_readback = validate_provider_probe_readback(
+                provider_readback,
+                source_revision=intent["source_revision"],
+                now_ms=current,
+            )
+        except (ContractError, KeyError, TypeError):
             raise CollectorError("terminal_provider_readback_invalid")
+        providers = provider_readback["providers"]
         provider_summary = {
             "provider_count": 4, "all_authenticated": True,
+            "instrument_preflight_enforced": True,
             "readback_sha256": provider_readback["readback_sha256"],
             "providers": {
                 venue: {"authenticated": True, "account_binding_sha256": row["account_binding_sha256"]}
@@ -326,9 +410,29 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
         and intent["created_at_ms"] <= terminal["signed_at_ms"] <= intent["expires_at_ms"]
     ):
         raise CollectorError("terminal_chain_join_invalid")
+    readiness_summary = None
+    if is_probe and periodic_readiness_probe(intent):
+        statement = outcome["readiness_attestation"]["statement"]
+        readiness_summary = {
+            key: statement[key]
+            for key in (
+                "source_revision", "release_generation", "release_request_id",
+                "release_state_sha256", "authorization_event_sha256",
+                "authorization_expires_at_ms", "provider_accounts_sha256",
+                "provider_readback_sha256", "execution_budget_readiness_sha256",
+                "maximum_order_usd", "provider_count", "all_authenticated",
+                "provider_mutation_attempted", "orders_attempted", "orders_submitted",
+                "observed_at_ms", "expires_at_ms",
+            )
+        }
+        readiness_summary["executor_attestation_sha256"] = digest(
+            outcome["readiness_attestation"],
+        )
     return {
         "intent_id": intent["intent_id"],
         "intent_created_at_ms": intent["created_at_ms"],
+        "source_revision": intent["source_revision"],
+        "runtime_measurement_sha256": intent["runtime_measurement_sha256"],
         "receipt_sha256": digest(terminal),
         "stage_ids": {
             "review": review["stage_id"], "dispatch": dispatch["stage_id"],
@@ -350,12 +454,18 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
         "provider_client_order_id": outcome.get("provider_client_order_id"),
         "provider_status": outcome.get("provider_status"),
         "provider_readback_sha256": outcome.get("provider_readback_sha256"),
+        "instrument_preflight_sha256": outcome.get("instrument_preflight_sha256"),
+        "instrument_readiness_blocker": (
+            dict(outcome["instrument_readiness_blocker"])
+            if isinstance(outcome.get("instrument_readiness_blocker"), Mapping) else None
+        ),
         "executor_capabilities": dict(capabilities) if isinstance(capabilities, Mapping) else None,
         "provider_readback": provider_summary,
+        "periodic_readiness": readiness_summary,
     }
 
 
-def _durable_write(path: Path, value: Mapping[str, Any]) -> None:
+def _durable_write(path: Path, value: Mapping[str, Any], *, shared: bool = False) -> None:
     if not path.is_absolute() or path.exists() and path.is_symlink():
         raise CollectorError("receipt_output_path_invalid")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -369,7 +479,7 @@ def _durable_write(path: Path, value: Mapping[str, Any]) -> None:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(temporary, 0o600)
+        os.chmod(temporary, 0o640 if shared else 0o600)
         os.replace(temporary, path)
         if os.name == "posix":
             directory = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
@@ -427,8 +537,12 @@ def pull_once(*, output: Path = DEFAULT_OUTPUT, reader=_http,
         "release_authority": False,
         "mutation_authority": False,
     }
-    target = DEFAULT_LIVE_OUTPUT if output == DEFAULT_OUTPUT and summary["dry_run"] is False else output
-    _durable_write(target, stored)
+    live_output = Path(
+        os.environ.get("AUREON_CLOUD_TRADE_LIVE_READBACK_PATH")
+        or str(DEFAULT_LIVE_OUTPUT)
+    )
+    target = live_output if output == DEFAULT_OUTPUT and summary["dry_run"] is False else output
+    _durable_write(target, stored, shared=target == DEFAULT_OUTPUT)
     reader(
         PUBSUB + ":acknowledge", method="POST", headers=headers,
         body=json.dumps({"ackIds": [ack_id]}, separators=(",", ":")).encode(), timeout=8,
@@ -443,11 +557,30 @@ def run(*, revision: str, output: Path = DEFAULT_OUTPUT,
     if not math.isfinite(probe_interval) or not 30 <= probe_interval <= 240:
         raise CollectorError("probe_interval_invalid")
     next_probe = 0.0
+    next_intent_bridge = 0.0
+    state_path = Path(
+        os.environ.get("AUREON_ORDER_INTENT_STATE_PATH") or str(DEFAULT_STATE)
+    )
+    status_path = Path(
+        os.environ.get("AUREON_ORDER_INTENT_STATUS_PATH") or str(DEFAULT_STATUS)
+    )
+    intent_bridge = OrderIntentBridge(
+        revision=revision, state_path=state_path, status_path=status_path,
+    )
     while True:
         current = time.time()
+        if current >= next_intent_bridge:
+            try:
+                intent_bridge.cycle()
+            except IntentBridgeError as exc:
+                print(str(exc), file=sys.stderr, flush=True)
+            next_intent_bridge = current + BRIDGE_INTERVAL_SECONDS
         if current >= next_probe:
             try:
-                published = publish_control_probe(revision=revision)
+                release, _release_error = intent_bridge.controller_reader(
+                    reader=intent_bridge.http_reader,
+                )
+                published = publish_control_probe(revision=revision, release=release)
                 next_probe = current + (probe_interval if published is not None else 60.0)
             except CollectorError as exc:
                 print(str(exc), file=sys.stderr, flush=True)
@@ -462,7 +595,11 @@ def run(*, revision: str, output: Path = DEFAULT_OUTPUT,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path(os.environ.get("AUREON_CLOUD_TRADE_READBACK_PATH") or DEFAULT_OUTPUT),
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--revision")
     args = parser.parse_args()

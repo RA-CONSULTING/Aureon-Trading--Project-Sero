@@ -3,7 +3,7 @@ import { GlassPageHeader, GlassSection } from "@/shell/GlassPage";
 import { GeneratedReportBoundary } from "./GeneratedReportBoundary";
 import { useTerminalState } from "@/hooks/useTerminalState";
 import { consoleNumber } from "@/lib/generatedConsoleEvidence";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Building2, CheckCircle2, ExternalLink, Gauge, LineChart, Radio, RefreshCw, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

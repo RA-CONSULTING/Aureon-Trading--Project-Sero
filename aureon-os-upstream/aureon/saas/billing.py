@@ -142,8 +142,28 @@ def register_billing(app: Any) -> Any:
     def billing_status() -> Any:
         from aureon.operator.metrics import token_usage_totals
 
+        # A tenant may inspect their account billing surface, but global buffer
+        # counters, model-token totals, missing server env names and the owner's
+        # fee switch are instance-control posture.  Returning them here made an
+        # otherwise account-scoped route a side channel into the owner runtime.
+        if not getattr(g, "is_admin", True):
+            return jsonify({
+                "configured": config.ok,
+                "scope": "account",
+                "tenancy_bridge": "on" if tenant_auth_configured else "off",
+                "metering": {
+                    "scope": "account",
+                    "status": "available" if config.ok else "unavailable",
+                },
+                "tokens": {"scope": "account", "status": "not_exposed"},
+                "charge_endpoint": {"enabled": False, "operator_only": True},
+                "execution_state": "held",
+                "model": "record-only account metering; fee charging remains operator-controlled",
+            })
+
         return jsonify({
             "configured": config.ok,
+            "scope": "instance",
             "missing_env": config.missing(),
             "tenancy_bridge": "on" if tenant_auth_configured else "off",
             "metering": get_buffer().stats(),
@@ -201,8 +221,8 @@ def register_billing(app: Any) -> Any:
             "tenant": tenant,
             "count": len(rows),
             "events": rows,
-            "buffer": get_buffer().stats(),
-            "note": "llm_tokens events are untenanted (per-provider) and do not appear here",
+            "scope": "account",
+            "note": "Only persisted events scoped to this account are returned",
         })
 
     # ── charge-fee proxy (MOVES MONEY — off by default) ──────────────────────

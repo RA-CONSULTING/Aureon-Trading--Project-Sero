@@ -1,3 +1,4 @@
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { assessmentDependencies } from '@/lib/assessmentEvidence';
 import type { AssessmentPayload } from '@/services/assessmentReads';

@@ -3,8 +3,9 @@ Aureon Operator — encrypted provider keystore.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Instance-owned API keys for the LLM switchboard, entered in the Providers UI and
-kept **encrypted at rest** (Fernet) at ``~/.aureon/provider_keys.json.enc`` with
-the key file ``~/.aureon/provider_keys.key`` (mode 0600). Never committed.
+kept **encrypted at rest** (Fernet) under ``$AUREON_KEYSTORE_DIR`` when set, or
+``~/.aureon`` for local compatibility. The directory is mode 0700 and the key
+and ciphertext files are mode 0600. Never committed.
 
 The keystore is the *control plane*: ``apply_to_env()`` injects stored values
 into ``os.environ`` under each provider's env vars (from ``provider_catalog``),
@@ -40,7 +41,54 @@ from aureon.operator.provider_catalog import get_provider, managed_env_vars
 
 logger = logging.getLogger("aureon.operator.keystore")
 
-CONFIG_DIR = Path.home() / ".aureon"
+KEYSTORE_DIR_ENV = "AUREON_KEYSTORE_DIR"
+PINNED_ENV_VARS_ENV = "AUREON_PINNED_PROVIDER_ENV_VARS"
+
+# This closed set mirrors deployment/google-cloud/cloud_credential_boundary.py.
+# The cloud operator has no exchange bundle, so aliases absent from the public
+# connection catalog must still be protected from a stale encrypted store.
+CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS = frozenset({
+    "ALPACA_API_KEY",
+    "ALPACA_API_KEY_ID",
+    "ALPACA_API_SECRET",
+    "ALPACA_API_SECRET_KEY",
+    "ALPACA_KEY",
+    "ALPACA_SECRET",
+    "ALPACA_SECRET_KEY",
+    "APCA_API_KEY_ID",
+    "APCA_API_SECRET_KEY",
+    "BINANCE_API_KEY",
+    "BINANCE_API_SECRET",
+    "BINANCE_KEY",
+    "BINANCE_SECRET",
+    "BINANCE_SECRET_KEY",
+    "BINANCE_TESTNET_API_KEY",
+    "BINANCE_TESTNET_API_SECRET",
+    "CAPITAL_API_KEY",
+    "CAPITAL_API_PASSWORD",
+    "CAPITAL_API_SECRET",
+    "CAPITAL_EMAIL",
+    "CAPITAL_IDENTIFIER",
+    "CAPITAL_PASSWORD",
+    "CAPITAL_USER",
+    "KRAKEN_API_KEY",
+    "KRAKEN_API_SECRET",
+    "KRAKEN_PRIVATE_KEY",
+    "KRAKEN_SECRET",
+})
+
+
+def _configured_root() -> Path:
+    configured = str(os.environ.get(KEYSTORE_DIR_ENV, "") or "").strip()
+    if not configured:
+        return Path.home() / ".aureon"
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        raise RuntimeError("AUREON_KEYSTORE_DIR_MUST_BE_ABSOLUTE")
+    return path
+
+
+CONFIG_DIR = _configured_root()
 KEY_PATH = CONFIG_DIR / "provider_keys.key"
 STORE_PATH = CONFIG_DIR / "provider_keys.json.enc"
 TENANTS_DIR = CONFIG_DIR / "tenants"
@@ -76,7 +124,12 @@ def _safe_tenant(tenant: str) -> str:
 
 def _store_path(tenant: str | None) -> Path:
     """Where a store lives: the global file for ``None``, an isolated per-tenant file otherwise."""
-    if not tenant:
+    # ``None`` is the only spelling of the instance plane.  Treat even an empty
+    # or otherwise unusual tenant subject as an account namespace.  Identity
+    # verification already refuses an empty Supabase subject, but keeping this
+    # boundary exact prevents a future caller from turning ``tenant=""`` into a
+    # read or write of the owner's global store.
+    if tenant is None:
         return STORE_PATH
     return TENANTS_DIR / _safe_tenant(tenant) / "provider_keys.json.enc"
 
@@ -86,10 +139,66 @@ def model_env(registry_name: str) -> str:
     return f"AUREON_MODEL_{registry_name.upper()}"
 
 
+def _ensure_private_directory(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    try:
+        path.chmod(0o700)
+    except OSError:  # pragma: no cover - best effort on non-POSIX filesystems
+        pass
+
+
+def _protected_env_vars() -> set[str]:
+    """Environment names pinned by an external secret authority.
+
+    The cloud bootstrap writes this marker only after validating a pinned
+    Secret Manager version. A stale global keystore may remain on disk, but it
+    can neither replace nor delete those process values.
+    """
+    protected = {
+        value.strip()
+        for value in str(os.environ.get(PINNED_ENV_VARS_ENV, "") or "").split(",")
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", value.strip())
+    }
+    if "OLLAMA_API_KEY" in protected:
+        protected.update(OLLAMA_API_KEY_ENVS)
+    if "AUREON_LLM_MODEL" in protected:
+        protected.update({"AUREON_LLM_MODEL", "AUREON_OLLAMA_MODEL", model_env("local")})
+    if os.environ.get("AUREON_CLOUD_EXCHANGE_CREDENTIALS_PINNED") == "1":
+        # The cloud operator deliberately has no owner exchange values.  Mark
+        # every exchange field as externally owned so a stale global keystore
+        # cannot re-inject those values after the boot environment was scrubbed.
+        protected.update(CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS)
+    return protected
+
+
+def protected_provider_fields(provider_id: str) -> tuple[str, ...]:
+    """Return this provider's env fields pinned by external secret authority.
+
+    The result contains names only, never values.  It is used by the HTTP
+    control plane to make cloud-managed rows read-only instead of accepting a
+    shadow keystore value that cannot become effective.
+    """
+    info = get_provider(provider_id)
+    if info is not None:
+        candidates = {
+            *_provider_key_envs(info),
+            info.base_url_env,
+            model_env(info.registry_name),
+        }
+        if str(getattr(info, "id", "") or "") == "ollama":
+            candidates.update({"AUREON_LLM_MODEL", "AUREON_OLLAMA_MODEL"})
+    else:
+        from aureon.operator.connections_catalog import get_connection
+
+        conn = get_connection(provider_id)
+        candidates = set(conn.credential_env) if conn is not None else set()
+    return tuple(sorted((candidates - {""}) & _protected_env_vars()))
+
+
 def _fernet():
     from cryptography.fernet import Fernet
 
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _ensure_private_directory(CONFIG_DIR)
     if not KEY_PATH.exists():
         KEY_PATH.write_bytes(Fernet.generate_key())
         try:
@@ -134,7 +243,10 @@ def _persist(data: Dict[str, Dict[str, Any]], tenant: str | None = None) -> None
     atomic on POSIX within one filesystem, so a reader sees either the old store or the new one.
     """
     path = _store_path(tenant)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_private_directory(CONFIG_DIR)
+    if tenant is not None:
+        _ensure_private_directory(TENANTS_DIR)
+    _ensure_private_directory(path.parent)
     token = _fernet().encrypt(json.dumps(data).encode("utf-8"))
     tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
@@ -220,6 +332,7 @@ def delete_provider(provider_id: str, *, tenant: str | None = None) -> None:
     if tenant is not None:
         # Tenant keys never enter the process env, so there is nothing to unset.
         return
+    protected = _protected_env_vars()
     info = get_provider(provider_id)
     if info:  # LLM provider
         for var in (
@@ -232,7 +345,7 @@ def delete_provider(provider_id: str, *, tenant: str | None = None) -> None:
                 else ()
             ),
         ):
-            if var:
+            if var and var not in protected:
                 os.environ.pop(var, None)
         return
     from aureon.operator.connections_catalog import get_connection
@@ -240,9 +353,11 @@ def delete_provider(provider_id: str, *, tenant: str | None = None) -> None:
     conn = get_connection(provider_id)
     if conn:  # data-source connection
         for var in conn.credential_env:
-            os.environ.pop(var, None)
+            if var not in protected:
+                os.environ.pop(var, None)
         for var in (entry.get("extra") or {}):
-            os.environ.pop(var, None)
+            if var not in protected:
+                os.environ.pop(var, None)
 
 
 def apply_to_env() -> None:
@@ -254,7 +369,15 @@ def apply_to_env() -> None:
     """
     from aureon.operator.connections_catalog import get_connection
 
+    if os.environ.get("AUREON_CLOUD_EXCHANGE_CREDENTIALS_PINNED") == "1":
+        # Cloud instance-plane authority belongs only to the isolated executor.
+        # Scrub inherited aliases here as well as refusing every later store
+        # write, so this defense still closes if the caller bypassed the VM
+        # site's earlier process guard.
+        for name in CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS:
+            os.environ.pop(name, None)
     data = load()
+    protected = _protected_env_vars()
     for provider_id, entry in data.items():
         enabled = bool(entry.get("enabled", True))
         key = str(entry.get("api_key", "") or "")
@@ -266,21 +389,29 @@ def apply_to_env() -> None:
             if enabled:
                 if key:
                     for key_env in _provider_key_envs(info):
-                        os.environ[key_env] = key
-                if base_url and info.base_url_env:
+                        if key_env not in protected:
+                            os.environ[key_env] = key
+                if base_url and info.base_url_env and info.base_url_env not in protected:
                     os.environ[info.base_url_env] = base_url
                 if model:
-                    os.environ[model_env(info.registry_name)] = model
+                    if model_env(info.registry_name) not in protected:
+                        os.environ[model_env(info.registry_name)] = model
                     if str(getattr(info, "id", "") or "") == "ollama":
-                        os.environ["AUREON_LLM_MODEL"] = model
-                        os.environ["AUREON_OLLAMA_MODEL"] = model
+                        if "AUREON_LLM_MODEL" not in protected:
+                            os.environ["AUREON_LLM_MODEL"] = model
+                        if "AUREON_OLLAMA_MODEL" not in protected:
+                            os.environ["AUREON_OLLAMA_MODEL"] = model
             else:
                 for key_env in _provider_key_envs(info):
-                    os.environ.pop(key_env, None)
+                    if key_env not in protected:
+                        os.environ.pop(key_env, None)
                 if str(getattr(info, "id", "") or "") == "ollama":
-                    os.environ.pop("AUREON_LLM_MODEL", None)
-                    os.environ.pop("AUREON_OLLAMA_MODEL", None)
-                if info.key_optional and info.base_url_env:
+                    if "AUREON_LLM_MODEL" not in protected:
+                        os.environ.pop("AUREON_LLM_MODEL", None)
+                    if "AUREON_OLLAMA_MODEL" not in protected:
+                        os.environ.pop("AUREON_OLLAMA_MODEL", None)
+                if (info.key_optional and info.base_url_env
+                        and info.base_url_env not in protected):
                     os.environ.pop(info.base_url_env, None)
             continue
         conn = get_connection(provider_id)
@@ -289,16 +420,18 @@ def apply_to_env() -> None:
         # ── data-source connection (primary key + extra envs) ──
         extra = entry.get("extra") or {}
         if enabled:
-            if key and conn.key_env:
+            if key and conn.key_env and conn.key_env not in protected:
                 os.environ[conn.key_env] = key
             for var, val in extra.items():
-                if val:
+                if val and var not in protected:
                     os.environ[var] = str(val)
         else:
             for var in conn.credential_env:
-                os.environ.pop(var, None)
+                if var not in protected:
+                    os.environ.pop(var, None)
             for var in extra:
-                os.environ.pop(var, None)
+                if var not in protected:
+                    os.environ.pop(var, None)
 
 
 def mask(key: str) -> str:
@@ -343,6 +476,11 @@ __all__ = [
     "mask",
     "model_env",
     "managed_env_vars",
+    "KEYSTORE_DIR_ENV",
+    "PINNED_ENV_VARS_ENV",
+    "CLOUD_EXCHANGE_CREDENTIAL_ENV_VARS",
+    "protected_provider_fields",
+    "CONFIG_DIR",
     "STORE_PATH",
     "KEY_PATH",
 ]

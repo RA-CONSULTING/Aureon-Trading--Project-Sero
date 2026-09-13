@@ -132,7 +132,7 @@ export default function RepoMapPage() {
           </section>
           <div className="space-y-2 border-t pt-3" style={{ borderColor: BORDER }}>
             <a href="/aureon_repo_sitemap.json" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-xs" style={{ color: CYAN }}><GitBranch className="h-3.5 w-3.5" />Open repository source manifest</a>
-            <Link to="/platform/console#repo-map" className="flex items-center gap-2 text-xs" style={{ color: CYAN }}><Network className="h-3.5 w-3.5" />Open detailed repository explorer</Link>
+            <Link to="/platform/coverage" className="flex items-center gap-2 text-xs" style={{ color: CYAN }}><Network className="h-3.5 w-3.5" />Open live structural coverage</Link>
           </div>
         </GlassPanel>
       </div>

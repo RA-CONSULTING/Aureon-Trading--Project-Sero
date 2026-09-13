@@ -534,7 +534,7 @@ class GlobalSystemsManager {
       console.warn('⚠️ Auth session check failed/timed out, continuing unauthenticated:', error);
       // Clear any stale session data
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
       } catch (e) {
         // Ignore signout errors
       }
@@ -621,7 +621,7 @@ class GlobalSystemsManager {
       // Handle token refresh failures - clear stale session
       if (event === 'TOKEN_REFRESHED' && !session) {
         console.warn('⚠️ Token refresh failed, clearing stale session');
-        supabase.auth.signOut().catch(() => {});
+        supabase.auth.signOut({ scope: 'local' }).catch(() => {});
         return;
       }
       
@@ -658,12 +658,10 @@ class GlobalSystemsManager {
    */
   private async loadUserSession(): Promise<void> {
     if (!this.state.userId) return;
-    
+
     const { data, error } = await supabase
-      .from('aureon_user_sessions')
-      .select('*')
-      .eq('user_id', this.state.userId)
-      .single();
+      .rpc('get_aureon_user_session_status')
+      .maybeSingle();
     
     if (error && error.code === 'PGRST116') {
       console.info('[GlobalSystems] No session exists; provider setup is required');
@@ -679,13 +677,14 @@ class GlobalSystemsManager {
         dominantNode: hasMeasurements ? data.dominant_node ?? null : null,
         prismLevel: hasMeasurements ? data.prism_level ?? null : null,
         prismState: hasMeasurements ? data.prism_state ?? null : null,
-        totalEquity: hasMeasurements && data.total_equity_usd != null ? Number(data.total_equity_usd) : null,
+        totalEquity: hasMeasurements && (data.total_equity_usd ?? data.total_equity_usdt) != null
+          ? Number(data.total_equity_usd ?? data.total_equity_usdt)
+          : null,
         availableBalance: hasMeasurements && data.available_balance_usdt != null ? Number(data.available_balance_usdt) : null,
         totalTrades: data.total_trades ?? null,
         winningTrades: data.winning_trades ?? null,
         totalPnl: data.total_pnl_usdt == null ? null : Number(data.total_pnl_usdt),
         gasTankBalance: data.gas_tank_balance == null ? null : Number(data.gas_tank_balance),
-        recentTrades: Array.isArray(data.recent_trades) ? data.recent_trades as any[] : [],
       });
     }
   }
@@ -875,24 +874,8 @@ class GlobalSystemsManager {
         temporalLadder.heartbeat(SYSTEMS.MASTER_EQUATION, result.lambdaState.coherence);
         temporalLadder.heartbeat(SYSTEMS.HARMONIC_NEXUS, result.busSnapshot.consensusConfidence);
         
-        // Persist to database
-        await supabase
-          .from('aureon_user_sessions')
-          .update({
-            current_coherence: result.lambdaState.coherence,
-            current_lambda: result.lambdaState.lambda,
-            current_lighthouse_signal: result.lighthouseState?.L ?? null,
-            dominant_node: result.lambdaState.dominantNode,
-            prism_level: prismOutput?.level ?? null,
-            prism_state: prismOutput?.state ?? null,
-            last_quantum_update_at: marketData.sourceTimestamp,
-            measurement_truth_status: 'real_derived',
-            measurement_source_id: marketData.sourceId,
-            measurement_source_timestamp: marketData.sourceTimestamp,
-            measurement_collected_at: new Date().toISOString(),
-            measurement_generated_values: false,
-          })
-          .eq('user_id', this.state.userId);
+        // Browser calculations remain local. Only the governed server-side
+        // ingestion path may persist session telemetry.
       }
       
       // A decision is advisory until an exchange receipt exists.

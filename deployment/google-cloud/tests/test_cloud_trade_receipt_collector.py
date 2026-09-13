@@ -109,8 +109,9 @@ class AllowRelease:
 
 
 class LiveExecutor:
-    def __init__(self, budget):
+    def __init__(self, budget, max_order):
         assert budget == 20
+        assert max_order == 5
 
     def execute(self, intent, *, dispatch_sha256):
         return {
@@ -119,12 +120,38 @@ class LiveExecutor:
             "intent_id": intent["intent_id"], "venue": intent["order"]["venue"],
             "provider_order_id": "provider-order-1", "provider_client_order_id": "client-order-1",
             "provider_status": "accepted", "provider_readback_sha256": "8" * 64,
+            "instrument_preflight_sha256": "9" * 64,
             "provider_mutation_attempted": True, "orders_attempted": 1,
             "orders_submitted": 1, "dispatch_sha256": dispatch_sha256,
         }
 
 
-def terminal_chain(now_ms=1_800_000_000_000, *, live=False):
+class RuleRejectedExecutor:
+    def __init__(self, budget, max_order):
+        assert budget == 20
+        assert max_order == 5
+
+    def execute(self, intent, *, dispatch_sha256):
+        return {
+            "schema": "aureon.cloud-trade-live-result.v1", "status": "rejected",
+            "reason_code": "alpaca_quantity_below_minimum", "dry_run": False,
+            "intent_id": intent["intent_id"], "venue": intent["order"]["venue"],
+            "provider_order_id": None, "provider_client_order_id": None,
+            "provider_status": None, "provider_readback_sha256": None,
+            "instrument_preflight_sha256": None,
+            "instrument_readiness_blocker": {
+                "schema": "aureon.provider-instrument-readiness-blocker.v1",
+                "venue": "alpaca", "reason_code": "alpaca_quantity_below_minimum",
+                "minimum_quantity": "0.001", "quantity_step": "0.001",
+                "minimum_notional_usd": None, "price_step": None,
+                "quantity_unit": None,
+            },
+            "provider_mutation_attempted": False, "orders_attempted": 0,
+            "orders_submitted": 0, "dispatch_sha256": dispatch_sha256,
+        }
+
+
+def terminal_chain(now_ms=1_800_000_000_000, *, live=False, executor_factory=LiveExecutor):
     keys = Keys()
     value = build_probe(
         event_sha256="1" * 64,
@@ -150,7 +177,7 @@ def terminal_chain(now_ms=1_800_000_000_000, *, live=False):
             config=config(role, live=live), signer=keys.signer(role), verifier=keys.verifier(),
             publisher=capture, clock=lambda: now_ms / 1000,
             release_gate=AllowRelease() if live else None,
-            executor_factory=LiveExecutor if role == "executor" and live else None,
+            executor_factory=executor_factory if role == "executor" and live else None,
         )
         response = app.test_client().post("/process", json=push(value))
         assert response.status_code == 204
@@ -168,6 +195,10 @@ def test_collector_verifies_all_four_keys_and_historical_probe():
     assert summary["provider_mutation_attempted"] is False
     assert summary["orders_attempted"] == summary["orders_submitted"] == 0
     assert set(summary["authority_ids"]) == {"review", "dispatch", "executor", "receipt"}
+    assert summary["source_revision"] == "a" * 40
+    assert summary["runtime_measurement_sha256"] == receipt[
+        "executor"
+    ]["result"]["dispatch"]["review"]["intent"]["runtime_measurement_sha256"]
 
 
 def test_collector_rejects_tampered_terminal_chain():
@@ -188,7 +219,26 @@ def test_collector_binds_provider_observed_live_order_receipt():
     assert summary["chain_verified"] is True and summary["dry_run"] is False
     assert summary["outcome_status"] == "provider_observed"
     assert summary["venue"] == "alpaca" and summary["provider_order_id"] == "provider-order-1"
+    assert summary["instrument_preflight_sha256"] == "9" * 64
     assert summary["orders_attempted"] == summary["orders_submitted"] == 1
+
+
+def test_collector_exposes_sanitized_per_venue_rule_readiness_blocker():
+    now = 1_800_000_000_000
+    keys, receipt = terminal_chain(now, live=True, executor_factory=RuleRejectedExecutor)
+    summary = collector.verify_terminal_receipt(
+        receipt, token="x" * 40, now_ms=now + 600_000, reader=keys.public_reader,
+    )
+    assert summary["outcome_status"] == "rejected"
+    assert summary["provider_mutation_attempted"] is False
+    assert summary["orders_attempted"] == summary["orders_submitted"] == 0
+    assert summary["instrument_preflight_sha256"] is None
+    assert summary["instrument_readiness_blocker"] == {
+        "schema": "aureon.provider-instrument-readiness-blocker.v1",
+        "venue": "alpaca", "reason_code": "alpaca_quantity_below_minimum",
+        "minimum_quantity": "0.001", "quantity_step": "0.001",
+        "minimum_notional_usd": None, "price_step": None, "quantity_unit": None,
+    }
 
 
 def test_active_lease_publishes_canonical_held_probe_without_order():
@@ -225,6 +275,59 @@ def test_active_lease_publishes_canonical_held_probe_without_order():
         "AUREON_ORDER_INTENT_PUBLISH": False,
         "AUREON_UNIFIED_ORDER_EXECUTOR": False,
     }
+
+
+def test_active_signed_release_turns_probe_into_exact_generation_bound_refresh():
+    calls = []
+
+    def reader(url, **kwargs):
+        calls.append((url, kwargs))
+        if url == collector.METADATA:
+            return json.dumps({"access_token": "x" * 40, "expires_in": 3600}).encode()
+        assert url == collector.PROBE_TOPIC
+        return b'{"messageIds":["123456789"]}'
+
+    now = 1_800_000_000
+    expires_ms = int((now + 3600) * 1000)
+    release = {
+        "schema": "aureon.cloud-trade-release-state.v1",
+        "state": "active",
+        "generation": 9,
+        "request_id": "2" * 64,
+        "requested_controls_sha256": "3" * 64,
+        "authorization_event_sha256": "1" * 64,
+        "authorization_expires_at_ms": expires_ms,
+        "probe_receipt_sha256": "4" * 64,
+        "provider_readback_sha256": "5" * 64,
+        "source_revision": "a" * 40,
+        "signed_at_ms": int((now - 60) * 1000),
+        "controller_key_version": CONTROLLER_KEY,
+        "signature": "signed-controller-state",
+        "update_time": "2026-09-13T15:00:00Z",
+    }
+    result = collector.publish_control_probe(
+        revision="a" * 40,
+        reader=reader,
+        current_time=lambda: now,
+        environ=dict(collector.REQUIRED_PROBE_HOLDS),
+        authorization_builder=lambda **_kwargs: {
+            "active": True,
+            "ledger_event_sha256": "1" * 64,
+            "expires_at": now + 3600,
+        },
+        release=release,
+    )
+    assert result["mode"] == "periodic_readiness"
+    body = json.loads(calls[-1][1]["body"])
+    probe = json.loads(base64.b64decode(body["messages"][0]["data"], validate=True))
+    binding = probe["authorization"]["readiness_release"]
+    assert binding["generation"] == 9
+    assert binding["request_id"] == release["request_id"]
+    assert binding["authorization_expires_at_ms"] == expires_ms
+    assert binding["source_revision"] == "a" * 40
+    assert probe["authorization"]["release_authority"] is False
+    assert probe["authorization"]["mutation_authority"] is False
+    assert probe["order"] is None
 
 
 def test_probe_publisher_requires_holds_and_active_lease():

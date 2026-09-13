@@ -6,7 +6,8 @@ import { RefreshCw, TrendingUp, Clock, AlertCircle } from 'lucide-react';
 
 export function StargatePatternAnalysis() {
   const { 
-    analysis, 
+    analysis,
+    error,
     isAnalyzing, 
     analyzePatterns, 
     nextOptimalWindow,
@@ -48,18 +49,18 @@ export function StargatePatternAnalysis() {
           variant="outline"
           size="sm"
           onClick={() => analyzePatterns()}
-          disabled={isAnalyzing}
+          disabled
         >
           <RefreshCw className="w-4 h-4 mr-2" />
-          Analyze
+          Operator source required
         </Button>
       </div>
 
       {!analysis && !isAnalyzing && (
         <div className="text-center py-8 text-muted-foreground">
           <AlertCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p>No pattern analysis available yet</p>
-          <p className="text-sm mt-1">Click Analyze to start</p>
+          <p>No governed pattern observation is available</p>
+          <p className="text-sm mt-1">{error}</p>
         </div>
       )}
 

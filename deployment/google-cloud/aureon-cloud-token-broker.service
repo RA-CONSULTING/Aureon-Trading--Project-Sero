@@ -1,0 +1,40 @@
+[Unit]
+Description=Aureon root-only Google workload token broker
+After=network-online.target
+Wants=network-online.target
+Before=aureon-cloud-ui.service aureon-cloud-operator.service aureon-cloud-trade-receipt.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/srv/aureon/runtime/workspace/deployment/google-cloud
+ExecStart=/srv/aureon/venv/bin/python /srv/aureon/runtime/workspace/deployment/google-cloud/vm_token_broker.py
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=20
+RuntimeDirectory=aureon-cloud-identity
+RuntimeDirectoryMode=0750
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE
+AmbientCapabilities=
+ReadWritePaths=/run/aureon-cloud-identity
+
+[Install]
+WantedBy=multi-user.target

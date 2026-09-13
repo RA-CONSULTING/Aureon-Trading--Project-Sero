@@ -17,6 +17,12 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+try:
+    from vm_workload_identity import WorkloadIdentityError, broker_token
+except ImportError:  # Local tests outside the cloud deployment closure.
+    WorkloadIdentityError = RuntimeError
+    broker_token = None
+
 PROJECT = "aureon-trading"
 REQUEST_TOPIC = "aureon-trade-release-requests-v1"
 REQUEST_SCHEMA = "aureon.cloud-trade-release-request.v1"
@@ -73,7 +79,25 @@ def _digest(value: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
+def probe_runtime_measurement_sha256(source_revision: str) -> str:
+    """Match the authority contract's revision-bound held probe measurement."""
+    if not isinstance(source_revision, str) or _REVISION.fullmatch(source_revision) is None:
+        raise CloudTradingReleaseError("cloud_probe_source_revision_invalid")
+    return _digest({
+        "schema": "aureon.cloud-trade-probe-runtime-measurement.v1",
+        "source_revision": source_revision,
+        "requested_controls": HELD_CONTROLS,
+    })
+
+
 def _access_token() -> str:
+    if broker_token is not None:
+        try:
+            token = broker_token()
+        except WorkloadIdentityError as exc:
+            raise CloudTradingReleaseError(str(exc)) from exc
+        if token is not None:
+            return token
     response = requests.get(
         "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
         headers={"Metadata-Flavor": "Google"}, timeout=3,
@@ -206,9 +230,13 @@ def publish_release_request(
                 or any(capabilities.get(key) is not True for key in (
                     "durable_budget_ledger", "order_adapter_ready",
                     "all_four_provider_readback_pinned", "live_result_binding_ready",
-                    "controller_integrated",
+                    "instrument_preflight_enforced", "controller_integrated",
                 ))):
             raise CloudTradingReleaseError("cloud_release_prerequisites_not_ready")
+        if (probe.get("source_revision") != revision
+                or probe.get("runtime_measurement_sha256")
+                != probe_runtime_measurement_sha256(revision)):
+            raise CloudTradingReleaseError("cloud_release_probe_revision_mismatch")
         provider = probe.get("provider_readback")
         if not isinstance(provider, Mapping):
             raise CloudTradingReleaseError("cloud_release_provider_evidence_missing")
@@ -270,5 +298,5 @@ def publish_release_request(
 
 __all__ = [
     "CloudTradingReleaseError", "CONTROLLER_KEY", "HELD_CONTROLS", "LIVE_CONTROLS",
-    "publish_release_request", "read_controller_release",
+    "probe_runtime_measurement_sha256", "publish_release_request", "read_controller_release",
 ]
