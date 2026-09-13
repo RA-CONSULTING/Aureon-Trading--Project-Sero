@@ -225,14 +225,23 @@ def _validate_frontend_environment(value: dict[str, str] | None) -> dict[str, st
     return dict(sorted(value.items()))
 
 
+def _frontend_toolchain_executables(
+    *, platform: str | None = None, resolver=None
+) -> tuple[str, str]:
+    lookup = shutil.which if resolver is None else resolver
+    npm_name = "npm.cmd" if (os.name if platform is None else platform) == "nt" else "npm"
+    npm = lookup(npm_name)
+    node = lookup("node")
+    if npm is None or node is None:
+        raise ReleaseError("frontend_pinned_builder_unavailable")
+    return npm, node
+
+
 def _default_frontend_builder(
     source: Path, revision: str, environment: dict[str, str]
 ) -> tuple[dict[str, bytes], dict[str, str]]:
     """Rebuild dist from a clean Git archive and a lockfile-only install."""
-    npm = shutil.which("npm")
-    node = shutil.which("node")
-    if npm is None or node is None:
-        raise ReleaseError("frontend_pinned_builder_unavailable")
+    npm, node = _frontend_toolchain_executables()
     raw = _git_archive(source, revision, FRONTEND_SOURCE_ROOT)
     with tempfile.TemporaryDirectory(prefix="aureon-frontend-build-") as temporary:
         root = Path(temporary)

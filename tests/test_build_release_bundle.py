@@ -283,6 +283,34 @@ def test_frontend_archive_rejects_unsafe_root_members(
         )
 
 
+@pytest.mark.parametrize(
+    ("platform", "npm_name"), (("nt", "npm.cmd"), ("posix", "npm"))
+)
+def test_frontend_toolchain_resolves_platform_npm_wrapper(platform, npm_name):
+    calls = []
+
+    def resolve(name):
+        calls.append(name)
+        return {npm_name: f"/tools/{npm_name}", "node": "/tools/node"}.get(name)
+
+    assert bundle._frontend_toolchain_executables(
+        platform=platform, resolver=resolve
+    ) == (f"/tools/{npm_name}", "/tools/node")
+    assert calls == [npm_name, "node"]
+
+
+def test_frontend_toolchain_does_not_fallback_to_windows_npm_shell_script():
+    calls = []
+
+    def resolve(name):
+        calls.append(name)
+        return {"npm": "C:/Program Files/nodejs/npm", "node": "C:/node.exe"}.get(name)
+
+    with pytest.raises(bundle.ReleaseError, match="frontend_pinned_builder_unavailable"):
+        bundle._frontend_toolchain_executables(platform="nt", resolver=resolve)
+    assert calls == ["npm.cmd", "node"]
+
+
 def test_operator_bundle_binds_the_complete_commit_tree_runtime(
     tmp_path, monkeypatch
 ):
