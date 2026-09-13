@@ -1576,6 +1576,16 @@ def _binding_actions(
     expected: set[str],
 ) -> list[Action]:
     actions: list[Action] = []
+    # Pub/Sub's IAM binding commands do not accept --condition. Other IAM
+    # surfaces require an explicit unconditional binding when policies may
+    # also contain conditions.
+    condition_args = (
+        ()
+        if command_template[:2] in {
+            ("pubsub", "topics"), ("pubsub", "subscriptions")
+        }
+        else ("--condition=None",)
+    )
     for member in sorted(expected - actual):
         command = tuple(
             "add-iam-policy-binding" if item == "{operation}" else item
@@ -1588,7 +1598,7 @@ def _binding_actions(
                     *command,
                     "--member=" + member,
                     "--role=" + role,
-                    "--condition=None",
+                    *condition_args,
                 ),
             )
         )
@@ -1604,7 +1614,7 @@ def _binding_actions(
                     *command,
                     "--member=" + member,
                     "--role=" + role,
-                    "--condition=None",
+                    *condition_args,
                 ),
                 destructive=True,
             )

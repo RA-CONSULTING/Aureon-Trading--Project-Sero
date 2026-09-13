@@ -1229,6 +1229,36 @@ def test_action_plan_creates_resources_updates_oidc_and_marks_removals():
     assert all("--condition=None" in row.args for row in removals)
 
 
+@pytest.mark.parametrize(
+    ("command_template", "supports_condition"),
+    [
+        (("pubsub", "topics", "{operation}", "topic"), False),
+        (("pubsub", "subscriptions", "{operation}", "subscription"), False),
+        (("kms", "keys", "{operation}", "key"), True),
+        (("iam", "service-accounts", "{operation}", "account"), True),
+        (("secrets", "{operation}", "secret"), True),
+        (("run", "services", "{operation}", "service"), True),
+        (("projects", "{operation}", "project"), True),
+    ],
+)
+def test_binding_actions_match_provider_condition_flag_support(
+    command_template, supports_condition
+):
+    actions = commission._binding_actions(
+        "test", command_template, "roles/viewer",
+        {"serviceAccount:old@example.invalid"},
+        {"serviceAccount:new@example.invalid"},
+    )
+    assert len(actions) == 2
+    addition, removal = actions
+    assert "add-iam-policy-binding" in addition.args
+    assert "remove-iam-policy-binding" in removal.args
+    assert addition.destructive is False and removal.destructive is True
+    for action in actions:
+        assert ("--condition=None" in action.args) is supports_condition
+        assert "--role=roles/viewer" in action.args
+
+
 def test_missing_resources_produce_audit_codes_instead_of_capture_abort():
     contract = resolved_contract()
 
