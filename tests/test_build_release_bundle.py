@@ -1,5 +1,7 @@
 import importlib.util
+import io
 import json
+import tarfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PureWindowsPath
 import sys
@@ -223,6 +225,62 @@ def test_frontend_dist_inventory_sorts_normalized_paths_not_windows_paths():
     assert windows_order != string_order
 
     assert bundle._frontend_dist_inventory(source) == string_order
+
+
+def test_frontend_archive_accepts_directory_ancestors_and_exact_prefix(tmp_path):
+    content = b'{"name":"frontend"}\n'
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode="w") as archive:
+        for name in (
+            "aureon-os-upstream",
+            bundle.FRONTEND_SOURCE_ROOT,
+            f"{bundle.FRONTEND_SOURCE_ROOT}/src",
+        ):
+            member = tarfile.TarInfo(name)
+            member.type = tarfile.DIRTYPE
+            archive.addfile(member)
+        member = tarfile.TarInfo(f"{bundle.FRONTEND_SOURCE_ROOT}/package.json")
+        member.size = len(content)
+        archive.addfile(member, io.BytesIO(content))
+
+    destination = tmp_path / "extracted"
+    bundle._extract_regular_archive(
+        stream.getvalue(), destination, bundle.FRONTEND_SOURCE_ROOT
+    )
+
+    assert (
+        destination / bundle.FRONTEND_SOURCE_ROOT / "package.json"
+    ).read_bytes() == content
+
+
+@pytest.mark.parametrize(
+    ("name", "member_type"),
+    (
+        ("aureon-os-upstream", tarfile.REGTYPE),
+        (bundle.FRONTEND_SOURCE_ROOT, tarfile.REGTYPE),
+        ("aureon-os-upstream/sibling", tarfile.DIRTYPE),
+        (f"{bundle.FRONTEND_SOURCE_ROOT}/../escape", tarfile.REGTYPE),
+        (f"{bundle.FRONTEND_SOURCE_ROOT}/link", tarfile.SYMTYPE),
+        (f"{bundle.FRONTEND_SOURCE_ROOT}/device", tarfile.CHRTYPE),
+    ),
+)
+def test_frontend_archive_rejects_unsafe_root_members(
+    tmp_path, name, member_type
+):
+    stream = io.BytesIO()
+    with tarfile.open(fileobj=stream, mode="w") as archive:
+        member = tarfile.TarInfo(name)
+        member.type = member_type
+        if member_type == tarfile.REGTYPE:
+            member.size = 1
+            archive.addfile(member, io.BytesIO(b"x"))
+        else:
+            archive.addfile(member)
+
+    with pytest.raises(bundle.ReleaseError, match="frontend_commit_archive_invalid"):
+        bundle._extract_regular_archive(
+            stream.getvalue(), tmp_path / "rejected", bundle.FRONTEND_SOURCE_ROOT
+        )
 
 
 def test_operator_bundle_binds_the_complete_commit_tree_runtime(

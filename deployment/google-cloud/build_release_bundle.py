@@ -173,10 +173,17 @@ def _extract_regular_archive(raw: bytes, destination: Path, prefix: str) -> None
         with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as archive:
             for member in archive.getmembers():
                 name = PurePosixPath(member.name)
+                normalized = str(name)
+                is_prefix_directory = member.isdir() and (
+                    normalized == prefix or prefix.startswith(normalized + "/")
+                )
                 if (
                     name.is_absolute()
                     or ".." in name.parts
-                    or not str(name).startswith(prefix + "/")
+                    or (
+                        not normalized.startswith(prefix + "/")
+                        and not is_prefix_directory
+                    )
                     or member.issym()
                     or member.islnk()
                     or member.isdev()
