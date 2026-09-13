@@ -158,6 +158,7 @@ def _validate_contract_topology(value: Mapping[str, Any]) -> None:
             "immutable_subscription_replacement",
             "legacy_subscription_retirement",
             "destructive_iam_cleanup_until_broker_identity_attached",
+            "rollback_anonymous_invoker_removal_until_new_public_url_green",
         ]
         or commissioning.get("legacy_retirement_phase_receipt_schema")
         != "aureon.gcp.pubsub-legacy-retirement-phase-receipt.v1"
@@ -1408,6 +1409,7 @@ class Action:
     args: tuple[str, ...]
     destructive: bool = False
     blocked: bool = False
+    finalize_only: bool = False
 
 
 def _binding_actions(
@@ -1685,6 +1687,7 @@ def build_iam_actions(
                         "--condition=None",
                     ),
                     destructive=True,
+                    finalize_only=True,
                 )
             )
     for row in contract["pubsub"]["topics"]:
@@ -4061,6 +4064,8 @@ def main(argv: list[str] | None = None) -> int:
         retirement_owner_receipt_hash: str | None = None
         destructive_iam_cleanup_deferred = False
         deferred_destructive_action_ids: set[str] = set()
+        broker_gated_action_ids: set[str] = set()
+        finalize_only_action_ids: set[str] = set()
         broker_identity_readback_ok = broker_identity_attached(
             contract, snapshot
         )
@@ -4700,7 +4705,8 @@ def main(argv: list[str] | None = None) -> int:
                 ):
                     raise CommissionError("prepare_provider_readback_not_exact")
                 # Exact narrow grants now exist. Remove broad/extraneous grants
-                # before any revision can be attested or promoted.
+                # that are safe during preparation; finalize-only removals stay
+                # deferred until the promoted public revision reads back exact.
                 destructive_actions = [
                     action for action in prepared_actions if action.destructive
                 ]
@@ -4713,16 +4719,31 @@ def main(argv: list[str] | None = None) -> int:
                     for action in destructive_actions
                     if old_union_member_argument in action.args
                 ]
-                deferred_destructive_action_ids = {
+                broker_gated_action_ids = {
                     action.action_id for action in broker_gated_actions
+                }
+                finalize_only_action_ids = {
+                    action.action_id
+                    for action in destructive_actions
+                    if action.finalize_only
                 }
                 destructive_iam_cleanup_deferred = bool(
                     broker_gated_actions
                 ) and not broker_identity_readback_ok
+                deferred_destructive_action_ids = set(
+                    finalize_only_action_ids
+                )
+                if destructive_iam_cleanup_deferred:
+                    deferred_destructive_action_ids.update(
+                        broker_gated_action_ids
+                    )
                 for action in destructive_actions:
                     if (
-                        action not in broker_gated_actions
-                        or broker_identity_readback_ok
+                        not action.finalize_only
+                        and (
+                            action not in broker_gated_actions
+                            or broker_identity_readback_ok
+                        )
                     ):
                         runner.apply(*action.args)
                         applied.append(action.action_id)
@@ -4739,7 +4760,7 @@ def main(argv: list[str] | None = None) -> int:
             if (
                 phase == "resource-prepare"
                 and broker_identity_readback_ok
-                and deferred_destructive_action_ids
+                and broker_gated_action_ids
                 and not final_broker_identity_readback_ok
             ):
                 raise CommissionError("broker_identity_readback_changed")
@@ -4749,7 +4770,7 @@ def main(argv: list[str] | None = None) -> int:
                 final_snapshot,
                 allow_iam_extras=(
                     phase == "resource-prepare"
-                    and destructive_iam_cleanup_deferred
+                    and bool(deferred_destructive_action_ids)
                 ),
                 allow_vm_pending=phase == "resource-prepare",
                 cloud_run_mode=(
@@ -4765,10 +4786,7 @@ def main(argv: list[str] | None = None) -> int:
             remaining = build_iam_actions(contract, final_snapshot)
             if phase == "resource-prepare" and any(
                 not row.blocked
-                and not (
-                    destructive_iam_cleanup_deferred
-                    and row.action_id in deferred_destructive_action_ids
-                )
+                and row.action_id not in deferred_destructive_action_ids
                 for row in remaining
             ):
                 raise CommissionError("prepare_provider_readback_not_exact")
@@ -4830,6 +4848,9 @@ def main(argv: list[str] | None = None) -> int:
                 "broker_identity_readback_ok": broker_identity_readback_ok,
                 "destructive_iam_cleanup_deferred": (
                     destructive_iam_cleanup_deferred
+                ),
+                "rollback_anonymous_invoker_removal_deferred": (
+                    bool(finalize_only_action_ids)
                 ),
                 "secret_payloads_requested": False,
                 "sensitive_environment_values_returned": False,

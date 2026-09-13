@@ -130,12 +130,12 @@ def _frontend_dist_inventory(source: Path) -> list[str]:
     if root.is_symlink() or not root.is_dir():
         raise ReleaseError("frontend_dist_root_required")
     paths: list[str] = []
-    for path in sorted(root.rglob("*")):
+    for path in root.rglob("*"):
         if path.is_symlink():
             raise ReleaseError("frontend_dist_link_forbidden")
         if path.is_file():
             paths.append(path.relative_to(source).as_posix())
-    return paths
+    return sorted(paths)
 
 
 def _operator_package_git_inventory(source: Path, revision: str) -> list[str]:

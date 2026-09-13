@@ -54,7 +54,8 @@
       "vm_release_readback",
       "immutable_subscription_replacement",
       "legacy_subscription_retirement",
-      "destructive_iam_cleanup_until_broker_identity_attached"
+      "destructive_iam_cleanup_until_broker_identity_attached",
+      "rollback_anonymous_invoker_removal_until_new_public_url_green"
     ],
     "staged_revision_attestation": {
       "schema": "aureon.cloud-trading-authority-commission-receipt.v1",

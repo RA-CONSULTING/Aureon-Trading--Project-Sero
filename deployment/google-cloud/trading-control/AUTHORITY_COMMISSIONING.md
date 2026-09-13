@@ -102,7 +102,11 @@ attached. If called earlier, it leaves those removals untouched and records
 `destructive_iam_cleanup_deferred=true`; rerun the same phase after broker
 attachment. Before staging attestation, its receipt must show
 `broker_identity_readback_ok=true` and
-`destructive_iam_cleanup_deferred=false`. It defers the new Cloud Run
+`destructive_iam_cleanup_deferred=false`. The separate
+`rollback_anonymous_invoker_removal_deferred=true` is expected while the old
+public rollback service still has anonymous access. That access is removed
+only by strict `finalize`, after the new marketed web revision and its traffic
+read back exactly. Resource preparation also defers the new Cloud Run
 revisions, full VM release readback, immutable subscription replacement, and
 legacy subscription retirement. The compatibility spelling `--phase=prepare`
 normalizes to `resource-prepare`.

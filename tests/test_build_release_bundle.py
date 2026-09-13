@@ -1,7 +1,7 @@
 import importlib.util
 import json
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import sys
 
 import pytest
@@ -193,6 +193,36 @@ def test_frontend_dist_selection_must_be_complete(tmp_path, monkeypatch):
                 {"node": "v22.0.0", "npm": "10.0.0"},
             ),
         )
+
+
+def test_frontend_dist_inventory_sorts_normalized_paths_not_windows_paths():
+    class VirtualWindowsPath(PureWindowsPath):
+        def is_symlink(self):
+            return False
+
+        def is_dir(self):
+            return self.name == "dist"
+
+        def is_file(self):
+            return self.name != "dist"
+
+        def rglob(self, pattern):
+            assert pattern == "*"
+            return iter(
+                (
+                    self / "assets/Zed.js",
+                    self / "assets/alpha.js",
+                    self / "index.html",
+                )
+            )
+
+    source = VirtualWindowsPath("C:/source")
+    windows_paths = list((source / "aureon-os-upstream/frontend/dist").rglob("*"))
+    windows_order = [path.relative_to(source).as_posix() for path in sorted(windows_paths)]
+    string_order = sorted(windows_order)
+    assert windows_order != string_order
+
+    assert bundle._frontend_dist_inventory(source) == string_order
 
 
 def test_operator_bundle_binds_the_complete_commit_tree_runtime(

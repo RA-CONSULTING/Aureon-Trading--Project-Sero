@@ -309,6 +309,43 @@ def cli_args(command=None):
     ]
 
 
+def stub_valid_finalize_evidence(monkeypatch):
+    monkeypatch.setattr(
+        commission,
+        "validate_supabase_owner_receipt",
+        lambda *_args, **_kwargs: "1" * 64,
+    )
+    monkeypatch.setattr(
+        commission,
+        "validate_immutable_image_build_receipt",
+        lambda *_args, **_kwargs: (
+            "2" * 64,
+            {},
+            {"fingerprint_sha256": "3" * 64},
+        ),
+    )
+    monkeypatch.setattr(
+        commission,
+        "validate_vm_release_receipt",
+        lambda *_args, **_kwargs: "4" * 64,
+    )
+    monkeypatch.setattr(
+        commission,
+        "validate_vm_reboot_continuity_receipt",
+        lambda *_args, **_kwargs: "5" * 64,
+    )
+    monkeypatch.setattr(
+        commission,
+        "validate_legacy_retirement_phase_receipt",
+        lambda *_args, **_kwargs: (
+            "6" * 64,
+            "7" * 64,
+            "8" * 64,
+            "9" * 64,
+        ),
+    )
+
+
 def owner_readback_receipt(contract, now):
     return {
         "schema": "aureon.supabase-owner-provider-readback.v1",
@@ -1357,6 +1394,52 @@ def test_resource_prepare_never_revokes_old_union_before_broker_attachment(
     assert receipt["destructive_iam_cleanup_deferred"] is True
 
 
+def test_resource_prepare_never_removes_rollback_anonymous_invoker(
+    monkeypatch, tmp_path
+):
+    contract = resolved_contract()
+    snapshot = exact_snapshot(contract)
+    rollback_name = contract["cloud_run"][
+        "rollback_service_without_anonymous_invoker"
+    ]
+    snapshot["cloud_run"][rollback_name] = {"invokers": ["allUsers"]}
+
+    class Runner:
+        def __init__(self):
+            self.applied = []
+
+        def apply(self, *args):
+            self.applied.append(args)
+
+    runner = Runner()
+    monkeypatch.setattr(commission, "Gcloud", lambda *_args: runner)
+    monkeypatch.setattr(commission, "capture_snapshot", lambda *_args: snapshot)
+    monkeypatch.setattr(
+        commission,
+        "validate_supabase_owner_receipt",
+        lambda *_args, **_kwargs: "1" * 64,
+    )
+    output = (tmp_path / "prepare.json").resolve()
+
+    result = commission.main(
+        [
+            *cli_args("apply"),
+            "--phase=resource-prepare",
+            "--acknowledge-contract-sha256="
+            + commission.sha256(commission.canonical(contract)),
+            "--receipt=" + str(output),
+        ]
+    )
+
+    assert result == 0
+    assert runner.applied == []
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["status"] == "resources_prepared"
+    assert receipt["provider_readback_ok"] is True
+    assert receipt["destructive_iam_cleanup_deferred"] is False
+    assert receipt["rollback_anonymous_invoker_removal_deferred"] is True
+
+
 def test_supabase_owner_provider_readback_receipt_is_exact_and_redacted(tmp_path):
     contract = resolved_contract()
     now = datetime.now(UTC)
@@ -1971,6 +2054,109 @@ def test_finalize_requires_vm_release_readback_before_any_mutation(
     assert json.loads(output.read_text(encoding="utf-8"))["error_code"] == (
         "vm_release_receipt_required"
     )
+
+
+def test_finalize_keeps_rollback_public_when_marketed_web_is_not_green(
+    monkeypatch, tmp_path
+):
+    contract = resolved_contract()
+    snapshot = exact_snapshot(contract)
+    rollback_name = contract["cloud_run"][
+        "rollback_service_without_anonymous_invoker"
+    ]
+    snapshot["cloud_run"][rollback_name] = {"invokers": ["allUsers"]}
+    web = snapshot["cloud_run"]["aureon-fusion-web"]
+    old_revision = "aureon-fusion-web-00000-old"
+    web["serving_revision"] = old_revision
+    web["traffic"] = [
+        {"revision": old_revision, "percent": 100, "tag": None}
+    ]
+
+    class Runner:
+        def __init__(self):
+            self.applied = []
+
+        def apply(self, *args):
+            self.applied.append(args)
+
+    runner = Runner()
+    monkeypatch.setattr(commission, "Gcloud", lambda *_args: runner)
+    monkeypatch.setattr(commission, "capture_snapshot", lambda *_args: snapshot)
+    stub_valid_finalize_evidence(monkeypatch)
+    output = (tmp_path / "finalize-not-green.json").resolve()
+
+    result = commission.main(
+        [
+            *cli_args("apply"),
+            "--phase=finalize",
+            "--acknowledge-contract-sha256="
+            + commission.sha256(commission.canonical(contract)),
+            "--receipt=" + str(output),
+        ]
+    )
+
+    assert result == 1
+    assert runner.applied == []
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["status"] == "failed_closed"
+    assert receipt["error_code"] == "finalize_prerequisites_not_exact"
+
+
+def test_finalize_removes_rollback_anonymous_only_after_marketed_web_is_green(
+    monkeypatch, tmp_path
+):
+    contract = resolved_contract()
+    snapshot = exact_snapshot(contract)
+    rollback_name = contract["cloud_run"][
+        "rollback_service_without_anonymous_invoker"
+    ]
+    snapshot["cloud_run"][rollback_name] = {"invokers": ["allUsers"]}
+    expected_call = (
+        "run",
+        "services",
+        "remove-iam-policy-binding",
+        rollback_name,
+        "--region=" + contract["region"],
+        "--member=allUsers",
+        "--role=roles/run.invoker",
+        "--condition=None",
+    )
+
+    class Runner:
+        def __init__(self):
+            self.applied = []
+
+        def apply(self, *args):
+            self.applied.append(args)
+            if args == expected_call:
+                snapshot["cloud_run"][rollback_name]["invokers"] = []
+
+    runner = Runner()
+    monkeypatch.setattr(commission, "Gcloud", lambda *_args: runner)
+    monkeypatch.setattr(commission, "capture_snapshot", lambda *_args: snapshot)
+    stub_valid_finalize_evidence(monkeypatch)
+    output = (tmp_path / "finalize-green.json").resolve()
+
+    result = commission.main(
+        [
+            *cli_args("apply"),
+            "--phase=finalize",
+            "--acknowledge-contract-sha256="
+            + commission.sha256(commission.canonical(contract)),
+            "--receipt=" + str(output),
+        ]
+    )
+
+    assert result == 0
+    assert runner.applied == [expected_call]
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["status"] == "applied"
+    assert receipt["provider_readback_ok"] is True
+    assert receipt["applied_action_ids"] == [
+        "run.rollback.remove-anonymous."
+        + commission.sha256(b"allUsers")[:12]
+    ]
+    assert receipt["rollback_anonymous_invoker_removal_deferred"] is False
 
 
 def _staged_snapshot(contract):
