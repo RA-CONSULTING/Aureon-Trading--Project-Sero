@@ -6,8 +6,8 @@ import {
   createLoopbackIngressPlugin,
   createLoopbackProxyRoute,
   operatorAuthorizationConfig,
-} from "./config/operatorProxySecurity";
-import { reviewedPublicAssetsPlugin } from "./config/reviewedPublicAssets";
+} from "./config/operatorProxySecurity.ts";
+import { reviewedPublicAssetsPlugin } from "./config/reviewedPublicAssets.ts";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, isPreview }) => ({
@@ -69,11 +69,11 @@ export default defineConfig(({ mode, isPreview }) => ({
     alias: [
       {
         find: /^@\/integrations\/supabase\/client$/,
-        replacement: path.resolve(__dirname, "./src/integrations/supabase/client.ts"),
+        replacement: path.resolve(import.meta.dirname, "./src/integrations/supabase/client.ts"),
       },
       {
         find: "@",
-        replacement: path.resolve(__dirname, "./src"),
+        replacement: path.resolve(import.meta.dirname, "./src"),
       },
     ],
   },
@@ -92,20 +92,34 @@ export default defineConfig(({ mode, isPreview }) => ({
     // the big vendor groups so no chunk carries the whole platform.
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-radix": [
-            "@radix-ui/react-dialog",
-            "@radix-ui/react-dropdown-menu",
-            "@radix-ui/react-popover",
-            "@radix-ui/react-scroll-area",
-            "@radix-ui/react-select",
-            "@radix-ui/react-tabs",
-            "@radix-ui/react-toast",
-            "@radix-ui/react-tooltip",
-          ],
-          "vendor-charts": ["recharts"],
-          "vendor-supabase": ["@supabase/supabase-js"],
+        manualChunks(id) {
+          const normalizedId = id.replaceAll("\\", "/");
+          const hasPackage = (packageName: string) =>
+            normalizedId.includes(`/node_modules/${packageName}/`);
+
+          if (["react", "react-dom", "react-router", "react-router-dom"].some(hasPackage)) {
+            return "vendor-react";
+          }
+          if (
+            [
+              "@radix-ui/react-dialog",
+              "@radix-ui/react-dropdown-menu",
+              "@radix-ui/react-popover",
+              "@radix-ui/react-scroll-area",
+              "@radix-ui/react-select",
+              "@radix-ui/react-tabs",
+              "@radix-ui/react-toast",
+              "@radix-ui/react-tooltip",
+            ].some(hasPackage)
+          ) {
+            return "vendor-radix";
+          }
+          if (hasPackage("recharts")) {
+            return "vendor-charts";
+          }
+          if (normalizedId.includes("/node_modules/@supabase/")) {
+            return "vendor-supabase";
+          }
         },
       },
     },

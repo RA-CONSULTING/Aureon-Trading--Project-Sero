@@ -19,8 +19,8 @@ import {
 
 async function loadViteCreateServer(upstreamFrontend: string): Promise<typeof import("vite")["createServer"]> {
   const requireFromFrontend = createRequire(path.join(upstreamFrontend, "package.json"));
-  const cjsEntry = requireFromFrontend.resolve("vite");
-  const esmEntry = path.join(path.dirname(cjsEntry), "dist", "node", "index.js");
+  const packageJson = requireFromFrontend.resolve("vite/package.json");
+  const esmEntry = path.join(path.dirname(packageJson), "dist", "node", "index.js");
   const vite = await import(pathToFileURL(esmEntry).href) as typeof import("vite");
   return vite.createServer;
 }

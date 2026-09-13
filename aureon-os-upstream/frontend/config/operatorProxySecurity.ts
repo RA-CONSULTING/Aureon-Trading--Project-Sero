@@ -1,7 +1,7 @@
 import { isIP } from "node:net";
 import type { IncomingMessage } from "node:http";
 import type { Plugin, ProxyOptions, ResolvedConfig } from "vite";
-import { AUTH_RESOLUTION_HEADER } from "../src/services/authResolution";
+import { AUTH_RESOLUTION_HEADER } from "../src/services/authResolution.ts";
 
 const AUTH_RESOLUTION_HEADER_LOWER = AUTH_RESOLUTION_HEADER.toLowerCase();
 
@@ -157,8 +157,8 @@ export function createProxyRequestGuard(
     if (decision.allowed) return undefined;
     // Vite converts `false` to a local 404 without contacting the target. Keep the
     // response uncacheable and do not reflect attacker-controlled header values.
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("X-Content-Type-Options", "nosniff");
+    res?.setHeader("Cache-Control", "no-store");
+    res?.setHeader("X-Content-Type-Options", "nosniff");
     return false;
   };
 }
