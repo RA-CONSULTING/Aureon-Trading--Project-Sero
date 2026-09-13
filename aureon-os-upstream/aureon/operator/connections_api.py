@@ -9,11 +9,13 @@ raw key only ever travels inward (set/test).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 from aureon.observer.live_data_policy import simulation_fallback_allowed
 from aureon.observer.real_data_contract import TRUTH_STATUSES, load_source_registry
@@ -26,6 +28,56 @@ _REAL_SOURCE_PROBE_REPORTS = (
     _REPO_ROOT / "state" / "real_source_probe.json",
     _REPO_ROOT / "docs" / "audits" / "aureon_real_source_probe.json",
 )
+_CLOUD_EXECUTOR_VENUES = frozenset({"alpaca", "binance", "capital", "kraken"})
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def _current_executor_authentication(control: Mapping[str, Any] | None) -> Dict[str, Any] | None:
+    """Return only current, signed and internally consistent executor auth evidence.
+
+    This is deliberately separate from local/tenant key presence: the isolated cloud
+    executor may authenticate with a Secret Manager version that must never be copied
+    into the UI process or counted as a browser-visible key.
+    """
+    if not isinstance(control, Mapping) or control.get("schema") != "aureon.operator.cloud-trading-control.v1":
+        return None
+    if control.get("read_state") != "observed":
+        return None
+    capabilities = control.get("capabilities")
+    probe = control.get("last_probe")
+    if (not isinstance(capabilities, Mapping)
+            or capabilities.get("all_four_provider_readback_pinned") is not True
+            or not isinstance(probe, Mapping) or probe.get("current") is not True):
+        return None
+    provider = probe.get("provider_readback")
+    providers = provider.get("providers") if isinstance(provider, Mapping) else None
+    if (not isinstance(provider, Mapping) or provider.get("provider_count") != 4
+            or provider.get("all_authenticated") is not True
+            or not isinstance(providers, Mapping) or set(providers) != _CLOUD_EXECUTOR_VENUES):
+        return None
+    clean: Dict[str, Dict[str, Any]] = {}
+    for venue, raw in providers.items():
+        if (not isinstance(raw, Mapping) or raw.get("authenticated") is not True
+                or not isinstance(raw.get("account_binding_sha256"), str)
+                or _HEX64.fullmatch(raw["account_binding_sha256"]) is None):
+            return None
+        clean[str(venue)] = {
+            "authenticated": True,
+            "account_binding_sha256": raw["account_binding_sha256"],
+        }
+    expected = hashlib.sha256(json.dumps(
+        clean, sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode()).hexdigest()
+    if provider.get("readback_sha256") != expected:
+        return None
+    received_at = probe.get("received_at")
+    if not isinstance(received_at, (int, float)) or isinstance(received_at, bool):
+        return None
+    return {
+        "providers": clean,
+        "received_at": float(received_at),
+        "readback_sha256": expected,
+    }
 
 
 # ── credential presence (keystore first, then env / aliases) ──────────────────
@@ -114,7 +166,8 @@ def _real_data_policy_summary() -> Dict[str, Any]:
 
 
 def connection_public(conn: Connection, store: Dict[str, Any], ready: Dict[str, bool],
-                      *, allow_env: bool = True) -> Dict[str, Any]:
+                      *, allow_env: bool = True,
+                      executor_auth: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     entry = store.get(conn.id, {})
     d = conn.to_public_dict()
     d.update({
@@ -123,15 +176,24 @@ def connection_public(conn: Connection, store: Dict[str, Any], ready: Dict[str, 
         "key_source": _key_source(conn, store, allow_env=allow_env),
         "enabled": bool(entry.get("enabled", True)) if entry else (conn.requirement == "keyless"),
         "extra_masked": {k: keystore.mask(v) for k, v in (entry.get("extra") or {}).items()},
+        "credential_scope": "instance" if allow_env else "account",
     })
     if conn.category == "exchange":
         d["runtime_ready"] = ready.get(conn.id)
+        provider = executor_auth.get("providers", {}).get(conn.id) if executor_auth else None
+        d["executor_authenticated"] = bool(
+            isinstance(provider, Mapping) and provider.get("authenticated") is True
+        )
+        if d["executor_authenticated"]:
+            d["executor_evidence_received_at"] = executor_auth.get("received_at")
+            d["executor_readback_sha256"] = executor_auth.get("readback_sha256")
     return d
 
 
 # ── the unified categorized view ──────────────────────────────────────────────
 
-def build_view(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None) -> Dict[str, Any]:
+def build_view(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None,
+               executor_control: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     """Categorized connections. ``llm_providers`` is the operator's LLM provider
     view (from providers_list); everything else comes from the catalog.
 
@@ -143,11 +205,13 @@ def build_view(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None
     store = keystore.load(tenant=tenant)
     allow_env = tenant is None
     ready = _exchange_ready() if tenant is None else {}
+    executor_auth = _current_executor_authentication(executor_control) if tenant is None else None
     llm_rows = [{
         "id": p["id"], "label": p["label"], "category": "ai_llm",
         "requirement": "optional", "consumed_by": "operator",
         "has_key": p["has_key"], "key_masked": p["key_masked"], "key_source": p["key_source"],
         "enabled": p["enabled"], "connected": p.get("live"),
+        "credential_scope": "instance" if tenant is None else "account",
         "unlocks": "LLM model for the operator switchboard",
         "get_keys_url": p.get("get_keys_url", ""), "docs_url": p.get("docs_url", ""),
     } for p in llm_providers]
@@ -157,7 +221,9 @@ def build_view(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None
         if cat_id == "ai_llm":
             items = llm_rows
         else:
-            items = [connection_public(c, store, ready, allow_env=allow_env) for c in _by_cat(cat_id)]
+            items = [connection_public(
+                c, store, ready, allow_env=allow_env, executor_auth=executor_auth,
+            ) for c in _by_cat(cat_id)]
         sections.append({"category": cat_id, "label": cat_label, "connections": items})
     return {"categories": sections}
 
@@ -170,10 +236,12 @@ def _by_cat(cat_id: str) -> List[Connection]:
 
 # ── full operational-capacity readiness (presence only, no network) ───────────
 
-def readiness(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None) -> Dict[str, Any]:
+def readiness(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None,
+              executor_control: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     """Presence-only readiness. ``tenant`` scopes it to that user's store (see :func:`build_view`)."""
     store = keystore.load(tenant=tenant)
     allow_env = tenant is None
+    executor_auth = _current_executor_authentication(executor_control) if tenant is None else None
     items: List[Dict[str, Any]] = []
 
     for p in llm_providers:
@@ -202,6 +270,7 @@ def readiness(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None)
     keyed_total = req_total + opt_total
     keyed_present = req_present + opt_present
     capacity_pct = round(100 * keyed_present / keyed_total) if keyed_total else 100
+    executor_authenticated = len(executor_auth["providers"]) if executor_auth else 0
     # required-gap = the system can't run its core without these (currently none);
     # all_connected = every enrichment key also present → true full capacity.
     return {
@@ -214,6 +283,9 @@ def readiness(llm_providers: List[Dict[str, Any]], *, tenant: str | None = None)
             "core_ready": req_present == req_total,   # no required gap
             "all_connected": len(missing) == 0,        # true full operational capacity
             "missing_count": len(missing),
+            "executor_authenticated": executor_authenticated,
+            "executor_provider_total": len(_CLOUD_EXECUTOR_VENUES) if tenant is None else 0,
+            "executor_evidence_current": executor_authenticated == len(_CLOUD_EXECUTOR_VENUES),
             "real_data_policy": _real_data_policy_summary(),
         },
         "missing": missing,

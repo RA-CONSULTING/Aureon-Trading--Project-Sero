@@ -9,7 +9,9 @@ operator keystore), and the bearer gate. Offline, no network.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
+import json
 import pathlib
 import tempfile
 
@@ -92,6 +94,51 @@ def test_readiness_counts_a_saved_key(temp_store):
     nasa = next(i for i in r["items"] if i["id"] == "nasa")
     assert nasa["present"] is True
     assert r["summary"]["keyed_present"] >= 1
+
+
+def _executor_control(*, current=True):
+    providers = {
+        venue: {"authenticated": True, "account_binding_sha256": index * 64}
+        for venue, index in zip(("alpaca", "binance", "capital", "kraken"), "1234", strict=True)
+    }
+    readback = hashlib.sha256(json.dumps(
+        providers, sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode()).hexdigest()
+    return {
+        "schema": "aureon.operator.cloud-trading-control.v1",
+        "read_state": "observed" if current else "recorded",
+        "capabilities": {"all_four_provider_readback_pinned": True},
+        "last_probe": {
+            "current": current,
+            "received_at": 1_000.0,
+            "provider_readback": {
+                "provider_count": 4,
+                "all_authenticated": True,
+                "readback_sha256": readback,
+                "providers": providers,
+            },
+        },
+    }
+
+
+def test_owner_view_reports_current_cloud_executor_auth_without_inventing_key_presence(temp_store):
+    control = _executor_control()
+    view = connections_api.build_view([], executor_control=control)
+    exchanges = next(row for row in view["categories"] if row["category"] == "exchange")
+    assert {row["id"] for row in exchanges["connections"] if row["executor_authenticated"]} == {
+        "alpaca", "binance", "capital", "kraken",
+    }
+    assert all(row["has_key"] is False for row in exchanges["connections"])
+    summary = connections_api.readiness([], executor_control=control)["summary"]
+    assert summary["executor_authenticated"] == 4
+    assert summary["executor_evidence_current"] is True
+
+
+def test_tenant_and_stale_views_do_not_inherit_owner_executor_authentication(temp_store):
+    for tenant, control in (("tenant-a", _executor_control()), (None, _executor_control(current=False))):
+        view = connections_api.build_view([], tenant=tenant, executor_control=control)
+        exchanges = next(row for row in view["categories"] if row["category"] == "exchange")
+        assert all(row["executor_authenticated"] is False for row in exchanges["connections"])
 
 
 # ── /api/connections surface ───────────────────────────────────────────────────

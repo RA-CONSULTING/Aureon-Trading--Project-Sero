@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasCurrentOwnerIngress } from './authGateAccess';
+import { hasCurrentOwnerIngress, requiresConsoleAuth } from './authGateAccess';
+
+test('Cloud Run consoles require authentication even when the build flag is absent', () => {
+  assert.equal(requiresConsoleAuth(undefined, 'aureon-fusion-web-25xhneniva-ew.a.run.app'), true);
+  assert.equal(requiresConsoleAuth('0', 'AUREON-FUSION-WEB-25XHNENIVA-EW.A.RUN.APP'), true);
+});
+
+test('local development remains opt-in while an explicit build flag requires auth everywhere', () => {
+  assert.equal(requiresConsoleAuth(undefined, '127.0.0.1'), false);
+  assert.equal(requiresConsoleAuth('0', 'localhost'), false);
+  assert.equal(requiresConsoleAuth('1', 'localhost'), true);
+});
 
 test('a current backend admin receipt admits the Google IAP owner plane', async () => {
   assert.equal(await hasCurrentOwnerIngress(async () => ({

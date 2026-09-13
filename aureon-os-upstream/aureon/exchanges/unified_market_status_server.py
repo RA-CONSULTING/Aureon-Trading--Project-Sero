@@ -344,10 +344,10 @@ def _read_runtime_status() -> dict[str, Any]:
                     "generated_at",
                     payload.get("dashboard_generated_at")
                     or payload.get("last_tick_completed_at")
-                    or datetime.fromtimestamp(mtime).isoformat(),
+                    or datetime.fromtimestamp(mtime, timezone.utc).isoformat(),
                 )
                 payload["status_file"] = str(STATUS_PATH)
-                payload["status_file_mtime"] = datetime.fromtimestamp(mtime).isoformat()
+                payload["status_file_mtime"] = datetime.fromtimestamp(mtime, timezone.utc).isoformat()
                 payload["status_file_read_at"] = snapshot.get("read_at")
                 payload["status_file_read_state"] = snapshot.get("state")
                 payload["status_file_age_sec"] = round(age_sec, 3)
@@ -399,19 +399,19 @@ def _read_runtime_status() -> dict[str, Any]:
                 "source": "unified-market-status-server",
                 "error": f"status_file_read_failed: {exc}",
                 "status_file": str(STATUS_PATH),
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
     if snapshot.get("state") == "failed":
         return {"ok": False, "stale": True, "source": "unified-market-status-server",
                 "error": f"status_file_read_failed: {snapshot.get('error', 'unknown')}",
                 "status_file": str(STATUS_PATH), "status_file_read_state": "failed",
-                "status_file_read_at": snapshot.get("read_at"), "generated_at": datetime.now().isoformat()}
+                "status_file_read_at": snapshot.get("read_at"), "generated_at": datetime.now(timezone.utc).isoformat()}
 
     return {
         "ok": True,
         "source": "unified-market-status-server",
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "service": "unified-market-trader",
         "trading_ready": False,
         "data_ready": False,
@@ -1102,7 +1102,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 payload = {
                     "ok": True,
                     "service": "unified-market-status-server",
-                    "generated_at": datetime.now().isoformat(),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
                     "status_file": str(STATUS_PATH),
                     "status_file_exists": payload.get("status_file_read_state") == "observed",
                     "served_status_ok": bool(payload.get("ok", False)),

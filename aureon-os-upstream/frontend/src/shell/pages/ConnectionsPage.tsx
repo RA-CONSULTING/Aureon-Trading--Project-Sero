@@ -34,9 +34,13 @@ interface Conn {
   has_key: boolean;
   key_masked: string;
   key_source?: string;
+  credential_scope?: "instance" | "account";
   enabled: boolean;
   connected?: boolean | null;
   runtime_ready?: boolean | null;
+  executor_authenticated?: boolean;
+  executor_evidence_received_at?: number;
+  executor_readback_sha256?: string;
   unlocks?: string;
   get_keys_url?: string;
   docs_url?: string;
@@ -50,6 +54,8 @@ interface Readiness {
   summary: {
     capacity_pct: number; keyed_present: number; keyed_total: number;
     keyless: number; all_connected: boolean; missing_count: number;
+    executor_authenticated?: number; executor_provider_total?: number;
+    executor_evidence_current?: boolean;
   };
   missing: { id: string; label: string; category: string; unlocks: string; get_keys_url: string }[];
 }
@@ -107,7 +113,11 @@ export default function ConnectionsPage() {
       if (version.current !== operationVersion) return;
       if (v?.ok !== true) throw new Error(v?.error || "The server did not confirm this save. Your entered values have been kept.");
       toast.success(`${c.label} saved`, {
-        description: c.category === "exchange" ? "written to .env — trader picks it up on restart" : undefined,
+        description: c.category === "exchange"
+          ? c.credential_scope === "account"
+            ? "stored in this signed-in account's encrypted credential store"
+            : "stored in the cloud instance configuration; runtime use requires a fresh provider read-back"
+          : undefined,
       });
       patch(c.id, { apiKey: "", extra: {} });
       receipt.invalidate();
@@ -142,8 +152,8 @@ export default function ConnectionsPage() {
 
   function dot(c: Conn) {
     const test = datedTestEvidence(tests[c.id]);
-    const color = test.current ? test.ok ? 'bg-emerald-500' : 'bg-destructive' : c.requirement === 'keyless' ? 'bg-sky-500' : c.has_key ? 'bg-amber-500' : 'bg-muted-foreground/40';
-    const title = test.current ? `Requested test ${test.ok ? 'passed' : 'failed'} at ${test.timestamp}` : c.requirement === 'keyless' ? 'Public endpoint; availability untested' : c.has_key ? 'Key configured; availability untested' : 'Key not configured';
+    const color = test.current ? test.ok ? 'bg-emerald-500' : 'bg-destructive' : c.executor_authenticated ? 'bg-cyan-400' : c.requirement === 'keyless' ? 'bg-sky-500' : c.has_key ? 'bg-amber-500' : 'bg-muted-foreground/40';
+    const title = test.current ? `Requested test ${test.ok ? 'passed' : 'failed'} at ${test.timestamp}` : c.executor_authenticated ? 'Authenticated by the current signed cloud-executor receipt' : c.requirement === 'keyless' ? 'Public endpoint; availability untested' : c.has_key ? 'Key configured; availability untested' : 'Key not configured';
     return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} title={title} />;
   }
 
@@ -171,6 +181,11 @@ export default function ConnectionsPage() {
                   {readiness.summary.keyed_present}/{readiness.summary.keyed_total} keys configured
                 </Badge>
                 <Badge variant="outline">{readiness.summary.keyless} public endpoints</Badge>
+                {(readiness.summary.executor_provider_total ?? 0) > 0 && (
+                  <Badge variant={readiness.summary.executor_evidence_current ? "secondary" : "outline"}>
+                    {readiness.summary.executor_authenticated ?? 0}/{readiness.summary.executor_provider_total} signed executor auth
+                  </Badge>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -219,6 +234,7 @@ export default function ConnectionsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">{dot(c)}<span className="font-medium">{c.label}</span></div>
                       {c.has_key && keyed && <Badge variant="outline" className="text-[10px]">{c.key_masked} · {c.key_source}</Badge>}
+                      {c.executor_authenticated && <Badge variant="secondary" className="text-[10px]">cloud executor authenticated</Badge>}
                       {c.requirement === "keyless" && <Badge variant="outline" className="text-[10px]">keyless</Badge>}
                     </div>
                     {c.unlocks && <p className="text-xs text-muted-foreground">{c.unlocks}</p>}
@@ -228,6 +244,12 @@ export default function ConnectionsPage() {
                         : 'No current dated connection-test result.'}
                     </p>
                     {(c.connected !== undefined || c.runtime_ready !== undefined) && <p className="text-xs text-muted-foreground">Runtime attachment/readiness flag: {c.connected === true || c.runtime_ready === true ? 'reported' : 'not confirmed'}. No source timestamp is supplied for this flag.</p>}
+                    {c.executor_authenticated && typeof c.executor_evidence_received_at === 'number' && (
+                      <p className="text-xs text-cyan-300">
+                        Isolated cloud executor authentication confirmed by a signed current receipt received {new Date(c.executor_evidence_received_at * 1000).toISOString()}.
+                        This confirms provider authentication; it does not expose the key or claim an order was placed.
+                      </p>
+                    )}
 
                     {keyed && (
                       <div className="flex gap-2">
@@ -245,13 +267,17 @@ export default function ConnectionsPage() {
                       </div>
                     )}
                     {keyed && (c.extra_envs ?? []).map((env, i) => (
-                      <Input key={env} placeholder={c.secondary_labels?.[i] ?? env}
+                      <Input key={env} type="password" placeholder={c.secondary_labels?.[i] ?? env}
                         aria-label={c.secondary_labels?.[i] ?? env}
                         value={d.extra[env] ?? ""} autoComplete="off"
                         onChange={(e) => patch(c.id, { extra: { ...d.extra, [env]: e.target.value } })} />
                     ))}
                     {c.category === "exchange" && (
-                      <p className="text-[11px] text-warning">Saved to .env — the trading process applies it on restart.</p>
+                      <p className="text-[11px] text-warning">
+                        {c.credential_scope === "account"
+                          ? "Saved only to this signed-in account's encrypted store. Provider testing and human trading approval remain separate."
+                          : "Saved to the cloud instance configuration. Executor use is shown only after a fresh signed provider read-back."}
+                      </p>
                     )}
 
                     <div className="mt-auto flex items-center justify-between pt-1">

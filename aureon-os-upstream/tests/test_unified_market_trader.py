@@ -2190,7 +2190,9 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         trader.capital_ready = True
         trader.alpaca = object()
         trader.binance = None
-        trader._last_tick_completed_at = time.time()
+        tick_timestamp = time.time()
+        trader._last_tick_started_at = tick_timestamp
+        trader._last_tick_completed_at = tick_timestamp
 
         health = trader.get_runtime_health()
 
@@ -2200,6 +2202,8 @@ class UnifiedMarketTraderTests(unittest.TestCase):
         self.assertFalse(health["stale"])
         self.assertEqual(health["preflight_overall"], "yellow")
         self.assertIn("api_governor", health)
+        self.assertEqual(datetime.fromisoformat(health["last_tick_started_at"]).utcoffset().total_seconds(), 0)
+        self.assertEqual(datetime.fromisoformat(health["last_tick_completed_at"]).utcoffset().total_seconds(), 0)
 
     def test_runtime_health_marks_stalled_tick_without_confusing_heartbeat_freshness(self):
         trader = self._make_trader()

@@ -238,8 +238,8 @@ export type TerminalFreshness = {
 /** A transport receipt or a status-file heartbeat cannot refresh a market tick. */
 export function terminalFreshness(state: TerminalState | null, error: string | null, receivedAtMs: number | null, nowMs = Date.now()): TerminalFreshness {
   const timestamp = typeof state?.last_tick_completed_at === "string" ? state.last_tick_completed_at : null;
-  // The current producer emits local datetime.now() values. Preserve their
-  // local semantics; never append Z and silently change their instant.
+  // The cloud producer emits an explicit UTC offset so browsers in every
+  // timezone evaluate the same completed-tick instant.
   const sourceMs = timestamp ? Date.parse(timestamp) : NaN;
   const elapsedSec = receivedAtMs == null ? 0 : Math.max(0, nowMs - receivedAtMs) / 1_000;
   const reportedAge = state?.last_tick_age_sec;

@@ -80,7 +80,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         path: "/start",
         label: "Get Started",
-        description: "Three steps to your first grounded conversation — connect a model, test, chat",
+        description: "Configure private account keys, test connections, and open the system",
         icon: Rocket,
         Component: lazy(() => import("./pages/GetStartedPage")),
         live: true,

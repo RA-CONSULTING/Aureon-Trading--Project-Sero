@@ -1600,12 +1600,18 @@ def create_app(
         # `tenant` must reach build_view itself, not just the LLM rows it is handed: the non-LLM
         # (exchange / data-source) rows are built inside from the keystore + os.environ.
         tenant = getattr(g, "tenant", None)
-        return jsonify(_json_safe(_conn_api.build_view(_provider_view(tenant), tenant=tenant)))
+        executor_control = None if tenant is not None else build_cloud_trading_control_receipt()
+        return jsonify(_json_safe(_conn_api.build_view(
+            _provider_view(tenant), tenant=tenant, executor_control=executor_control,
+        )))
 
     @app.get("/api/connections/readiness")
     def connections_readiness():
         tenant = getattr(g, "tenant", None)
-        return jsonify(_json_safe(_conn_api.readiness(_provider_view(tenant), tenant=tenant)))
+        executor_control = None if tenant is not None else build_cloud_trading_control_receipt()
+        return jsonify(_json_safe(_conn_api.readiness(
+            _provider_view(tenant), tenant=tenant, executor_control=executor_control,
+        )))
 
     @app.post("/api/connections/<conn_id>")
     def connections_set(conn_id: str):

@@ -1,7 +1,8 @@
 /**
  * Get Started — reviewed glass design (get_started_concept_v1), current account setup.
  *
- * Route: /start. Three-step onboarding: connect a model, test connection, open chat.
+ * Route: /start. Account onboarding covers isolated model, exchange and data-source keys,
+ * followed by model testing and chat.
  * Softs: Companies House · Innovate NI Silver · MIT License · Honest Provenance.
  * Palette: zinc / gold / cyan only — no paint-green, no fake live chips.
  * Provider setup uses the shared authenticated read owner; past tests retain their date.
@@ -15,6 +16,7 @@ import {
   ExternalLink,
   HelpCircle,
   Info,
+  KeyRound,
   MessageSquare,
   Network,
   Play,
@@ -205,7 +207,7 @@ export default function GetStartedPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Get Started</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            Connect a model, verify it works, and open a secure chat.
+            Configure this account's private keys, verify its connections, and open the system.
           </p>
         </div>
         <Link
@@ -218,6 +220,34 @@ export default function GetStartedPage() {
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
+
+      <GlassCard active>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <KeyRound className="mt-0.5 h-5 w-5 shrink-0" style={{ color: CYAN }} />
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-100">Connect your account</h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-zinc-400">
+                Add this user's exchange, market-data and notification credentials in Connections.
+                Values are stored in the signed-in account's encrypted tenant store and are never
+                taken from another user or returned to the browser.
+              </p>
+              <p className="mt-2 text-[10px] uppercase tracking-wide text-zinc-500">
+                Saving a key records configuration only. A dated provider test and separate human
+                trading approval are still required before an execution route can be treated as usable.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/ops/connections"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90"
+            style={{ background: GOLD, color: "#0a0a0a" }}
+          >
+            Add account keys
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </GlassCard>
 
       {setup.loading && (
         <div className="grid gap-4 md:grid-cols-3">

@@ -13166,7 +13166,7 @@ class UnifiedMarketTrader:
                     else str(gold_live_signal.get("reason") or "combined_payload_not_ready")
                 )
             runtime_stall_diagnostic = {
-                "generated_at": datetime.now().isoformat(),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
                 "reason": stale_reason,
                 "tick_phase": tick_phase,
                 "tick_phase_running_sec": round(max(0.0, now - tick_phase_at), 3) if tick_phase_at > 0 else 0.0,
@@ -13189,8 +13189,8 @@ class UnifiedMarketTrader:
             "stale": stale,
             "booting": booting,
             "boot_age_sec": round(float(boot_age_sec), 3),
-            "last_tick_started_at": datetime.fromtimestamp(last_tick_started_at).isoformat() if last_tick_started_at > 0 else None,
-            "last_tick_completed_at": datetime.fromtimestamp(last_tick_completed_at).isoformat() if last_tick_completed_at > 0 else None,
+            "last_tick_started_at": datetime.fromtimestamp(last_tick_started_at, timezone.utc).isoformat() if last_tick_started_at > 0 else None,
+            "last_tick_completed_at": datetime.fromtimestamp(last_tick_completed_at, timezone.utc).isoformat() if last_tick_completed_at > 0 else None,
             "last_tick_age_sec": round(float(tick_age_sec), 3) if tick_age_sec is not None else None,
             "last_tick_running_sec": round(float(tick_running_sec), 3) if tick_running_sec > 0 else 0.0,
             "tick_phase": tick_phase,

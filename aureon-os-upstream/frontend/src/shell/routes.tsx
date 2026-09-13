@@ -30,7 +30,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    // The operator console is auth-gated (a no-op unless VITE_REQUIRE_AUTH=1);
+    // The operator console is auth-gated on Cloud Run or when VITE_REQUIRE_AUTH=1;
     // the public PublicLayout subtree above stays open in every build.
     element: (
       <AuthGate>
