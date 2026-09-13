@@ -306,6 +306,193 @@ def test_staged_service_readback_fails_closed_on_execution_surface_drift(mutate)
     assert len(runner.calls) == 3
 
 
+def test_direct_vpc_command_omits_only_provider_proven_clear_connector_noop():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-trade-executor"
+    )
+    expected = next(
+        item for item in resolved["cloud_run"]["services"]
+        if item["name"] == row["service"]
+    )
+    provider = staged_provider_fixture(resolved, expected)
+    latest_created = provider["service"]["status"]["latestCreatedRevisionName"]
+    runner = TargetServiceRunner(expected, provider)
+
+    command, omission = stage.provider_safe_service_command(
+        resolved, runner, row
+    )
+
+    original = tuple(row["argv"])
+    assert stage._CLEAR_VPC_CONNECTOR in original
+    assert stage._CLEAR_VPC_CONNECTOR not in command
+    assert command == tuple(
+        arg for arg in original if arg != stage._CLEAR_VPC_CONNECTOR
+    )
+    assert "--no-traffic" in command
+    assert "--revision-suffix=r" + REVISION[:12] in command
+    assert omission == {
+        "service": row["service"],
+        "omitted_argument": stage._CLEAR_VPC_CONNECTOR,
+        "provider_connector_absent": True,
+        "provider_direct_vpc_exact": True,
+    }
+    assert runner.calls[2][0][3] == latest_created
+
+
+def test_direct_vpc_command_requires_explicit_connector_migration():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-trade-executor"
+    )
+    expected = next(
+        item for item in resolved["cloud_run"]["services"]
+        if item["name"] == row["service"]
+    )
+    provider = staged_provider_fixture(resolved, expected)
+    provider["revision"]["metadata"]["annotations"][
+        "run.googleapis.com/vpc-access-connector"
+    ] = "legacy-connector"
+    runner = TargetServiceRunner(expected, provider)
+
+    with pytest.raises(
+        stage.StageError,
+        match="cloud_run_stage_vpc_connector_migration_required",
+    ):
+        stage.provider_safe_service_command(resolved, runner, row)
+
+
+def test_direct_vpc_command_rejects_unbound_latest_created_revision():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-trade-executor"
+    )
+    expected = next(
+        item for item in resolved["cloud_run"]["services"]
+        if item["name"] == row["service"]
+    )
+    provider = staged_provider_fixture(resolved, expected)
+    provider["revision"]["metadata"]["name"] = provider["service"]["status"][
+        "latestReadyRevisionName"
+    ]
+    runner = TargetServiceRunner(expected, provider)
+
+    with pytest.raises(
+        stage.StageError, match="cloud_run_stage_network_readback_not_exact"
+    ):
+        stage.provider_safe_service_command(resolved, runner, row)
+
+
+def test_direct_vpc_command_fails_closed_on_network_drift_or_provider_error():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-trade-executor"
+    )
+    expected = next(
+        item for item in resolved["cloud_run"]["services"]
+        if item["name"] == row["service"]
+    )
+    provider = staged_provider_fixture(resolved, expected)
+    interfaces = json.loads(
+        provider["revision"]["metadata"]["annotations"][
+            "run.googleapis.com/network-interfaces"
+        ]
+    )
+    interfaces[0]["network"] = "wrong-network"
+    provider["revision"]["metadata"]["annotations"][
+        "run.googleapis.com/network-interfaces"
+    ] = json.dumps(interfaces)
+    runner = TargetServiceRunner(expected, provider)
+    with pytest.raises(
+        stage.StageError, match="cloud_run_stage_network_readback_not_exact"
+    ):
+        stage.provider_safe_service_command(resolved, runner, row)
+
+    class ErrorRunner:
+        def json(self, *_args, **_kwargs):
+            raise commission.CommissionError("gcloud_command_failed")
+
+    with pytest.raises(
+        stage.StageError, match="cloud_run_stage_network_readback_not_exact"
+    ):
+        stage.provider_safe_service_command(resolved, ErrorRunner(), row)
+
+
+def test_private_ranges_direct_vpc_command_bypasses_workaround():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-fusion-web"
+    )
+
+    class NoReadRunner:
+        def json(self, *_args, **_kwargs):
+            raise AssertionError("provider read was not required")
+
+    command, omission = stage.provider_safe_service_command(
+        resolved, NoReadRunner(), row
+    )
+    assert command == tuple(row["argv"])
+    assert stage._CLEAR_VPC_CONNECTOR in command
+    assert "--vpc-egress=private-ranges-only" in command
+    assert omission is None
+
+
+def test_absent_all_traffic_service_creation_keeps_original_command():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-trade-executor"
+    )
+    expected = next(
+        item for item in resolved["cloud_run"]["services"]
+        if item["name"] == row["service"]
+    )
+    provider = staged_provider_fixture(resolved, expected)
+    provider["service"] = None
+    runner = TargetServiceRunner(expected, provider)
+
+    command, omission = stage.provider_safe_service_command(
+        resolved, runner, row
+    )
+    assert command == tuple(row["argv"])
+    assert stage._CLEAR_VPC_CONNECTOR in command
+    assert "--vpc-egress=all-traffic" in command
+    assert omission is None
+    assert len(runner.calls) == 1
+
+
+def test_service_without_direct_vpc_keeps_reviewed_clear_flags_without_readback():
+    resolved = contract()
+    plan = stage.build_plan(resolved, "f" * 64)
+    row = next(
+        item for item in plan["services"]
+        if item["service"] == "aureon-trade-controller"
+    )
+
+    class NoReadRunner:
+        def json(self, *_args, **_kwargs):
+            raise AssertionError("provider read was not required")
+
+    command, omission = stage.provider_safe_service_command(
+        resolved, NoReadRunner(), row
+    )
+    assert command == tuple(row["argv"])
+    assert stage._CLEAR_VPC_CONNECTOR in command
+    assert "--clear-network" in command
+    assert omission is None
+
+
 def test_exact_plan_acknowledgement_and_execution(tmp_path):
     plan = stage.build_plan(contract(), "f" * 64)
     path = (tmp_path / "plan.json").resolve()
@@ -411,8 +598,39 @@ def test_recovery_receipt_rejects_tampered_plan_binding(tmp_path):
     )
     path = (tmp_path / "progress.json").resolve()
     path.write_text(json.dumps(progress), encoding="utf-8")
-    assert stage._load_recovery(path, plan) == []
+    assert stage._load_recovery(path, plan) == ([], [])
     progress["immutable_image_build_receipt_sha256"] = "0" * 64
     path.write_text(json.dumps(progress), encoding="utf-8")
     with pytest.raises(stage.StageError, match="recovery_receipt_invalid"):
         stage._load_recovery(path, plan)
+
+
+def test_recovery_receipt_preserves_safe_noop_omission_and_accepts_legacy_shape(
+    tmp_path,
+):
+    plan = stage.build_plan(contract(), "f" * 64)
+    names = [row["service"] for row in plan["services"]]
+    target = "aureon-trade-executor"
+    completed = names[: names.index(target)]
+    omission = {
+        "service": target,
+        "omitted_argument": stage._CLEAR_VPC_CONNECTOR,
+        "provider_connector_absent": True,
+        "provider_direct_vpc_exact": True,
+    }
+    progress = stage._progress_receipt(
+        plan,
+        status="recovery_required",
+        completed=completed,
+        in_flight_service=target,
+        error_code="cloud_run_stage_command_failed",
+        provider_proven_noop_omissions=[omission],
+    )
+    path = (tmp_path / "noop-progress.json").resolve()
+    path.write_text(json.dumps(progress), encoding="utf-8")
+
+    assert stage._load_recovery(path, plan) == (completed, [omission])
+
+    progress.pop("provider_proven_noop_omissions")
+    path.write_text(json.dumps(progress), encoding="utf-8")
+    assert stage._load_recovery(path, plan) == (completed, [])

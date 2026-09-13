@@ -33,6 +33,8 @@ from authority_commission import (
 SCHEMA = "aureon.gcp.cloud-run-no-traffic-plan.v1"
 STAGE_SCHEMA = "aureon.gcp.cloud-run-no-traffic-stage-receipt.v1"
 _HEX64 = re.compile(r"[0-9a-f]{64}")
+_CLEAR_VPC_CONNECTOR = "--clear-vpc-connector"
+_VPC_EGRESS_ALL_TRAFFIC = "--vpc-egress=all-traffic"
 
 
 class StageError(RuntimeError):
@@ -162,6 +164,7 @@ def _progress_receipt(
     completed: list[str],
     in_flight_service: str | None,
     error_code: str | None,
+    provider_proven_noop_omissions: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema": STAGE_SCHEMA,
@@ -177,6 +180,9 @@ def _progress_receipt(
         "services": list(completed),
         "in_flight_service": in_flight_service,
         "error_code": error_code,
+        "provider_proven_noop_omissions": [
+            dict(row) for row in (provider_proven_noop_omissions or [])
+        ],
         "all_revisions_requested_no_traffic": True,
         "provider_attestation_required": True,
         "cloud_run_traffic_changed": False,
@@ -186,11 +192,13 @@ def _progress_receipt(
     }
 
 
-def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
+def _load_recovery(
+    path: Path, plan: Mapping[str, Any]
+) -> tuple[list[str], list[dict[str, Any]]]:
     """Load a durable prefix of provider-attested work from an earlier attempt."""
 
     if not path.exists():
-        return []
+        return [], []
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise StageError("stage_recovery_receipt_invalid")
     try:
@@ -204,7 +212,21 @@ def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
         in_flight_service=None,
         error_code=None,
     )
-    volatile = {"status", "recorded_at", "services", "in_flight_service", "error_code"}
+    omission_key = "provider_proven_noop_omissions"
+    if (
+        isinstance(value, Mapping)
+        and omission_key not in value
+        and set(value) == set(required) - {omission_key}
+    ):
+        value = {**value, omission_key: []}
+    volatile = {
+        "status",
+        "recorded_at",
+        "services",
+        "in_flight_service",
+        "error_code",
+        omission_key,
+    }
     if (
         not isinstance(value, Mapping)
         or set(value) != set(required)
@@ -221,6 +243,7 @@ def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
     completed = value.get("services")
     in_flight = value.get("in_flight_service")
     error_code = value.get("error_code")
+    omissions = value.get(omission_key)
     if (
         not isinstance(completed, list)
         or completed != names[: len(completed)]
@@ -234,6 +257,39 @@ def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
         )
     ):
         raise StageError("stage_recovery_receipt_invalid")
+    eligible_names = {
+        row["service"]
+        for row in plan["services"]
+        if _CLEAR_VPC_CONNECTOR in row["argv"]
+        and _VPC_EGRESS_ALL_TRAFFIC in row["argv"]
+    }
+    omission_names = [
+        row.get("service") for row in omissions if isinstance(row, Mapping)
+    ] if isinstance(omissions, list) else []
+    admitted = set(completed)
+    if isinstance(in_flight, str):
+        admitted.add(in_flight)
+    if (
+        not isinstance(omissions, list)
+        or len(omission_names) != len(omissions)
+        or omission_names != [name for name in names if name in omission_names]
+        or len(set(omission_names)) != len(omission_names)
+        or not set(omission_names) <= admitted & eligible_names
+        or any(
+            set(row) != {
+                "service",
+                "omitted_argument",
+                "provider_connector_absent",
+                "provider_direct_vpc_exact",
+            }
+            or row.get("omitted_argument") != _CLEAR_VPC_CONNECTOR
+            or row.get("provider_connector_absent") is not True
+            or row.get("provider_direct_vpc_exact") is not True
+            for row in omissions
+            if isinstance(row, Mapping)
+        )
+    ):
+        raise StageError("stage_recovery_receipt_invalid")
     status = value["status"]
     if (
         (status == "recovery_required" and (
@@ -244,6 +300,9 @@ def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
                 "cloud_run_stage_provider_readback_failed",
                 "cloud_run_stage_provider_readback_not_exact",
                 "cloud_run_stage_prior_readback_not_exact",
+                "cloud_run_stage_network_readback_not_exact",
+                "cloud_run_stage_service_plan_invalid",
+                "cloud_run_stage_vpc_connector_migration_required",
             }
         ))
         or (status == "staging" and error_code is not None)
@@ -257,7 +316,7 @@ def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
         )
     ):
         raise StageError("stage_recovery_receipt_invalid")
-    return list(completed)
+    return list(completed), [dict(row) for row in omissions]
 
 
 def _service_staged_exact(
@@ -309,6 +368,62 @@ def provider_service_staged_exact(
     if observed is not None:
         snapshot["cloud_run"][name] = observed
     return _service_staged_exact(contract, snapshot, name)
+
+
+def provider_safe_service_command(
+    contract: Mapping[str, Any],
+    provider: AuditGcloud,
+    row: Mapping[str, Any],
+) -> tuple[tuple[str, ...], dict[str, Any] | None]:
+    """Omit an SDK-incompatible networking no-op only after exact readback."""
+
+    args = tuple(row.get("argv", ()))
+    name = row.get("service")
+    expected = next(
+        (
+            service
+            for service in contract["cloud_run"]["services"]
+            if service["name"] == name
+        ),
+        None,
+    )
+    if expected is None or args != service_command(contract, expected):
+        raise StageError("cloud_run_stage_service_plan_invalid")
+    if (
+        _CLEAR_VPC_CONNECTOR not in args
+        or _VPC_EGRESS_ALL_TRAFFIC not in args
+    ):
+        return args, None
+    try:
+        observed = capture_cloud_run_service(
+            contract, provider, expected, revision_mode="staged"
+        )
+    except CommissionError as exc:
+        raise StageError("cloud_run_stage_network_readback_not_exact") from exc
+    if observed is None:
+        return args, None
+    if not isinstance(observed, Mapping):
+        raise StageError("cloud_run_stage_network_readback_not_exact")
+    latest_created = observed.get("latest_created_revision")
+    if (
+        not isinstance(latest_created, str)
+        or not latest_created
+        or observed.get("inspected_revision") != latest_created
+    ):
+        raise StageError("cloud_run_stage_network_readback_not_exact")
+    if observed.get("legacy_vpc_connector") is not None:
+        raise StageError("cloud_run_stage_vpc_connector_migration_required")
+    if observed.get("direct_vpc") != expected["direct_vpc"]:
+        raise StageError("cloud_run_stage_network_readback_not_exact")
+    adjusted = tuple(arg for arg in args if arg != _CLEAR_VPC_CONNECTOR)
+    if len(adjusted) != len(args) - 1:
+        raise StageError("cloud_run_stage_service_plan_invalid")
+    return adjusted, {
+        "service": name,
+        "omitted_argument": _CLEAR_VPC_CONNECTOR,
+        "provider_connector_absent": True,
+        "provider_direct_vpc_exact": True,
+    }
 
 
 def load_exact_plan(
@@ -372,6 +487,7 @@ def execute_resumable(
     is_complete: Callable[[str], bool],
     progress: Callable[[str, list[str], str | None, str | None], None],
     runner: Callable[[str, str, tuple[str, ...]], None] = gcloud_apply,
+    command_for: Callable[[Mapping[str, Any]], tuple[str, ...]] | None = None,
 ) -> list[str]:
     """Resume an immutable stage using provider state after uncertain failures."""
 
@@ -394,13 +510,22 @@ def execute_resumable(
             raise StageError("cloud_run_stage_prior_readback_not_exact")
     for row in plan["services"][len(done) :]:
         name = row["service"]
-        args = tuple(row["argv"])
-        if "--no-traffic" not in args:
-            raise StageError("traffic_mutation_flag_forbidden")
         if is_complete(name):
             done.append(name)
             progress("staging", done, None, None)
             continue
+        try:
+            args = (
+                command_for(row)
+                if command_for is not None
+                else tuple(row["argv"])
+            )
+        except StageError as exc:
+            error_code = str(exc)
+            progress("recovery_required", done, name, error_code)
+            raise
+        if "--no-traffic" not in args:
+            raise StageError("traffic_mutation_flag_forbidden")
         progress("staging", done, name, None)
         try:
             runner(executable, plan["project"], args)
@@ -501,11 +626,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         if plan_hash != sha256(canonical(plan)):
             raise StageError("stage_plan_binding_invalid")
-        completed = _load_recovery(args.receipt, plan)
+        completed, provider_proven_noop_omissions = _load_recovery(
+            args.receipt, plan
+        )
         provider = AuditGcloud(args.gcloud, contract["project"])
 
         def is_complete(name: str) -> bool:
             return provider_service_staged_exact(contract, provider, name)
+
+        def command_for(row: Mapping[str, Any]) -> tuple[str, ...]:
+            command, omission = provider_safe_service_command(
+                contract, provider, row
+            )
+            if omission is not None and omission["service"] not in {
+                item["service"] for item in provider_proven_noop_omissions
+            }:
+                provider_proven_noop_omissions.append(omission)
+            return command
 
         def progress(
             status: str,
@@ -521,6 +658,9 @@ def main(argv: list[str] | None = None) -> int:
                     completed=done,
                     in_flight_service=in_flight,
                     error_code=error_code,
+                    provider_proven_noop_omissions=(
+                        provider_proven_noop_omissions
+                    ),
                 ),
             )
 
@@ -530,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
             executable=args.gcloud,
             is_complete=is_complete,
             progress=progress,
+            command_for=command_for,
         )
         receipt = _progress_receipt(
             plan,
@@ -537,6 +678,7 @@ def main(argv: list[str] | None = None) -> int:
             completed=completed,
             in_flight_service=None,
             error_code=None,
+            provider_proven_noop_omissions=provider_proven_noop_omissions,
         )
         write_receipt(args.receipt, receipt)
         print(
