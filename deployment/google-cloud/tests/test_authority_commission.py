@@ -8,6 +8,7 @@ import importlib.util
 import json
 from pathlib import Path
 import shlex
+import subprocess
 import sys
 
 import pytest
@@ -256,8 +257,13 @@ def exact_snapshot(contract):
                 }
             )
     bridge = vm["public_bridge"]
-    units[bridge["unit"]]["environment"].update(
-        bridge["required_environment"]
+    units[bridge["unit"]].update(
+        {
+            "environment_file_bound": True,
+            "effective_environment": deepcopy(bridge["required_environment"]),
+            "effective_environment_parse_error": False,
+            "effective_sensitive_environment_name_hashes": [],
+        }
     )
     snapshot["vm"] = {
         "name": vm["instance"],
@@ -1053,6 +1059,24 @@ def test_prepare_audit_defers_only_vm_readback():
             "vm.unit.aureon-cloud-operator.service.inline_secret_environment",
         ),
         (
+            lambda c, s: s["vm"]["units"][
+                c["vm_workload_identity"]["public_bridge"]["unit"]
+            ].update(environment_file_bound=False),
+            "vm.unit.aureon-public-bridge.service.environment_file",
+        ),
+        (
+            lambda c, s: s["vm"]["units"][
+                c["vm_workload_identity"]["public_bridge"]["unit"]
+            ].update(effective_environment_parse_error=True),
+            "vm.unit.aureon-public-bridge.service.effective_environment_parse",
+        ),
+        (
+            lambda c, s: s["vm"]["units"][
+                c["vm_workload_identity"]["public_bridge"]["unit"]
+            ]["effective_sensitive_environment_name_hashes"].append("f" * 64),
+            "vm.unit.aureon-public-bridge.service.effective_secret_environment",
+        ),
+        (
             lambda c, s: s["vm"].update(service_accounts=[]),
             "vm.attached_identity",
         ),
@@ -1324,7 +1348,15 @@ def test_vm_snapshot_uses_privileged_redacted_metadata_readback():
         def text(self, *args):
             self.text_args = args
             path = contract["vm_workload_identity"]["token_storage"][0]["path"]
+            bridge = contract["vm_workload_identity"]["public_bridge"]
+            commitment = bridge["required_environment"][
+                "AUREON_IAP_ADMIN_EMAIL_SHA256"
+            ]
             return (
+                f"@@UNIT={bridge['unit']}\n"
+                "EnvironmentFileBinding=1\n"
+                "EffectiveEnvironmentAllowed."
+                f"AUREON_IAP_ADMIN_EMAIL_SHA256={commitment}\n"
                 f"@@PATH={path}\n"
                 "Kind=directory\n"
                 "Owner=root\n"
@@ -1336,6 +1368,14 @@ def test_vm_snapshot_uses_privileged_redacted_metadata_readback():
     snapshot = commission._capture_vm(contract, runner)
 
     assert snapshot["systemd_readback_ok"] is True
+    bridge = contract["vm_workload_identity"]["public_bridge"]
+    bridge_readback = snapshot["units"][bridge["unit"]]
+    assert bridge_readback["environment_file_bound"] is True
+    assert bridge_readback["effective_environment"] == (
+        bridge["required_environment"]
+    )
+    assert bridge_readback["effective_environment_parse_error"] is False
+    assert bridge_readback["effective_sensitive_environment_name_hashes"] == []
     path = contract["vm_workload_identity"]["token_storage"][0]["path"]
     assert snapshot["paths"][path] == {
         "kind": "directory",
@@ -1352,10 +1392,108 @@ def test_vm_snapshot_uses_privileged_redacted_metadata_readback():
     assert words[:5] == ["sudo", "-n", "--", "sh", "-c"]
     redacted_script = words[5]
     assert "systemctl show" in redacted_script
+    assert "--property=EnvironmentFiles" in redacted_script
+    assert commission.PUBLIC_BRIDGE_ENVIRONMENT_FILE in redacted_script
+    assert '"/proc/$pid/environ"' in redacted_script
     assert "SensitiveEnvironmentNameHash" in redacted_script
+    assert "EffectiveSensitiveEnvironmentNameHash" in redacted_script
     assert "EnvironmentAllowed." in redacted_script
     assert "stat --format=" in redacted_script
     assert "cat " not in redacted_script
+
+
+def test_effective_environment_filter_returns_only_commitment_and_name_hashes(
+    tmp_path,
+):
+    contract = resolved_contract()
+    bridge = contract["vm_workload_identity"]["public_bridge"]
+    commitment = bridge["required_environment"][
+        "AUREON_IAP_ADMIN_EMAIL_SHA256"
+    ]
+    plaintext_email = "owner@example.invalid"
+    secret_value = "never-print-this-provider-key"
+    unrelated_value = "also-never-print-this"
+    environment = (tmp_path / "environ").resolve()
+    environment.write_bytes(
+        b"AUREON_IAP_ADMIN_EMAIL_SHA256="
+        + commitment.encode("ascii")
+        + b"\0AUREON_IAP_ADMIN_EMAIL="
+        + plaintext_email.encode("ascii")
+        + b"\0AUREON_API_KEY="
+        + secret_value.encode("ascii")
+        + b"\0UNRELATED="
+        + unrelated_value.encode("ascii")
+        + b"\0"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            commission._effective_environment_filter_source(
+                bridge["required_environment"]
+            ),
+            str(environment),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.splitlines() == [
+        "EffectiveEnvironmentAllowed.AUREON_IAP_ADMIN_EMAIL_SHA256="
+        + commitment,
+        "EffectiveSensitiveEnvironmentNameHash="
+        + commission.sha256(b"AUREON_IAP_ADMIN_EMAIL"),
+        "EffectiveSensitiveEnvironmentNameHash="
+        + commission.sha256(b"AUREON_API_KEY"),
+    ]
+    assert plaintext_email not in result.stdout
+    assert secret_value not in result.stdout
+    assert unrelated_value not in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("provider_value", "expected"),
+    [
+        (
+            "/etc/aureon-public/bridge.env (ignore_errors=no)\n",
+            "EnvironmentFileBinding=1\n",
+        ),
+        (
+            "/etc/aureon-public/bridge.env (ignore_errors=yes)\n",
+            "EnvironmentFileBinding=0\n",
+        ),
+        (
+            "/etc/aureon-public/bridge.env (ignore_errors=no) "
+            "/etc/aureon-public/other.env (ignore_errors=no)\n",
+            "EnvironmentFileBinding=0\n",
+        ),
+        ("", "EnvironmentFileBinding=0\n"),
+    ],
+)
+def test_environment_file_binding_filter_requires_one_nonoptional_exact_path(
+    provider_value, expected
+):
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            commission._environment_file_binding_filter_source(
+                commission.PUBLIC_BRIDGE_ENVIRONMENT_FILE
+            ),
+        ],
+        input=provider_value,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout == expected
 
 
 def test_legacy_archive_receipt_binds_scope_root_freeze_and_no_effects(

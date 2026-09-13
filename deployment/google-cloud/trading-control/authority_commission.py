@@ -45,6 +45,7 @@ _UUID = re.compile(
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 _SUPABASE_PROJECT_REF = re.compile(r"[a-z0-9]{20}")
 _BUCKET = re.compile(r"[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]")
+PUBLIC_BRIDGE_ENVIRONMENT_FILE = "/etc/aureon-public/bridge.env"
 VM_READBACK_ENVIRONMENT_KEYS = frozenset(
     {
         "AUREON_GOOGLE_TOKEN_FILE",
@@ -1052,7 +1053,20 @@ def _audit_vm(contract: Mapping[str, Any], vm: Any, check: Any) -> None:
             for key, value in workload.get("required_environment", {}).items():
                 check(environment.get(key) == value, f"vm.unit.{unit}.{key}")
     bridge = expected["public_bridge"]
-    bridge_environment = units.get(bridge["unit"], {}).get("environment", {})
+    bridge_actual = units.get(bridge["unit"], {})
+    check(
+        bridge_actual.get("environment_file_bound") is True,
+        f"vm.unit.{bridge['unit']}.environment_file",
+    )
+    check(
+        bridge_actual.get("effective_environment_parse_error") is False,
+        f"vm.unit.{bridge['unit']}.effective_environment_parse",
+    )
+    check(
+        bridge_actual.get("effective_sensitive_environment_name_hashes") == [],
+        f"vm.unit.{bridge['unit']}.effective_secret_environment",
+    )
+    bridge_environment = bridge_actual.get("effective_environment", {})
     for key, value in bridge["required_environment"].items():
         check(
             bridge_environment.get(key) == value,
@@ -1342,6 +1356,48 @@ def capture_snapshot(
     return result
 
 
+def _effective_environment_filter_source(allowed_names: Iterable[str]) -> str:
+    return (
+        "import hashlib,re,sys\n"
+        f"allowed={sorted(allowed_names)!r}\n"
+        "plaintext_identity={'AUREON_ALLOWED_USER_EMAILS','AUREON_OWNER_EMAIL','AUREON_IAP_ADMIN_EMAIL'}\n"
+        "sensitive=re.compile(r'(?:^|_)(?:API_KEY|SECRET|PASSWORD|TOKEN|PRIVATE_KEY|CREDENTIALS?)(?:$|_)')\n"
+        "try:\n"
+        " handle=open(sys.argv[1],'rb')\n"
+        " data=handle.read(1048577)\n"
+        " handle.close()\n"
+        "except OSError:\n print('EffectiveEnvironmentParseError=1'); raise SystemExit(0)\n"
+        "if len(data)>1048576:\n print('EffectiveEnvironmentParseError=1'); raise SystemExit(0)\n"
+        "seen=set()\n"
+        "for piece in data.split(b'\\0'):\n"
+        " if not piece:\n  continue\n"
+        " if b'=' not in piece:\n  print('EffectiveEnvironmentParseError=1'); continue\n"
+        " raw_name,raw_value=piece.split(b'=',1)\n"
+        " try:\n  name=raw_name.decode('ascii')\n"
+        " except UnicodeDecodeError:\n  print('EffectiveEnvironmentParseError=1'); continue\n"
+        " if name in seen:\n  print('EffectiveEnvironmentParseError=1'); continue\n"
+        " seen.add(name)\n"
+        " if name in allowed:\n"
+        "  try:\n   value=raw_value.decode('ascii')\n"
+        "  except UnicodeDecodeError:\n   print('EffectiveEnvironmentParseError=1'); continue\n"
+        "  if re.fullmatch(r'[A-Za-z0-9_./@:-]{1,512}',value):\n"
+        "   print('EffectiveEnvironmentAllowed.'+name+'='+value)\n"
+        "  else:\n   print('EffectiveEnvironmentParseError=1')\n"
+        " elif name in plaintext_identity or sensitive.search(name):\n"
+        "  print('EffectiveSensitiveEnvironmentNameHash='+hashlib.sha256(raw_name).hexdigest())\n"
+    )
+
+
+def _environment_file_binding_filter_source(expected_path: str) -> str:
+    return (
+        "import sys\n"
+        f"expected={expected_path!r}+' (ignore_errors=no)'\n"
+        "value=sys.stdin.read(4097)\n"
+        "valid=len(value)<=4096 and value.strip()==expected\n"
+        "print('EnvironmentFileBinding='+('1' if valid else '0'))\n"
+    )
+
+
 def _capture_vm(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
     vm = contract["vm_workload_identity"]
     value = runner.json(
@@ -1372,6 +1428,14 @@ def _capture_vm(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
         " elif name in plaintext_identity or sensitive.search(name):\n"
         "  print('SensitiveEnvironmentNameHash='+hashlib.sha256(name.encode()).hexdigest())\n"
     )
+    bridge = vm["public_bridge"]
+    bridge_unit = shlex.quote(bridge["unit"])
+    environment_file_filter = _environment_file_binding_filter_source(
+        PUBLIC_BRIDGE_ENVIRONMENT_FILE
+    )
+    effective_environment_filter = _effective_environment_filter_source(
+        bridge["required_environment"]
+    )
     remote = (
         "for u in $(systemctl list-unit-files 'aureon-*' --no-legend --no-pager "
         "| awk '{print $1}' | grep -v '@.service$'); do echo @@UNIT=$u; "
@@ -1385,7 +1449,18 @@ def _capture_vm(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
         "date --date=\"$stamp\" --iso-8601=seconds; fi; "
         "systemctl show \"$u\" --property=Environment --value | python3 -c "
         + shlex.quote(environment_filter)
-        + "; done; "
+        + "; if test \"$u\" = "
+        + bridge_unit
+        + "; then systemctl show \"$u\" --property=EnvironmentFiles --value "
+        "| python3 -c "
+        + shlex.quote(environment_file_filter)
+        + "; pid=$(systemctl show \"$u\" --property=MainPID --value); "
+        "case \"$pid\" in ''|0|*[!0-9]*) "
+        "echo EffectiveEnvironmentParseError=1;; *) "
+        "if test -r \"/proc/$pid/environ\"; then python3 -c "
+        + shlex.quote(effective_environment_filter)
+        + " \"/proc/$pid/environ\"; else "
+        "echo EffectiveEnvironmentParseError=1; fi;; esac; fi; done; "
         f"for p in {quoted_paths}; do echo @@PATH=$p; "
         "if test -e \"$p\" && test ! -L \"$p\"; then "
         "stat --format='Kind=%F%nOwner=%U%nGroup=%G%nMode=%a' -- \"$p\"; "
@@ -1412,6 +1487,10 @@ def _capture_vm(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
                 "environment": {},
                 "environment_parse_error": False,
                 "sensitive_environment_name_hashes": [],
+                "effective_environment": {},
+                "effective_environment_parse_error": False,
+                "effective_sensitive_environment_name_hashes": [],
+                "environment_file_bound": False,
             }
             units[name] = current
             current_path = None
@@ -1440,6 +1519,18 @@ def _capture_vm(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
                 current["environment_parse_error"] = True
             elif key == "SensitiveEnvironmentNameHash":
                 current["sensitive_environment_name_hashes"].append(item)
+            elif key.startswith("EffectiveEnvironmentAllowed."):
+                current["effective_environment"][
+                    key.removeprefix("EffectiveEnvironmentAllowed.")
+                ] = item
+            elif key == "EffectiveEnvironmentParseError":
+                current["effective_environment_parse_error"] = True
+            elif key == "EffectiveSensitiveEnvironmentNameHash":
+                current["effective_sensitive_environment_name_hashes"].append(
+                    item
+                )
+            elif key == "EnvironmentFileBinding":
+                current["environment_file_bound"] = item == "1"
         elif current_path is not None and "=" in line:
             key, item = line.split("=", 1)
             mapped = {
