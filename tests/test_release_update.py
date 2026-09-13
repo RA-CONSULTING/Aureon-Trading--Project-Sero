@@ -20,6 +20,8 @@ operator_closure = sys.modules["operator_runtime_closure"]
 
 UNIT = "aureon-organ@hnc_core.service"
 REVISION = "a" * 40
+OLD_REVISION = "0" * 40
+IAP_ADMIN_EMAIL_SHA256 = "9" * 64
 OWNER_SUBJECT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 OWNER_EMAIL_SHA256 = "c" * 64
 TREE = "b" * 40
@@ -118,7 +120,7 @@ def authority_receipt(tmp_path):
             {
                 "name": name,
                 "revision": f"{name}-r{REVISION[:12]}",
-                "latest_ready_revision": f"{name}-r{REVISION[:12]}",
+                "latest_ready_revision": f"{name}-prior",
                 "traffic": [
                     {
                         "revision": f"{name}-prior",
@@ -172,6 +174,46 @@ def authority_receipt(tmp_path):
         encoding="utf-8",
     )
     return path, release.digest(path.read_bytes())
+
+
+def test_authority_receipt_accepts_old_latest_ready_for_no_traffic_stage(tmp_path):
+    path, receipt_sha256 = authority_receipt(tmp_path)
+
+    value = release.validate_authority_receipt(
+        path, receipt_sha256, REVISION
+    )
+
+    assert value["cloud_run_staged_without_traffic"] is True
+    assert value["cloud_run_traffic_changed"] is False
+
+
+def test_authority_receipt_rejects_target_revision_with_nonzero_traffic(tmp_path):
+    path, _receipt_sha256 = authority_receipt(tmp_path)
+    value = json.loads(path.read_text(encoding="utf-8"))
+    target = value["provider_readback"]["services"][0]
+    target["traffic"] = [
+        {
+            "revision": target["revision"],
+            "percent": 100,
+            "tag": None,
+        }
+    ]
+    value["provider_readback_sha256"] = release.digest(
+        json.dumps(
+            value["provider_readback"],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+    )
+    path.write_text(json.dumps(value), encoding="utf-8")
+
+    with pytest.raises(
+        release.ReleaseError,
+        match="authority_receipt_provider_binding_invalid",
+    ):
+        release.validate_authority_receipt(
+            path, release.digest(path.read_bytes()), REVISION
+        )
 
 
 def broker_token_receipts():
@@ -909,12 +951,28 @@ def cutover_fixture(tmp_path, monkeypatch, *, original_identity=None):
     bundle = tmp_path / "bundle"
     releases = tmp_path / "releases"
     public_root = tmp_path / "public-entry"
-    for path in (workspace, units, bundle / "files", releases, public_root):
+    public_config = tmp_path / "etc-aureon-public"
+    for path in (
+        workspace,
+        units,
+        bundle / "files",
+        releases,
+        public_root,
+        public_config,
+    ):
         path.mkdir(parents=True)
     monkeypatch.setattr(release, "PUBLIC_BRIDGE_INSTALL_ROOT", public_root)
     monkeypatch.setattr(
         release, "PUBLIC_BRIDGE_INSTALL_SOURCE", public_root / "public_entry.py"
     )
+    bridge_env = public_config / "bridge.env"
+    bridge_env.write_bytes(
+        b"AUREON_PUBLIC_ACCESS_MODE=hybrid\n"
+        b"AUREON_ALLOWED_USER_EMAILS=legacy-owner@example.invalid\n"
+        + f"AUREON_REVISION={OLD_REVISION}\n".encode("ascii")
+        + b"AUREON_BRIDGE_URL=https://10.40.0.2:8443\n"
+    )
+    monkeypatch.setattr(release, "PUBLIC_BRIDGE_ENV", bridge_env)
     package_tree = sorted(MINIMAL_PACKAGE_TREE)
     required = (
         set(operator_closure.required_operator_runtime_sources(package_tree))
@@ -1035,6 +1093,18 @@ def cutover_fixture(tmp_path, monkeypatch, *, original_identity=None):
     )
     identity = original_identity or broker_identity()
     def bridge_readback(expected, revision):
+        environment = bridge_env.read_bytes()
+        environment_revision = release._public_bridge_environment_revision(
+            environment
+        )
+        iap_admin_email_sha256, plaintext_identity_names = (
+            release._public_bridge_environment_identity(environment)
+        )
+        bridge_readback.expected_revisions.append(revision)
+        if revision is not None and environment_revision != revision:
+            raise release.ReleaseError(
+                "public_bridge_environment_revision_mismatch"
+            )
         return {
             "certificate_fingerprint_sha256": expected,
             "certificate_required_ip_sans": certificate_evidence[
@@ -1044,8 +1114,12 @@ def cutover_fixture(tmp_path, monkeypatch, *, original_identity=None):
             "certificate_not_after": certificate_evidence["not_after"],
             "certificate_minimum_remaining_validity_seconds": 86_400,
             "private_key_preserved": True,
-            "environment_revision": revision,
+            "environment_revision": environment_revision,
+            "environment_sha256": release.digest(environment),
+            "iap_admin_email_sha256": iap_admin_email_sha256,
+            "plaintext_identity_environment_names": plaintext_identity_names,
         }
+    bridge_readback.expected_revisions = []
     staged = release.prepare(
         bundle,
         workspace,
@@ -1062,6 +1136,7 @@ def cutover_fixture(tmp_path, monkeypatch, *, original_identity=None):
         provider_version="1",
         owner_subject=OWNER_SUBJECT,
         owner_email_sha256=OWNER_EMAIL_SHA256,
+        iap_admin_email_sha256=IAP_ADMIN_EMAIL_SHA256,
         identity_snapshot=lambda: identity,
         bridge_identity=bridge_readback,
     )
@@ -1088,6 +1163,71 @@ def apply_cutover(tmp_path, staged, services, bridge_readback, **kwargs):
         boot_id=lambda: BOOT_HASH,
         **kwargs,
     )
+
+
+def test_prepare_records_old_bridge_state_and_only_stages_contract_migration(
+    tmp_path, monkeypatch
+):
+    staged, _services, _units, _root, _old, bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    environment = release.PUBLIC_BRIDGE_ENV.read_bytes()
+    journal = json.loads((staged / "journal.json").read_text())
+    entry = next(
+        row
+        for row in journal["entries"]
+        if row["kind"] == "public_bridge_environment"
+    )
+    staged_environment = (staged / "staged" / entry["slot"]).read_bytes()
+
+    assert release._public_bridge_environment_revision(environment) == OLD_REVISION
+    assert release._public_bridge_environment_identity(environment) == (
+        None,
+        ["AUREON_ALLOWED_USER_EMAILS"],
+    )
+    assert journal["public_bridge_identity"]["environment_revision"] == OLD_REVISION
+    assert journal["public_bridge_identity"]["environment_sha256"] == release.digest(
+        environment
+    )
+    assert entry["before_sha256"] == release.digest(environment)
+    assert release._public_bridge_environment_revision(staged_environment) == REVISION
+    commitment, plaintext_names = release._public_bridge_environment_identity(
+        staged_environment
+    )
+    assert commitment == IAP_ADMIN_EMAIL_SHA256
+    assert plaintext_names == []
+    assert b"legacy-owner@example.invalid" not in staged_environment
+    assert b"AUREON_PUBLIC_ACCESS_MODE=hybrid\n" in staged_environment
+    assert b"AUREON_BRIDGE_URL=https://10.40.0.2:8443\n" in staged_environment
+    assert bridge_readback.expected_revisions == [None]
+
+
+def test_apply_refuses_changed_old_bridge_environment_before_service_cutover(
+    tmp_path, monkeypatch
+):
+    staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
+        tmp_path, monkeypatch
+    )
+    release.bootstrap_broker(staged, services)
+    release.PUBLIC_BRIDGE_ENV.write_bytes(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+        + b"AUREON_OWNER_ORIGIN=https://changed.example\n"
+    )
+    events_before = list(services.events)
+
+    with pytest.raises(
+        release.ReleaseError,
+        match="source_changed_after_prepare",
+    ):
+        apply_cutover(tmp_path, staged, services, bridge_readback)
+
+    assert services.events == events_before
+    assert release._public_bridge_environment_revision(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+    ) == OLD_REVISION
+    assert release._public_bridge_environment_identity(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+    ) == (None, ["AUREON_ALLOWED_USER_EMAILS"])
 
 
 def test_broker_start_failure_never_starts_dependents_and_requires_external_identity_rollback(
@@ -1141,6 +1281,9 @@ def test_public_bridge_mid_replace_failure_restores_source_unit_and_service_stat
         apply_cutover(tmp_path, staged, services, bridge_readback)
     assert (public_root / "public_entry.py").read_bytes() == old_source
     assert (units / release.PUBLIC_BRIDGE_UNIT).read_bytes() == old_unit
+    assert release._public_bridge_environment_revision(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+    ) == OLD_REVISION
     assert services.active[release.PUBLIC_BRIDGE_UNIT]
 
 
@@ -1190,6 +1333,12 @@ def test_bridge_health_failure_rolls_back_and_success_starts_bridge_last(
         )
     assert (public_root / "public_entry.py").read_bytes() == old_source
     assert (units / release.PUBLIC_BRIDGE_UNIT).read_bytes() == old_unit
+    assert release._public_bridge_environment_revision(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+    ) == OLD_REVISION
+    assert release._public_bridge_environment_identity(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+    ) == (None, ["AUREON_ALLOWED_USER_EMAILS"])
     assert services.active[release.PUBLIC_BRIDGE_UNIT]
 
     staged, services, _units, _root, _old, bridge_readback = cutover_fixture(
@@ -1200,6 +1349,22 @@ def test_bridge_health_failure_rolls_back_and_success_starts_bridge_last(
     starts = [event[1] for event in services.events if event[0] == "start"]
     assert starts[0] == release.TOKEN_BROKER_UNIT
     assert starts[-1] == release.PUBLIC_BRIDGE_UNIT
+    assert release._public_bridge_environment_revision(
+        release.PUBLIC_BRIDGE_ENV.read_bytes()
+    ) == REVISION
+    assert committed["public_bridge_identity"]["environment_revision"] == REVISION
+    assert committed["public_bridge_identity"]["iap_admin_email_sha256"] == (
+        IAP_ADMIN_EMAIL_SHA256
+    )
+    assert committed["public_bridge_identity"][
+        "plaintext_identity_environment_names"
+    ] == []
+    assert bridge_readback.expected_revisions == [
+        None,
+        OLD_REVISION,
+        REVISION,
+        REVISION,
+    ]
     receipt_value = release.validate_vm_release_receipt(staged, committed)
     assert receipt_value["public_bridge_source_sha256"]
     assert receipt_value["public_bridge_certificate_sha256"] == "c" * 64

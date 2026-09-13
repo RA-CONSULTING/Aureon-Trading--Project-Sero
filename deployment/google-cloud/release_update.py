@@ -80,6 +80,13 @@ PUBLIC_BRIDGE_PRIVATE_KEY = Path("/etc/aureon-public/bridge-key.pem")
 PUBLIC_BRIDGE_ENV = Path("/etc/aureon-public/bridge.env")
 PUBLIC_BRIDGE_REQUIRED_IP_SANS = ["10.40.0.2"]
 PUBLIC_BRIDGE_MINIMUM_REMAINING_VALIDITY_SECONDS = 86_400
+PUBLIC_BRIDGE_PLAINTEXT_IDENTITY_ENV = frozenset(
+    {
+        "AUREON_ALLOWED_USER_EMAILS",
+        "AUREON_OWNER_EMAIL",
+        "AUREON_IAP_ADMIN_EMAIL",
+    }
+)
 BROKER_SERVICE_ACCOUNT = "aureon-vm-token-broker@aureon-trading.iam.gserviceaccount.com"
 BROKER_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 AUTHORITY_RECEIPT_SCHEMA = "aureon.cloud-trading-authority-commission-receipt.v1"
@@ -903,7 +910,6 @@ def validate_authority_receipt(
             name not in expected_names
             or name in observed_names
             or staged_revision != f"{name}-r{revision[:12]}"
-            or row.get("latest_ready_revision") != staged_revision
             or not isinstance(image, str)
             or re.fullmatch(
                 re.escape(expected_repository) + r"@sha256:[0-9a-f]{64}", image
@@ -964,7 +970,118 @@ def _openssl(*args: str, input_data: bytes | None = None) -> bytes:
     return result.stdout
 
 
-def inspect_public_bridge_identity(expected_fingerprint: str, revision: str) -> dict:
+def _public_bridge_environment_revision(environment: bytes) -> str:
+    try:
+        lines = environment.decode("utf-8").splitlines()
+    except UnicodeError as error:
+        raise ReleaseError("public_bridge_environment_invalid") from error
+    revisions = [
+        line.split("=", 1)[1]
+        for line in lines
+        if line.startswith("AUREON_REVISION=")
+    ]
+    if (
+        len(revisions) != 1
+        or re.fullmatch(r"[0-9a-f]{40}", revisions[0]) is None
+    ):
+        raise ReleaseError("public_bridge_environment_revision_invalid")
+    return revisions[0]
+
+
+def _public_bridge_environment_identity(
+    environment: bytes,
+) -> tuple[str | None, list[str]]:
+    try:
+        lines = environment.decode("utf-8").splitlines()
+    except UnicodeError as error:
+        raise ReleaseError("public_bridge_environment_invalid") from error
+    commitments = [
+        line.split("=", 1)[1]
+        for line in lines
+        if line.startswith("AUREON_IAP_ADMIN_EMAIL_SHA256=")
+    ]
+    if (
+        len(commitments) > 1
+        or commitments
+        and re.fullmatch(r"[0-9a-f]{64}", commitments[0]) is None
+    ):
+        raise ReleaseError("public_bridge_environment_identity_invalid")
+    plaintext_names = sorted(
+        {
+            name
+            for name in PUBLIC_BRIDGE_PLAINTEXT_IDENTITY_ENV
+            if any(line.startswith(name + "=") for line in lines)
+        }
+    )
+    return (commitments[0] if commitments else None), plaintext_names
+
+
+def _public_bridge_environment_for_release(
+    environment: bytes, revision: str, iap_admin_email_sha256: str
+) -> bytes:
+    if re.fullmatch(r"[0-9a-f]{40}", revision or "") is None:
+        raise ReleaseError("public_bridge_environment_revision_invalid")
+    if (
+        re.fullmatch(r"[0-9a-f]{64}", iap_admin_email_sha256 or "") is None
+    ):
+        raise ReleaseError("iap_admin_email_commitment_invalid")
+    existing = _public_bridge_environment_revision(environment)
+    existing_commitment, _plaintext_names = (
+        _public_bridge_environment_identity(environment)
+    )
+    try:
+        lines = environment.decode("utf-8").splitlines(keepends=True)
+    except UnicodeError as error:  # pragma: no cover - validated above.
+        raise ReleaseError("public_bridge_environment_invalid") from error
+    result: list[str] = []
+    revision_replaced = 0
+    commitment_written = False
+    for line in lines:
+        if line.endswith("\r\n"):
+            body, ending = line[:-2], "\r\n"
+        elif line.endswith("\n"):
+            body, ending = line[:-1], "\n"
+        else:
+            body, ending = line, ""
+        name = body.split("=", 1)[0] if "=" in body else None
+        if name in PUBLIC_BRIDGE_PLAINTEXT_IDENTITY_ENV:
+            if existing_commitment is None and not commitment_written:
+                body = (
+                    "AUREON_IAP_ADMIN_EMAIL_SHA256="
+                    + iap_admin_email_sha256
+                )
+                commitment_written = True
+            else:
+                continue
+        elif name == "AUREON_IAP_ADMIN_EMAIL_SHA256":
+            body = "AUREON_IAP_ADMIN_EMAIL_SHA256=" + iap_admin_email_sha256
+            commitment_written = True
+        elif body == f"AUREON_REVISION={existing}":
+            body = f"AUREON_REVISION={revision}"
+            revision_replaced += 1
+        result.append(body + ending)
+    if revision_replaced != 1:
+        raise ReleaseError("public_bridge_environment_revision_invalid")
+    if not commitment_written:
+        if result and not result[-1].endswith(("\n", "\r")):
+            result[-1] += "\n"
+        result.append(
+            "AUREON_IAP_ADMIN_EMAIL_SHA256="
+            + iap_admin_email_sha256
+            + ("\n" if environment.endswith((b"\n", b"\r")) else "")
+        )
+    updated = "".join(result).encode("utf-8")
+    commitment, plaintext_names = _public_bridge_environment_identity(updated)
+    if commitment != iap_admin_email_sha256 or plaintext_names:
+        raise ReleaseError("public_bridge_environment_identity_invalid")
+    if _public_bridge_environment_revision(updated) != revision:
+        raise ReleaseError("public_bridge_environment_revision_invalid")
+    return updated
+
+
+def inspect_public_bridge_identity(
+    expected_fingerprint: str, revision: str | None
+) -> dict:
     """Validate certificate/key metadata and binding without copying either."""
     if os.name != "posix" or os.geteuid() != 0:
         raise ReleaseError("linux_root_required_for_bridge_identity")
@@ -1045,12 +1162,11 @@ def inspect_public_bridge_identity(expected_fingerprint: str, revision: str) -> 
     if digest(cert_public) != digest(key_public):
         raise ReleaseError("public_bridge_certificate_key_mismatch")
     environment = read_bytes(PUBLIC_BRIDGE_ENV, 64 * 1024)
-    try:
-        lines = environment.decode("utf-8").splitlines()
-    except UnicodeError as error:
-        raise ReleaseError("public_bridge_environment_invalid") from error
-    revisions = [line.split("=", 1)[1] for line in lines if line.startswith("AUREON_REVISION=")]
-    if revisions != [revision]:
+    environment_revision = _public_bridge_environment_revision(environment)
+    iap_admin_email_sha256, plaintext_identity_names = (
+        _public_bridge_environment_identity(environment)
+    )
+    if revision is not None and environment_revision != revision:
         raise ReleaseError("public_bridge_environment_revision_mismatch")
     return {
         "certificate_fingerprint_sha256": fingerprint,
@@ -1066,7 +1182,10 @@ def inspect_public_bridge_identity(expected_fingerprint: str, revision: str) -> 
         ),
         "certificate_path": str(PUBLIC_BRIDGE_CERTIFICATE),
         "private_key_preserved": True,
-        "environment_revision": revision,
+        "environment_revision": environment_revision,
+        "environment_sha256": digest(environment),
+        "iap_admin_email_sha256": iap_admin_email_sha256,
+        "plaintext_identity_environment_names": plaintext_identity_names,
     }
 
 
@@ -1597,6 +1716,7 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
             tenant_secret: str = "", tenant_version: str = "",
             provider_secret: str = "", provider_version: str = "",
             owner_subject: str = "", owner_email_sha256: str = "",
+            iap_admin_email_sha256: str = "",
             identity_snapshot=metadata_identity_snapshot,
             bridge_identity=inspect_public_bridge_identity) -> Path:
     services = normalise_service_plan(services)
@@ -1693,7 +1813,13 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
             original_identity = identity_snapshot()
         public_bridge_manifest = None
         public_bridge_identity = None
+        public_bridge_environment = None
         if PUBLIC_BRIDGE_UNIT in services:
+            if (
+                re.fullmatch(r"[0-9a-f]{64}", iap_admin_email_sha256 or "")
+                is None
+            ):
+                raise ReleaseError("iap_admin_email_commitment_invalid")
             if not PUBLIC_BRIDGE_REQUIRED_SOURCES.issubset(seen):
                 raise ReleaseError("complete_public_bridge_sources_required")
             public_bridge_manifest = validate_component_manifest(
@@ -1712,9 +1838,18 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
             certificate_evidence = (
                 public_bridge_certificate_evidence_from_manifest(certificate)
             )
-            public_bridge_identity = bridge_identity(certificate["sha256"], revision)
+            public_bridge_identity = bridge_identity(certificate["sha256"], None)
             require_bridge_identity_matches_certificate(
                 public_bridge_identity, certificate_evidence
+            )
+            existing_environment = read_bytes(PUBLIC_BRIDGE_ENV, 64 * 1024)
+            if (
+                public_bridge_identity.get("environment_sha256")
+                != digest(existing_environment)
+            ):
+                raise ReleaseError("public_bridge_environment_changed_during_prepare")
+            public_bridge_environment = _public_bridge_environment_for_release(
+                existing_environment, revision, iap_admin_email_sha256
             )
         snapshots = {unit: controller.snapshot(unit) for unit in services}
         if any(organ_name(unit) in RETAIN_ONLY and not row["active"] for unit, row in snapshots.items()):
@@ -1735,6 +1870,9 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
         if PUBLIC_BRIDGE_UNIT in services:
             payload.append(
                 ("public_bridge_source", "public_entry.py", indexed_payload[PUBLIC_BRIDGE_SOURCE])
+            )
+            payload.append(
+                ("public_bridge_environment", "bridge.env", public_bridge_environment)
             )
         release = confined(releases, release_id)
         release.mkdir(mode=0o700)  # collision is a hard error; never overwrite a prior release
@@ -1760,8 +1898,13 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
                     "attached_identity_after": None,
                     "authority_receipt": None,
                     "external_identity_rollback_required": False,
-                    "public_bridge": public_bridge_manifest,
-                    "public_bridge_identity": public_bridge_identity,
+                     "public_bridge": public_bridge_manifest,
+                     "public_bridge_identity": public_bridge_identity,
+                     "iap_admin_email_sha256": (
+                         iap_admin_email_sha256
+                         if public_bridge_manifest is not None
+                         else None
+                     ),
                     "public_bridge_root": str(PUBLIC_BRIDGE_INSTALL_ROOT),
                     "service_order": services,
                     "vm_release_receipt": None}
@@ -1770,10 +1913,18 @@ def prepare(bundle: Path, workspace: Path, releases: Path, units: Path, services
                 root = workspace
             elif kind == "public_bridge_source":
                 root = PUBLIC_BRIDGE_INSTALL_ROOT
+            elif kind == "public_bridge_environment":
+                root = PUBLIC_BRIDGE_ENV.parent
             else:
                 root = units
             target = confined(root, relative)
             before = read_bytes(target) if target.exists() else None
+            if (
+                kind == "public_bridge_environment"
+                and public_bridge_identity.get("environment_sha256")
+                != digest(before or b"")
+            ):
+                raise ReleaseError("public_bridge_environment_changed_during_prepare")
             if kind == "source_delete" and before is None:
                 raise ReleaseError("stale_operator_source_changed_during_prepare")
             mode = stat.S_IMODE(target.stat().st_mode) if before is not None else 0o644
@@ -1815,6 +1966,8 @@ def journal_target(journal: dict, entry: dict) -> Path:
         return confined(Path(journal["units"]), entry["path"])
     if entry["kind"] == "public_bridge_source" and entry["path"] == "public_entry.py":
         return confined(Path(journal["public_bridge_root"]), entry["path"])
+    if entry["kind"] == "public_bridge_environment" and entry["path"] == "bridge.env":
+        return PUBLIC_BRIDGE_ENV
     raise ReleaseError("journal_entry_invalid")
 
 
@@ -1962,6 +2115,21 @@ def _deployed_entry(journal: dict, kind: str, path: str) -> dict:
     if len(rows) != 1 or rows[0].get("after_sha256") is None:
         raise ReleaseError("vm_release_receipt_source_inventory_invalid")
     return rows[0]
+
+
+def require_bridge_environment_matches_release(identity: object, journal: dict) -> None:
+    entry = _deployed_entry(
+        journal, "public_bridge_environment", "bridge.env"
+    )
+    if (
+        not isinstance(identity, dict)
+        or identity.get("environment_revision") != journal.get("revision")
+        or identity.get("environment_sha256") != entry["after_sha256"]
+        or identity.get("iap_admin_email_sha256")
+        != journal.get("iap_admin_email_sha256")
+        or identity.get("plaintext_identity_environment_names") != []
+    ):
+        raise ReleaseError("public_bridge_environment_release_mismatch")
 
 
 def _unit_executable_entry(journal: dict, unit: str) -> tuple[dict, Path]:
@@ -2117,6 +2285,9 @@ def write_vm_release_receipt(
         require_bridge_identity_matches_certificate(
             journal.get("public_bridge_identity"),
             bridge_certificate_evidence,
+        )
+        require_bridge_environment_matches_release(
+            journal.get("public_bridge_identity"), journal
         )
     _loopback_health_receipts(
         health_rows, journal["services"], journal["revision"]
@@ -2371,6 +2542,7 @@ def record_vm_reboot_continuity(
         require_bridge_identity_matches_certificate(
             bridge_readback, certificate_evidence
         )
+        require_bridge_environment_matches_release(bridge_readback, journal)
         public_health = _health_receipt(
             bridge_health(PUBLIC_BRIDGE_UNIT, journal["revision"]),
             PUBLIC_BRIDGE_UNIT,
@@ -2658,10 +2830,36 @@ def apply(
             certificate_evidence = (
                 public_bridge_certificate_evidence_from_manifest(certificate)
             )
-            observed = bridge_identity(certificate["sha256"], journal["revision"])
+            prepared_identity = journal.get("public_bridge_identity")
+            prepared_revision = (
+                prepared_identity.get("environment_revision")
+                if isinstance(prepared_identity, dict)
+                else None
+            )
+            prepared_environment_sha256 = (
+                prepared_identity.get("environment_sha256")
+                if isinstance(prepared_identity, dict)
+                else None
+            )
+            if (
+                re.fullmatch(r"[0-9a-f]{40}", str(prepared_revision or ""))
+                is None
+                or re.fullmatch(
+                    r"[0-9a-f]{64}", str(prepared_environment_sha256 or "")
+                )
+                is None
+            ):
+                raise ReleaseError("prepared_public_bridge_identity_invalid")
+            observed = bridge_identity(certificate["sha256"], prepared_revision)
             require_bridge_identity_matches_certificate(
                 observed, certificate_evidence
             )
+            if (
+                observed.get("environment_revision") != prepared_revision
+                or observed.get("environment_sha256")
+                != prepared_environment_sha256
+            ):
+                raise ReleaseError("public_bridge_environment_changed_after_prepare")
         if has_broker:
             if authority_receipt is None:
                 raise ReleaseError("authority_prepare_receipt_required")
@@ -2768,6 +2966,7 @@ def apply(
                     require_bridge_identity_matches_certificate(
                         observed, certificate_evidence
                     )
+                    require_bridge_environment_matches_release(observed, journal)
                     journal["public_bridge_identity"] = observed
                     result = bridge_health(unit, journal["revision"])
                 else:
@@ -2792,6 +2991,7 @@ def apply(
                     require_bridge_identity_matches_certificate(
                         observed, certificate_evidence
                     )
+                    require_bridge_environment_matches_release(observed, journal)
                     journal["public_bridge_identity"] = observed
                     result = bridge_health(unit, journal["revision"])
                 else:
@@ -2861,6 +3061,7 @@ def main() -> int:
     parser.add_argument("--provider-secret-version", default="")
     parser.add_argument("--owner-subject", default="")
     parser.add_argument("--owner-email-sha256", default="")
+    parser.add_argument("--iap-admin-email-sha256", default="")
     parser.add_argument("--authority-receipt", type=Path)
     parser.add_argument("--authority-receipt-sha256", default="")
     parser.add_argument("--identity-rollback-receipt", type=Path)
@@ -2877,7 +3078,8 @@ def main() -> int:
                            provider_secret=args.provider_secret,
                            provider_version=args.provider_secret_version,
                            owner_subject=args.owner_subject,
-                           owner_email_sha256=args.owner_email_sha256)
+                           owner_email_sha256=args.owner_email_sha256,
+                           iap_admin_email_sha256=args.iap_admin_email_sha256)
         print(json.dumps({"prepared": True, "release": str(release), "requires_review_before_apply": True}))
         return 0
     if args.release is None:
