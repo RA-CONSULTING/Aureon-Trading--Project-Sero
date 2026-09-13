@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import importlib.util
 import json
 from pathlib import Path
+import shlex
 import sys
 
 import pytest
@@ -181,7 +182,11 @@ def exact_snapshot(contract):
         snapshot["kms"][row["name"]] = {
             "signers": list(row["signers"]),
             "public_key_viewers": list(row["public_key_viewers"]),
-            "primary_version": row["version"],
+            "purpose": row["purpose"],
+            "configured_algorithm": row["algorithm"],
+            "version": row["version"],
+            "version_state": "ENABLED",
+            "version_algorithm": row["algorithm"],
         }
     for row in contract["iam"]["secrets"]:
         snapshot["secrets"][row["id"]] = {
@@ -1084,6 +1089,30 @@ def test_prepare_audit_defers_only_vm_readback():
             ),
             "kms.aureon-executor-signing.signers",
         ),
+        (
+            lambda c, s: s["kms"]["aureon-executor-signing"].update(
+                purpose="ENCRYPT_DECRYPT"
+            ),
+            "kms.aureon-executor-signing.purpose",
+        ),
+        (
+            lambda c, s: s["kms"]["aureon-executor-signing"].update(
+                version_algorithm="EC_SIGN_P256_SHA256"
+            ),
+            "kms.aureon-executor-signing.algorithm",
+        ),
+        (
+            lambda c, s: s["kms"]["aureon-executor-signing"].update(
+                version="2"
+            ),
+            "kms.aureon-executor-signing.version",
+        ),
+        (
+            lambda c, s: s["kms"]["aureon-executor-signing"].update(
+                version_state="DISABLED"
+            ),
+            "kms.aureon-executor-signing.version_state",
+        ),
     ],
 )
 def test_provider_drift_fails_closed(mutate, error):
@@ -1203,6 +1232,129 @@ def test_missing_resources_produce_audit_codes_instead_of_capture_abort():
         "iam.gserviceaccount.com.missing"
         in audit["errors"]
     )
+
+
+def test_capture_snapshot_binds_explicit_enabled_asymmetric_kms_versions():
+    contract = resolved_contract()
+
+    class KmsRunner:
+        def __init__(self):
+            self.calls = []
+
+        def json(self, *args, optional=False):
+            self.calls.append((args, optional))
+            if args[:3] == ("kms", "keys", "describe"):
+                return {
+                    "purpose": "ASYMMETRIC_SIGN",
+                    "versionTemplate": {"algorithm": "EC_SIGN_ED25519"},
+                }
+            if args[:4] == ("kms", "keys", "versions", "describe"):
+                key = next(
+                    item.removeprefix("--key=")
+                    for item in args
+                    if item.startswith("--key=")
+                )
+                return {
+                    "name": (
+                        f"projects/{contract['project']}/locations/"
+                        f"{contract['region']}/keyRings/{contract['keyring']}/"
+                        f"cryptoKeys/{key}/cryptoKeyVersions/{args[4]}"
+                    ),
+                    "state": "ENABLED",
+                    "algorithm": "EC_SIGN_ED25519",
+                }
+            if args[:3] == ("kms", "keys", "get-iam-policy"):
+                return {"bindings": []}
+            if args[:2] == ("projects", "get-iam-policy"):
+                return {"bindings": []}
+            if args[:2] == ("services", "list"):
+                return []
+            if optional:
+                return None
+            raise AssertionError(args)
+
+        def text(self, *args):
+            raise AssertionError(args)
+
+    runner = KmsRunner()
+    snapshot = commission.capture_snapshot(contract, runner)
+
+    for expected in contract["iam"]["kms_keys"]:
+        assert snapshot["kms"][expected["name"]] == {
+            "signers": [],
+            "public_key_viewers": [],
+            "purpose": expected["purpose"],
+            "configured_algorithm": expected["algorithm"],
+            "version": expected["version"],
+            "version_state": "ENABLED",
+            "version_algorithm": expected["algorithm"],
+        }
+        assert (
+            (
+                "kms",
+                "keys",
+                "versions",
+                "describe",
+                expected["version"],
+                "--key=" + expected["name"],
+                "--location=" + contract["region"],
+                "--keyring=" + contract["keyring"],
+            ),
+            True,
+        ) in runner.calls
+
+
+def test_vm_snapshot_uses_privileged_redacted_metadata_readback():
+    contract = resolved_contract()
+
+    class VmRunner:
+        def __init__(self):
+            self.text_args = None
+
+        def json(self, *args, optional=False):
+            assert args[:3] == ("compute", "instances", "describe")
+            assert optional is True
+            return {
+                "name": contract["vm_workload_identity"]["instance"],
+                "status": "RUNNING",
+                "serviceAccounts": [],
+            }
+
+        def text(self, *args):
+            self.text_args = args
+            path = contract["vm_workload_identity"]["token_storage"][0]["path"]
+            return (
+                f"@@PATH={path}\n"
+                "Kind=directory\n"
+                "Owner=root\n"
+                "Group=root\n"
+                "Mode=750\n"
+            )
+
+    runner = VmRunner()
+    snapshot = commission._capture_vm(contract, runner)
+
+    assert snapshot["systemd_readback_ok"] is True
+    path = contract["vm_workload_identity"]["token_storage"][0]["path"]
+    assert snapshot["paths"][path] == {
+        "kind": "directory",
+        "owner": "root",
+        "group": "root",
+        "mode": "750",
+    }
+    command = next(
+        item.removeprefix("--command=")
+        for item in runner.text_args
+        if item.startswith("--command=")
+    )
+    words = shlex.split(command)
+    assert words[:5] == ["sudo", "-n", "--", "sh", "-c"]
+    redacted_script = words[5]
+    assert "systemctl show" in redacted_script
+    assert "SensitiveEnvironmentNameHash" in redacted_script
+    assert "EnvironmentAllowed." in redacted_script
+    assert "stat --format=" in redacted_script
+    assert "cat " not in redacted_script
 
 
 def test_legacy_archive_receipt_binds_scope_root_freeze_and_no_effects(

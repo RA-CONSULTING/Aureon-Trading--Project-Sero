@@ -1321,6 +1321,30 @@ def test_source_parent_immutability_checks_every_ancestor(tmp_path, monkeypatch)
     assert not release.immutable_source_parent_metadata(source, workspace)
 
 
+def test_posix_source_directory_plan_accepts_only_google_cloud_deployment_ancestor(
+    tmp_path, monkeypatch
+):
+    workspace = (tmp_path / "workspace").resolve()
+    workspace.mkdir()
+    monkeypatch.setattr(release, "os", SimpleNamespace(name="posix"))
+
+    plan = release.operator_source_directory_plan(
+        workspace,
+        frozenset({"deployment/google-cloud/cloud_operator.py"}),
+    )
+
+    assert [row["path"] for row in plan] == [
+        ".",
+        "deployment",
+        "deployment/google-cloud",
+    ]
+    with pytest.raises(release.ReleaseError, match="deployment_path_not_allowed"):
+        release.operator_source_directory_plan(
+            workspace,
+            frozenset({"deployment/not-google-cloud/tool.py"}),
+        )
+
+
 @pytest.mark.skipif(os.name != "posix" or os.geteuid() != 0, reason="root POSIX metadata transaction")
 def test_source_directory_plan_hardens_and_rolls_back(tmp_path):
     workspace = tmp_path / "workspace"

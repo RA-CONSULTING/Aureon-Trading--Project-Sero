@@ -394,7 +394,16 @@ def immutable_source_metadata(path: Path) -> bool:
 def _source_directory_target(workspace: Path, relative: str) -> Path:
     if relative == ".":
         return workspace
-    source_path(relative + "/sentinel.py")
+    # ``deployment`` is a necessary ancestor of every allowed
+    # ``deployment/google-cloud`` source.  Validate that ancestor through its
+    # allowed child rather than inventing the forbidden sibling
+    # ``deployment/sentinel.py``.
+    probe = (
+        "deployment/google-cloud/sentinel.py"
+        if relative == "deployment"
+        else relative + "/sentinel.py"
+    )
+    source_path(probe)
     return confined(workspace, relative)
 
 

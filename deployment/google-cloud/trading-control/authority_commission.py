@@ -415,6 +415,132 @@ def _direct_vpc(
     }
 
 
+def capture_cloud_run_service(
+    contract: Mapping[str, Any],
+    runner: Runner,
+    expected: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Capture one service's exact revision template, traffic and IAM state."""
+
+    name = expected["name"]
+    region = contract["region"]
+    value = runner.json(
+        "run",
+        "services",
+        "describe",
+        name,
+        "--region=" + region,
+        optional=True,
+    )
+    if not isinstance(value, Mapping):
+        return None
+    policy = (
+        runner.json(
+            "run",
+            "services",
+            "get-iam-policy",
+            name,
+            "--region=" + region,
+            optional=True,
+        )
+        or {}
+    )
+    status = value.get("status", {})
+    serving_revision = status.get("latestReadyRevisionName")
+    revision = None
+    if isinstance(serving_revision, str) and serving_revision:
+        revision = runner.json(
+            "run",
+            "revisions",
+            "describe",
+            serving_revision,
+            "--region=" + region,
+            optional=True,
+        )
+    revision = revision if isinstance(revision, Mapping) else {}
+    spec = revision.get("spec", {})
+    containers = spec.get("containers", []) if isinstance(spec, Mapping) else []
+    container = (
+        containers[0]
+        if isinstance(containers, list)
+        and len(containers) == 1
+        and isinstance(containers[0], Mapping)
+        else {}
+    )
+    env, secret_env = _env_map(container)
+    service_annotations = value.get("metadata", {}).get("annotations", {})
+    revision_annotations = revision.get("metadata", {}).get("annotations", {})
+    revision_status = revision.get("status", {})
+    service_ready = any(
+        row.get("type") == "Ready" and row.get("status") == "True"
+        for row in status.get("conditions", [])
+        if isinstance(row, Mapping)
+    )
+    revision_ready = any(
+        row.get("type") == "Ready" and row.get("status") == "True"
+        for row in revision_status.get("conditions", [])
+        if isinstance(row, Mapping)
+    )
+    traffic = [
+        {
+            "revision": (
+                serving_revision
+                if row.get("latestRevision") is True
+                else row.get("revisionName")
+            ),
+            "percent": int(row.get("percent", 0)),
+            "tag": row.get("tag"),
+        }
+        for row in status.get("traffic", [])
+        if isinstance(row, Mapping)
+    ]
+    limits = container.get("resources", {}).get("limits", {})
+    limits = dict(limits) if isinstance(limits, Mapping) else {}
+    return {
+        "url": status.get("url"),
+        "serving_revision": serving_revision,
+        "latest_created_revision": status.get("latestCreatedRevisionName"),
+        "latest_ready_revision": status.get("latestReadyRevisionName"),
+        "ready": service_ready and revision_ready,
+        "traffic": traffic,
+        "service_account": spec.get("serviceAccountName"),
+        "image": revision_status.get("imageDigest") or container.get("image"),
+        "ingress": service_annotations.get("run.googleapis.com/ingress", "all"),
+        "iap_enabled": (
+            service_annotations.get("run.googleapis.com/iap-enabled") == "true"
+        ),
+        "timeout_seconds": _provider_int(spec.get("timeoutSeconds")),
+        "container_concurrency": _provider_int(spec.get("containerConcurrency")),
+        "container_count": len(containers),
+        "resources": limits,
+        "scaling": {
+            "min_instances": _provider_int(
+                revision_annotations.get("autoscaling.knative.dev/minScale"),
+                default=0,
+            ),
+            "max_instances": _provider_int(
+                revision_annotations.get("autoscaling.knative.dev/maxScale")
+            ),
+        },
+        "startup_cpu_boost": (
+            revision_annotations.get("run.googleapis.com/startup-cpu-boost")
+            == "true"
+        ),
+        "cpu_idle": (
+            revision_annotations.get("run.googleapis.com/cpu-throttling", "true")
+            == "true"
+        ),
+        "startup_probe": _startup_probe(container),
+        "direct_vpc": _direct_vpc(revision_annotations),
+        "legacy_vpc_connector": revision_annotations.get(
+            "run.googleapis.com/vpc-access-connector"
+        ),
+        "environment": env,
+        "secret_environment": sorted(secret_env),
+        "invokers": sorted(policy_members(policy, "roles/run.invoker")),
+    }
+
+
 def _errors() -> tuple[list[str], Any]:
     errors: list[str] = []
 
@@ -699,7 +825,23 @@ def audit_snapshot(
                 ),
                 f"kms.{expected['name']}.viewers",
             )
-            check(str(actual.get("primary_version")) == expected["version"], f"kms.{expected['name']}.primary_version")
+            check(
+                actual.get("purpose") == expected["purpose"],
+                f"kms.{expected['name']}.purpose",
+            )
+            check(
+                actual.get("configured_algorithm") == expected["algorithm"]
+                and actual.get("version_algorithm") == expected["algorithm"],
+                f"kms.{expected['name']}.algorithm",
+            )
+            check(
+                actual.get("version") == expected["version"],
+                f"kms.{expected['name']}.version",
+            )
+            check(
+                actual.get("version_state") == "ENABLED",
+                f"kms.{expected['name']}.version_state",
+            )
 
     secrets = snapshot.get("secrets", {})
     for expected in contract["iam"]["secrets"]:
@@ -1010,127 +1152,9 @@ def capture_snapshot(contract: Mapping[str, Any], runner: Runner) -> dict[str, A
         "custom_roles": {},
     }
     for expected in contract["cloud_run"]["services"]:
-        name = expected["name"]
-        value = runner.json(
-            "run", "services", "describe", name, "--region=" + region,
-            optional=True,
-        )
-        if not isinstance(value, Mapping):
-            continue
-        policy = runner.json(
-            "run", "services", "get-iam-policy", name, "--region=" + region,
-            optional=True,
-        ) or {}
-        status = value.get("status", {})
-        serving_revision = status.get("latestReadyRevisionName")
-        revision = None
-        if isinstance(serving_revision, str) and serving_revision:
-            revision = runner.json(
-                "run", "revisions", "describe", serving_revision,
-                "--region=" + region, optional=True,
-            )
-        revision = revision if isinstance(revision, Mapping) else {}
-        spec = revision.get("spec", {})
-        containers = (
-            spec.get("containers", [])
-            if isinstance(spec, Mapping)
-            else []
-        )
-        container = (
-            containers[0]
-            if isinstance(containers, list)
-            and len(containers) == 1
-            and isinstance(containers[0], Mapping)
-            else {}
-        )
-        env, secret_env = _env_map(container)
-        service_annotations = value.get("metadata", {}).get(
-            "annotations", {}
-        )
-        revision_annotations = revision.get("metadata", {}).get(
-            "annotations", {}
-        )
-        revision_status = revision.get("status", {})
-        service_ready = any(
-            row.get("type") == "Ready" and row.get("status") == "True"
-            for row in status.get("conditions", [])
-            if isinstance(row, Mapping)
-        )
-        revision_ready = any(
-            row.get("type") == "Ready" and row.get("status") == "True"
-            for row in revision_status.get("conditions", [])
-            if isinstance(row, Mapping)
-        )
-        traffic = [
-            {
-                "revision": row.get("revisionName"),
-                "percent": int(row.get("percent", 0)),
-                "tag": row.get("tag"),
-            }
-            for row in status.get("traffic", [])
-            if isinstance(row, Mapping)
-        ]
-        limits = container.get("resources", {}).get("limits", {})
-        limits = dict(limits) if isinstance(limits, Mapping) else {}
-        result["cloud_run"][name] = {
-            "url": status.get("url"),
-            "serving_revision": serving_revision,
-            "latest_created_revision": status.get(
-                "latestCreatedRevisionName"
-            ),
-            "latest_ready_revision": status.get("latestReadyRevisionName"),
-            "ready": service_ready and revision_ready,
-            "traffic": traffic,
-            "service_account": spec.get("serviceAccountName"),
-            "image": revision_status.get("imageDigest")
-            or container.get("image"),
-            "ingress": service_annotations.get(
-                "run.googleapis.com/ingress", "all",
-            ),
-            "iap_enabled": (
-                service_annotations.get("run.googleapis.com/iap-enabled")
-                == "true"
-            ),
-            "timeout_seconds": _provider_int(spec.get("timeoutSeconds")),
-            "container_concurrency": _provider_int(
-                spec.get("containerConcurrency")
-            ),
-            "container_count": len(containers),
-            "resources": limits,
-            "scaling": {
-                "min_instances": _provider_int(
-                    revision_annotations.get(
-                        "autoscaling.knative.dev/minScale"
-                    ),
-                    default=0,
-                ),
-                "max_instances": _provider_int(
-                    revision_annotations.get(
-                        "autoscaling.knative.dev/maxScale"
-                    )
-                ),
-            },
-            "startup_cpu_boost": (
-                revision_annotations.get(
-                    "run.googleapis.com/startup-cpu-boost"
-                )
-                == "true"
-            ),
-            "cpu_idle": (
-                revision_annotations.get(
-                    "run.googleapis.com/cpu-throttling", "true"
-                )
-                == "true"
-            ),
-            "startup_probe": _startup_probe(container),
-            "direct_vpc": _direct_vpc(revision_annotations),
-            "legacy_vpc_connector": revision_annotations.get(
-                "run.googleapis.com/vpc-access-connector"
-            ),
-            "environment": env,
-            "secret_environment": sorted(secret_env),
-            "invokers": sorted(policy_members(policy, "roles/run.invoker")),
-        }
+        value = capture_cloud_run_service(contract, runner, expected)
+        if value is not None:
+            result["cloud_run"][expected["name"]] = value
     rollback_name = contract["cloud_run"]["rollback_service_without_anonymous_invoker"]
     rollback = runner.json("run", "services", "describe", rollback_name, "--region=" + region, optional=True)
     if rollback is not None:
@@ -1219,6 +1243,14 @@ def capture_snapshot(contract: Mapping[str, Any], runner: Runner) -> dict[str, A
         )
         if not isinstance(value, Mapping):
             continue
+        version = runner.json(
+            "kms", "keys", "versions", "describe", expected["version"],
+            "--key=" + name,
+            "--location=" + region,
+            "--keyring=" + contract["keyring"],
+            optional=True,
+        )
+        version = version if isinstance(version, Mapping) else {}
         policy = runner.json(
             "kms", "keys", "get-iam-policy", name,
             "--location=" + region, "--keyring=" + contract["keyring"],
@@ -1227,7 +1259,15 @@ def capture_snapshot(contract: Mapping[str, Any], runner: Runner) -> dict[str, A
         result["kms"][name] = {
             "signers": sorted(policy_members(policy, "roles/cloudkms.signerVerifier")),
             "public_key_viewers": sorted(policy_members(policy, "roles/cloudkms.publicKeyViewer")),
-            "primary_version": _short_resource(value.get("primary", {}).get("name")),
+            # Cloud KMS asymmetric keys have no primary version. Bind the
+            # explicitly configured CryptoKeyVersion and its usable state.
+            "purpose": value.get("purpose"),
+            "configured_algorithm": value.get("versionTemplate", {}).get(
+                "algorithm"
+            ),
+            "version": _short_resource(version.get("name")),
+            "version_state": version.get("state"),
+            "version_algorithm": version.get("algorithm"),
         }
     for expected in contract["iam"]["secrets"]:
         name = expected["id"]
@@ -1327,10 +1367,11 @@ def _capture_vm(contract: Mapping[str, Any], runner: Runner) -> dict[str, Any]:
         "stat --format='Kind=%F%nOwner=%U%nGroup=%G%nMode=%a' -- \"$p\"; "
         "else echo Missing=1; fi; done"
     )
+    privileged_remote = "sudo -n -- sh -c " + shlex.quote(remote)
     try:
         raw = runner.text(
             "compute", "ssh", vm["instance"], "--zone=" + contract["zone"],
-            "--tunnel-through-iap", "--command=" + remote, "--quiet",
+            "--tunnel-through-iap", "--command=" + privileged_remote, "--quiet",
         )
         readback_ok = True
     except CommissionError:

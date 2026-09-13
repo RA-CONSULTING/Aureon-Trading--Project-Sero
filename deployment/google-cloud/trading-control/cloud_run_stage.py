@@ -21,7 +21,7 @@ from authority_commission import (
     Gcloud as AuditGcloud,
     audit_snapshot,
     canonical,
-    capture_snapshot,
+    capture_cloud_run_service,
     load_contract,
     resolve_contract,
     sha256,
@@ -263,10 +263,22 @@ def _load_recovery(path: Path, plan: Mapping[str, Any]) -> list[str]:
 def _service_staged_exact(
     contract: Mapping[str, Any], snapshot: Mapping[str, Any], name: str
 ) -> bool:
+    actual = snapshot.get("cloud_run", {}).get(name)
+    target_revision = name + "-r" + contract["release"]["source_revision"][:12]
+    if (
+        not isinstance(actual, Mapping)
+        or actual.get("latest_created_revision") != target_revision
+        or actual.get("latest_ready_revision") != target_revision
+        or any(
+            isinstance(row, Mapping) and row.get("revision") == target_revision
+            for row in actual.get("traffic", [])
+        )
+    ):
+        return False
     audit = audit_snapshot(
         contract,
         snapshot,
-        allow_iam_extras=True,
+        allow_iam_extras=False,
         allow_vm_pending=True,
         cloud_run_mode="staged",
         allow_legacy_pending=True,
@@ -274,6 +286,26 @@ def _service_staged_exact(
     )
     prefix = f"cloud_run.{name}."
     return not any(code.startswith(prefix) for code in audit["errors"])
+
+
+def provider_service_staged_exact(
+    contract: Mapping[str, Any], provider: AuditGcloud, name: str
+) -> bool:
+    expected = next(
+        (
+            row
+            for row in contract["cloud_run"]["services"]
+            if row["name"] == name
+        ),
+        None,
+    )
+    if expected is None:
+        raise StageError("cloud_run_stage_service_not_in_contract")
+    observed = capture_cloud_run_service(contract, provider, expected)
+    snapshot: dict[str, Any] = {"cloud_run": {}}
+    if observed is not None:
+        snapshot["cloud_run"][name] = observed
+    return _service_staged_exact(contract, snapshot, name)
 
 
 def load_exact_plan(
@@ -470,9 +502,7 @@ def main(argv: list[str] | None = None) -> int:
         provider = AuditGcloud(args.gcloud, contract["project"])
 
         def is_complete(name: str) -> bool:
-            return _service_staged_exact(
-                contract, capture_snapshot(contract, provider), name
-            )
+            return provider_service_staged_exact(contract, provider, name)
 
         def progress(
             status: str,

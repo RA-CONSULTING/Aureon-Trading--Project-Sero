@@ -664,6 +664,8 @@
       {
         "name": "aureon-controller-signing",
         "version": "1",
+        "purpose": "ASYMMETRIC_SIGN",
+        "algorithm": "EC_SIGN_ED25519",
         "signers": [
           "serviceAccount:aureon-trade-controller@aureon-trading.iam.gserviceaccount.com"
         ],
@@ -679,6 +681,8 @@
       {
         "name": "aureon-review-signing",
         "version": "1",
+        "purpose": "ASYMMETRIC_SIGN",
+        "algorithm": "EC_SIGN_ED25519",
         "signers": [
           "serviceAccount:aureon-trade-review@aureon-trading.iam.gserviceaccount.com"
         ],
@@ -692,6 +696,8 @@
       {
         "name": "aureon-dispatch-signing",
         "version": "1",
+        "purpose": "ASYMMETRIC_SIGN",
+        "algorithm": "EC_SIGN_ED25519",
         "signers": [
           "serviceAccount:aureon-trade-dispatch@aureon-trading.iam.gserviceaccount.com"
         ],
@@ -704,6 +710,8 @@
       {
         "name": "aureon-executor-signing",
         "version": "1",
+        "purpose": "ASYMMETRIC_SIGN",
+        "algorithm": "EC_SIGN_ED25519",
         "signers": [
           "serviceAccount:aureon-trade-executor@aureon-trading.iam.gserviceaccount.com"
         ],
@@ -715,6 +723,8 @@
       {
         "name": "aureon-receipt-signing",
         "version": "1",
+        "purpose": "ASYMMETRIC_SIGN",
+        "algorithm": "EC_SIGN_ED25519",
         "signers": [
           "serviceAccount:aureon-trade-receipt@aureon-trading.iam.gserviceaccount.com"
         ],

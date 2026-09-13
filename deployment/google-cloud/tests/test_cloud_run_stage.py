@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from copy import deepcopy
 from pathlib import Path
 import sys
 
@@ -66,6 +67,174 @@ def test_plan_renders_all_services_with_no_traffic_and_exact_networking():
     assert "--no-iap" in controller
     assert "--clear-network" in controller
     assert "--timeout=120s" in controller
+
+
+def staged_provider_fixture(resolved, expected):
+    revision_name = expected["name"] + "-r" + REVISION[:12]
+    revision_annotations = {
+        "autoscaling.knative.dev/minScale": str(expected["scaling"]["min_instances"]),
+        "autoscaling.knative.dev/maxScale": str(expected["scaling"]["max_instances"]),
+        "run.googleapis.com/startup-cpu-boost": str(
+            expected["startup_cpu_boost"]
+        ).lower(),
+        "run.googleapis.com/cpu-throttling": str(expected["cpu_idle"]).lower(),
+    }
+    if expected["direct_vpc"] is not None:
+        direct_vpc = expected["direct_vpc"]
+        revision_annotations.update(
+            {
+                "run.googleapis.com/network-interfaces": json.dumps(
+                    [
+                        {
+                            "network": direct_vpc["network"],
+                            "subnetwork": direct_vpc["subnetwork"],
+                            "tags": direct_vpc["tags"],
+                        }
+                    ]
+                ),
+                "run.googleapis.com/vpc-access-egress": direct_vpc["egress"],
+            }
+        )
+    service_annotations = {
+        "run.googleapis.com/ingress": expected["ingress"],
+        "run.googleapis.com/iap-enabled": str(expected["iap_enabled"]).lower(),
+    }
+    return {
+        "service": {
+            "metadata": {"annotations": service_annotations},
+            "status": {
+                "url": expected["url"],
+                "latestCreatedRevisionName": revision_name,
+                "latestReadyRevisionName": revision_name,
+                "conditions": [{"type": "Ready", "status": "True"}],
+                "traffic": [
+                    {
+                        "revisionName": expected["name"] + "-00001-old",
+                        "percent": 100,
+                    }
+                ],
+            },
+        },
+        "policy": {
+            "bindings": [
+                {"role": "roles/run.invoker", "members": expected["invokers"]}
+            ]
+        },
+        "revision": {
+            "metadata": {"annotations": revision_annotations},
+            "spec": {
+                "serviceAccountName": expected["service_account"],
+                "timeoutSeconds": expected["timeout_seconds"],
+                "containerConcurrency": expected["container_concurrency"],
+                "containers": [
+                    {
+                        "image": resolved["release"][expected["image_parameter"]],
+                        "resources": {"limits": expected["resources"]},
+                        "env": [
+                            {"name": name, "value": value}
+                            for name, value in expected["environment"].items()
+                        ],
+                        "startupProbe": {
+                            "tcpSocket": {
+                                "port": expected["startup_probe"]["port"]
+                            },
+                            "initialDelaySeconds": expected["startup_probe"][
+                                "initial_delay_seconds"
+                            ],
+                            "timeoutSeconds": expected["startup_probe"][
+                                "timeout_seconds"
+                            ],
+                            "periodSeconds": expected["startup_probe"][
+                                "period_seconds"
+                            ],
+                            "failureThreshold": expected["startup_probe"][
+                                "failure_threshold"
+                            ],
+                        },
+                    }
+                ],
+            },
+            "status": {
+                "imageDigest": resolved["release"][expected["image_parameter"]],
+                "conditions": [{"type": "Ready", "status": "True"}],
+            },
+        },
+    }
+
+
+class TargetServiceRunner:
+    def __init__(self, expected, provider):
+        self.expected = expected
+        self.provider = provider
+        self.calls = []
+
+    def json(self, *args, optional=False):
+        self.calls.append((args, optional))
+        if args[:3] == ("run", "services", "describe"):
+            return self.provider["service"]
+        if args[:3] == ("run", "services", "get-iam-policy"):
+            return self.provider["policy"]
+        if args[:3] == ("run", "revisions", "describe"):
+            return self.provider["revision"]
+        raise AssertionError(args)
+
+
+def test_staged_service_readback_uses_only_three_targeted_provider_reads():
+    resolved = contract()
+    expected = next(
+        row
+        for row in resolved["cloud_run"]["services"]
+        if row["name"] == "aureon-trade-controller"
+    )
+    runner = TargetServiceRunner(
+        expected, staged_provider_fixture(resolved, expected)
+    )
+
+    assert stage.provider_service_staged_exact(
+        resolved, runner, expected["name"]
+    ) is True
+    assert len(runner.calls) == 3
+    assert [call[0][:3] for call in runner.calls] == [
+        ("run", "services", "describe"),
+        ("run", "services", "get-iam-policy"),
+        ("run", "revisions", "describe"),
+    ]
+    assert all(call[1] is True for call in runner.calls)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    (
+        lambda provider, revision: provider["revision"]["status"].update(
+            imageDigest="wrong-image"
+        ),
+        lambda provider, revision: provider["revision"]["spec"]["containers"][
+            0
+        ]["env"].append({"name": "UNREVIEWED", "value": "1"}),
+        lambda provider, revision: provider["policy"]["bindings"][0][
+            "members"
+        ].append("allUsers"),
+        lambda provider, revision: provider["service"]["status"].update(
+            traffic=[{"revisionName": revision, "percent": 100}]
+        ),
+    ),
+)
+def test_staged_service_readback_fails_closed_on_execution_surface_drift(mutate):
+    resolved = contract()
+    expected = next(
+        row
+        for row in resolved["cloud_run"]["services"]
+        if row["name"] == "aureon-trade-controller"
+    )
+    revision = expected["name"] + "-r" + REVISION[:12]
+    provider = deepcopy(staged_provider_fixture(resolved, expected))
+    mutate(provider, revision)
+    runner = TargetServiceRunner(expected, provider)
+
+    assert stage.provider_service_staged_exact(
+        resolved, runner, expected["name"]
+    ) is False
+    assert len(runner.calls) == 3
 
 
 def test_exact_plan_acknowledgement_and_execution(tmp_path):
