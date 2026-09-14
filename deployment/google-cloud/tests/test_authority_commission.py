@@ -165,6 +165,7 @@ def exact_snapshot(contract):
                     "push_no_wrapper",
                 )
             },
+            "enable_exactly_once_delivery": False,
             "subscribers": [],
         }
     terminal = contract["pubsub"]["terminal_readback_subscription"]
@@ -181,6 +182,11 @@ def exact_snapshot(contract):
             )
         },
         "push_endpoint": None,
+        "oidc_service_account": None,
+        "oidc_audience": None,
+        "minimum_backoff": None,
+        "maximum_backoff": None,
+        "push_no_wrapper": False,
         "subscribers": list(terminal["subscribers"]),
     }
     for account in commission.service_account_emails(contract):
@@ -2787,6 +2793,43 @@ def test_staged_attestation_is_read_only_and_release_consumable(monkeypatch, tmp
     assert receipt["provider_readback_sha256"] == commission.sha256(
         commission.canonical(receipt["provider_readback"])
     )
+
+
+def test_exact_subscription_configuration_accepts_capture_shape_and_rejects_hidden_capabilities():
+    contract = resolved_contract()
+    observed = commission.exact_subscription_configuration(
+        contract, exact_snapshot(contract)
+    )
+    push_name = contract["pubsub"]["push_subscriptions"][0]["name"]
+    terminal_name = contract["pubsub"]["terminal_readback_subscription"][
+        "name"
+    ]
+
+    assert observed["subscriptions"][push_name][
+        "enable_exactly_once_delivery"
+    ] is False
+    assert observed["subscriptions"][terminal_name][
+        "oidc_service_account"
+    ] is None
+    assert observed["subscriptions"][terminal_name]["oidc_audience"] is None
+    assert observed["subscriptions"][terminal_name]["minimum_backoff"] is None
+    assert observed["subscriptions"][terminal_name]["maximum_backoff"] is None
+    assert observed["subscriptions"][terminal_name]["push_no_wrapper"] is False
+
+    for name, field, value in (
+        (push_name, "enable_exactly_once_delivery", True),
+        (terminal_name, "oidc_service_account", "unexpected@example.invalid"),
+        (terminal_name, "push_no_wrapper", True),
+    ):
+        drifted = deepcopy(observed)
+        drifted["subscriptions"][name][field] = value
+        with pytest.raises(
+            commission.CommissionError,
+            match="exact_subscription_readback_invalid",
+        ):
+            commission._validate_exact_subscription_configuration(
+                contract, drifted
+            )
 
 
 def test_legacy_retirement_deletes_exact_names_only_after_both_receipts(

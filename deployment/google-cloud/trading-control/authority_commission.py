@@ -2955,6 +2955,7 @@ def _validate_exact_subscription_configuration(
                     "push_no_wrapper",
                 )
             },
+            "enable_exactly_once_delivery": False,
             "subscribers": [],
         }
     terminal = contract["pubsub"]["terminal_readback_subscription"]
@@ -2971,6 +2972,11 @@ def _validate_exact_subscription_configuration(
             )
         },
         "push_endpoint": None,
+        "oidc_service_account": None,
+        "oidc_audience": None,
+        "minimum_backoff": None,
+        "maximum_backoff": None,
+        "push_no_wrapper": False,
         "subscribers": list(terminal["subscribers"]),
     }
     if dict(value) != _expected_subscription_configuration(
