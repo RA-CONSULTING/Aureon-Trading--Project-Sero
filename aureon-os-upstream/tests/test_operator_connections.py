@@ -107,9 +107,15 @@ def _executor_control(*, current=True):
         for venue, index in zip(("alpaca", "binance", "capital", "kraken"), "1234", strict=True)
     }
     signed_rows = {venue: {"venue": venue, **row} for venue, row in providers.items()}
-    readback = hashlib.sha256(json.dumps(
+    provider_accounts_sha256 = hashlib.sha256(json.dumps(
         signed_rows, sort_keys=True, separators=(",", ":"), allow_nan=False,
     ).encode()).hexdigest()
+    execution_budget_readiness_sha256 = "a" * 64
+    readback = hashlib.sha256(json.dumps({
+        "schema": "aureon.cloud-trade-provider-readback-commitment.v1",
+        "provider_accounts_sha256": provider_accounts_sha256,
+        "execution_budget_readiness_sha256": execution_budget_readiness_sha256,
+    }, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
     return {
         "schema": "aureon.operator.cloud-trading-control.v1",
         "read_state": "observed" if current else "recorded",
@@ -120,6 +126,9 @@ def _executor_control(*, current=True):
             "provider_readback": {
                 "provider_count": 4,
                 "all_authenticated": True,
+                "instrument_preflight_enforced": True,
+                "provider_accounts_sha256": provider_accounts_sha256,
+                "execution_budget_readiness_sha256": execution_budget_readiness_sha256,
                 "readback_sha256": readback,
                 "providers": providers,
             },
@@ -129,12 +138,24 @@ def _executor_control(*, current=True):
 
 def test_owner_view_reports_current_cloud_executor_auth_without_inventing_key_presence(temp_store):
     control = _executor_control()
+    provider = control["last_probe"]["provider_readback"]
+    signed_rows = {
+        venue: {"venue": venue, **row}
+        for venue, row in provider["providers"].items()
+    }
+    account_rows_sha256 = hashlib.sha256(json.dumps(
+        signed_rows, sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode()).hexdigest()
+    assert provider["readback_sha256"] != account_rows_sha256
     view = connections_api.build_view([], executor_control=control)
     exchanges = next(row for row in view["categories"] if row["category"] == "exchange")
     assert {row["id"] for row in exchanges["connections"] if row["executor_authenticated"]} == {
         "alpaca", "binance", "capital", "kraken",
     }
     assert all(row["has_key"] is False for row in exchanges["connections"])
+    assert {
+        row["executor_readback_sha256"] for row in exchanges["connections"]
+    } == {provider["readback_sha256"]}
     summary = connections_api.readiness([], executor_control=control)["summary"]
     assert summary["executor_authenticated"] == 4
     assert summary["executor_evidence_current"] is True
@@ -145,6 +166,21 @@ def test_owner_view_reports_current_cloud_executor_auth_without_inventing_key_pr
     assert not {row["id"] for row in readiness["missing"]} & {
         "alpaca", "binance", "capital", "kraken",
     }
+
+
+@pytest.mark.parametrize("field,value", (
+    ("provider_accounts_sha256", "0" * 64),
+    ("execution_budget_readiness_sha256", "not-a-digest"),
+    ("readback_sha256", "0" * 64),
+))
+def test_owner_view_rejects_tampered_collector_provider_commitments(temp_store, field, value):
+    control = _executor_control()
+    control["last_probe"]["provider_readback"][field] = value
+
+    view = connections_api.build_view([], executor_control=control)
+    exchanges = next(row for row in view["categories"] if row["category"] == "exchange")
+
+    assert all(row["executor_authenticated"] is False for row in exchanges["connections"])
 
 
 def test_tenant_and_stale_views_do_not_inherit_owner_executor_authentication(temp_store):

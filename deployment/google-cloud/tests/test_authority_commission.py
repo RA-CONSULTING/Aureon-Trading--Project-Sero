@@ -34,6 +34,15 @@ PUBLIC_IMAGE = (
     "europe-west1-docker.pkg.dev/aureon-trading/aureon-web/"
     "aureon-public-entry@sha256:" + "c" * 64
 )
+PRIOR_REVISION = "f" * 40
+PRIOR_AUTHORITY_IMAGE = (
+    "europe-west1-docker.pkg.dev/aureon-trading/aureon-web/"
+    "aureon-trading-authority@sha256:" + "6" * 64
+)
+PRIOR_PUBLIC_IMAGE = (
+    "europe-west1-docker.pkg.dev/aureon-trading/aureon-web/"
+    "aureon-public-entry@sha256:" + "7" * 64
+)
 OWNER_SUBJECT = "12345678-1234-4123-8123-123456789abc"
 OWNER_EMAIL_SHA256 = "d" * 64
 IAP_ADMIN_EMAIL_SHA256 = "e" * 64
@@ -46,6 +55,19 @@ def resolved_contract():
         source_revision=REVISION,
         authority_image=AUTHORITY_IMAGE,
         public_entry_image=PUBLIC_IMAGE,
+        supabase_project_ref=SUPABASE_PROJECT_REF,
+        supabase_owner_subject=OWNER_SUBJECT,
+        supabase_owner_email_sha256=OWNER_EMAIL_SHA256,
+        iap_admin_email_sha256=IAP_ADMIN_EMAIL_SHA256,
+    )
+
+
+def prior_resolved_contract():
+    return commission.resolve_contract(
+        commission.load_contract(),
+        source_revision=PRIOR_REVISION,
+        authority_image=PRIOR_AUTHORITY_IMAGE,
+        public_entry_image=PRIOR_PUBLIC_IMAGE,
         supabase_project_ref=SUPABASE_PROJECT_REF,
         supabase_owner_subject=OWNER_SUBJECT,
         supabase_owner_email_sha256=OWNER_EMAIL_SHA256,
@@ -368,7 +390,7 @@ def owner_readback_receipt(contract, now):
         "email_confirmed": True,
         "email_sha256": OWNER_EMAIL_SHA256,
         "recorded_at": now.isoformat(),
-        "source_revision": REVISION,
+        "source_revision": contract["release"]["source_revision"],
         "contract_sha256": commission.sha256(commission.canonical(contract)),
     }
 
@@ -400,7 +422,7 @@ def immutable_image_receipt(contract, now):
         "recorded_at": now.isoformat(),
         "project": contract["project"],
         "region": contract["region"],
-        "source_revision": REVISION,
+        "source_revision": contract["release"]["source_revision"],
         "source_tree": "9" * 40,
         "plan_sha256": "1" * 64,
         "certificate_receipt_sha256": "2" * 64,
@@ -455,7 +477,7 @@ def legacy_retirement_phase_receipt(
         "schema": "aureon.gcp.pubsub-legacy-retirement-provider-readback.v1",
         "project": contract["project"],
         "contract_sha256": commission.sha256(commission.canonical(contract)),
-        "source_revision": REVISION,
+        "source_revision": contract["release"]["source_revision"],
         "legacy_subscriptions_absent": targets,
         "subscription_configuration_sha256": subscription_hash,
         "cloud_run_configuration_sha256": commission.sha256(
@@ -480,7 +502,7 @@ def legacy_retirement_phase_receipt(
         "recorded_at": now.isoformat(),
         "project": contract["project"],
         "contract_sha256": commission.sha256(commission.canonical(contract)),
-        "source_revision": REVISION,
+        "source_revision": contract["release"]["source_revision"],
         "retired_subscription_names": targets,
         "applied_action_ids": [
             f"subscription.{name}.retire" for name in targets
@@ -523,7 +545,7 @@ def subscription_replacement_receipt(contract, now, *, value=0):
         "provider": required["provider"],
         "project": contract["project"],
         "contract_sha256": commission.sha256(commission.canonical(contract)),
-        "source_revision": REVISION,
+        "source_revision": contract["release"]["source_revision"],
         "recorded_at": now.isoformat(),
         "window_start": start.isoformat(),
         "window_end": now.isoformat(),
@@ -572,7 +594,7 @@ def legacy_archive_receipt(contract, now):
         "provider": required["provider"],
         "project": contract["project"],
         "contract_sha256": contract_hash,
-        "source_revision": REVISION,
+        "source_revision": contract["release"]["source_revision"],
         "recorded_at": (now - timedelta(minutes=4)).isoformat(),
         "scope_sha256": "7" * 64,
         "publisher_freeze": {
@@ -592,7 +614,9 @@ def legacy_archive_receipt(contract, now):
         "archive_kms_key_sha256": "9" * 64,
         "root_manifest": {
             "object_name": (
-                f"fixture/v1/{REVISION}/{contract_hash}/roots/{root_hash}.json"
+                "fixture/v1/"
+                f"{contract['release']['source_revision']}/{contract_hash}/"
+                f"roots/{root_hash}.json"
             ),
             "generation": "1234567890",
             "payload_sha256": root_hash,
@@ -870,6 +894,136 @@ def vm_reboot_receipt(contract, release, release_hash, now):
         "release_authority": False,
         "secret_values_recorded": False,
     }
+
+
+def finalized_authority_receipt(
+    contract, now, *, owner, image, retirement_phase, archive, zero
+):
+    audit = commission.audit_snapshot(contract, exact_snapshot(contract))
+    assert audit["ok"] is True
+    return {
+        "schema": commission.RECEIPT_SCHEMA,
+        "status": "applied",
+        "phase": "finalize",
+        "recorded_at": now.isoformat(),
+        "contract_sha256": commission.sha256(
+            commission.canonical(contract)
+        ),
+        "source_revision": contract["release"]["source_revision"],
+        "applied_action_ids": [],
+        "provider_readback_ok": True,
+        "provider_readback_sha256": commission.sha256(
+            commission.canonical(audit)
+        ),
+        "legacy_retirement_receipt_sha256": commission.sha256(
+            commission.canonical(zero)
+        ),
+        "legacy_archive_receipt_sha256": commission.sha256(
+            commission.canonical(archive)
+        ),
+        "legacy_retirement_phase_receipt_sha256": commission.sha256(
+            commission.canonical(retirement_phase)
+        ),
+        "supabase_owner_readback_receipt_sha256": commission.sha256(
+            commission.canonical(owner)
+        ),
+        "legacy_retirement_owner_readback_receipt_sha256": (
+            commission.sha256(commission.canonical(owner))
+        ),
+        "vm_release_readback_receipt_sha256": "8" * 64,
+        "vm_reboot_continuity_receipt_sha256": "9" * 64,
+        "immutable_image_build_receipt_sha256": commission.sha256(
+            commission.canonical(image)
+        ),
+        "public_bridge_certificate": deepcopy(image["certificate"]),
+        "provider_error_codes": [],
+        "vm_readback_deferred_to_release_receipt": False,
+        "cloud_run_readback_mode": "serving",
+        "cloud_run_staged_without_traffic": False,
+        "legacy_retirement_deferred": False,
+        "immutable_subscription_replacement_deferred": [],
+        "broker_identity_readback_ok": True,
+        "destructive_iam_cleanup_deferred": False,
+        "rollback_anonymous_invoker_removal_deferred": False,
+        "secret_payloads_requested": False,
+        "sensitive_environment_values_returned": False,
+        "release_authority": False,
+        "mutation_authority": False,
+    }
+
+
+def write_receipt_fixture(tmp_path, name, value):
+    path = (tmp_path / name).resolve()
+    path.write_text(
+        json.dumps(value, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return path, commission.sha256(commission.canonical(value))
+
+
+def historic_lineage_fixture(tmp_path, now):
+    contract = prior_resolved_contract()
+    event = now - timedelta(days=30)
+    owner = owner_readback_receipt(contract, event)
+    image = immutable_image_receipt(contract, event)
+    archive = legacy_archive_receipt(contract, event)
+    zero = retirement_receipt(contract, event)
+    phase = legacy_retirement_phase_receipt(
+        contract,
+        event,
+        owner=owner,
+        archive=archive,
+        zero=zero,
+    )
+    finalized = finalized_authority_receipt(
+        contract,
+        event + timedelta(minutes=1),
+        owner=owner,
+        image=image,
+        retirement_phase=phase,
+        archive=archive,
+        zero=zero,
+    )
+    values = {
+        "prior_finalize": finalized,
+        "prior_image": image,
+        "archive": archive,
+        "zero": zero,
+        "phase": phase,
+        "owner": owner,
+    }
+    return {
+        name: (*write_receipt_fixture(tmp_path, name + ".json", value), value)
+        for name, value in values.items()
+    }
+
+
+def validate_historic_lineage(contract, snapshot, fixture, now):
+    return commission.validate_legacy_retirement_lineage(
+        contract,
+        commission.load_contract(),
+        snapshot,
+        prior_finalize_path=fixture["prior_finalize"][0],
+        prior_finalize_acknowledgement=fixture["prior_finalize"][1],
+        prior_image_path=fixture["prior_image"][0],
+        prior_image_acknowledgement=fixture["prior_image"][1],
+        archive_path=fixture["archive"][0],
+        archive_receipt_acknowledgement=fixture["archive"][1],
+        archive_scope_acknowledgement=fixture["archive"][2][
+            "scope_sha256"
+        ],
+        zero_path=fixture["zero"][0],
+        zero_acknowledgement=fixture["zero"][1],
+        retirement_phase_path=fixture["phase"][0],
+        retirement_phase_acknowledgement=fixture["phase"][1],
+        retirement_owner_path=fixture["owner"][0],
+        retirement_owner_acknowledgement=fixture["owner"][1],
+        supabase_project_ref=SUPABASE_PROJECT_REF,
+        supabase_owner_subject=OWNER_SUBJECT,
+        supabase_owner_email_sha256=OWNER_EMAIL_SHA256,
+        iap_admin_email_sha256=IAP_ADMIN_EMAIL_SHA256,
+        now=now,
+    )
 
 
 def test_contract_is_resolved_only_from_exact_immutable_inputs():
@@ -3053,3 +3207,286 @@ def test_legacy_retirement_refuses_subscription_drift_before_delete(
     assert json.loads(output.read_text(encoding="utf-8"))["error_code"] == (
         "replacement_subscriptions_not_exact_before_legacy_retirement"
     )
+
+
+def test_historic_retirement_lineage_accepts_old_event_with_fresh_absence(
+    tmp_path,
+):
+    now = datetime.now(UTC)
+    contract = resolved_contract()
+    fixture = historic_lineage_fixture(tmp_path, now)
+
+    lineage, phase_hash, archive_hash, zero_hash, owner_hash = (
+        validate_historic_lineage(
+            contract, exact_snapshot(contract), fixture, now
+        )
+    )
+
+    assert lineage["schema"] == commission.LEGACY_RETIREMENT_LINEAGE_SCHEMA
+    assert lineage["prior_source_revision"] == PRIOR_REVISION
+    assert lineage["source_revision"] == REVISION
+    assert lineage["prior_legacy_retirement_phase_receipt_sha256"] == (
+        phase_hash
+    )
+    assert lineage["prior_legacy_archive_receipt_sha256"] == archive_hash
+    assert lineage["prior_legacy_retirement_receipt_sha256"] == zero_hash
+    assert lineage[
+        "prior_legacy_retirement_owner_readback_receipt_sha256"
+    ] == owner_hash
+    assert lineage["legacy_subscriptions_recreated"] is False
+    assert lineage["provider_readback"]["legacy_subscriptions_absent"] == (
+        sorted(contract["pubsub"]["retire_after_zero_backlog"])
+    )
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "legacy_archive_receipt_sha256",
+        "legacy_retirement_owner_readback_receipt_sha256",
+    ),
+)
+def test_historic_retirement_lineage_rejects_tampered_prior_chain_hash(
+    tmp_path, field
+):
+    now = datetime.now(UTC)
+    contract = resolved_contract()
+    fixture = historic_lineage_fixture(tmp_path, now)
+    tampered = deepcopy(fixture["prior_finalize"][2])
+    tampered[field] = "0" * 64
+    fixture["prior_finalize"] = (
+        *write_receipt_fixture(
+            tmp_path, "prior_finalize.json", tampered
+        ),
+        tampered,
+    )
+
+    with pytest.raises(
+        commission.CommissionError,
+        match="prior_finalize_receipt_binding_invalid",
+    ):
+        validate_historic_lineage(
+            contract, exact_snapshot(contract), fixture, now
+        )
+
+
+def test_historic_retirement_lineage_rejects_current_source_as_prior(
+    tmp_path,
+):
+    now = datetime.now(UTC)
+    contract = resolved_contract()
+    fixture = historic_lineage_fixture(tmp_path, now)
+    tampered = deepcopy(fixture["prior_image"][2])
+    tampered["source_revision"] = REVISION
+    fixture["prior_image"] = (
+        *write_receipt_fixture(tmp_path, "prior_image.json", tampered),
+        tampered,
+    )
+
+    with pytest.raises(
+        commission.CommissionError,
+        match="legacy_retirement_lineage_revision_invalid",
+    ):
+        validate_historic_lineage(
+            contract, exact_snapshot(contract), fixture, now
+        )
+
+
+def test_historic_retirement_lineage_rejects_changed_target_contract(
+    tmp_path,
+):
+    now = datetime.now(UTC)
+    contract = deepcopy(resolved_contract())
+    contract["pubsub"]["retire_after_zero_backlog"][0] = (
+        "different-legacy-subscription"
+    )
+    fixture = historic_lineage_fixture(tmp_path, now)
+
+    with pytest.raises(
+        commission.CommissionError,
+        match="legacy_retirement_lineage_targets_changed",
+    ):
+        validate_historic_lineage(
+            contract, exact_snapshot(contract), fixture, now
+        )
+
+
+@pytest.mark.parametrize("drift", ("legacy_reappeared", "push_endpoint"))
+def test_historic_retirement_lineage_rejects_current_provider_drift(
+    tmp_path, drift
+):
+    now = datetime.now(UTC)
+    contract = resolved_contract()
+    snapshot = exact_snapshot(contract)
+    fixture = historic_lineage_fixture(tmp_path, now)
+    if drift == "legacy_reappeared":
+        name = sorted(contract["pubsub"]["retire_after_zero_backlog"])[0]
+        snapshot["legacy_subscriptions"][name] = {"name": name}
+    else:
+        name = contract["pubsub"]["push_subscriptions"][0]["name"]
+        snapshot["subscriptions"][name]["push_endpoint"] += "/changed"
+
+    with pytest.raises(commission.CommissionError):
+        validate_historic_lineage(contract, snapshot, fixture, now)
+
+
+def test_correction_finalize_accepts_validated_prior_migration_without_recreate(
+    monkeypatch, tmp_path
+):
+    now = datetime.now(UTC)
+    contract = resolved_contract()
+    snapshot = exact_snapshot(contract)
+    fixture = historic_lineage_fixture(tmp_path, now)
+    original_owner = commission.validate_supabase_owner_receipt
+    original_image = commission.validate_immutable_image_build_receipt
+    current_certificate = certificate_evidence(contract, now)
+
+    def validate_owner(bound_contract, *args, **kwargs):
+        if bound_contract["release"]["source_revision"] == REVISION:
+            return "1" * 64
+        return original_owner(bound_contract, *args, **kwargs)
+
+    def validate_image(bound_contract, *args, **kwargs):
+        if bound_contract["release"]["source_revision"] == REVISION:
+            return "2" * 64, {}, current_certificate
+        return original_image(bound_contract, *args, **kwargs)
+
+    class Runner:
+        def __init__(self):
+            self.applied = []
+
+        def apply(self, *args):
+            self.applied.append(args)
+
+    runner = Runner()
+    monkeypatch.setattr(commission, "Gcloud", lambda *_args: runner)
+    monkeypatch.setattr(
+        commission, "capture_snapshot", lambda *_args: snapshot
+    )
+    monkeypatch.setattr(
+        commission, "validate_supabase_owner_receipt", validate_owner
+    )
+    monkeypatch.setattr(
+        commission, "validate_immutable_image_build_receipt", validate_image
+    )
+    monkeypatch.setattr(
+        commission, "validate_vm_release_receipt", lambda *_args, **_kwargs: "3" * 64
+    )
+    monkeypatch.setattr(
+        commission,
+        "validate_vm_reboot_continuity_receipt",
+        lambda *_args, **_kwargs: "4" * 64,
+    )
+    output = (tmp_path / "correction-finalize.json").resolve()
+    result = commission.main(
+        [
+            *cli_args("apply"),
+            "--phase=finalize",
+            "--acknowledge-contract-sha256="
+            + commission.sha256(commission.canonical(contract)),
+            "--prior-finalize-receipt="
+            + str(fixture["prior_finalize"][0]),
+            "--acknowledge-prior-finalize-receipt-sha256="
+            + fixture["prior_finalize"][1],
+            "--prior-immutable-image-build-receipt="
+            + str(fixture["prior_image"][0]),
+            "--acknowledge-prior-immutable-image-build-receipt-sha256="
+            + fixture["prior_image"][1],
+            "--legacy-archive-receipt=" + str(fixture["archive"][0]),
+            "--acknowledge-legacy-archive-receipt-sha256="
+            + fixture["archive"][1],
+            "--acknowledge-legacy-archive-scope-sha256="
+            + fixture["archive"][2]["scope_sha256"],
+            "--legacy-retirement-receipt=" + str(fixture["zero"][0]),
+            "--acknowledge-legacy-retirement-sha256="
+            + fixture["zero"][1],
+            "--legacy-retirement-phase-receipt="
+            + str(fixture["phase"][0]),
+            "--acknowledge-legacy-retirement-phase-sha256="
+            + fixture["phase"][1],
+            "--legacy-retirement-owner-readback-receipt="
+            + str(fixture["owner"][0]),
+            "--acknowledge-legacy-retirement-owner-readback-sha256="
+            + fixture["owner"][1],
+            "--receipt=" + str(output),
+        ]
+    )
+
+    assert result == 0
+    assert runner.applied == []
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["status"] == "applied"
+    assert receipt["legacy_retirement_lineage"]["status"] == (
+        "prior_migration_validated_against_current_provider"
+    )
+    assert receipt["legacy_retirement_lineage"][
+        "legacy_subscriptions_recreated"
+    ] is False
+
+
+def test_finalize_fixture_keyset_matches_generated_initial_finalize(
+    monkeypatch, tmp_path
+):
+    contract = resolved_contract()
+    snapshot = exact_snapshot(contract)
+
+    class Runner:
+        def __init__(self):
+            self.applied = []
+
+        def apply(self, *args):
+            self.applied.append(args)
+
+    runner = Runner()
+    monkeypatch.setattr(commission, "Gcloud", lambda *_args: runner)
+    monkeypatch.setattr(
+        commission, "capture_snapshot", lambda *_args: snapshot
+    )
+    stub_valid_finalize_evidence(monkeypatch)
+    output = (tmp_path / "generated-finalize.json").resolve()
+    assert commission.main(
+        [
+            *cli_args("apply"),
+            "--phase=finalize",
+            "--acknowledge-contract-sha256="
+            + commission.sha256(commission.canonical(contract)),
+            "--receipt=" + str(output),
+        ]
+    ) == 0
+    generated = json.loads(output.read_text(encoding="utf-8"))
+    at = datetime.now(UTC)
+    owner = owner_readback_receipt(contract, at)
+    image = immutable_image_receipt(contract, at)
+    archive = legacy_archive_receipt(contract, at)
+    zero = retirement_receipt(contract, at)
+    phase = legacy_retirement_phase_receipt(
+        contract, at, owner=owner, archive=archive, zero=zero
+    )
+    fixture = finalized_authority_receipt(
+        contract,
+        at,
+        owner=owner,
+        image=image,
+        retirement_phase=phase,
+        archive=archive,
+        zero=zero,
+    )
+    assert set(generated) == set(fixture)
+    for key in (
+        "schema",
+        "status",
+        "phase",
+        "provider_readback_ok",
+        "provider_error_codes",
+        "vm_readback_deferred_to_release_receipt",
+        "cloud_run_readback_mode",
+        "cloud_run_staged_without_traffic",
+        "legacy_retirement_deferred",
+        "immutable_subscription_replacement_deferred",
+        "broker_identity_readback_ok",
+        "destructive_iam_cleanup_deferred",
+        "rollback_anonymous_invoker_removal_deferred",
+        "release_authority",
+        "mutation_authority",
+    ):
+        assert generated[key] == fixture[key]

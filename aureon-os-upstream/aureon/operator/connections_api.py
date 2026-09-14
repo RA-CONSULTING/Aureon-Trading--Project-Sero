@@ -236,13 +236,22 @@ def _current_executor_authentication(control: Mapping[str, Any] | None) -> Dict[
         return None
     provider = probe.get("provider_readback")
     providers = provider.get("providers") if isinstance(provider, Mapping) else None
-    if (not isinstance(provider, Mapping) or provider.get("provider_count") != 4
+    if (not isinstance(provider, Mapping) or set(provider) != {
+                "provider_count", "all_authenticated", "instrument_preflight_enforced",
+                "provider_accounts_sha256", "execution_budget_readiness_sha256",
+                "readback_sha256", "providers",
+            }
+            or provider.get("provider_count") != 4
             or provider.get("all_authenticated") is not True
+            or provider.get("instrument_preflight_enforced") is not True
             or not isinstance(providers, Mapping) or set(providers) != _CLOUD_EXECUTOR_VENUES):
         return None
     clean: Dict[str, Dict[str, Any]] = {}
     for venue, raw in providers.items():
-        if (not isinstance(raw, Mapping) or raw.get("authenticated") is not True
+        if (not isinstance(raw, Mapping) or set(raw) != {
+                    "authenticated", "account_binding_sha256",
+                }
+                or raw.get("authenticated") is not True
                 or not isinstance(raw.get("account_binding_sha256"), str)
                 or _HEX64.fullmatch(raw["account_binding_sha256"]) is None):
             return None
@@ -250,14 +259,28 @@ def _current_executor_authentication(control: Mapping[str, Any] | None) -> Dict[
             "authenticated": True,
             "account_binding_sha256": raw["account_binding_sha256"],
         }
-    # The executor hashes its original per-provider evidence, which includes
-    # the venue field. The collector verifies that digest before publishing a
-    # sanitized map without the redundant venue value.
+    # The signed executor hashes rows that include the venue. The collector removes
+    # that redundant field from the UI projection while preserving the account and
+    # execution-budget commitments needed to recompute the composite binding.
     digest_rows = {venue: {"venue": venue, **row} for venue, row in clean.items()}
-    expected = hashlib.sha256(json.dumps(
+    expected_accounts = hashlib.sha256(json.dumps(
         digest_rows, sort_keys=True, separators=(",", ":"), allow_nan=False,
     ).encode()).hexdigest()
-    if provider.get("readback_sha256") != expected:
+    provider_accounts_sha256 = provider.get("provider_accounts_sha256")
+    execution_budget_readiness_sha256 = provider.get("execution_budget_readiness_sha256")
+    readback_sha256 = provider.get("readback_sha256")
+    if (provider_accounts_sha256 != expected_accounts
+            or not isinstance(execution_budget_readiness_sha256, str)
+            or _HEX64.fullmatch(execution_budget_readiness_sha256) is None
+            or not isinstance(readback_sha256, str)
+            or _HEX64.fullmatch(readback_sha256) is None):
+        return None
+    expected_readback = hashlib.sha256(json.dumps({
+        "schema": "aureon.cloud-trade-provider-readback-commitment.v1",
+        "provider_accounts_sha256": provider_accounts_sha256,
+        "execution_budget_readiness_sha256": execution_budget_readiness_sha256,
+    }, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    if readback_sha256 != expected_readback:
         return None
     received_at = probe.get("received_at")
     if not isinstance(received_at, (int, float)) or isinstance(received_at, bool):
@@ -265,7 +288,7 @@ def _current_executor_authentication(control: Mapping[str, Any] | None) -> Dict[
     return {
         "providers": clean,
         "received_at": float(received_at),
-        "readback_sha256": expected,
+        "readback_sha256": readback_sha256,
     }
 
 

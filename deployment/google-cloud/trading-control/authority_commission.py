@@ -33,6 +33,9 @@ RECEIPT_SCHEMA = "aureon.cloud-trading-authority-commission-receipt.v1"
 LEGACY_RETIREMENT_PROGRESS_SCHEMA = (
     "aureon.gcp.pubsub-legacy-retirement-progress.v1"
 )
+LEGACY_RETIREMENT_LINEAGE_SCHEMA = (
+    "aureon.gcp.pubsub-legacy-retirement-lineage.v1"
+)
 _REVISION = re.compile(r"[0-9a-f]{40}")
 _DIGEST_IMAGE = re.compile(
     r"[a-z0-9-]+-docker\.pkg\.dev/[a-z0-9-]+/[A-Za-z0-9._-]+/"
@@ -3763,6 +3766,348 @@ def validate_legacy_retirement_phase_receipt(
     return receipt_hash, archive_hash, zero_hash, retirement_owner_hash
 
 
+def _load_acknowledged_historic_receipt(
+    path: Path | None,
+    acknowledgement: str | None,
+    *,
+    required_error: str,
+    invalid_error: str,
+    acknowledgement_error: str,
+) -> dict[str, Any]:
+    if (
+        path is None
+        or not path.is_absolute()
+        or not path.is_file()
+        or path.is_symlink()
+    ):
+        raise CommissionError(required_error)
+    try:
+        raw = path.read_bytes()
+        value = json.loads(raw)
+    except (OSError, ValueError, TypeError, UnicodeError) as exc:
+        raise CommissionError(invalid_error) from exc
+    if (
+        not 0 < len(raw) <= 256 * 1024
+        or not isinstance(value, Mapping)
+    ):
+        raise CommissionError(invalid_error)
+    receipt_hash = sha256(canonical(value))
+    if (
+        _HEX64.fullmatch(str(acknowledgement or "")) is None
+        or not secrets.compare_digest(str(acknowledgement), receipt_hash)
+    ):
+        raise CommissionError(acknowledgement_error)
+    return dict(value)
+
+
+def _historic_image_release_identity(
+    receipt: Mapping[str, Any], contract_template: Mapping[str, Any]
+) -> tuple[str, str, str]:
+    revision = receipt.get("source_revision")
+    images = receipt.get("images")
+    if (
+        receipt.get("schema")
+        != contract_template["commissioning"][
+            "immutable_image_build_receipt_schema"
+        ]
+        or receipt.get("status") != "built_and_digest_resolved"
+        or _REVISION.fullmatch(str(revision or "")) is None
+        or not isinstance(images, list)
+        or len(images) != 2
+    ):
+        raise CommissionError("prior_immutable_image_build_receipt_invalid")
+    observed: dict[str, str] = {}
+    repositories = {
+        "authority": contract_template["release"][
+            "authority_image_repository"
+        ],
+        "public_entry": contract_template["release"][
+            "public_entry_image_repository"
+        ],
+    }
+    for row in images:
+        if not isinstance(row, Mapping):
+            raise CommissionError(
+                "prior_immutable_image_build_receipt_invalid"
+            )
+        name = row.get("name")
+        image = row.get("image")
+        if (
+            not isinstance(name, str)
+            or name not in repositories
+            or name in observed
+            or _DIGEST_IMAGE.fullmatch(str(image or "")) is None
+            or str(image).split("@", 1)[0] != repositories[name]
+        ):
+            raise CommissionError(
+                "prior_immutable_image_build_receipt_invalid"
+            )
+        observed[str(name)] = str(image)
+    if set(observed) != set(repositories):
+        raise CommissionError("prior_immutable_image_build_receipt_invalid")
+    return str(revision), observed["authority"], observed["public_entry"]
+
+
+def validate_legacy_retirement_lineage(
+    contract: Mapping[str, Any],
+    contract_template: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+    *,
+    prior_finalize_path: Path | None,
+    prior_finalize_acknowledgement: str | None,
+    prior_image_path: Path | None,
+    prior_image_acknowledgement: str | None,
+    archive_path: Path | None,
+    archive_receipt_acknowledgement: str | None,
+    archive_scope_acknowledgement: str | None,
+    zero_path: Path | None,
+    zero_acknowledgement: str | None,
+    retirement_phase_path: Path | None,
+    retirement_phase_acknowledgement: str | None,
+    retirement_owner_path: Path | None,
+    retirement_owner_acknowledgement: str | None,
+    supabase_project_ref: str,
+    supabase_owner_subject: str,
+    supabase_owner_email_sha256: str,
+    iap_admin_email_sha256: str,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], str, str, str, str]:
+    """Bind a prior one-time migration to fresh post-migration state."""
+
+    current = (now or datetime.now(UTC)).astimezone(UTC)
+    prior_finalize = _load_acknowledged_historic_receipt(
+        prior_finalize_path,
+        prior_finalize_acknowledgement,
+        required_error="prior_finalize_receipt_required",
+        invalid_error="prior_finalize_receipt_invalid",
+        acknowledgement_error="prior_finalize_receipt_acknowledgement_invalid",
+    )
+    prior_image = _load_acknowledged_historic_receipt(
+        prior_image_path,
+        prior_image_acknowledgement,
+        required_error="prior_immutable_image_build_receipt_required",
+        invalid_error="prior_immutable_image_build_receipt_invalid",
+        acknowledgement_error=(
+            "prior_immutable_image_build_receipt_acknowledgement_invalid"
+        ),
+    )
+    prior_revision, prior_authority_image, prior_public_image = (
+        _historic_image_release_identity(prior_image, contract_template)
+    )
+    if prior_revision == contract["release"]["source_revision"]:
+        raise CommissionError("legacy_retirement_lineage_revision_invalid")
+    prior_contract = resolve_contract(
+        contract_template,
+        source_revision=prior_revision,
+        authority_image=prior_authority_image,
+        public_entry_image=prior_public_image,
+        supabase_project_ref=supabase_project_ref,
+        supabase_owner_subject=supabase_owner_subject,
+        supabase_owner_email_sha256=supabase_owner_email_sha256,
+        iap_admin_email_sha256=iap_admin_email_sha256,
+    )
+    prior_contract_hash = sha256(canonical(prior_contract))
+    prior_finalize_time = _parse_timestamp(
+        prior_finalize.get("recorded_at"),
+        "prior_finalize_receipt_time_invalid",
+    )
+    if prior_finalize_time > current + timedelta(seconds=30):
+        raise CommissionError("prior_finalize_receipt_time_invalid")
+    prior_image_hash, _, prior_certificate = (
+        validate_immutable_image_build_receipt(
+            prior_contract,
+            prior_image_path,
+            prior_image_acknowledgement,
+            now=prior_finalize_time,
+        )
+    )
+    (
+        prior_phase_hash,
+        prior_archive_hash,
+        prior_zero_hash,
+        prior_retirement_owner_hash,
+    ) = validate_legacy_retirement_phase_receipt(
+        prior_contract,
+        retirement_phase_path,
+        retirement_phase_acknowledgement,
+        archive_path=archive_path,
+        archive_receipt_acknowledgement=archive_receipt_acknowledgement,
+        archive_scope_acknowledgement=archive_scope_acknowledgement,
+        zero_path=zero_path,
+        zero_acknowledgement=zero_acknowledgement,
+        retirement_owner_path=retirement_owner_path,
+        retirement_owner_acknowledgement=(
+            retirement_owner_acknowledgement
+        ),
+        now=prior_finalize_time,
+    )
+    prior_finalize_keys = {
+        "schema",
+        "status",
+        "phase",
+        "recorded_at",
+        "contract_sha256",
+        "source_revision",
+        "applied_action_ids",
+        "provider_readback_ok",
+        "provider_readback_sha256",
+        "legacy_retirement_receipt_sha256",
+        "legacy_archive_receipt_sha256",
+        "legacy_retirement_phase_receipt_sha256",
+        "supabase_owner_readback_receipt_sha256",
+        "legacy_retirement_owner_readback_receipt_sha256",
+        "vm_release_readback_receipt_sha256",
+        "vm_reboot_continuity_receipt_sha256",
+        "immutable_image_build_receipt_sha256",
+        "public_bridge_certificate",
+        "provider_error_codes",
+        "vm_readback_deferred_to_release_receipt",
+        "cloud_run_readback_mode",
+        "cloud_run_staged_without_traffic",
+        "legacy_retirement_deferred",
+        "immutable_subscription_replacement_deferred",
+        "broker_identity_readback_ok",
+        "destructive_iam_cleanup_deferred",
+        "rollback_anonymous_invoker_removal_deferred",
+        "secret_payloads_requested",
+        "sensitive_environment_values_returned",
+        "release_authority",
+        "mutation_authority",
+    }
+    if (
+        set(prior_finalize) != prior_finalize_keys
+        or prior_finalize.get("schema") != RECEIPT_SCHEMA
+        or prior_finalize.get("status") != "applied"
+        or prior_finalize.get("phase") != "finalize"
+        or prior_finalize.get("contract_sha256") != prior_contract_hash
+        or prior_finalize.get("source_revision") != prior_revision
+        or not isinstance(prior_finalize.get("applied_action_ids"), list)
+        or any(
+            not isinstance(item, str)
+            for item in prior_finalize.get("applied_action_ids", [])
+        )
+        or prior_finalize.get("provider_readback_ok") is not True
+        or _HEX64.fullmatch(
+            str(prior_finalize.get("provider_readback_sha256") or "")
+        )
+        is None
+        or prior_finalize.get("legacy_retirement_receipt_sha256")
+        != prior_zero_hash
+        or prior_finalize.get("legacy_archive_receipt_sha256")
+        != prior_archive_hash
+        or prior_finalize.get("legacy_retirement_phase_receipt_sha256")
+        != prior_phase_hash
+        or prior_finalize.get(
+            "legacy_retirement_owner_readback_receipt_sha256"
+        )
+        != prior_retirement_owner_hash
+        or _HEX64.fullmatch(
+            str(
+                prior_finalize.get(
+                    "supabase_owner_readback_receipt_sha256"
+                )
+                or ""
+            )
+        )
+        is None
+        or _HEX64.fullmatch(
+            str(prior_finalize.get("vm_release_readback_receipt_sha256") or "")
+        )
+        is None
+        or _HEX64.fullmatch(
+            str(
+                prior_finalize.get("vm_reboot_continuity_receipt_sha256")
+                or ""
+            )
+        )
+        is None
+        or prior_finalize.get("immutable_image_build_receipt_sha256")
+        != prior_image_hash
+        or prior_finalize.get("public_bridge_certificate")
+        != prior_certificate
+        or prior_finalize.get("provider_error_codes") != []
+        or prior_finalize.get("vm_readback_deferred_to_release_receipt")
+        is not False
+        or prior_finalize.get("cloud_run_readback_mode") != "serving"
+        or prior_finalize.get("cloud_run_staged_without_traffic") is not False
+        or prior_finalize.get("legacy_retirement_deferred") is not False
+        or prior_finalize.get("immutable_subscription_replacement_deferred")
+        != []
+        or prior_finalize.get("broker_identity_readback_ok") is not True
+        or prior_finalize.get("destructive_iam_cleanup_deferred") is not False
+        or prior_finalize.get(
+            "rollback_anonymous_invoker_removal_deferred"
+        )
+        is not False
+        or prior_finalize.get("secret_payloads_requested") is not False
+        or prior_finalize.get("sensitive_environment_values_returned")
+        is not False
+        or prior_finalize.get("release_authority") is not False
+        or prior_finalize.get("mutation_authority") is not False
+    ):
+        raise CommissionError("prior_finalize_receipt_binding_invalid")
+    targets = sorted(contract["pubsub"]["retire_after_zero_backlog"])
+    prior_targets = sorted(
+        prior_contract["pubsub"]["retire_after_zero_backlog"]
+    )
+    if len(targets) != 4 or targets != prior_targets:
+        raise CommissionError("legacy_retirement_lineage_targets_changed")
+    if _legacy_absent_prefix(snapshot, targets) != targets:
+        raise CommissionError("legacy_retirement_lineage_provider_state_invalid")
+    subscriptions = exact_subscription_configuration(contract, snapshot)
+    subscription_hash = sha256(canonical(subscriptions))
+    current_readback = {
+        "schema": "aureon.gcp.pubsub-post-migration-provider-readback.v1",
+        "recorded_at": current.isoformat(),
+        "project": contract["project"],
+        "contract_sha256": sha256(canonical(contract)),
+        "source_revision": contract["release"]["source_revision"],
+        "legacy_subscriptions_absent": targets,
+        "subscription_configuration": subscriptions,
+        "subscription_configuration_sha256": subscription_hash,
+        "secret_values_recorded": False,
+        "release_authority": False,
+        "mutation_authority": False,
+    }
+    lineage = {
+        "schema": LEGACY_RETIREMENT_LINEAGE_SCHEMA,
+        "status": "prior_migration_validated_against_current_provider",
+        "recorded_at": current.isoformat(),
+        "project": contract["project"],
+        "contract_sha256": sha256(canonical(contract)),
+        "source_revision": contract["release"]["source_revision"],
+        "prior_contract_sha256": prior_contract_hash,
+        "prior_source_revision": prior_revision,
+        "prior_finalize_receipt_sha256": sha256(
+            canonical(prior_finalize)
+        ),
+        "prior_immutable_image_build_receipt_sha256": prior_image_hash,
+        "prior_legacy_retirement_phase_receipt_sha256": prior_phase_hash,
+        "prior_legacy_archive_receipt_sha256": prior_archive_hash,
+        "prior_legacy_archive_scope_sha256": archive_scope_acknowledgement,
+        "prior_legacy_retirement_receipt_sha256": prior_zero_hash,
+        "prior_legacy_retirement_owner_readback_receipt_sha256": (
+            prior_retirement_owner_hash
+        ),
+        "provider_readback": current_readback,
+        "provider_readback_sha256": sha256(canonical(current_readback)),
+        "legacy_subscriptions_recreated": False,
+        "cloud_run_traffic_changed": False,
+        "order_execution_requested": False,
+        "secret_payloads_requested": False,
+        "sensitive_environment_values_returned": False,
+        "release_authority": False,
+        "mutation_authority": False,
+    }
+    return (
+        lineage,
+        prior_phase_hash,
+        prior_archive_hash,
+        prior_zero_hash,
+        prior_retirement_owner_hash,
+    )
+
+
 def write_receipt(path: Path, value: Mapping[str, Any]) -> None:
     if not path.is_absolute() or path.exists() and path.is_symlink():
         raise CommissionError("receipt_path_invalid")
@@ -4165,13 +4510,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--acknowledge-vm-reboot-continuity-sha256")
     parser.add_argument("--immutable-image-build-receipt", type=Path)
     parser.add_argument("--acknowledge-immutable-image-build-receipt-sha256")
+    parser.add_argument("--prior-finalize-receipt", type=Path)
+    parser.add_argument("--acknowledge-prior-finalize-receipt-sha256")
+    parser.add_argument("--prior-immutable-image-build-receipt", type=Path)
+    parser.add_argument(
+        "--acknowledge-prior-immutable-image-build-receipt-sha256"
+    )
     args = parser.parse_args(argv)
     # ``prepare`` remains a compatibility spelling, but receipts use the
     # unambiguous phase name required by the release transaction.
     phase = "resource-prepare" if args.phase == "prepare" else args.phase
     try:
+        contract_template = load_contract(args.contract)
         contract = resolve_contract(
-            load_contract(args.contract), source_revision=args.source_revision,
+            contract_template, source_revision=args.source_revision,
             authority_image=args.authority_image,
             public_entry_image=args.public_entry_image,
             supabase_project_ref=args.supabase_project_ref,
@@ -4247,6 +4599,7 @@ def main(argv: list[str] | None = None) -> int:
         vm_reboot_receipt_hash: str | None = None
         image_build_receipt_hash: str | None = None
         image_build_certificate: dict[str, Any] | None = None
+        legacy_retirement_lineage: dict[str, Any] | None = None
         retirement_owner_receipt_hash: str | None = None
         destructive_iam_cleanup_deferred = False
         deferred_destructive_action_ids: set[str] = set()
@@ -4256,6 +4609,22 @@ def main(argv: list[str] | None = None) -> int:
             contract, snapshot
         )
         try:
+            prior_lineage_inputs = (
+                args.prior_finalize_receipt,
+                args.acknowledge_prior_finalize_receipt_sha256,
+                args.prior_immutable_image_build_receipt,
+                args.acknowledge_prior_immutable_image_build_receipt_sha256,
+            )
+            prior_lineage_requested = any(
+                bool(value) for value in prior_lineage_inputs
+            )
+            if prior_lineage_requested and (
+                phase != "finalize"
+                or not all(bool(value) for value in prior_lineage_inputs)
+            ):
+                raise CommissionError(
+                    "complete_prior_migration_lineage_required_for_finalize"
+                )
             owner_receipt_hash = validate_supabase_owner_receipt(
                 contract,
                 args.supabase_owner_readback_receipt,
@@ -4822,33 +5191,87 @@ def main(argv: list[str] | None = None) -> int:
                         expected_certificate=image_build_certificate,
                     )
                 )
-                (
-                    legacy_phase_receipt_hash,
-                    legacy_archive_receipt_hash,
-                    legacy_receipt_hash,
-                    retirement_owner_receipt_hash,
-                ) = validate_legacy_retirement_phase_receipt(
-                    contract,
-                    args.legacy_retirement_phase_receipt,
-                    args.acknowledge_legacy_retirement_phase_sha256,
-                    archive_path=args.legacy_archive_receipt,
-                    archive_receipt_acknowledgement=(
-                        args.acknowledge_legacy_archive_receipt_sha256
-                    ),
-                    archive_scope_acknowledgement=(
-                        args.acknowledge_legacy_archive_scope_sha256
-                    ),
-                    zero_path=args.legacy_retirement_receipt,
-                    zero_acknowledgement=(
-                        args.acknowledge_legacy_retirement_sha256
-                    ),
-                    retirement_owner_path=(
-                        args.legacy_retirement_owner_readback_receipt
-                    ),
-                    retirement_owner_acknowledgement=(
-                        args.acknowledge_legacy_retirement_owner_readback_sha256
-                    ),
-                )
+                if prior_lineage_requested:
+                    (
+                        legacy_retirement_lineage,
+                        legacy_phase_receipt_hash,
+                        legacy_archive_receipt_hash,
+                        legacy_receipt_hash,
+                        retirement_owner_receipt_hash,
+                    ) = validate_legacy_retirement_lineage(
+                        contract,
+                        contract_template,
+                        snapshot,
+                        prior_finalize_path=args.prior_finalize_receipt,
+                        prior_finalize_acknowledgement=(
+                            args.acknowledge_prior_finalize_receipt_sha256
+                        ),
+                        prior_image_path=(
+                            args.prior_immutable_image_build_receipt
+                        ),
+                        prior_image_acknowledgement=(
+                            args.acknowledge_prior_immutable_image_build_receipt_sha256
+                        ),
+                        archive_path=args.legacy_archive_receipt,
+                        archive_receipt_acknowledgement=(
+                            args.acknowledge_legacy_archive_receipt_sha256
+                        ),
+                        archive_scope_acknowledgement=(
+                            args.acknowledge_legacy_archive_scope_sha256
+                        ),
+                        zero_path=args.legacy_retirement_receipt,
+                        zero_acknowledgement=(
+                            args.acknowledge_legacy_retirement_sha256
+                        ),
+                        retirement_phase_path=(
+                            args.legacy_retirement_phase_receipt
+                        ),
+                        retirement_phase_acknowledgement=(
+                            args.acknowledge_legacy_retirement_phase_sha256
+                        ),
+                        retirement_owner_path=(
+                            args.legacy_retirement_owner_readback_receipt
+                        ),
+                        retirement_owner_acknowledgement=(
+                            args.acknowledge_legacy_retirement_owner_readback_sha256
+                        ),
+                        supabase_project_ref=args.supabase_project_ref,
+                        supabase_owner_subject=args.supabase_owner_subject,
+                        supabase_owner_email_sha256=(
+                            args.supabase_owner_email_sha256
+                        ),
+                        iap_admin_email_sha256=(
+                            args.iap_admin_email_sha256
+                        ),
+                    )
+                else:
+                    (
+                        legacy_phase_receipt_hash,
+                        legacy_archive_receipt_hash,
+                        legacy_receipt_hash,
+                        retirement_owner_receipt_hash,
+                    ) = validate_legacy_retirement_phase_receipt(
+                        contract,
+                        args.legacy_retirement_phase_receipt,
+                        args.acknowledge_legacy_retirement_phase_sha256,
+                        archive_path=args.legacy_archive_receipt,
+                        archive_receipt_acknowledgement=(
+                            args.acknowledge_legacy_archive_receipt_sha256
+                        ),
+                        archive_scope_acknowledgement=(
+                            args.acknowledge_legacy_archive_scope_sha256
+                        ),
+                        zero_path=args.legacy_retirement_receipt,
+                        zero_acknowledgement=(
+                            args.acknowledge_legacy_retirement_sha256
+                        ),
+                        retirement_owner_path=(
+                            args.legacy_retirement_owner_readback_receipt
+                        ),
+                        retirement_owner_acknowledgement=(
+                            args.acknowledge_legacy_retirement_owner_readback_sha256
+                        ),
+                    )
                 prerequisite = audit_snapshot(
                     contract, snapshot, allow_iam_extras=True,
                 )
@@ -5043,6 +5466,10 @@ def main(argv: list[str] | None = None) -> int:
                 "release_authority": False,
                 "mutation_authority": False,
             }
+            if legacy_retirement_lineage is not None:
+                receipt["legacy_retirement_lineage"] = (
+                    legacy_retirement_lineage
+                )
             write_receipt(args.receipt, receipt)
             print(json.dumps({key: receipt[key] for key in ("schema", "status", "phase", "contract_sha256", "provider_readback_ok", "release_authority", "mutation_authority")}, sort_keys=True))
             return 0

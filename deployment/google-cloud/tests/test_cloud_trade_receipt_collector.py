@@ -13,9 +13,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 GOOGLE_CLOUD = Path(__file__).parents[1]
 MODULE = GOOGLE_CLOUD / "trading-control"
+UPSTREAM = GOOGLE_CLOUD.parents[1] / "aureon-os-upstream"
 sys.path.insert(0, str(MODULE))
+sys.path.insert(0, str(UPSTREAM))
 
-from contract import canonical_bytes  # noqa: E402
+from aureon.operator import connections_api  # noqa: E402
+from contract import canonical_bytes, digest, provider_readback_commitment_sha256  # noqa: E402
 from make_probe import build_probe  # noqa: E402
 from service import ServiceConfig, create_app  # noqa: E402
 
@@ -80,7 +83,7 @@ CONTROLLER_KEY = (
 )
 
 
-def config(role, *, live=False):
+def config(role, *, live=False, provider_probe=False):
     return ServiceConfig(
         role=role,
         project_id="aureon-trading",
@@ -94,6 +97,7 @@ def config(role, *, live=False):
         durable_budget_ledger=live,
         order_adapter_ready=live,
         max_order_usd=5,
+        provider_probe_enabled=provider_probe,
         controller_key_version=CONTROLLER_KEY if live else None,
     )
 
@@ -126,6 +130,60 @@ class LiveExecutor:
         }
 
 
+class ProviderProbeExecutor:
+    def __init__(self, budget, max_order):
+        assert budget == 20
+        assert max_order == 5
+
+    def provider_probe(self, *, source_revision, observed_at_ms):
+        readiness = {
+            "schema": "aureon.cloud-trade-execution-budget-readiness.v1",
+            "source_revision": source_revision,
+            "observed_at_ms": observed_at_ms,
+            "maximum_order_usd": "5",
+            "venues": {
+                "alpaca": {"authenticated": True, "quotes": {
+                    "USD": {"status": "sufficient", "allowance_usd": "5"},
+                }},
+                "binance": {"authenticated": True, "quotes": {
+                    asset: {"status": "sufficient", "allowance_usd": "5"}
+                    for asset in ("FDUSD", "USD", "USDC", "USDT")
+                }},
+                "capital": {"authenticated": True, "quotes": {
+                    "USD": {"status": "sufficient", "allowance_usd": "5"},
+                }},
+                "kraken": {"authenticated": True, "quotes": {
+                    asset: {"status": "sufficient", "allowance_usd": "5"}
+                    for asset in ("FDUSD", "USD", "USDC", "USDT")
+                }},
+            },
+        }
+        providers = {
+            venue: {
+                "venue": venue,
+                "authenticated": True,
+                "account_binding_sha256": str(index) * 64,
+            }
+            for index, venue in enumerate(("alpaca", "binance", "capital", "kraken"), 1)
+        }
+        accounts_sha256 = digest(providers)
+        readiness_sha256 = digest(readiness)
+        return {
+            "schema": "aureon.cloud-trade-provider-readback.v1",
+            "providers": providers,
+            "provider_count": 4,
+            "all_authenticated": True,
+            "provider_mutation_attempted": False,
+            "instrument_preflight_enforced": True,
+            "provider_accounts_sha256": accounts_sha256,
+            "execution_budget_readiness": readiness,
+            "execution_budget_readiness_sha256": readiness_sha256,
+            "readback_sha256": provider_readback_commitment_sha256(
+                accounts_sha256, readiness_sha256,
+            ),
+        }
+
+
 class RuleRejectedExecutor:
     def __init__(self, budget, max_order):
         assert budget == 20
@@ -151,7 +209,8 @@ class RuleRejectedExecutor:
         }
 
 
-def terminal_chain(now_ms=1_800_000_000_000, *, live=False, executor_factory=LiveExecutor):
+def terminal_chain(now_ms=1_800_000_000_000, *, live=False, provider_probe=False,
+                   executor_factory=LiveExecutor):
     keys = Keys()
     value = build_probe(
         event_sha256="1" * 64,
@@ -174,10 +233,13 @@ def terminal_chain(now_ms=1_800_000_000_000, *, live=False, executor_factory=Liv
     for role in ("review", "dispatch", "executor", "receipt"):
         capture = Capture()
         app = create_app(
-            config=config(role, live=live), signer=keys.signer(role), verifier=keys.verifier(),
+            config=config(role, live=live, provider_probe=provider_probe and role == "executor"),
+            signer=keys.signer(role), verifier=keys.verifier(),
             publisher=capture, clock=lambda: now_ms / 1000,
             release_gate=AllowRelease() if live else None,
-            executor_factory=executor_factory if role == "executor" and live else None,
+            executor_factory=(
+                executor_factory if role == "executor" and (live or provider_probe) else None
+            ),
         )
         response = app.test_client().post("/process", json=push(value))
         assert response.status_code == 204
@@ -199,6 +261,51 @@ def test_collector_verifies_all_four_keys_and_historical_probe():
     assert summary["runtime_measurement_sha256"] == receipt[
         "executor"
     ]["result"]["dispatch"]["review"]["intent"]["runtime_measurement_sha256"]
+
+
+def test_collector_preserves_all_provider_commitments_in_sanitized_summary():
+    now = 1_800_000_000_000
+    keys, receipt = terminal_chain(
+        now, provider_probe=True, executor_factory=ProviderProbeExecutor,
+    )
+    raw = receipt["executor"]["result"]["outcome"]["provider_readback"]
+
+    summary = collector.verify_terminal_receipt(
+        receipt, token="x" * 40, now_ms=now + 1_000, reader=keys.public_reader,
+    )
+    provider = summary["provider_readback"]
+
+    assert set(provider) == {
+        "provider_count", "all_authenticated", "instrument_preflight_enforced",
+        "provider_accounts_sha256", "execution_budget_readiness_sha256",
+        "readback_sha256", "providers",
+    }
+    assert provider["provider_accounts_sha256"] == raw["provider_accounts_sha256"]
+    assert provider["execution_budget_readiness_sha256"] == raw[
+        "execution_budget_readiness_sha256"
+    ]
+    assert provider["readback_sha256"] == raw["readback_sha256"]
+    assert provider["readback_sha256"] != provider["provider_accounts_sha256"]
+    assert set(provider["providers"]) == {"alpaca", "binance", "capital", "kraken"}
+    assert all(
+        set(row) == {"authenticated", "account_binding_sha256"}
+        for row in provider["providers"].values()
+    )
+    assert "execution_budget_readiness" not in provider
+
+    projected = connections_api._current_executor_authentication({
+        "schema": "aureon.operator.cloud-trading-control.v1",
+        "read_state": "observed",
+        "capabilities": {"all_four_provider_readback_pinned": True},
+        "last_probe": {
+            "current": True,
+            "received_at": (now + 1_000) / 1_000,
+            "provider_readback": provider,
+        },
+    })
+    assert projected is not None
+    assert set(projected["providers"]) == {"alpaca", "binance", "capital", "kraken"}
+    assert projected["readback_sha256"] == raw["readback_sha256"]
 
 
 def test_collector_rejects_tampered_terminal_chain():

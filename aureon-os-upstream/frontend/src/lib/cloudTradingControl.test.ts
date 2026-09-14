@@ -60,7 +60,8 @@ function activeReceipt(): Record<string, any> {
   active.production_ready = true;
   active.blockers = [];
   active.last_probe.provider_readback = {
-    provider_count: 4, all_authenticated: true, instrument_preflight_enforced: true, readback_sha256: digest,
+    provider_count: 4, all_authenticated: true, instrument_preflight_enforced: true,
+    provider_accounts_sha256: digest, execution_budget_readiness_sha256: digest, readback_sha256: digest,
     providers: Object.fromEntries(['alpaca', 'binance', 'capital', 'kraken'].map((name, index) => [name,
       { authenticated: true, account_binding_sha256: String(index + 1).repeat(64) }])),
   };
@@ -86,6 +87,16 @@ test('accepts the current active controller, four-provider probe and governed id
   assert.equal(result.production_ready, true);
   assert.equal(result.last_probe?.provider_readback?.provider_count, 4);
   assert.equal(result.intent_bridge?.operational, true);
+});
+
+test('rejects provider evidence without both component commitments', () => {
+  const active = activeReceipt();
+  delete active.last_probe.provider_readback.execution_budget_readiness_sha256;
+  assert.throws(() => readCloudTradingControl(active), /evidence unavailable/);
+
+  const malformed = activeReceipt();
+  malformed.last_probe.provider_readback.provider_accounts_sha256 = 'not-a-digest';
+  assert.throws(() => readCloudTradingControl(malformed), /evidence unavailable/);
 });
 
 test('keeps an active signed controller visible when its separately observed bridge is held', () => {

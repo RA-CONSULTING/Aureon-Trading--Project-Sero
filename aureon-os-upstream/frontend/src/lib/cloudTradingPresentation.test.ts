@@ -29,7 +29,8 @@ function activeControl(): CloudTradingControlReceipt {
       executor_capabilities: { live_execution_release: true, durable_budget_ledger: true, order_adapter_ready: true,
         live_result_binding_ready: true, instrument_preflight_enforced: true },
       provider_readback: {
-        provider_count: 4, all_authenticated: true, instrument_preflight_enforced: true, readback_sha256: digest,
+        provider_count: 4, all_authenticated: true, instrument_preflight_enforced: true,
+        provider_accounts_sha256: digest, execution_budget_readiness_sha256: digest, readback_sha256: digest,
         providers: Object.fromEntries(['alpaca', 'binance', 'capital', 'kraken'].map((venue, index) => [venue,
           { authenticated: true, account_binding_sha256: String(index + 1).repeat(64) }])) as
             NonNullable<NonNullable<CloudTradingControlReceipt['last_probe']>['provider_readback']>['providers'],

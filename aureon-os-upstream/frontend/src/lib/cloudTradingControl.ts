@@ -37,6 +37,8 @@ export interface CloudTradingProbe {
     provider_count: 4;
     all_authenticated: true;
     instrument_preflight_enforced: true;
+    provider_accounts_sha256: string;
+    execution_budget_readiness_sha256: string;
     readback_sha256: string;
     providers: Record<'alpaca' | 'binance' | 'capital' | 'kraken', { authenticated: true; account_binding_sha256: string }>;
   } | null;
@@ -145,9 +147,10 @@ function probe(value: unknown): value is CloudTradingProbe {
   const executorValid = executor === null || (Object.keys(executor).length === 5
     && ['live_execution_release', 'durable_budget_ledger', 'order_adapter_ready', 'live_result_binding_ready', 'instrument_preflight_enforced']
       .every(key => typeof executor[key] === 'boolean'));
-  const providerValid = provider === null || (Object.keys(provider).length === 5
+  const providerValid = provider === null || (Object.keys(provider).length === 7
     && provider.provider_count === 4 && provider.all_authenticated === true
     && provider.instrument_preflight_enforced === true
+    && hex64(provider.provider_accounts_sha256) && hex64(provider.execution_budget_readiness_sha256)
     && hex64(provider.readback_sha256) && providers !== null && Object.keys(providers).length === 4
     && providerNames.every(name => {
       const row = record(providers[name]);

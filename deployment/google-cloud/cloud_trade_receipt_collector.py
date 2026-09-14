@@ -390,6 +390,10 @@ def verify_terminal_receipt(receipt: Mapping[str, Any], *, token: str,
         provider_summary = {
             "provider_count": 4, "all_authenticated": True,
             "instrument_preflight_enforced": True,
+            "provider_accounts_sha256": provider_readback["provider_accounts_sha256"],
+            "execution_budget_readiness_sha256": provider_readback[
+                "execution_budget_readiness_sha256"
+            ],
             "readback_sha256": provider_readback["readback_sha256"],
             "providers": {
                 venue: {"authenticated": True, "account_binding_sha256": row["account_binding_sha256"]}
