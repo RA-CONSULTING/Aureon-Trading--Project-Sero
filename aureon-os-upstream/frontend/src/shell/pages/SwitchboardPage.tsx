@@ -1,4 +1,6 @@
-/** Glass control desk backed by the operator's registered feature configuration. */
+/** Glass control desk backed by the operator's registered feature configuration.
+ * P0 glass honesty 2026-09-17: LIVE HELD banner above fold; human lease demoted (not production trading).
+ */
 import React, { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Activity, Brain, CheckCircle2, Clock3, Loader2, Lock, RefreshCw, Settings, Shield, ShieldAlert, UserRound, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,6 +24,7 @@ const BG = '#0e0e0e';
 const PANEL = 'rgba(18, 18, 18, 0.72)';
 const BORDER = '#3f3f46';
 const BORDER_GOLD = 'rgba(255, 184, 0, 0.45)';
+const AMBER = '#F59E0B';
 const GROUP_ICONS: Record<string, LucideIcon> = {
   'Organism & Connectome': Activity, 'Cognition Routing': Brain, Notifications: Settings, 'Hard Boundary': Shield,
 };
@@ -32,6 +35,7 @@ function GlassPanel({ children, className = '', style }: { children: ReactNode; 
 }
 
 function StatusBadge({ children, active = false }: { children: ReactNode; active?: boolean }) {
+  // Fail-closed: never paint dark/not-integrated rows as success green; amber/zinc only unless explicitly live-active.
   const color = active ? CYAN : GOLD;
   return <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider"
     style={{ color, background: `${color}18`, border: `1px solid ${color}55` }}>{children}</span>;
@@ -68,7 +72,7 @@ export function SwitchboardConfigurationCards({ configuration, canManage, saving
         <div className="flex items-start justify-between gap-3 border-b px-4 py-3" style={{ borderColor: BORDER_GOLD }}>
           <div className="flex items-center gap-2"><Icon className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
             <h2 className="text-sm font-bold uppercase tracking-[0.12em]" style={{ color: GOLD }}>{group.label}</h2></div>
-          <StatusBadge active={enabled > 0}>{enabled}/{group.flags.length} ON</StatusBadge>
+          <StatusBadge>{enabled}/{group.flags.length} ON</StatusBadge>
         </div>
         <ul className="divide-y divide-zinc-800 px-4">
           {group.flags.map(flag => <li key={flag.id} className="flex items-start gap-3 py-4">
@@ -123,7 +127,7 @@ export function LegacyReleaseDiagnosticPanel({ receipt }: { receipt: ReleaseRead
       <div className="rounded border border-zinc-800 p-3">
         <p className="text-[10px] uppercase tracking-wider text-zinc-500">Operator handoff</p>
         <p className="mt-1 flex items-center gap-1 text-[11px] text-zinc-300">
-          <CheckCircle2 className="h-3 w-3" style={{ color: CYAN }} />
+          <CheckCircle2 className="h-3 w-3" style={{ color: GOLD }} />
           Intent can be recorded
         </p>
         <p className="mt-1 text-[11px] text-zinc-500">Cloud authority is read separately from the signed controller panel above.</p>
@@ -133,7 +137,7 @@ export function LegacyReleaseDiagnosticPanel({ receipt }: { receipt: ReleaseRead
         <p className="text-[10px] uppercase tracking-wider text-zinc-500">{blockers.length} blockers · {integrated} integrated</p>
         <div className="mt-2 grid gap-1.5">
           {blockers.slice(0, 4).map(row => <Link key={row.id} to={row.owner_surface}
-            className="rounded border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-300 hover:border-cyan-300">
+            className="rounded border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-300 hover:border-amber-400">
             {row.label}: {row.state.replace(/_/g, ' ')}
           </Link>)}
         </div>
@@ -170,20 +174,21 @@ function AuthorizationLeasePanel({ canManage }: { canManage: boolean }) {
       toast.error('Could not revoke operator authorization', { description: error instanceof Error ? error.message : 'Revocation request failed' });
     } finally { setSaving(false); }
   }
+  // Demoted: lease ACTIVE must not skim as production trading (no teal/success competing with LIVE HELD).
   return <>
-    <GlassPanel className="px-4 py-3">
+    <GlassPanel className="px-4 py-3 opacity-95" style={{ borderColor: BORDER }}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: active ? CYAN : GOLD }} />
-          <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Human operator authorization</p>
-            <p className="mt-1 text-[12px] text-zinc-300">{!lease ? 'Current lease is unavailable.' : active
-              ? `Active until ${lease.expires_at_iso}. ${Math.ceil(lease.remaining_seconds / 3600)} hours remain.`
+        <div className="flex min-w-0 items-start gap-3"><Clock3 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
+          <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">Human lease (not production trading)</p>
+            <p className="mt-1 text-[12px] text-zinc-400">{!lease ? 'Current lease is unavailable.' : active
+              ? `Lease recorded until ${lease.expires_at_iso}. ${Math.ceil(lease.remaining_seconds / 3600)} hours remain. Does not clear LIVE HELD.`
               : `No active production trading lease (${lease.state}).`}</p>
-            <p className="mt-1 text-[10px] text-zinc-500">A lease records human approval. Provider, risk, execution, and release gates remain mandatory.</p></div></div>
-        <div className="flex gap-2"><StatusBadge active={active}>{active ? 'active' : lease?.state ?? 'unavailable'}</StatusBadge>
+            <p className="mt-1 text-[10px] text-zinc-500">A lease records human approval only. Provider, risk, execution, and release gates remain mandatory. Human lease ACTIVE ≠ production trading enabled.</p></div></div>
+        <div className="flex gap-2"><StatusBadge active={false}>{active ? 'lease active' : lease?.state ?? 'unavailable'}</StatusBadge>
           {active ? <button type="button" disabled={!canManage || saving} onClick={() => void revoke()}
             className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-300 disabled:opacity-50">Revoke</button>
             : <button type="button" disabled={!canManage || saving} onClick={() => setOpen(true)}
-              className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: GOLD, color: '#0a0a0a' }}>Authorize 72 hours</button>}</div>
+              className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: '#3f3f46', color: '#f4f4f5' }}>Authorize 72 hours</button>}</div>
       </div>
     </GlassPanel>
     <AlertDialog open={open} onOpenChange={value => { setOpen(value); if (!value) setConfirm(''); }}>
@@ -197,6 +202,29 @@ function AuthorizationLeasePanel({ canManage }: { canManage: boolean }) {
       </AlertDialogContent>
     </AlertDialog>
   </>;
+}
+
+function LiveHeldBanner({ control }: { control: ReturnType<typeof useReadOnlyPoller<typeof cloudTradingControlStore extends never ? never : any>>['data'] | null }) {
+  const requestsOk = control?.operator_can_request_controls === true;
+  const liveActive = control?.release_authority === true;
+  const held = !liveActive;
+  const requestsLabel = requestsOk ? 'REQUESTS ENABLED' : 'REQUESTS UNAVAILABLE';
+  const liveLabel = liveActive ? 'LIVE ACTIVE' : 'LIVE HELD';
+  return (
+    <div
+      className="rounded-md border-2 px-4 py-3"
+      style={{ borderColor: AMBER, background: `${AMBER}18` }}
+      data-live-held-banner="above-fold"
+      role="status"
+    >
+      <p className="text-sm font-black uppercase tracking-[0.14em]" style={{ color: AMBER }}>
+        Cloud trading authority: {liveLabel} / {requestsLabel}
+      </p>
+      <p className="mt-1 text-[11px] text-zinc-300">
+        Production trading remains unavailable while LIVE HELD. Human lease ACTIVE is not production trading enabled.
+      </p>
+    </div>
+  );
 }
 
 function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
@@ -225,15 +253,15 @@ function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
   }
   return <><GlassPanel className="px-4 py-3" data-cloud-trading-control={active ? 'active' : canApply ? 'ready' : 'held'}>
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex min-w-0 items-start gap-3"><Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: active || canApply ? CYAN : GOLD }} />
+      <div className="flex min-w-0 items-start gap-3"><Shield className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
         <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: GOLD }}>Signed cloud trading authority · operative status</p>
           <p className="mt-1 text-[12px] text-zinc-300">{!control ? 'Verified cloud control evidence is unavailable.'
             : active ? `Controller-signed live release is active through ${new Date(control.controller_release!.authorization_expires_at_ms).toISOString()}.`
               : canApply ? 'Every prerequisite has passed. The human operator can activate cloud live trading.'
               : 'The operator can request every switch. Live application remains held by the controls shown below.'}</p>
           <p className="mt-1 text-[10px] text-zinc-500">The controller verifies the current lease, signed probe, provider identities, budget ledger, and exact switch state before release.</p></div></div>
-      <div className="flex items-center gap-2"><StatusBadge active={control?.operator_can_request_controls === true}>requests {control?.operator_can_request_controls ? 'enabled' : 'unavailable'}</StatusBadge>
-        <StatusBadge active={active}>live {active ? 'active' : canApply ? 'ready' : 'held'}</StatusBadge>
+      <div className="flex items-center gap-2"><StatusBadge active={false}>requests {control?.operator_can_request_controls ? 'enabled' : 'unavailable'}</StatusBadge>
+        <StatusBadge active={false}>live {active ? 'active' : canApply ? 'ready' : 'held'}</StatusBadge>
         {canManage && (active || canApply) && <button type="button" disabled={saving} onClick={() => { setAction(active ? 'hold' : 'activate'); setConfirm(''); }}
           className="rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-50" style={{ background: active ? '#3f3f46' : GOLD, color: active ? '#f4f4f5' : '#0a0a0a' }}>
           {active ? 'Place live trading on hold' : 'Activate cloud live trading'}
@@ -242,16 +270,16 @@ function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
     {control && <div className="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
       <div className="rounded border border-zinc-800 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-[10px] uppercase tracking-wider text-zinc-500">Four-stage signed path</p>
-          <StatusBadge active={probe?.current === true}>{probe?.current ? 'current probe' : probe ? 'stale probe' : 'no probe'}</StatusBadge></div>
+          <StatusBadge active={false}>{probe?.current ? 'current probe' : probe ? 'stale probe' : 'no probe'}</StatusBadge></div>
         {probe ? <>
           <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
             {stages.map(stage => <div key={stage} className="rounded border border-zinc-800 px-2 py-1.5">
-              <p className="text-[9px] uppercase tracking-wider" style={{ color: CYAN }}>{stage}</p>
+              <p className="text-[9px] uppercase tracking-wider" style={{ color: GOLD }}>{stage}</p>
               <p className="truncate font-mono text-[10px] text-zinc-400" title={probe.authority_ids[stage]}>{probe.authority_ids[stage]}</p>
             </div>)}
           </div>
           <p className="mt-2 text-[10px] text-zinc-500">Verified receipt {new Date(probe.received_at * 1_000).toISOString()} · mutations 0 · orders attempted 0 · orders submitted 0</p>
-          {probe.provider_readback && <p className="mt-1 text-[10px]" style={{ color: CYAN }}>
+          {probe.provider_readback && <p className="mt-1 text-[10px] text-zinc-400">
             Live provider authentication verified: {Object.keys(probe.provider_readback.providers).join(' · ')}
           </p>}
         </> : <p className="mt-2 text-[11px]" style={{ color: GOLD }}>Waiting for the collector to verify a current terminal receipt.</p>}
@@ -262,7 +290,7 @@ function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
           {control.blockers.map(blocker => <li key={blocker} className="rounded border border-zinc-800 px-2 py-1.5 text-[11px] text-zinc-300">
             {cloudTradingBlockerLabel(blocker)}
           </li>)}
-        </ul> : <p className="mt-2 flex items-center gap-1 text-[11px]" style={{ color: CYAN }}><CheckCircle2 className="h-3 w-3" /> All handoff evidence passed</p>}
+        </ul> : <p className="mt-2 flex items-center gap-1 text-[11px] text-zinc-400"><CheckCircle2 className="h-3 w-3" /> All handoff evidence passed</p>}
       </div>
     </div>}
   </GlassPanel>
@@ -280,6 +308,30 @@ function CloudTradingControlPanel({ canManage }: { canManage: boolean }) {
       </AlertDialogAction></AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog></>;
+}
+
+function LiveHeldBannerConnected() {
+  const poller = useReadOnlyPoller(cloudTradingControlStore, 15_000, 8_000);
+  const control = poller.isReceiptCurrent ? poller.data : null;
+  const requestsOk = control?.operator_can_request_controls === true;
+  const liveActive = control?.release_authority === true;
+  const requestsLabel = requestsOk ? 'REQUESTS ENABLED' : 'REQUESTS UNAVAILABLE';
+  const liveLabel = liveActive ? 'LIVE ACTIVE' : 'LIVE HELD';
+  return (
+    <div
+      className="rounded-md border-2 px-4 py-3"
+      style={{ borderColor: AMBER, background: `${AMBER}18` }}
+      data-live-held-banner="above-fold"
+      role="status"
+    >
+      <p className="text-sm font-black uppercase tracking-[0.14em]" style={{ color: AMBER }}>
+        Cloud trading authority: {liveLabel} / {requestsLabel}
+      </p>
+      <p className="mt-1 text-[11px] text-zinc-300">
+        Production trading remains unavailable while LIVE HELD. Human lease ACTIVE is not production trading enabled.
+      </p>
+    </div>
+  );
 }
 
 export default function SwitchboardPage() {
@@ -325,8 +377,6 @@ export default function SwitchboardPage() {
     } finally {
       if (alive.current) {
         setSaving(null);
-        // A timed-out save may have reached the server. Reread instead of
-        // optimistically painting the requested value or retrying the write.
         switchboardStore.invalidate();
       }
     }
@@ -342,7 +392,9 @@ export default function SwitchboardPage() {
     .filter(flag => flag.effect === 'restart' && flag.pending_restart === null).length ?? null;
 
   return <div className="min-h-full space-y-4 p-4 text-zinc-100" style={{ background: BG }}
-    data-switchboard="wired-glass-v3" data-switchboard-theme="aureon-dark" data-switchboard-claim={status}>
+    data-switchboard="wired-glass-v3" data-switchboard-theme="aureon-dark" data-switchboard-claim={status} data-p0-glass="2026-09-17">
+    {/* P0: LIVE HELD unmistakable above the fold — before lease / config chrome */}
+    <LiveHeldBannerConnected />
     <div className="rounded-md border px-3 py-2" style={{ borderColor: `${GOLD}66`, background: `${GOLD}14` }}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: GOLD }}>Operator configuration · {status}</p>
       <p className="mt-1 text-[11px] text-zinc-400">These switches show the current registered configuration. Running services and trading execution have separate runtime checks.</p>
@@ -361,8 +413,8 @@ export default function SwitchboardPage() {
         </button>
       </div>
     </div>
-    <AuthorizationLeasePanel canManage={canManage} />
     <CloudTradingControlPanel canManage={canManage} />
+    <AuthorizationLeasePanel canManage={canManage} />
     <LegacyReleaseDiagnosticPanel receipt={releaseReceipt} />
     {configuration ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -372,7 +424,7 @@ export default function SwitchboardPage() {
           ['Effective risk values', `${configuration.summary.armed}/${configuration.summary.hard_boundary_total}`],
           ['Pending cloud handoff', String(configuration.summary.pending_handoff)],
         ].map(([label, value]) => <GlassPanel key={label} className="px-4 py-3"><p className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</p>
-          <p className="mt-1 font-mono text-2xl" style={{ color: CYAN }}>{value}</p></GlassPanel>)}
+          <p className="mt-1 font-mono text-2xl" style={{ color: GOLD }}>{value}</p></GlassPanel>)}
       </div>
       {(configuration.summary.pending_restart > 0 || (restartUnknown ?? 0) > 0) && <p className="text-[10px] text-zinc-500">
         Restart decisions pending: {configuration.summary.pending_restart} · Restart status unknown: {restartUnknown}
