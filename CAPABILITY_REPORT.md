@@ -35,6 +35,16 @@ cd aureon-os-upstream && PYTHONPATH=. python3 -m pytest tests/test_sandbox_self_
 | Organ registry | `aureon_fusion/organ_registry.py` | `SERO_WORKSPACE=/workspace python3 -m aureon_fusion.organ_registry status` | **pass**, exit 0, organs stopped, capital pin DENY |
 | Fusion HTTP auth, rate limit, health, error sink | `aureon_fusion/http_service.py` | included in the 16 tests above | **pass** |
 
+## Gary-leckey/aureon-trading
+
+The public fork's `main` is 45 commits behind `RA-CONSULTING/Aureon-OS` and has no commit of its own. The one fix still missing from the newest Orca files was `6b149e9eca`: stop wrapping `sys.stdout.buffer` on Windows. That change is in `aureon-os-upstream/aureon/bots/orca_complete_kill_cycle.py` and `aureon_radar/bots/orca_complete_kill_cycle.py`. The April documentation branch that points operators at `scripts/aureon_ignition.py --live` was not applied. Current ignition still returns HOLD. The protected-path denylist was not changed.
+
+```
+cd aureon-os-upstream && PYTHONPATH=. python3 -m pytest tests/test_sandbox_self_repair.py tests/test_protected_patch_denylist.py tests/test_safe_code_control.py tests/test_orca_windows_stdio.py -q --tb=line
+................                                                         [100%]
+16 passed
+```
+
 ## Not runnable here
 
 | Surface | Command | Result |

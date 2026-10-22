@@ -1,6 +1,6 @@
 # Production Readiness (Free APIs + WebSockets)
 
-Self-repair and the self-coder do not arm live trading, loosen evidence gates, change position sizing, or write `.env` and credential files. Those attempts are refused before a patch is applied. Self-repair stays disabled unless `AUREON_SELF_REPAIR_ENABLE=1` and `state/self_repair_config.json` contains `{"enabled": true}`. `AUREON_SELF_REPAIR_KILL=1` or a missing config stops it. `AUREON_CODE_AUTO_APPROVE` does not cover protected paths. The fusion note is `PRODUCTION_READINESS.md` at the repository root.
+Self-repair and the self-coder do not arm live trading, loosen evidence gates, change position sizing, or write `.env` and credential files. Those attempts are refused before a patch is applied. Self-repair stays disabled unless `AUREON_SELF_REPAIR_ENABLE=1` and `state/self_repair_config.json` contains `{"enabled": true}`. `AUREON_SELF_REPAIR_KILL=1` or a missing config stops it. `AUREON_CODE_AUTO_APPROVE` does not cover protected paths. The fusion note is `PRODUCTION_READINESS.md` at the repository root. Gary-leckey/aureon-trading was diffed against upstream and did not change this rule. See `MERGE_PLAN.md`.
 
 
 
