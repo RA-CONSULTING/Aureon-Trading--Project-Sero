@@ -25,6 +25,12 @@
 """
 
 from aureon.core.aureon_baton_link import link_system as _baton_link; _baton_link(__name__)
+from aureon.autonomous.self_repair_guard import (
+    SelfRepairBlocked,
+    append_review,
+    inspect_execution,
+    inspect_write,
+)
 import os
 import sys
 import shutil
@@ -119,7 +125,16 @@ class QueenCodeArchitect:
         Creates parent directories if needed.
         """
         try:
-            full_path = self._resolve_path(file_path)
+            previous = None
+            existing = self._resolve_path(file_path)
+            if existing.exists() and existing.is_file():
+                previous = existing.read_text(encoding="utf-8")
+            try:
+                full_path = inspect_write(self.repo_path, file_path, content, previous)
+            except SelfRepairBlocked as blocked:
+                append_review(self.repo_path, "write_refused", path=file_path, reason=blocked.reason)
+                logger.error("Self-repair guard refused write to %s: %s", file_path, blocked.reason)
+                return False
             
             # Create parent directories
             full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -136,6 +151,7 @@ class QueenCodeArchitect:
             
             # Write the file
             full_path.write_text(content, encoding='utf-8')
+            append_review(self.repo_path, "write_allowed", path=file_path)
             
             self.created_files.append({
                 'timestamp': datetime.now().isoformat(),
@@ -237,11 +253,17 @@ class QueenCodeArchitect:
                 logger.error(f"Edit rejected: {result['reason']}")
                 return False
                 
+            previous = self.read_file(file_path)
+            try:
+                full_path = inspect_write(self.repo_path, file_path, result["new_content"], previous)
+            except SelfRepairBlocked as blocked:
+                append_review(self.repo_path, "write_refused", path=file_path, reason=blocked.reason)
+                logger.error("Self-repair guard refused edit to %s: %s", file_path, blocked.reason)
+                return False
             if backup:
                 self._create_backup(file_path)
-                
-            full_path = self._resolve_path(file_path)
             full_path.write_text(result['new_content'], encoding='utf-8')
+            append_review(self.repo_path, "write_allowed", path=file_path)
             
             self.active_modifications.append({
                 'timestamp': datetime.now().isoformat(),
@@ -507,6 +529,13 @@ def get_{name.lower()}_neuron():
             'error': None
         }
         
+        try:
+            inspect_execution(code)
+        except SelfRepairBlocked as blocked:
+            append_review(self.repo_path, "execution_refused", reason=blocked.reason)
+            result['error'] = blocked.reason
+            return result
+
         # Validate syntax first
         if not self._validate_python_syntax(code):
             result['error'] = 'Syntax error in code'
