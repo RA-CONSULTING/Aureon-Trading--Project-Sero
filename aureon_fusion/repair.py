@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 
 _UPSTREAM = Path(__file__).resolve().parents[1] / "aureon-os-upstream"
+if not (_UPSTREAM / "aureon" / "autonomous" / "aureon_sandbox_self_repair.py").is_file():
+    _UPSTREAM = Path(__file__).resolve().parents[1]
 if str(_UPSTREAM) not in sys.path:
     sys.path.insert(0, str(_UPSTREAM))
 

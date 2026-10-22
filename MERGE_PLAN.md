@@ -41,3 +41,22 @@ These two repositories were not cloned and none of their files were copied.
 `Gary-leckey/King-Skill-Extended-Cognition-Architecture-for-Scientific-LLM-Agents` is a fork of `Agnuxo1/King-Skill-Extended-Cognition-Architecture-for-Scientific-LLM-Agents`. GitHub reports no licence. Last pushed 11 April 2026. This tree does not import it, submodule it, or pin it. It stays an external program. Aureon OS does not call it. A later experiment could shell out to a checkout the operator supplies, but this tree cannot vendor the source while it has no licence.
 
 `Gary-leckey/Taorice` is a fork of `lindseyhhorton-ui/Taorice` ("Myth Tech for Flamecare"). Last pushed 1 March 2026. This tree does not import it, submodule it, or pin it. It stays an external program. Aureon OS does not call it. A later surface could depend on a released package the operator chooses. It is not part of this merge.
+
+## Public snapshot for RA-CONSULTING/Aureon-OS
+
+The pull request is one commit on top of public `main`. The private repository's git history is not in that commit. Public `main` stays the base because it is the newer OS tree (about 13,676 files versus 10,105 in the nested `aureon-os-upstream` snapshot). The nested snapshot is not copied over it.
+
+Added from the unified workspace, after dropping personal data, job-hunt files, private PDFs and office papers, `.env` files, nested `.git` directories, and the bulky Nexus reel:
+
+- `aureon_fusion/`, `aureon_radar/`, `aureon-trading/`, `unified_margin_trader/`, `organism/`
+- `sources/NEXUS-LIVE-FEED-/` and `sources/AUREON-QUANTUM-TRADING-SYSTEM-AQTS-/`
+- the self-repair denylist and the tests that lock it
+- the Windows Orca text-stream fix on the current Orca entrypoints
+
+Left out of the snapshot: `R&A_CONSULTING_Package/` (outreach, grants, target lists), `kimi-group-chat/`, `research/`, `zenodo_papers/`, `academia_downloads/`, `substack_output/`, `full-workspace-backup/`, and `*.pdf`, `*.docx`, `*.pptx`. Public `main` already contains research PDFs under `Antarctic research/`. This snapshot does not add those, and it does not delete files that were already public.
+
+`sources/Aureon-Trading--Project-Sero/organism/public_market.py` is the read-only market adapter the OS composer already calls. It is the same file as `organism/public_market.py`.
+
+The fusion organs are the working runtime for the pieces that do not run when they still point at a nested `aureon-os-upstream` checkout or a personal Windows profile. `aureon_fusion/paths.py` is the spine: if `aureon-os-upstream/aureon` exists it stays the import root (private workspace); otherwise this repository is the OS (public tree). The read-only write fence still applies only to a directory named `aureon-os-upstream`. Live trading stays off. The self-repair denylist is unchanged.
+
+Credentials found by the scan were removed from the tree. The file and type of each one are in `ROTATE_KEYS.md`. Rotate those before merge. The values are not in this plan. Live trading stays off, and the self-repair denylist is unchanged.

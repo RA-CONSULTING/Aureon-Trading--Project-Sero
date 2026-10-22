@@ -145,8 +145,14 @@ _UPSTREAM_NAME = "aureon-os-upstream"
 
 
 def _is_under_upstream(path_str: str) -> bool:
-    """Path-resolved test: does this (workspace-relative or absolute) path
-    land inside aureon-os-upstream? Uncertain → True (fail-closed)."""
+    """Path-resolved test: does this path land inside the nested
+    aureon-os-upstream checkout? Uncertain → True (fail-closed).
+
+    The unified public tree has no nested checkout. The read-only fence
+    applies only to that directory, not to the whole repository. Credential
+    and live-trading writes stay refused by the sensitive-path check and by
+    the self-repair denylist.
+    """
     try:
         from pathlib import Path
         p = Path(str(path_str))
@@ -154,7 +160,7 @@ def _is_under_upstream(path_str: str) -> bool:
             p = (WORKSPACE / str(path_str)).resolve()
         else:
             p = p.resolve()
-        return str(p).startswith(str(AUREON_UPSTREAM.resolve()))
+        return "aureon-os-upstream" in p.parts
     except Exception:
         return True
 

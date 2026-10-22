@@ -44,19 +44,30 @@ def _sha256(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def os_root(root: Path | None = None) -> Path:
+    """The Aureon OS tree. The fusion workspace nests it; the public repo is the OS."""
+
+    root = root or REPO_ROOT
+    nested = root / "aureon-os-upstream"
+    if (nested / "aureon" / "organism" / "repository_layers.py").is_file():
+        return nested
+    return root
+
+
 def capability_files() -> dict[str, dict[str, Any]]:
     """Presence of each wired capability. Does not read the network."""
 
     root = REPO_ROOT
+    upstream = os_root(root)
     specs = {
-        "operating": root / "aureon-os-upstream" / "aureon" / "organism" / "repository_layers.py",
-        "plant_atlas": root / "aureon-os-upstream" / "aureon" / "bio" / "plant_atlas" / "__init__.py",
+        "operating": upstream / "aureon" / "organism" / "repository_layers.py",
+        "plant_atlas": upstream / "aureon" / "bio" / "plant_atlas" / "__init__.py",
         "market": root / "organism" / "public_market.py",
         "field": root / "sources" / "NEXUS-LIVE-FEED-" / "organism" / "public_field.py",
-        "quackers_strategy": root / "aureon-os-upstream" / "aureon" / "strategies" / "quantum_quackers.py",
+        "quackers_strategy": upstream / "aureon" / "strategies" / "quantum_quackers.py",
         "aqts": root / "sources" / "AUREON-QUANTUM-TRADING-SYSTEM-AQTS-" / "README.md",
         "nexus_feed": root / "sources" / "NEXUS-LIVE-FEED-" / "src" / "server.js",
-        "self_repair": root / "aureon-os-upstream" / "aureon" / "autonomous" / "aureon_sandbox_self_repair.py",
+        "self_repair": upstream / "aureon" / "autonomous" / "aureon_sandbox_self_repair.py",
     }
     return {
         name: {"path": str(path.relative_to(root)), "present": path.is_file(), "sha256": _sha256(path)}
@@ -75,7 +86,7 @@ def join_layers(
     add an override.
     """
 
-    upstream = REPO_ROOT / "aureon-os-upstream"
+    upstream = os_root(REPO_ROOT)
     if str(upstream) not in sys.path:
         sys.path.insert(0, str(upstream))
     from aureon.organism.repository_layers import compose_repository_layers

@@ -3,11 +3,20 @@
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
-ORCA_FILES = (
-    ROOT / "aureon-os-upstream" / "aureon" / "bots" / "orca_complete_kill_cycle.py",
-    ROOT / "aureon_radar" / "bots" / "orca_complete_kill_cycle.py",
-)
+def _orca_files() -> list[Path]:
+    here = Path(__file__).resolve()
+    roots = [here.parents[1], here.parents[2]]
+    found: list[Path] = []
+    for root in roots:
+        for relative in (
+            Path("aureon") / "bots" / "orca_complete_kill_cycle.py",
+            Path("aureon-os-upstream") / "aureon" / "bots" / "orca_complete_kill_cycle.py",
+            Path("aureon_radar") / "bots" / "orca_complete_kill_cycle.py",
+        ):
+            path = root / relative
+            if path.is_file() and path not in found:
+                found.append(path)
+    return found
 
 
 def _main_block(path: Path) -> str:
@@ -18,7 +27,9 @@ def _main_block(path: Path) -> str:
 
 
 def test_orca_main_does_not_wrap_stdout_buffer() -> None:
-    for path in ORCA_FILES:
+    files = _orca_files()
+    assert files, "no Orca entrypoint found"
+    for path in files:
         block = _main_block(path)
         assert "codecs.getwriter" not in block
         assert "sys.stdout.buffer" not in block
