@@ -11,7 +11,6 @@ import inspect
 import json
 import logging
 import math
-import os
 import re
 import sys
 import time
@@ -22,18 +21,15 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import requests
 
 # ── paths ──────────────────────────────────────────────────────────────────
-WORKSPACE = Path(os.environ.get(
-    "SERO_WORKSPACE",
-    r"C:\Users\user\.kimi_openclaw\workspace",
-))
+from aureon_fusion.paths import AUREON_UPSTREAM, FUSION_STATE, WORKSPACE
+
 RADAR_DIR = WORKSPACE / "aureon_radar"
 ADAPTERS_DIR = RADAR_DIR / "exchange_adapters"
-UPSTREAM_DIR = WORKSPACE / "aureon-os-upstream"
-FUSION_STATE = WORKSPACE / "aureon_fusion" / "state"
+UPSTREAM_DIR = AUREON_UPSTREAM
 BACKTEST_DIR = FUSION_STATE / "backtest"
 
 for _extra in (str(RADAR_DIR), str(ADAPTERS_DIR), str(UPSTREAM_DIR)):
-    if _extra not in sys.path:
+    if Path(_extra).is_dir() and _extra not in sys.path:
         sys.path.insert(0, _extra)
 
 logger = logging.getLogger("aureon_fusion.backtest_engine")

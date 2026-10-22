@@ -1,0 +1,37 @@
+# Local fusion status service. No cloud account, no database, no live trading.
+# Start only after exporting a token of at least 16 characters:
+#   export AUREON_FUSION_API_TOKEN='replace-with-a-long-random-token'
+#   docker compose up --build
+services:
+  fusion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aureon-fusion:local
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      AUREON_FUSION_API_TOKEN: ${AUREON_FUSION_API_TOKEN:?set AUREON_FUSION_API_TOKEN}
+      AUREON_FUSION_BIND: 0.0.0.0
+      AUREON_FUSION_PORT: "8765"
+      AUREON_FUSION_RATE_LIMIT: ${AUREON_FUSION_RATE_LIMIT:-60}
+      AUREON_FUSION_CACHE_TTL_S: ${AUREON_FUSION_CACHE_TTL_S:-5}
+      AUREON_LIVE_TRADING: "0"
+      AUREON_FUSION_ARM_LIVE: ""
+      BINANCE_TESTNET: "true"
+      PAPER_MODE: "true"
+      AUREON_ERROR_WEBHOOK_URL: ${AUREON_ERROR_WEBHOOK_URL:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/healthz', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"

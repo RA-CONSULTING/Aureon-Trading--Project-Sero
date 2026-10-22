@@ -73,7 +73,7 @@ try:  # canonical workspace root (import, never modify)
     from aureon_fusion.paths import WORKSPACE, FUSION_STATE
 except Exception:  # pragma: no cover - direct-file execution fallback
     WORKSPACE = Path(os.environ.get(
-        "SERO_WORKSPACE", r"C:\Users\user\.kimi_openclaw\workspace"))
+        "SERO_WORKSPACE", str(Path(__file__).resolve().parents[1])))
     FUSION_STATE = WORKSPACE / "aureon_fusion" / "state"
 
 PHI = (1.0 + math.sqrt(5.0)) / 2.0

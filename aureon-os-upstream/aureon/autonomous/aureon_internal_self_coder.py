@@ -676,10 +676,39 @@ def _apply_approved_patch(
     patch_text: str,
     test_commands: Sequence[Sequence[str]],
 ) -> dict[str, Any]:
-    """Apply an approved, validated unified diff and run bounded offline checks."""
+    """Apply an approved, validated unified diff and run bounded offline checks.
+
+    AUREON_CODE_AUTO_APPROVE does not cover protected paths. The denylist is
+    checked before git apply, and a refused patch is flagged for human review.
+    """
 
     repo_root = Path(root).resolve()
     _repo_relative(target_path)
+    from aureon.autonomous.self_repair_guard import append_review, block_reason_for_patch
+
+    protected = block_reason_for_patch(repo_root, patch_text, [target_path])
+    if protected:
+        append_review(
+            repo_root,
+            "human_review_required",
+            reason=protected,
+            path=target_path,
+            human_review=True,
+            auto_approve_ignored=True,
+        )
+        return {
+            "ok": False,
+            "applied": False,
+            "human_review": True,
+            "reason": protected,
+            "stage": "protected_denylist",
+            "target_path": target_path,
+            "git_apply_check_ok": False,
+            "git_apply_ok": False,
+            "tests_executed": False,
+            "test_results": [],
+            "all_tests_ok": False,
+        }
     # Ensure the patch ends with exactly one newline so git apply accepts it.
     normalized_patch = patch_text.rstrip("\n") + "\n" if patch_text else patch_text
     with tempfile.NamedTemporaryFile(
@@ -852,19 +881,17 @@ def run_autonomous_self_coding(
     brain_resolver = resolver or OllamaSwitchboardBrainResolver()
     transport_preflight = _require_local_transport(brain_resolver)
     ledger = DurableInternalWorkLedger(ledger_file)
-    # Local-only self-coding uses the 9-role internal coding workforce rather
-    # than the 41-role agent company fabric, because the agent company fabric
-    # requires an authenticated truth-authority bundle and 41 provisioned lanes
-    # that are not available in a zero-manual-bootstrap configuration.
+    # The patch loop accepts only the 41-role company fabric. The local
+    # resolver provisions those lanes. It does not grant tools or orders.
     try:
-        workforce = ledger.bind_workforce(
+        workforce = ledger.bind_agent_company_workforce(
             brain_resolver,
             thought_path=selected_thought_path,
         )
     except WorkforceHold as exc:
         if str(exc) == "prior_work_receipt_brain_binding_invalid":
             ledger.reset()
-            workforce = ledger.bind_workforce(
+            workforce = ledger.bind_agent_company_workforce(
                 brain_resolver,
                 thought_path=selected_thought_path,
             )
@@ -963,9 +990,11 @@ def run_autonomous_self_coding(
             "status": initial_workforce_report.get("status"),
             "brain_fabric_ready": initial_workforce_report.get("brain_fabric_ready"),
             "truth_gate_enforced": initial_workforce_report.get("truth_gate_enforced"),
-            "agent_count": initial_workforce_report.get("agent_count"),
+            "agent_count": initial_workforce_report.get("agent_brain_count"),
+            "agent_brain_count": initial_workforce_report.get("agent_brain_count"),
             "process_brain_count": initial_workforce_report.get("process_brain_count"),
-            "passport_count": len(initial_workforce_report.get("passports", [])),
+            "passport_count": len(initial_workforce_report.get("passports") or ()),
+            "brain_passport_count": len(initial_workforce_report.get("passports") or ()),
             "tools_enabled": False,
         },
         "work_ledger": ledger.status(),

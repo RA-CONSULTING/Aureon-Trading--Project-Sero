@@ -1,0 +1,112 @@
+{
+  "organs": {
+    "unified_market_trader": {
+      "mode": "continuous (provider analysis; order and exchange mutation holds)"
+    },
+    "operator_gateway": {
+      "mode": "continuous (existing local operator gateway on port 8080)"
+    },
+    "frontend_vite": {
+      "mode": "continuous (local frontend on port 5173)"
+    },
+    "unified_market_status": {
+      "mode": "continuous (read-only terminal status on port 8791)"
+    },
+    "market_stream_feeder": {
+      "mode": "continuous (public Binance websocket and Kraken market snapshots)"
+    },
+    "real_time_data_feeder": {
+      "mode": "continuous (60s cycle)"
+    },
+    "schumann_real_daemon": {
+      "mode": "continuous (real-data sensor)"
+    },
+    "planetary_monitor_daemon": {
+      "mode": "continuous (poll loop)"
+    },
+    "solar_system_collector": {
+      "mode": "continuous (300s collection)"
+    },
+    "sero_space_weather": {
+      "mode": "continuous (NOAA/SWPC daemon loop)"
+    },
+    "sero_autonomous_expansion": {
+      "mode": "continuous"
+    },
+    "aureon_radar_bridge": {
+      "mode": "signal/dry-run"
+    },
+    "aureon_radar_suite": {
+      "mode": "live trading (capital-gated)"
+    },
+    "mind_thought_action_hub": {
+      "mode": "continuous (aiohttp dashboard :13002)"
+    },
+    "self_questioning_ai": {
+      "mode": "continuous (600s questioning cycle)"
+    },
+    "hnc_core": {
+      "mode": "continuous (60s Master-Equation step)"
+    },
+    "soul_protection_daemon": {
+      "mode": "continuous (5s protection cycle)"
+    },
+    "mind_neural_canvas": {
+      "mode": "continuous (aiohttp neural canvas :13012)"
+    },
+    "queen_mind": {
+      "mode": "continuous (120s metacognitive cycle)"
+    },
+    "heartbeat_daemon": {
+      "mode": "continuous (300s HEARTBEAT cycle + solar merge + real-data feeds)"
+    },
+    "grand_wheel": {
+      "mode": "continuous (60s happiness wheel)"
+    },
+    "knowledge_pulse_feeder": {
+      "mode": "continuous (60s knowledge pulse)"
+    },
+    "trading_progress_monitor": {
+      "mode": "continuous (30s trading progress)"
+    },
+    "_portfolio_writer_loop": {
+      "mode": "continuous (60s portfolio truth writer)"
+    },
+    "_temporal_refresh_loop": {
+      "mode": "continuous (120s temporal refresh + prophecy resolution)"
+    },
+    "_world_digest_loop": {
+      "mode": "continuous (600s world digest)"
+    },
+    "_harmonic_seed_loop": {
+      "mode": "continuous (2400s harmonic seed)"
+    },
+    "global_energy_aggregator": {
+      "mode": "continuous (300s global energy aggregator)"
+    },
+    "orca_unified_kill_chain": {
+      "mode": "continuous (30s orca kill chain)"
+    },
+    "orca_command_center": {
+      "mode": "continuous (aiohttp orca dashboard :8888)"
+    },
+    "unity_supervisor": {
+      "mode": "continuous (30-60s fleet supervision)"
+    },
+    "flight_recorder": {
+      "mode": "continuous (per-faculty flight recorder)"
+    },
+    "bus_bridge": {
+      "mode": "continuous (thought-bus unity bridge)"
+    },
+    "assessment_snapshot_producer": {
+      "mode": "continuous (60s read-only assessment snapshots)"
+    },
+    "harmonic_affect_producer": {
+      "mode": "continuous (60s harmonic affect state)"
+    },
+    "hnc_live_daemon": {
+      "mode": "continuous (HNC live Λ(t) field)"
+    }
+  }
+}

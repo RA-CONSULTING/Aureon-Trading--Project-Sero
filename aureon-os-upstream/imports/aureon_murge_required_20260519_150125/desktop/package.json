@@ -1,0 +1,40 @@
+{
+  "name": "flameborn-desktop-experiment",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FlameBorn Academy desktop-first experiment",
+  "author": "flAmeBorn Academy",
+  "main": "main.cjs",
+  "scripts": {
+    "unavailable": "node -e process.exitCode=2",
+    "start": "npm run unavailable -- start",
+    "smoke": "npm run unavailable -- smoke",
+    "pack:dir": "npm run unavailable -- pack:dir",
+    "dist:linux": "npm run unavailable -- dist:linux"
+  },
+  "devDependencies": {
+    "electron": "^36.3.2",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.flameborn.academy.desktop",
+    "productName": "FlameBorn Academy",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "runtime-manager.cjs",
+      "smoke-check.cjs",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": [
+        "dir",
+        "AppImage"
+      ],
+      "category": "Development"
+    }
+  }
+}
