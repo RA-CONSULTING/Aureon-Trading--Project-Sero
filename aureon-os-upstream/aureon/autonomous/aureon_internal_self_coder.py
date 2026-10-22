@@ -676,10 +676,39 @@ def _apply_approved_patch(
     patch_text: str,
     test_commands: Sequence[Sequence[str]],
 ) -> dict[str, Any]:
-    """Apply an approved, validated unified diff and run bounded offline checks."""
+    """Apply an approved, validated unified diff and run bounded offline checks.
+
+    AUREON_CODE_AUTO_APPROVE does not cover protected paths. The denylist is
+    checked before git apply, and a refused patch is flagged for human review.
+    """
 
     repo_root = Path(root).resolve()
     _repo_relative(target_path)
+    from aureon.autonomous.self_repair_guard import append_review, block_reason_for_patch
+
+    protected = block_reason_for_patch(repo_root, patch_text, [target_path])
+    if protected:
+        append_review(
+            repo_root,
+            "human_review_required",
+            reason=protected,
+            path=target_path,
+            human_review=True,
+            auto_approve_ignored=True,
+        )
+        return {
+            "ok": False,
+            "applied": False,
+            "human_review": True,
+            "reason": protected,
+            "stage": "protected_denylist",
+            "target_path": target_path,
+            "git_apply_check_ok": False,
+            "git_apply_ok": False,
+            "tests_executed": False,
+            "test_results": [],
+            "all_tests_ok": False,
+        }
     # Ensure the patch ends with exactly one newline so git apply accepts it.
     normalized_patch = patch_text.rstrip("\n") + "\n" if patch_text else patch_text
     with tempfile.NamedTemporaryFile(

@@ -4,7 +4,10 @@
 
 The project needs pytest tests. The repair edits implementation files, reruns
 the tests, and commits on a local branch named aureon-self-repair/<timestamp>.
-Live trading stays off. Set AUREON_SELF_REPAIR_KILL=1 to stop it.
+It stays disabled unless AUREON_SELF_REPAIR_ENABLE=1 and the project has
+state/self_repair_config.json with {"enabled": true}. AUREON_SELF_REPAIR_KILL=1
+or a missing config stops it. Live-trading flags, evidence gates, position
+sizing, and credential files are refused before a patch is applied.
 """
 
 from __future__ import annotations

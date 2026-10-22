@@ -10,9 +10,12 @@ From the fusion tree the same command is:
 
     python -m aureon_fusion.repair --root /path/to/project
 
-It repairs the implementation the tests describe, including trading size and
-evidence-gate results. AUREON_SELF_REPAIR_KILL=1 is the operator stop and is
-off unless set. The repair does not rewrite the test file.
+It repairs a proved implementation bug, such as an off-by-one in a pure utility.
+It does not arm live trading, change an evidence gate, change position sizing,
+or write credential files. Those attempts are flagged for human review and are
+not applied. Repair stays disabled unless AUREON_SELF_REPAIR_ENABLE=1 and
+state/self_repair_config.json contains {"enabled": true}. AUREON_SELF_REPAIR_KILL=1
+or a missing config stops it. The repair does not rewrite the test file.
 """
 
 from __future__ import annotations
@@ -34,7 +37,8 @@ from typing import Any, Callable
 from aureon.autonomous.self_repair_guard import (
     SelfRepairBlocked,
     append_review,
-    kill_switch_engaged,
+    block_reason_for_write,
+    require_self_repair_enabled,
 )
 
 SCHEMA = "aureon.sandbox-self-repair.v2"
@@ -297,10 +301,31 @@ def _name_error_edit(root: Path, output: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _refuse_edit(root: Path, relative: str, old: str, new: str) -> str | None:
+    path = root / relative
+    try:
+        previous = path.read_text(encoding="utf-8") if path.is_file() else ""
+    except OSError:
+        return "credential_path"
+    if old not in previous:
+        return None
+    updated = previous.replace(old, new, 1)
+    return block_reason_for_write(relative, updated, previous)
+
+
 def _attempt(root: Path, output: str, architect: Any) -> dict[str, Any] | None:
     name_edit = _name_error_edit(root, output)
     if name_edit:
         relative, missing, replacement = name_edit
+        refused = _refuse_edit(root, relative, missing, replacement)
+        if refused:
+            return {
+                "path": relative,
+                "kind": "name_error",
+                "change": f"{missing} -> {replacement}",
+                "refused": refused,
+                "human_review": True,
+            }
         applied = architect.apply_edit(relative, missing, replacement, backup=True)
         if applied:
             return {"path": relative, "kind": "name_error", "change": f"{missing} -> {replacement}"}
@@ -320,6 +345,15 @@ def _attempt(root: Path, output: str, architect: Any) -> dict[str, Any] | None:
         if edit is None:
             continue
         old, new = edit
+        refused = _refuse_edit(root, relative, old, new)
+        if refused:
+            return {
+                "path": relative,
+                "kind": "implementation",
+                "change": f"{old} -> {new}",
+                "refused": refused,
+                "human_review": True,
+            }
         applied = architect.apply_edit(relative, old, new, backup=True)
         if not applied:
             continue
@@ -340,9 +374,11 @@ def repair_sandbox(root: Path) -> dict[str, Any]:
         "status": "held",
         "repairs": [],
     }
-    if kill_switch_engaged():
-        append_review(root, "repair_refused", reason="kill_switch")
-        report["reason"] = "kill_switch"
+    try:
+        require_self_repair_enabled(root)
+    except SelfRepairBlocked as exc:
+        append_review(root, "repair_refused", reason=exc.reason, human_review=False)
+        report["reason"] = exc.reason
         return report
     branch = _prepare_branch(root)
     report["branch"] = branch
@@ -367,8 +403,18 @@ def repair_sandbox(root: Path) -> dict[str, Any]:
             append_review(root, "repair_held", reason=report["reason"], branch=branch)
             return report
         if attempt.get("refused"):
+            report["status"] = "human_review"
+            report["human_review"] = True
             report["reason"] = attempt["refused"]
-            append_review(root, "repair_held", reason=report["reason"], branch=branch, path=attempt.get("test", ""))
+            report["path"] = attempt.get("path", "")
+            append_review(
+                root,
+                "human_review_required",
+                reason=report["reason"],
+                branch=branch,
+                path=attempt.get("path", ""),
+                human_review=True,
+            )
             return report
         after = _pytest(root)
         output = (after.stdout or "") + "\n" + (after.stderr or "")

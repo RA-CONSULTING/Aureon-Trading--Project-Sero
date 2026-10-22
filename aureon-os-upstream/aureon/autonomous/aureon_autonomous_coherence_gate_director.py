@@ -29,6 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Tuple
 
+from aureon.autonomous.self_repair_guard import append_review, block_reason_for_patch
 from aureon.autonomous.aureon_autonomous_self_fix_director import (
     BLOCKED_PATH_NEEDLES,
     DEFAULT_PATCH_ALLOWLIST,
@@ -379,6 +380,24 @@ class CoherenceGateDirector:
         proposal_id = approval["proposal_id"]
         target_files = approval["target_files"]
         patch_text = str(proposal.get("patch_text") or "")
+        protected = block_reason_for_patch(self.root, patch_text, target_files)
+        if protected:
+            append_review(
+                self.root,
+                "human_review_required",
+                reason=protected,
+                path=",".join(target_files),
+                human_review=True,
+                auto_approve_ignored=True,
+            )
+            return self._build_report(
+                status="human_review",
+                ok=False,
+                blocked_reason=protected,
+                next_action="Human review required. The patch was not applied.",
+                proposal=approval,
+                cocoon={"proposal_id": proposal_id, "human_review": True, "protected_reason": protected, "backups": []},
+            )
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         backup_root = self.backup_dir / proposal_id / timestamp
 
@@ -633,6 +652,7 @@ class CoherenceGateDirector:
             "proposals": proposals,
             "cocoon": cocoon,
             "file_hashes": file_hashes,
+            "human_review": status == "human_review",
             "blocked_reason": blocked_reason,
             "next_action": next_action,
             "allowlist": self.allowlist,

@@ -10,17 +10,19 @@ Commands below were run in this workspace on 22 October 2026. A result is record
 | Command | `python -m aureon_fusion.repair --root /tmp/plug-demo` |
 | Result | **pass** |
 
-The repair changes the implementation the tests name. That includes trading size and evidence gates. The Queen writer can also write `AUREON_LIVE_TRADING=1`, `may_act = True`, `gate = "RELEASE"`, and a local `.env`. `AUREON_SELF_REPAIR_KILL=1` is the operator stop and is off unless set.
+Self-repair stays disabled unless `AUREON_SELF_REPAIR_ENABLE=1` and the project has `state/self_repair_config.json` with `{"enabled": true}`. `AUREON_SELF_REPAIR_KILL=1` or a missing config stops it.
 
-A desk module that returned `0` and `"HOLD"` was repaired to `return 1` and `return "RELEASE"` because `position_qty(100) == 1` and `evidence_gate() == "RELEASE"`. The test file was not edited. An earlier command-line run repaired `return a - b` to `return a + b` and `return "off"` to `return "on"`, commit `aea0464` on `aureon-self-repair/20261022174430`.
+The denylist is checked before a write or a patch is applied. Refused attempts are flagged `human_review` and are not written. The denylist covers `AUREON_LIVE_TRADING` and other live or real-money flags, evidence-gate and HOLD/RELEASE logic, position sizing, and `.env` or credential files. `AUREON_CODE_AUTO_APPROVE=1` does not approve or apply those paths.
+
+The repair that ran here is an off-by-one in a pure utility: `band_offset` returned `1` and the test required `0`. The test file was not edited. A desk module whose tests wanted `position_qty` changed from `0` to `1` and `evidence_gate` changed from `HOLD` to `RELEASE` was not modified. That run returned `human_review`.
 
 ```
-cd aureon-os-upstream && PYTHONPATH=. python3 -m pytest tests/test_sandbox_self_repair.py -q --tb=line
-.......                                                                  [100%]
-7 passed
+cd aureon-os-upstream && PYTHONPATH=. python3 -m pytest tests/test_sandbox_self_repair.py tests/test_protected_patch_denylist.py tests/test_safe_code_control.py -q --tb=line
+...............                                                          [100%]
+15 passed
 ```
 
-`aureon/autonomous/aureon_internal_self_coder.py` remains the model-backed coder. With `AUREON_CODE_AUTO_APPROVE=1` it applies an approved patch and runs the checks. Its senior release review still raises `release_review_entrypoint_disabled_proposal_only` until a durable proposal vault exists. The command above is the repair that runs without that vault.
+`aureon/autonomous/aureon_internal_self_coder.py` still applies an approved patch only after the denylist check. With `AUREON_CODE_AUTO_APPROVE=1`, a patch that sets `AUREON_LIVE_TRADING`, writes `.env`, flips HOLD to RELEASE, or changes `position_qty` returns `protected_denylist` before `git apply`. A patch that changes `band_offset` from `return 1` to `return 0` still applies. The senior release review still raises `release_review_entrypoint_disabled_proposal_only` until a durable proposal vault exists.
 
 ## Fusion status and gates
 
