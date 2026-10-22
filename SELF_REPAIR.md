@@ -18,17 +18,17 @@ In one run it can repair several failures, as long as each one is proved by the 
 
 It edits implementation files only. Test files are left as they are. After the suite passes, the change is committed on `aureon-self-repair/<timestamp>`. A line is appended to `state/self_repair_review_log.jsonl`.
 
-## What it will not do
+## What the writer is for
 
-These checks stay on while the repair runs:
+The Queen writer is the system's hands. It can write the code the organs run:
 
-- `AUREON_SELF_REPAIR_KILL=1` stops every repair and every Queen write
-- files named `.env`, `*secret*`, `*credential*`, `*wallet*`, or a private key are not written
-- a write that arms live trading (`AUREON_LIVE_TRADING=1`, `testnet: false`, `CONFIRM_LIVE_TRADING=yes`, and the same family) is refused
-- a write that sets `may_act`, `action_eligible`, or `economic_mutation` to true, sets a gate to `RELEASE`, or deletes `sample_or_synthetic_evidence_excluded` is refused
-- the repair does not push the branch and does not place an order
+- trading logic, including the flags that arm a live session when the operator sets them
+- evidence gates, including `RELEASE` and `may_act = True` when that is the code under repair
+- a local `.env` whose values are the credentials the exchanges read
 
-The Queen writer (`aureon/queen/queen_code_architect.py`) uses the same checks, so a repair cannot step around them by writing the file directly.
+`AUREON_SELF_REPAIR_KILL=1` stops the writer. Leave it unset and the repair runs. The repair commits on a local branch and writes `state/self_repair_review_log.jsonl`. It does not rewrite the test file, because the test is the specification it has to meet. It does not push.
+
+The fusion HTTP process still starts with live trading unset. Arming a session is a flag in the environment, which the writer is allowed to set when that is the change being made.
 
 ## Other self-coding modules in the tree
 

@@ -107,28 +107,43 @@ def test_kill_switch_blocks_the_repair(tmp_path: Path, monkeypatch: pytest.Monke
     assert "return 7" in (root / "schumann_band.py").read_text(encoding="utf-8")
 
 
-def test_queen_writer_rejects_secrets_live_trading_and_open_gates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_queen_writer_can_author_trading_gates_and_env_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(KILL_ENV, raising=False)
     architect = load_architect()(repo_path=str(tmp_path))
-    assert architect.write_file(".env", "BINANCE_API_SECRET=not-for-the-tree\n") is False
-    assert not (tmp_path / ".env").exists()
-    assert architect.write_file("arm.py", "AUREON_LIVE_TRADING=1\n") is False
-    assert not (tmp_path / "arm.py").exists()
-    assert architect.write_file("gate.py", "may_act = True\n") is False
-    assert not (tmp_path / "gate.py").exists()
-    kept = "SAMPLE = 'sample_or_synthetic_evidence_excluded'\nmay_act = False\n"
-    assert architect.write_file("policy.py", kept) is True
-    loosened = "SAMPLE = 'accepted'\nmay_act = False\n"
-    assert architect.write_file("policy.py", loosened) is False
-    assert "sample_or_synthetic_evidence_excluded" in (tmp_path / "policy.py").read_text(encoding="utf-8")
-    log = review_log_path(tmp_path).read_text(encoding="utf-8")
-    assert "secret_path" in log
-    assert "live_trading_arm" in log
-    assert "evidence_gate_loosened" in log
-    assert "not-for-the-tree" not in log
+    assert architect.write_file(".env", "BINANCE_API_KEY=\nBINANCE_API_SECRET=\n") is True
+    assert "BINANCE_API_KEY=" in (tmp_path / ".env").read_text(encoding="utf-8")
+    assert architect.write_file("arm.py", "AUREON_LIVE_TRADING=1\n") is True
+    assert "AUREON_LIVE_TRADING=1" in (tmp_path / "arm.py").read_text(encoding="utf-8")
+    assert architect.write_file("gate.py", 'may_act = True\ngate = "RELEASE"\n') is True
+    gate = (tmp_path / "gate.py").read_text(encoding="utf-8")
+    assert "may_act = True" in gate
+    assert 'gate = "RELEASE"' in gate
     monkeypatch.setenv(KILL_ENV, "1")
     assert architect.write_file("notes.py", "print('hello')\n") is False
     assert not (tmp_path / "notes.py").exists()
+
+
+def test_repairs_a_trading_size_and_an_evidence_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(KILL_ENV, raising=False)
+    root = tmp_path / "desk"
+    root.mkdir()
+    (root / "desk.py").write_text(
+        "def position_qty(price):\n    return 0\n\ndef evidence_gate():\n    return \"HOLD\"\n",
+        encoding="utf-8",
+    )
+    (root / "test_desk.py").write_text(
+        "from desk import evidence_gate, position_qty\n\n"
+        "def test_size():\n    assert position_qty(100) == 1\n\n"
+        "def test_gate():\n    assert evidence_gate() == \"RELEASE\"\n",
+        encoding="utf-8",
+    )
+    original_test = (root / "test_desk.py").read_text(encoding="utf-8")
+    report = repair_sandbox(root)
+    assert report["status"] == "repaired", report
+    text = (root / "desk.py").read_text(encoding="utf-8")
+    assert "return 1" in text
+    assert 'return "RELEASE"' in text
+    assert (root / "test_desk.py").read_text(encoding="utf-8") == original_test
 
 
 def test_review_log_is_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

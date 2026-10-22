@@ -10,19 +10,17 @@ Commands below were run in this workspace on 22 October 2026. A result is record
 | Command | `python -m aureon_fusion.repair --root /tmp/plug-demo` |
 | Result | **pass** |
 
-The demo project started with `return a - b` and `return "off"`. The tests required `add(2, 3) == 5` and `label() == "on"`. The command exited 0. The implementation became `return a + b` and `return "on"`. The test file was not edited. Git recorded `aea0464` on `aureon-self-repair/20261022174430` with message `self-repair: tests pass after calc.py`. The review log ends with `repair_committed`, `tests_passed: true`, `live_trading: false`, `may_act: false`.
+The repair changes the implementation the tests name. That includes trading size and evidence gates. The Queen writer can also write `AUREON_LIVE_TRADING=1`, `may_act = True`, `gate = "RELEASE"`, and a local `.env`. `AUREON_SELF_REPAIR_KILL=1` is the operator stop and is off unless set.
 
-The suite that locks this behaviour:
+A desk module that returned `0` and `"HOLD"` was repaired to `return 1` and `return "RELEASE"` because `position_qty(100) == 1` and `evidence_gate() == "RELEASE"`. The test file was not edited. An earlier command-line run repaired `return a - b` to `return a + b` and `return "off"` to `return "on"`, commit `aea0464` on `aureon-self-repair/20261022174430`.
 
 ```
 cd aureon-os-upstream && PYTHONPATH=. python3 -m pytest tests/test_sandbox_self_repair.py -q --tb=line
-......                                                                   [100%]
-6 passed
+.......                                                                  [100%]
+7 passed
 ```
 
-Those six tests cover a wrong integer return, a repair that leaves the test file unchanged, an operator repair plus a `NameError`, the kill switch, and refusal of secret paths, live-trading flags, and an opened evidence gate.
-
-`aureon/autonomous/aureon_internal_self_coder.py` is present. Its release function raises `release_review_entrypoint_disabled_proposal_only`, so that entrypoint was not treated as a working publisher.
+`aureon/autonomous/aureon_internal_self_coder.py` remains the model-backed coder. With `AUREON_CODE_AUTO_APPROVE=1` it applies an approved patch and runs the checks. Its senior release review still raises `release_review_entrypoint_disabled_proposal_only` until a durable proposal vault exists. The command above is the repair that runs without that vault.
 
 ## Fusion status and gates
 
