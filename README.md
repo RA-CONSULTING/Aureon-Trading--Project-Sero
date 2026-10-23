@@ -34,7 +34,8 @@ Legacy local folder names on an operator machine are intentionally left unchange
 | [`unified_margin_trader/`](unified_margin_trader/) | Unified trading components and their supplied tests |
 | [`aureon-os-upstream/`](aureon-os-upstream/) | Captured upstream Aureon source with its local modifications |
 | [`aureon-trading/`](aureon-trading/) | Additional trading, frontend, documentation, and deployment material |
-| Workspace-root scripts | Sero, HNC, orchestration, and supporting engines |
+| Workspace-root scripts | Sero, HNC, orchestration, and supporting engines that the organs launch by path |
+| [`archive/workspace-root/`](archive/workspace-root/) | Unreferenced root notes, one-off scripts, and captured JSON. Not part of the running fleet |
 
 Historical module descriptions and performance claims are retained as source
 material; this import does not independently validate those claims.
