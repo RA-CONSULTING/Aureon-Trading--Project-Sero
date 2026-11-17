@@ -26,3 +26,17 @@ deployment/google-cloud/**/*receipt*.json
 deployment/google-cloud/**/*readback*.json
 deployment/google-cloud/**/*progress*.json
 deployment/google-cloud/**/*plan*.json
+
+# Paper-mode fleet output. The organs rewrite these; they are not source.
+/logs/
+*.log
+.aureon_runtime/
+/pids/
+/hnc_daemon_logs/
+/unified_logs/
+/aureon_fusion/state/*.sqlite
+/aureon_fusion/state/*.sqlite-*
+/aureon_fusion/state/flight_record.jsonl
+/aureon_fusion/state/flight_health.json
+/aureon_fusion/state/api_cache/
+/aureon_fusion/state/grand_wheel/
